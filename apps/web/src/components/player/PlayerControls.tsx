@@ -1,0 +1,758 @@
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { Button } from '@/components/ui/button';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import {
+  Play,
+  Pause,
+  Volume2,
+  VolumeX,
+  Maximize,
+  Minimize,
+  Heart,
+  Clock,
+  ChevronLeft,
+  ChevronRight,
+  ChevronDown,
+  X,
+  RotateCcw,
+  SkipBack,
+  SkipForward,
+  Radio,
+  Calendar,
+} from 'lucide-react';
+import { type Program, formatTime } from '@/data/channels';
+import type { PlayerChannel } from '@/types/player';
+import { ChannelLogo } from '@/components/player/ChannelLogo';
+
+interface PlayerControlsProps {
+  channel: PlayerChannel;
+  currentProgram?: Program;
+  progress: number;
+  isPlaying: boolean;
+  isFavorite: boolean;
+  isFullscreen: boolean;
+  catchUpProgram: Program | null;
+  catchUpPosition: number;
+  onCatchUpProgramChange: (program: Program | null) => void;
+  onCatchUpPositionChange: (position: number) => void;
+  onTogglePlay: () => void;
+  onToggleFavorite: () => void;
+  onToggleFullscreen: () => void;
+  onPrevChannel: () => void;
+  onNextChannel: () => void;
+}
+
+const groupProgramsByDate = (programs: Program[]): Map<string, Program[]> => {
+  const grouped = new Map<string, Program[]>();
+  const now = new Date();
+
+  programs
+    .filter(p => p.endTime < now && p.hasCatchUp)
+    .forEach(program => {
+      const dateKey = program.startTime.toDateString();
+      if (!grouped.has(dateKey)) {
+        grouped.set(dateKey, []);
+      }
+      grouped.get(dateKey)!.push(program);
+    });
+
+  grouped.forEach((progs, key) => {
+    grouped.set(key, progs.sort((a, b) => b.startTime.getTime() - a.startTime.getTime()));
+  });
+
+  return grouped;
+};
+
+const formatFullDate = (date: Date): string => {
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+
+  if (date.toDateString() === today.toDateString()) return 'Today';
+  if (date.toDateString() === yesterday.toDateString()) return 'Yesterday';
+
+  return date.toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long' });
+};
+
+const formatDuration = (seconds: number): string => {
+  const hrs = Math.floor(seconds / 3600);
+  const mins = Math.floor((seconds % 3600) / 60);
+  const secs = Math.floor(seconds % 60);
+
+  if (hrs > 0) {
+    return `${hrs}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  }
+  return `${mins}:${secs.toString().padStart(2, '0')}`;
+};
+
+const PlayerControls = ({
+  channel,
+  currentProgram,
+  progress,
+  isPlaying,
+  isFavorite,
+  isFullscreen,
+  catchUpProgram,
+  catchUpPosition,
+  onCatchUpProgramChange,
+  onCatchUpPositionChange,
+  onTogglePlay,
+  onToggleFavorite,
+  onToggleFullscreen,
+  onPrevChannel,
+  onNextChannel,
+}: PlayerControlsProps) => {
+  const [showControls, setShowControls] = useState(true);
+  const [volume, setVolume] = useState(80);
+  const [isMuted, setIsMuted] = useState(false);
+  const [showVolumeSlider, setShowVolumeSlider] = useState(false);
+  const [showCatchUp, setShowCatchUp] = useState(false);
+  const [openDays, setOpenDays] = useState<string[]>([]);
+  const [hoverPosition, setHoverPosition] = useState<number | null>(null);
+  const [isSeeking, setIsSeeking] = useState(false);
+  const progressRef = useRef<HTMLDivElement>(null);
+
+  const catchUpDuration = catchUpProgram
+    ? (catchUpProgram.endTime.getTime() - catchUpProgram.startTime.getTime()) / 1000
+    : 0;
+
+  const catchUpByDate = groupProgramsByDate(channel.epg);
+  const sortedDates = Array.from(catchUpByDate.keys()).sort((a, b) =>
+    new Date(b).getTime() - new Date(a).getTime()
+  );
+
+  useEffect(() => {
+    if (!showControls || showCatchUp || isSeeking || !isFullscreen) return;
+
+    const timer = setTimeout(() => {
+      setShowControls(false);
+    }, 3000);
+
+    return () => clearTimeout(timer);
+  }, [showControls, showCatchUp, isSeeking, isFullscreen]);
+
+  const handleMouseMove = useCallback(() => {
+    setShowControls(true);
+  }, []);
+
+  const handleClick = useCallback(() => {
+    if (showCatchUp) {
+      setShowCatchUp(false);
+    } else {
+      setShowControls(prev => !prev);
+    }
+  }, [showCatchUp]);
+
+  const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newVolume = parseInt(e.target.value);
+    setVolume(newVolume);
+    setIsMuted(newVolume === 0);
+  };
+
+  const toggleMute = () => {
+    setIsMuted(!isMuted);
+  };
+
+  const toggleDay = (dateKey: string) => {
+    setOpenDays(prev =>
+      prev.includes(dateKey)
+        ? prev.filter(d => d !== dateKey)
+        : [...prev, dateKey]
+    );
+  };
+
+  const handleSelectProgram = (program: Program) => {
+    onCatchUpProgramChange(program);
+    onCatchUpPositionChange(0);
+    setShowCatchUp(false);
+  };
+
+  const goToLive = () => {
+    onCatchUpProgramChange(null);
+    onCatchUpPositionChange(0);
+  };
+
+  const handleSeek = (e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>) => {
+    if (!progressRef.current || !catchUpProgram) return;
+
+    const rect = progressRef.current.getBoundingClientRect();
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+    const x = clientX - rect.left;
+    const percentage = Math.max(0, Math.min(1, x / rect.width));
+    const newPosition = percentage * catchUpDuration;
+
+    onCatchUpPositionChange(newPosition);
+  };
+
+  const handleProgressHover = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!progressRef.current || !catchUpProgram) return;
+
+    const rect = progressRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const percentage = Math.max(0, Math.min(1, x / rect.width));
+    setHoverPosition(percentage * catchUpDuration);
+  };
+
+  const skipBackward = (seconds: number = 10) => {
+    onCatchUpPositionChange(Math.max(0, catchUpPosition - seconds));
+  };
+
+  const skipForward = (seconds: number = 10) => {
+    onCatchUpPositionChange(Math.min(catchUpDuration, catchUpPosition + seconds));
+  };
+
+  if (!isFullscreen) {
+    return (
+      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/95 via-black/60 to-transparent p-4 sm:p-6">
+        <div className="flex items-center gap-4 mb-4">
+          <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-2xl bg-background/10 backdrop-blur flex items-center justify-center">
+            <ChannelLogo logo={channel.logo} name={channel.name} size="lg" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-1">
+              <span className={`badge-live ${catchUpProgram ? 'bg-orange-500' : ''}`}>
+                {catchUpProgram ? 'CATCH-UP' : 'LIVE'}
+              </span>
+            </div>
+            <h3 className="text-lg sm:text-xl font-semibold text-foreground">{channel.name}</h3>
+            {(catchUpProgram || currentProgram) && (
+              <p className="text-muted-foreground text-sm">{catchUpProgram?.title || currentProgram?.title}</p>
+            )}
+          </div>
+        </div>
+
+        {catchUpProgram ? (
+          <div className="mb-4">
+            <div
+              ref={progressRef}
+              className="h-1.5 bg-secondary/50 rounded-full overflow-hidden cursor-pointer"
+              onClick={handleSeek}
+            >
+              <div
+                className="h-full bg-primary rounded-full transition-all"
+                style={{
+                  width: `${(catchUpPosition / catchUpDuration) * 100}%`
+                }}
+              />
+            </div>
+            <div className="flex justify-between mt-1 text-xs text-muted-foreground">
+              <span>{formatDuration(catchUpPosition)}</span>
+              <span>{formatDuration(catchUpDuration)}</span>
+            </div>
+          </div>
+        ) : (
+          <div className="h-1 bg-secondary/50 rounded-full mb-4 overflow-hidden">
+            <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${progress}%` }} />
+          </div>
+        )}
+
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="icon" className="hover:bg-secondary/50" onClick={onTogglePlay}>
+              {isPlaying ? <Pause className="w-6 h-6" /> : <Play className="w-6 h-6" />}
+            </Button>
+            <Button variant="ghost" size="icon" className="hover:bg-secondary/50" onClick={toggleMute}>
+              {isMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
+            </Button>
+            {catchUpProgram ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="ml-2 gap-1 text-xs"
+                onClick={goToLive}
+              >
+                <Play className="w-3 h-3" />
+                Live
+              </Button>
+            ) : currentProgram && (
+              <span className="text-sm text-muted-foreground ml-4">
+                {formatTime(currentProgram.startTime)} - {formatTime(currentProgram.endTime)}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-1">
+            <Button variant="ghost" size="icon" className="hover:bg-secondary/50" onClick={onToggleFavorite}>
+              <Heart className={`w-5 h-5 ${isFavorite ? 'fill-primary text-primary' : ''}`} />
+            </Button>
+            <Button variant="ghost" size="icon" className="hover:bg-secondary/50" onClick={() => setShowCatchUp(true)}>
+              <Clock className="w-5 h-5" />
+            </Button>
+            <Button variant="ghost" size="icon" className="hover:bg-secondary/50" onClick={onToggleFullscreen}>
+              <Maximize className="w-5 h-5" />
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="absolute inset-0 z-10"
+      onMouseMove={handleMouseMove}
+      onClick={handleClick}
+    >
+      {showCatchUp && (
+        <div
+          className="absolute right-0 top-0 bottom-0 w-full sm:w-96 z-30 bg-background/95 backdrop-blur-md border-l border-border/50"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex flex-col h-full">
+            <div className="flex items-center justify-between p-4 border-b border-border/50">
+              <div className="flex items-center gap-2">
+                <RotateCcw className="w-5 h-5 text-primary" />
+                <h3 className="text-lg font-semibold">Catch-up TV</h3>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="w-8 h-8"
+                onClick={() => setShowCatchUp(false)}
+              >
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+
+            {catchUpProgram && (
+              <div className="p-3 border-b border-border/50">
+                <Button
+                  className="w-full gap-2"
+                  variant="default"
+                  onClick={goToLive}
+                >
+                  <Radio className="w-4 h-4" />
+                  Back to Live
+                </Button>
+              </div>
+            )}
+
+            <ScrollArea className="flex-1">
+              <div className="p-3 space-y-2">
+                {sortedDates.length === 0 ? (
+                  <div className="text-center text-muted-foreground py-8">
+                    <Clock className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                    <p>No recordings available</p>
+                  </div>
+                ) : (
+                  sortedDates.map(dateKey => {
+                    const programs = catchUpByDate.get(dateKey) || [];
+                    const isOpen = openDays.includes(dateKey);
+
+                    return (
+                      <Collapsible
+                        key={dateKey}
+                        open={isOpen}
+                        onOpenChange={() => toggleDay(dateKey)}
+                      >
+                        <CollapsibleTrigger className="w-full">
+                          <div className="flex items-center justify-between p-3 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors">
+                            <div className="flex items-center gap-2">
+                              <Calendar className="w-4 h-4 text-muted-foreground" />
+                              <span className="font-medium text-sm">
+                                {formatFullDate(new Date(dateKey))}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-muted-foreground">
+                                {programs.length} programs
+                              </span>
+                              <ChevronDown className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                            </div>
+                          </div>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent>
+                          <div className="mt-1 space-y-1">
+                            {programs.map(program => (
+                              <button
+                                key={program.id}
+                                onClick={() => handleSelectProgram(program)}
+                                className={`w-full text-left p-3 rounded-lg transition-colors ${catchUpProgram?.id === program.id
+                                    ? 'bg-primary/20 border border-primary/50'
+                                    : 'bg-secondary/30 hover:bg-secondary/60'
+                                  }`}
+                              >
+                                <div className="flex items-start gap-3">
+                                  <div className="text-xs text-muted-foreground tabular-nums mt-0.5">
+                                    {formatTime(program.startTime)}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="font-medium text-sm truncate">{program.title}</p>
+                                  </div>
+                                  <Play className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                        </CollapsibleContent>
+                      </Collapsible>
+                    );
+                  })
+                )}
+              </div>
+            </ScrollArea>
+          </div>
+        </div>
+      )}
+
+      <div
+        className={`absolute top-0 left-0 right-0 bg-gradient-to-b from-black/90 via-black/50 to-transparent p-4 sm:p-6 transition-all duration-300 z-20 ${showControls && !showCatchUp ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4 pointer-events-none'
+          }`}
+      >
+        <div className="flex items-center justify-between max-w-screen-2xl mx-auto">
+          <div className="flex items-center gap-3 sm:gap-4">
+            <div className="w-10 h-10 sm:w-14 sm:h-14 rounded-xl bg-background/20 backdrop-blur-sm flex items-center justify-center">
+              <ChannelLogo logo={channel.logo} name={channel.name} size="lg" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <span className={`badge-live ${catchUpProgram ? 'bg-orange-500' : ''}`}>
+                  {catchUpProgram ? 'CATCH-UP' : 'LIVE'}
+                </span>
+              </div>
+              <h2 className="text-base sm:text-xl font-semibold text-foreground">{channel.name}</h2>
+            </div>
+          </div>
+
+          <Button
+            variant="ghost"
+            size="icon"
+            className="w-10 h-10 rounded-full bg-background/20 backdrop-blur-sm hover:bg-background/40"
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleFullscreen();
+            }}
+          >
+            <X className="w-5 h-5" />
+          </Button>
+        </div>
+      </div>
+
+      <div
+        className={`absolute inset-0 flex items-center justify-center gap-4 sm:gap-8 transition-all duration-300 ${showControls && !showCatchUp ? 'opacity-100' : 'opacity-0 pointer-events-none'
+          }`}
+      >
+        {catchUpProgram ? (
+          <>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-background/20 backdrop-blur-sm hover:bg-background/40 hover:scale-110 transition-transform flex flex-col items-center justify-center gap-0"
+              onClick={(e) => {
+                e.stopPropagation();
+                skipBackward(10);
+              }}
+            >
+              <SkipBack className="w-5 h-5 sm:w-6 sm:h-6" />
+              <span className="text-[9px] sm:text-[10px] font-semibold leading-none mt-0.5">10s</span>
+            </Button>
+
+            <Button
+              variant="ghost"
+              size="icon"
+              className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-primary/90 hover:bg-primary hover:scale-110 transition-transform"
+              onClick={(e) => {
+                e.stopPropagation();
+                onTogglePlay();
+              }}
+            >
+              {isPlaying ? (
+                <Pause className="w-8 h-8 sm:w-10 sm:h-10 text-primary-foreground" />
+              ) : (
+                <Play className="w-8 h-8 sm:w-10 sm:h-10 text-primary-foreground ml-1" />
+              )}
+            </Button>
+
+            <Button
+              variant="ghost"
+              size="icon"
+              className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-background/20 backdrop-blur-sm hover:bg-background/40 hover:scale-110 transition-transform flex flex-col items-center justify-center gap-0"
+              onClick={(e) => {
+                e.stopPropagation();
+                skipForward(10);
+              }}
+            >
+              <SkipForward className="w-5 h-5 sm:w-6 sm:h-6" />
+              <span className="text-[9px] sm:text-[10px] font-semibold leading-none mt-0.5">10s</span>
+            </Button>
+          </>
+        ) : (
+          <>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-background/20 backdrop-blur-sm hover:bg-background/40 hover:scale-110 transition-transform"
+              onClick={(e) => {
+                e.stopPropagation();
+                onPrevChannel();
+              }}
+            >
+              <ChevronLeft className="w-6 h-6 sm:w-8 sm:h-8" />
+            </Button>
+
+            <Button
+              variant="ghost"
+              size="icon"
+              className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-primary/90 hover:bg-primary hover:scale-110 transition-transform"
+              onClick={(e) => {
+                e.stopPropagation();
+                onTogglePlay();
+              }}
+            >
+              {isPlaying ? (
+                <Pause className="w-8 h-8 sm:w-10 sm:h-10 text-primary-foreground" />
+              ) : (
+                <Play className="w-8 h-8 sm:w-10 sm:h-10 text-primary-foreground ml-1" />
+              )}
+            </Button>
+
+            <Button
+              variant="ghost"
+              size="icon"
+              className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-background/20 backdrop-blur-sm hover:bg-background/40 hover:scale-110 transition-transform"
+              onClick={(e) => {
+                e.stopPropagation();
+                onNextChannel();
+              }}
+            >
+              <ChevronRight className="w-6 h-6 sm:w-8 sm:h-8" />
+            </Button>
+          </>
+        )}
+      </div>
+
+      <div
+        className={`absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent p-4 sm:p-6 transition-all duration-300 z-20 ${showControls && !showCatchUp ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'
+          }`}
+      >
+        <div className="max-w-screen-2xl mx-auto space-y-3 sm:space-y-4">
+          {(catchUpProgram || currentProgram) && (
+            <div className="flex items-center justify-between">
+              <div className="min-w-0 flex-1">
+                <h3 className="text-sm sm:text-lg font-semibold text-foreground truncate">
+                  {catchUpProgram?.title || currentProgram?.title}
+                </h3>
+              </div>
+              {!catchUpProgram && currentProgram && (
+                <span className="text-xs sm:text-sm text-muted-foreground ml-2 flex-shrink-0">
+                  {formatTime(currentProgram.startTime)} - {formatTime(currentProgram.endTime)}
+                </span>
+              )}
+            </div>
+          )}
+
+          {catchUpProgram ? (
+            <div className="space-y-1">
+              <div
+                ref={progressRef}
+                className="group relative h-2 sm:h-3 bg-secondary/50 rounded-full overflow-visible cursor-pointer"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleSeek(e);
+                }}
+                onMouseMove={handleProgressHover}
+                onMouseLeave={() => setHoverPosition(null)}
+                onMouseDown={(e) => {
+                  e.stopPropagation();
+                  setIsSeeking(true);
+                }}
+                onMouseUp={() => setIsSeeking(false)}
+                onTouchStart={(e) => {
+                  e.stopPropagation();
+                  setIsSeeking(true);
+                }}
+                onTouchMove={(e) => {
+                  e.stopPropagation();
+                  handleSeek(e);
+                }}
+                onTouchEnd={() => setIsSeeking(false)}
+              >
+                {hoverPosition !== null && (
+                  <div
+                    className="absolute top-0 h-full bg-foreground/20 rounded-full pointer-events-none"
+                    style={{ width: `${(hoverPosition / catchUpDuration) * 100}%` }}
+                  />
+                )}
+
+                <div
+                  className="h-full bg-primary rounded-full transition-all relative"
+                  style={{ width: `${(catchUpPosition / catchUpDuration) * 100}%` }}
+                >
+                  <div className="absolute right-0 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 bg-primary rounded-full shadow-lg transform scale-100 group-hover:scale-110 transition-transform" />
+                </div>
+
+                {hoverPosition !== null && (
+                  <div
+                    className="absolute -top-8 bg-background/90 backdrop-blur-sm px-2 py-1 rounded text-xs font-medium transform -translate-x-1/2 pointer-events-none"
+                    style={{ left: `${(hoverPosition / catchUpDuration) * 100}%` }}
+                  >
+                    {formatDuration(hoverPosition)}
+                  </div>
+                )}
+              </div>
+
+              <div className="flex justify-between text-xs text-muted-foreground tabular-nums">
+                <span>{formatDuration(catchUpPosition)}</span>
+                <span>{formatDuration(catchUpDuration)}</span>
+              </div>
+            </div>
+          ) : (
+            <div className="group relative">
+              <div className="h-1 group-hover:h-2 bg-secondary/50 rounded-full overflow-hidden transition-all cursor-pointer">
+                <div
+                  className="h-full bg-primary rounded-full transition-all relative"
+                  style={{ width: `${progress}%` }}
+                >
+                  <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 bg-primary rounded-full opacity-0 group-hover:opacity-100 transition-opacity" />
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1 sm:gap-2">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="w-9 h-9 sm:w-10 sm:h-10 hover:bg-secondary/50"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onTogglePlay();
+                }}
+              >
+                {isPlaying ? <Pause className="w-4 h-4 sm:w-5 sm:h-5" /> : <Play className="w-4 h-4 sm:w-5 sm:h-5" />}
+              </Button>
+
+              {catchUpProgram && (
+                <>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="w-9 h-9 sm:w-10 sm:h-10 hover:bg-secondary/50 flex flex-col items-center justify-center gap-0"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      skipBackward(30);
+                    }}
+                  >
+                    <SkipBack className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                    <span className="text-[7px] sm:text-[8px] font-semibold leading-none">30s</span>
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="w-9 h-9 sm:w-10 sm:h-10 hover:bg-secondary/50 flex flex-col items-center justify-center gap-0"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      skipForward(30);
+                    }}
+                  >
+                    <SkipForward className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                    <span className="text-[7px] sm:text-[8px] font-semibold leading-none">30s</span>
+                  </Button>
+                </>
+              )}
+
+              <div
+                className="relative flex items-center"
+                onMouseEnter={() => setShowVolumeSlider(true)}
+                onMouseLeave={() => setShowVolumeSlider(false)}
+              >
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="w-9 h-9 sm:w-10 sm:h-10 hover:bg-secondary/50"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleMute();
+                  }}
+                >
+                  {isMuted || volume === 0 ? (
+                    <VolumeX className="w-4 h-4 sm:w-5 sm:h-5" />
+                  ) : (
+                    <Volume2 className="w-4 h-4 sm:w-5 sm:h-5" />
+                  )}
+                </Button>
+
+                <div
+                  className={`hidden sm:flex items-center overflow-hidden transition-all duration-200 ${showVolumeSlider ? 'w-24 opacity-100' : 'w-0 opacity-0'
+                    }`}
+                >
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={isMuted ? 0 : volume}
+                    onChange={handleVolumeChange}
+                    onClick={(e) => e.stopPropagation()}
+                    className="w-full h-1 bg-secondary/50 rounded-full appearance-none cursor-pointer accent-primary"
+                  />
+                </div>
+              </div>
+
+              {catchUpProgram && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="hidden sm:flex gap-1 h-8 px-3 hover:bg-secondary/50"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    goToLive();
+                  }}
+                >
+                  <Radio className="w-3 h-3" />
+                  <span className="text-xs">Live</span>
+                </Button>
+              )}
+
+              {currentProgram && !catchUpProgram && (
+                <span className="hidden sm:inline text-xs sm:text-sm text-muted-foreground ml-2">
+                  {formatTime(currentProgram.startTime)} - {formatTime(currentProgram.endTime)}
+                </span>
+              )}
+            </div>
+
+            <div className="flex items-center gap-0.5 sm:gap-1">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="w-9 h-9 sm:w-10 sm:h-10 hover:bg-secondary/50"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggleFavorite();
+                }}
+              >
+                <Heart className={`w-4 h-4 sm:w-5 sm:h-5 ${isFavorite ? 'fill-primary text-primary' : ''}`} />
+              </Button>
+              {channel.hasCatchUp && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className={`w-9 h-9 sm:w-10 sm:h-10 hover:bg-secondary/50 ${catchUpProgram ? 'text-primary' : ''}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowCatchUp(true);
+                  }}
+                >
+                  <Clock className="w-4 h-4 sm:w-5 sm:h-5" />
+                </Button>
+              )}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="w-9 h-9 sm:w-10 sm:h-10 hover:bg-secondary/50"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggleFullscreen();
+                }}
+              >
+                {isFullscreen ? <Minimize className="w-4 h-4 sm:w-5 sm:h-5" /> : <Maximize className="w-4 h-4 sm:w-5 sm:h-5" />}
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default PlayerControls;
