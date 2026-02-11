@@ -1,5 +1,31 @@
 # Handoff — Lumen Player
 
+## Session 2026-02-11
+
+- **Commit:** (pending)
+- **Done:**
+  - Added `SESSION-ARCHITECTURE.md` as strategic source for session-centric model
+  - Updated `DECISION-DOC.md` with addendum linking to session strategy
+  - Replaced `ROADMAP.md` with 0A/0B/0C phases (Session MVP -> Cast -> AirPlay)
+  - Replaced `BACKLOG.md` with session/cast-first priorities + `pending-review` for old plan tasks
+  - Updated `CLAUDE.md` so future agents read `SESSION-ARCHITECTURE.md` before implementation
+
+- **Next:**
+  - Implement LP-0101 (`@lumen/session-core` scaffold)
+  - Implement LP-0102 (session contracts)
+  - Decide Mobile Phase 1 direction: Expo vs Capacitor
+
+- **Risks/Blockers:**
+  - Mobile strategy still open (Expo vs Capacitor)
+  - TV expansion depends on cast-centric adoption metrics
+
+- **Source files:**
+  - Strategy: `SESSION-ARCHITECTURE.md`
+  - Base architecture: `DECISION-DOC.md`
+  - Active plan: `ROADMAP.md`
+  - Tasks: `BACKLOG.md`
+  - Agent rules: `CLAUDE.md`
+
 ## Session 2026-02-10
 
 - **Commit:** (initial setup — see git log)

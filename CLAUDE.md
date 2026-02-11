@@ -7,7 +7,17 @@
 
 ## Project Overview
 
-Lumen Player is a cross-platform IPTV player built as a Turborepo + pnpm monorepo.
+Lumen Player is a session-centric IPTV platform built as a Turborepo + pnpm monorepo.
+
+Primary strategy:
+- PWA-first product
+- casting as first-class feature
+- playback session independent from a single UI client/device
+
+Read first on every session:
+1. `HANDOFF.md`
+2. `SESSION-ARCHITECTURE.md`
+3. `BACKLOG.md`
 
 ## Commands
 
@@ -22,9 +32,9 @@ pnpm clean          # Clean dist/.turbo
 
 Single app/package:
 ```bash
-pnpm --filter @lumen/web dev        # Dev server only
-pnpm --filter @lumen/web build      # Build web app only
-pnpm --filter @lumen/core typecheck # Typecheck single package
+pnpm --filter @lumen/web dev
+pnpm --filter @lumen/web build
+pnpm --filter @lumen/core typecheck
 ```
 
 ## Architecture
@@ -33,61 +43,45 @@ pnpm --filter @lumen/core typecheck # Typecheck single package
 
 ```
 apps/
-  web/          # Phase 0: React 18 + Vite + HLS.js + shadcn/ui (PWA)
+  web/            # Phase 0: PWA controller + local renderer
 packages/
-  tsconfig/     # @lumen/tsconfig — shared TS configs
-  types/        # @lumen/types — all shared TypeScript types
-  core/         # @lumen/core — EPG, time formatting, channel utils
-  demo-data/    # @lumen/demo-data — mock channels + EPG generator
-  api/          # @lumen/api — Xtream Codes client (transport-agnostic via HttpClient DI)
-  player-core/  # @lumen/player-core — SeekEngine + IdleTimer
-  storage/      # @lumen/storage — credentials, favorites, watch history
-  input/        # @lumen/input — key codes (Samsung/LG/Web) + NumericChannelInput
-```
-
-### Package Dependency Graph
-
-```
-@lumen/types        ← no deps (foundation)
-@lumen/core         ← types
-@lumen/demo-data    ← types
-@lumen/api          ← types
-@lumen/player-core  ← types
-@lumen/storage      ← types
-@lumen/input        ← no deps
-@lumen/web          ← all packages
+  tsconfig/       # @lumen/tsconfig
+  types/          # @lumen/types
+  core/           # @lumen/core
+  demo-data/      # @lumen/demo-data
+  api/            # @lumen/api (Xtream client)
+  player-core/    # @lumen/player-core (SeekEngine, IdleTimer)
+  storage/        # @lumen/storage
+  input/          # @lumen/input
+  session-core/   # @lumen/session-core (planned)
 ```
 
 ### Key Patterns
 
-- **PlayerAdapter interface** in `@lumen/types`: each platform implements its own (HLS.js, AVPlayer, ExoPlayer, AVPlay)
-- **HttpClient DI** in `@lumen/api`: XtreamCodesService takes HttpClient in constructor, not hardcoded fetch
-- **Re-export shims** in `apps/web/src/`: `data/channels.ts`, `services/xtreamCodes.ts`, `types/*.ts` re-export from @lumen/* packages for backward compat
-- **SeekEngine**: pure state machine — exponential speed doubling (5→10→20→...→640), 1.2s speed interval, 50ms tick
-- **NumericChannelInput**: accumulates digit presses, searches channel list, 2s auto-select timeout
-
-### Path Aliases
-
-`apps/web` uses `@/` → `./src/` (configured in tsconfig.json + vite.config.ts).
+- **Session-centric model**: session state is source-of-truth, not React UI state
+- **PlayerAdapter**: local playback engine
+- **RendererAdapter**: local/cast/airplay rendering target abstraction
+- **HttpClient DI** in `@lumen/api`
+- **Re-export shims** in `apps/web/src/` kept only for migration compatibility
 
 ## Conventions
 
-- Packages use `type: "module"` and export raw TypeScript (no build step for packages)
-- Package exports use `types` + `import` + `default` conditions pointing to `./src/index.ts`
-- `apps/web/tsconfig.json` has `strict: false` (inherited codebase)
-- New packages should use `strict: true` via `@lumen/tsconfig/base.json`
+- Keep packages platform-agnostic unless explicitly renderer/platform specific
+- Prefer idempotent command handlers in session layer
+- Keep `apps/web` as controller + renderer client, not business state owner
 
 ## Key Files
 
-- `DECISION-DOC.md` — architecture decisions and rationale
-- `BACKLOG.md` — task list
-- `HANDOFF.md` — current status for session continuity
-- `ROADMAP.md` — phase plan
+- `DECISION-DOC.md` — base architecture decisions
+- `SESSION-ARCHITECTURE.md` — active strategic model (session/cast)
+- `ROADMAP.md` — active phase plan (0A/0B/0C)
+- `BACKLOG.md` — prioritized tasks and pending-review items
+- `HANDOFF.md` — latest execution status
 
 ## Workflow
 
-1. Read `HANDOFF.md` at session start
-2. Pick next task from `BACKLOG.md`
-3. Work on it
-4. Before finishing: `pnpm build && pnpm typecheck`
-5. Update `HANDOFF.md` at session end
+1. Read `HANDOFF.md` + `SESSION-ARCHITECTURE.md`
+2. Pick next `planned` task from `BACKLOG.md`
+3. Implement only that task
+4. Run validation (`typecheck`, `lint`, `build` as applicable)
+5. Update `HANDOFF.md` with done/next/risks

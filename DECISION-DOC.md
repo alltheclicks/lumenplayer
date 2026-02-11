@@ -5,6 +5,9 @@
 > **Status:** Odobren za implementaciju
 > **Lokacija projekta:** `/Users/filip/Documents/Lumen Player/`
 
+> **Update (11. februar 2026):** Session-centric smer je usvojen kroz `SESSION-ARCHITECTURE.md`.
+> Ovaj dokument ostaje validan za monorepo/package temelje, ali fazni plan i renderer strategija se čitaju zajedno sa session dokumentom.
+
 ---
 
 ## 1. Executive Summary
@@ -43,6 +46,8 @@
 - Expo Modules API daje pristup native kodu (Swift/Kotlin) bez "eject-a"
 - Plan: početi sa Expo managed, preći na bare kad playback zahteva
 - Flutter bi zahtevao učenje Dart-a i potpuni rewrite
+
+> **Update (11. feb 2026):** Mobile pristup se preispituje — Capacitor wrapper oko web app-a je alternativa Expo-u za scenarije gde je PWA dovoljan uz native capability extension (lock screen kontrole, background playback). Konačna odluka pending — videti `SESSION-ARCHITECTURE.md` sekcija 9.
 
 ### 2.4 Zašto PlayerAdapter pattern?
 - Svaka platforma ima drugačiji video engine:
@@ -138,6 +143,8 @@ Mock kanali i EPG generatori. Koristi se samo za development/demo mode. **Ne ula
 - Evaluirati rano da li treba bare workflow za ExoPlayer kvalitet
 - Potpuno odvojen UI od web-a (ne shadcn na mobilnom)
 
+> **Update (11. feb 2026):** Pristup se preispituje. Umesto potpunog Expo setup-a, moguć je Capacitor wrapper oko PWA za iOS/Android sa native capability extensions. Videti `ROADMAP.md` za aktuelni plan.
+
 ### Phase 2: TV (KASNIJE)
 - **apps/tv-web/** — Zasebna Vite app za Tizen/WebOS
   - TizenPlayerAdapter (AVPlay API), WebOSPlayerAdapter
@@ -148,6 +155,8 @@ Mock kanali i EPG generatori. Koristi se samo za development/demo mode. **Ne ula
 - **apps/android-tv/** — RN bare ili native Kotlin
   - ExoPlayer/Media3 sa Leanback
   - Koristi @lumen/types, api, core
+
+> **Update (11. feb 2026):** Cast-centric pristup može eliminisati potrebu za dedicated Tizen/WebOS/Android TV app-ovima. TV korisnici koriste Cast receiver app umesto native instalacije. Videti `ROADMAP.md` Phase 2 za aktuelni status.
 
 ---
 
