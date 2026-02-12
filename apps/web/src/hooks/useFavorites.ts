@@ -1,40 +1,34 @@
 import { useState, useEffect, useCallback } from 'react';
-
-const FAVORITES_KEY = 'iptv-player-favorites';
+import {
+  loadFavorites,
+  saveFavorites,
+  addFavorite as addFavoriteToList,
+  removeFavorite as removeFavoriteFromList,
+  toggleFavorite as toggleFavoriteInList,
+  isFavorite as isFavoriteInList,
+} from '@lumen/storage';
 
 export const useFavorites = () => {
-  const [favorites, setFavorites] = useState<string[]>(() => {
-    if (typeof window === 'undefined') return [];
-    const stored = localStorage.getItem(FAVORITES_KEY);
-    return stored ? JSON.parse(stored) : [];
-  });
+  const [favorites, setFavorites] = useState<string[]>(() => loadFavorites());
 
   useEffect(() => {
-    localStorage.setItem(FAVORITES_KEY, JSON.stringify(favorites));
+    saveFavorites(favorites);
   }, [favorites]);
 
   const addFavorite = useCallback((channelId: string) => {
-    setFavorites(prev => {
-      if (prev.includes(channelId)) return prev;
-      return [...prev, channelId];
-    });
+    setFavorites((prev) => addFavoriteToList(prev, channelId));
   }, []);
 
   const removeFavorite = useCallback((channelId: string) => {
-    setFavorites(prev => prev.filter(id => id !== channelId));
+    setFavorites((prev) => removeFavoriteFromList(prev, channelId));
   }, []);
 
   const toggleFavorite = useCallback((channelId: string) => {
-    setFavorites(prev => {
-      if (prev.includes(channelId)) {
-        return prev.filter(id => id !== channelId);
-      }
-      return [...prev, channelId];
-    });
+    setFavorites((prev) => toggleFavoriteInList(prev, channelId));
   }, []);
 
   const isFavorite = useCallback((channelId: string) => {
-    return favorites.includes(channelId);
+    return isFavoriteInList(favorites, channelId);
   }, [favorites]);
 
   const reorderFavorites = useCallback((newOrder: string[]) => {
