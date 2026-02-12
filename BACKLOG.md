@@ -73,3 +73,10 @@
 | LP-2002 | TizenPlayerAdapter (AVPlay API) | L | pending-review |
 | LP-2003 | Spatial navigation system for TV | L | pending-review |
 | LP-2004 | apps/android-tv project setup | L | pending-review |
+
+## Batch Completed Tasks (auto)
+
+| ID | Task | Size | Status |
+|----|------|------|--------|
+| LP-0203 | Completed via merge queue (PR #4) | S | done |
+| LP-0204 | Completed via merge queue (PR #2) | S | done |

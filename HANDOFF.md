@@ -12,6 +12,18 @@
 ---
 
 
+## Session 2026-02-12 — Central docs sync (LP-0202 LP-0203 LP-0204)
+
+- **Done:**
+  - LP-0202 merged (#3 https://github.com/alltheclicks/lumenplayer/pull/3)
+  - LP-0203 merged (#4 https://github.com/alltheclicks/lumenplayer/pull/4)
+  - LP-0204 merged (#2 https://github.com/alltheclicks/lumenplayer/pull/2)
+- **Note:**
+  - Docs sync generated centrally to keep task PRs conflict-free
+
+---
+
+
 ## Session 2026-02-12 — LP-0202 catch-up seek fix
 
 - **Commit:** (pending)
