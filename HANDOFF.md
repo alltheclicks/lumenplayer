@@ -1,5 +1,24 @@
 # Handoff — Lumen Player
 
+## Session 2026-02-12 — LP-0203 useFavorites dedup
+
+- **Commit:** (pending)
+- **Done:**
+  - Completed `LP-0203` only (scope-limited)
+  - Replaced inline favorites logic in `apps/web/src/hooks/useFavorites.ts` with `@lumen/storage` helpers:
+    - `loadFavorites`, `saveFavorites`
+    - `addFavorite`, `removeFavorite`, `toggleFavorite`, `isFavorite`
+  - Kept existing hook API unchanged (`favorites`, `addFavorite`, `removeFavorite`, `toggleFavorite`, `isFavorite`, `reorderFavorites`) to avoid wider refactors
+- **Validation / test gate:**
+  - `pnpm lint` failed in current branch due missing ESLint flat config file (`ESLint couldn't find an eslint.config.(js|mjs|cjs) file`)
+  - `pnpm typecheck` passed
+  - `pnpm build` passed (including PWA service worker generation)
+- **PR:**
+  - Branch: `codex/lp-0203-auto`
+  - PR: (pending)
+
+---
+
 ## Session 2026-02-11
 
 - **Commit:** (pending)

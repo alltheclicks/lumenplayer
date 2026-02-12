@@ -47,6 +47,14 @@
 
 ---
 
+## Phase 0A-cleanup — Duplicate Removal
+
+| ID | Task | Size | Status |
+|----|------|------|--------|
+| LP-0203 | Replace `useFavorites.ts` inline implementation with `@lumen/storage` functions (`loadFavorites`, `saveFavorites`, `toggleFavorite`, etc.) | S | done |
+
+---
+
 ## Tasks under review (old plan, needs session-first decision)
 
 | ID | Task | Size | Status |
