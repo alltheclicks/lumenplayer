@@ -25,6 +25,7 @@ import {
 } from '@/services/xtreamCodes';
 import { getCurrentProgram, getProgramProgress, type Program } from '@/data/channels';
 import type { PlayerChannel } from '@/types/player';
+import { filterChannels } from '@lumen/core';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -104,8 +105,7 @@ const Player = () => {
   }, [currentChannel, catchUpProgram]);
 
   // Filter channels
-  const filteredChannels = channels.filter(channel => {
-    const matchesSearch = channel.name.toLowerCase().includes(searchQuery.toLowerCase());
+  const filteredChannels = filterChannels(channels, searchQuery).filter(channel => {
     const matchesCategory = !selectedCategory || selectedCategory === 'favorites'
       ? true
       : channel.categoryId === selectedCategory;
@@ -113,7 +113,7 @@ const Player = () => {
       ? favorites.includes(channel.id)
       : true;
 
-    return matchesSearch && matchesCategory && matchesFavorites;
+    return matchesCategory && matchesFavorites;
   });
 
   // Toggle fullscreen

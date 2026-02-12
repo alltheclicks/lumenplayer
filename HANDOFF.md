@@ -1,13 +1,14 @@
 # Handoff — Lumen Player
 
-## Session 2026-02-12 — LP-0205 formatDuration cleanup
+## Session 2026-02-12 — LP-0205 + LP-0206 deduplicate @lumen/core utils
 
 - **Done:**
   - LP-0205: Replaced inline `formatDuration` in `PlayerControls.tsx` with import from `@lumen/core`
-  - Implementations were identical — safe drop-in replacement
+  - LP-0206: Replaced inline search filtering in `Player.tsx` with `filterChannels` from `@lumen/core`
+    - Category + favorites filtering kept inline (app-specific logic not in package)
   - `pnpm typecheck` passes
+  - All Phase 0A-cleanup "remove duplicate code" tasks now **done** (LP-0203–LP-0206)
 - **Next:**
-  - LP-0206 (replace inline channel filtering in `Player.tsx`)
   - Session core: LP-0101 → LP-0102 → LP-0103
 
 ---
