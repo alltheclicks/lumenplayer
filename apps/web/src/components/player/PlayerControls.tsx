@@ -107,8 +107,9 @@ const PlayerControls = ({
   onPrevChannel,
   onNextChannel,
 }: PlayerControlsProps) => {
+  const DEFAULT_VOLUME = 80;
   const [showControls, setShowControls] = useState(true);
-  const [volume, setVolume] = useState(80);
+  const [volume, setVolume] = useState(DEFAULT_VOLUME);
   const [isMuted, setIsMuted] = useState(false);
   const [showVolumeSlider, setShowVolumeSlider] = useState(false);
   const [showCatchUp, setShowCatchUp] = useState(false);
@@ -116,6 +117,7 @@ const PlayerControls = ({
   const [hoverPosition, setHoverPosition] = useState<number | null>(null);
   const [isSeeking, setIsSeeking] = useState(false);
   const progressRef = useRef<HTMLDivElement>(null);
+  const lastNonZeroVolumeRef = useRef(DEFAULT_VOLUME);
 
   const catchUpDuration = catchUpProgram
     ? (catchUpProgram.endTime.getTime() - catchUpProgram.startTime.getTime()) / 1000
@@ -153,6 +155,10 @@ const PlayerControls = ({
     setVolume(newVolume);
     onVolumeChange(newVolume);
 
+    if (newVolume > 0) {
+      lastNonZeroVolumeRef.current = newVolume;
+    }
+
     const nextMuted = newVolume === 0;
     if (nextMuted !== isMuted) {
       setIsMuted(nextMuted);
@@ -163,6 +169,11 @@ const PlayerControls = ({
   const toggleMute = () => {
     setIsMuted(prev => {
       const nextMuted = !prev;
+      if (!nextMuted && volume === 0) {
+        const restoredVolume = lastNonZeroVolumeRef.current;
+        setVolume(restoredVolume);
+        onVolumeChange(restoredVolume);
+      }
       onMuteChange(nextMuted);
       return nextMuted;
     });
