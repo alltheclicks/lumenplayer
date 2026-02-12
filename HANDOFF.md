@@ -2,7 +2,7 @@
 
 ## Session 2026-02-12 — LP-0203 useFavorites dedup
 
-- **Commit:** (pending)
+- **Commit:** `3613338`
 - **Done:**
   - Completed `LP-0203` only (scope-limited)
   - Replaced inline favorites logic in `apps/web/src/hooks/useFavorites.ts` with `@lumen/storage` helpers:
@@ -15,7 +15,7 @@
   - `pnpm build` passed (including PWA service worker generation)
 - **PR:**
   - Branch: `codex/lp-0203-auto`
-  - PR: (pending)
+  - PR: `https://github.com/alltheclicks/lumenplayer/pull/4`
 
 ---
 
