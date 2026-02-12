@@ -1,6 +1,6 @@
 # Backlog — Lumen Player
 
-> Datum: 11. februar 2026
+> Datum: 12. februar 2026
 
 ## Legend
 
@@ -33,6 +33,14 @@
 
 ---
 
+## Quick Wins — Bugfixes
+
+| ID | Task | Size | Status |
+|----|------|------|--------|
+| LP-0202 | FIX: Catch-up seek mora pozivati real `playerRef.seek()` (ne samo UI progress update) | S | done |
+
+---
+
 ## Foundation / Quality
 
 | ID | Task | Size | Status |
@@ -44,14 +52,6 @@
 | LP-0006 | Add unit tests for `@lumen/storage` (favorites, credentials, watch-history) | S | idea |
 | LP-0014 | Add ESLint flat config (`eslint.config.*`) for repo/app | S | planned |
 | LP-0015 | CI pipeline: typecheck + lint + build | S | planned |
-
----
-
-## Phase 0A-cleanup — Duplicate Removal
-
-| ID | Task | Size | Status |
-|----|------|------|--------|
-| LP-0203 | Replace `useFavorites.ts` inline implementation with `@lumen/storage` functions (`loadFavorites`, `saveFavorites`, `toggleFavorite`, etc.) | S | done |
 
 ---
 
