@@ -1,5 +1,25 @@
 # Handoff — Lumen Player
 
+## Session 2026-02-12 — LP-0204 channel mapper dedup
+
+- **Commit:** (pending)
+- **Done:**
+  - Potvrdjen aktivni task: `LP-0204`
+  - `apps/web/src/hooks/useXtreamChannels.ts` vise ne koristi lokalne inline mappere
+  - Importovani `mapXtreamCategory` i `mapXtreamChannel` iz `@lumen/api`
+  - Zadrzano postojece ponasanje za mock EPG kroz `epgGenerator` callback (`generateMockEPG`)
+  - Azuriran `BACKLOG.md`: `LP-0204` status -> `done`
+
+- **Validation / test gate:**
+  - `pnpm typecheck` passed
+  - `pnpm lint` failed (postojeci repo issue: nedostaje `eslint.config.*`)
+  - `pnpm build` passed
+
+- **Scope guard:**
+  - Radjen iskljucivo `LP-0204` bez dodatnih refaktora van zadatka
+
+---
+
 ## Session 2026-02-11
 
 - **Commit:** (pending)

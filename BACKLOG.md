@@ -33,6 +33,19 @@
 
 ---
 
+## Phase 0A-cleanup — Bugfix/Dedup
+
+| ID | Task | Size | Status |
+|----|------|------|--------|
+| LP-0201 | FIX: Volume/mute controls are cosmetic | S | done |
+| LP-0202 | FIX: Catch-up seek is cosmetic | S | planned |
+| LP-0203 | Replace `useFavorites.ts` inline implementation with `@lumen/storage` | S | planned |
+| LP-0204 | Replace inline channel mappers in `useXtreamChannels.ts` with `@lumen/api` (`mapXtreamCategory`/`mapXtreamChannel`) | S | done |
+| LP-0205 | Replace inline `formatDuration` in `PlayerControls.tsx` with `@lumen/core` | S | planned |
+| LP-0206 | Replace inline channel filtering in `Player.tsx` with `@lumen/core` | S | planned |
+
+---
+
 ## Foundation / Quality
 
 | ID | Task | Size | Status |
