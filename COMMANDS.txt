@@ -1,0 +1,143 @@
+LUMEN PLAYER — KOMANDE ZA AGENTE
+==================================
+
+------------------------------------------------------------
+FLOW SABLONI (COPY/PASTE)
+------------------------------------------------------------
+
+POKRENI 1 TASK (PREPORUCENI DEFAULT)
+  Procitaj /Users/filip/Documents/Lumen Player/HANDOFF.md, /Users/filip/Documents/Lumen Player/VISION.md, /Users/filip/Documents/Lumen Player/SESSION-ARCHITECTURE.md i /Users/filip/Documents/Lumen Player/BACKLOG.md.
+  Potvrdi aktivni task ID: LP-XXXX.
+  Uradi iskljucivo taj task (bez rada van scope-a).
+  Napravi branch `codex/lp-XXXX-kratak-opis`, uradi commit i push, otvori PR ka `main`.
+  Pokreni test gate.
+  Ako Greptile prijavi komentare: popravi validne, false-positive oznaci i kratko obrazlozi, pa push na isti PR.
+  Ne merge-uj bez moje potvrde.
+  Na kraju azuriraj HANDOFF.md i BACKLOG.md.
+
+POKRENI 4 TASKA (1 TASK = 1 PR)
+  Procitaj HANDOFF.md, VISION.md, SESSION-ARCHITECTURE.md i BACKLOG.md.
+  Uradi LP-0201, LP-0202, LP-0203 i LP-0204 kao 4 odvojena flow-a:
+  1 task = 1 branch = 1 commit set = 1 PR.
+  Za svaki PR: sacekaj Greptile, popravi komentare, push na isti PR, pa tek onda predji na sledeci task.
+  Ne merge-uj bez moje potvrde.
+  Posle svakog taska azuriraj HANDOFF.md i BACKLOG.md.
+
+PROVERI GDE SMO STALI
+  Procitaj HANDOFF.md i BACKLOG.md.
+  Reci mi:
+  1) poslednji zavrsen task,
+  2) trenutno aktivan task,
+  3) sledeci `planned` task,
+  4) da li postoji bloker.
+
+SAMO GREPTILE FIX (POSTOJECI PR)
+  Pogledaj PR #XX komentare.
+  Popravi sve validne Greptile komentare.
+  False-positive oznaci i kratko obrazlozi.
+  Uradi push na isti branch i reci mi da li je PR spreman za merge.
+
+POKRENI TASK
+  Procitaj HANDOFF.md. Uradi LP-XXXX.
+
+POKRENI TASK (za Codex — vise konteksta)
+  Procitaj CLAUDE.md, SESSION-ARCHITECTURE.md, HANDOFF.md i BACKLOG.md.
+  Uradi samo task LP-XXXX.
+  Napravi branch, commituj, otvori PR.
+  Na kraju azuriraj HANDOFF.md i BACKLOG.md.
+
+DODATNO PRAVILO (OBAVEZNO)
+  Pre rada potvrdi aktivni task ID iz BACKLOG.md.
+  Ne radi nista van scope-a tog taska bez eksplicitne potvrde.
+
+DODAJ IDEJU
+  Dodaj u BACKLOG ideju: "opis ideje"
+
+REALIZUJ IDEJU
+  Dodaj u BACKLOG ideju: "opis ideje" i odmah je uradi kao sledeci task.
+  Mora da se uklopi u postojecu session-centric arhitekturu.
+
+PROVERI STATUS
+  Procitaj HANDOFF.md i BACKLOG.md. Reci mi sta je sledece.
+
+PROVERI GREPTILE REVIEW
+  Pogledaj PR #XX komentare. Popravi sve sto Greptile prijavljuje.
+  Ako je komentar false-positive, oznaci ga i kratko obrazlozi.
+
+POPRAVI GREPTILE + MERGE
+  Pogledaj PR #XX. Popravi Greptile komentare, push-uj fix, reci mi kad je OK za merge.
+  Ako je komentar false-positive, oznaci ga i kratko obrazlozi.
+
+NASTAVI PREKINUT TASK
+  Procitaj HANDOFF.md. Nastavi task koji je in-progress.
+
+PODELI VELIKI TASK
+  Procitaj LP-XXXX u BACKLOG.md. Podeli ga na manje taskove (S velicina).
+
+POKRENI TESTOVE
+  pnpm lint && pnpm typecheck && pnpm build
+
+PUSH NA GITHUB (DEFAULT FLOW)
+  Napravi branch, commituj, push-uj, otvori PR ka main.
+  Ne push-uj direktno na main osim ako je eksplicitno trazeno.
+
+PUSH KAO PR (sa Greptile review-om)
+  Napravi branch, commituj, push-uj, otvori PR ka main.
+
+SYNC SA GITHUB-OM (posle Codex rada)
+  git pull --rebase
+
+PREGLED CELOG STANJA
+  Procitaj HANDOFF.md, BACKLOG.md, ROADMAP.md. Daj mi kratak pregled sta je uradjeno, sta je sledece, i gde su rizici.
+
+------------------------------------------------------------
+PR + GREPTILE CHECKLIST (1 TASK = 1 PR)
+------------------------------------------------------------
+
+KAD KRECES TASK
+  1) Potvrdi task ID iz BACKLOG.md (npr. LP-0201)
+  2) Kreiraj branch:
+     git checkout -b codex/lp-0201-kratak-opis
+
+TOKOM RADA
+  - Radi samo scope tog taska
+  - Ako vidis nesto van scope-a, ostavi za poseban task
+
+PRE PR-a (OBAVEZNO)
+  pnpm lint && pnpm typecheck && pnpm build
+
+COMMIT + PUSH
+  git add -A
+  git commit -m "fix(web): LP-0201 kratak opis izmene"
+  git push -u origin codex/lp-0201-kratak-opis
+
+OTVARANJE PR-a
+  - Base: main
+  - Compare: codex/lp-0201-kratak-opis
+  - U PR opisu navedi:
+    - sta je uradjeno
+    - sta NIJE uradjeno
+    - kako je testirano
+
+GREPTILE FLOW
+  1) Sacekaj komentare na PR
+  2) Popravi validne komentare
+  3) Ponovo:
+     pnpm lint && pnpm typecheck && pnpm build
+  4) Commit + push fix:
+     git add -A
+     git commit -m "fix: address Greptile review"
+     git push
+  5) Ako je komentar false-positive:
+     - oznaci ga kao resolved / odgovori kratkim obrazlozenjem
+
+POSLE MERGE-a (CISCENJE)
+  git checkout main
+  git pull --rebase
+  git branch -d codex/lp-0201-kratak-opis
+  # remote branch obrisi preko GitHub "Delete branch" dugmeta
+
+KOLIKO PR-OVA?
+  - Preporuka: svaki S task -> poseban PR
+  - Ne gomilati vise nepovezanih taskova u jedan PR
+  - Branch je privremen: koristi se do merge-a, pa se brise

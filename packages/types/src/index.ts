@@ -216,6 +216,7 @@ export interface StorageAdapter {
   set<T>(key: string, value: T): Promise<void>;
   remove(key: string): Promise<void>;
   clear(): Promise<void>;
+  listKeys?(): Promise<string[]>;
 }
 
 export interface WatchHistoryEntry {

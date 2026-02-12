@@ -16,8 +16,9 @@ Primary strategy:
 
 Read first on every session:
 1. `HANDOFF.md`
-2. `SESSION-ARCHITECTURE.md`
-3. `BACKLOG.md`
+2. `VISION.md`
+3. `SESSION-ARCHITECTURE.md`
+4. `BACKLOG.md`
 
 ## Commands
 
@@ -72,15 +73,16 @@ packages/
 
 ## Key Files
 
+- `VISION.md` — product vision (V1/V1.5/V2), user personas, scope
 - `DECISION-DOC.md` — base architecture decisions
 - `SESSION-ARCHITECTURE.md` — active strategic model (session/cast)
-- `ROADMAP.md` — active phase plan (0A/0B/0C)
+- `ROADMAP.md` — active phase plan (0A → V1 → Phase 1 Dashboard → Phase 2 Native)
 - `BACKLOG.md` — prioritized tasks and pending-review items
 - `HANDOFF.md` — latest execution status
 
 ## Workflow
 
-1. Read `HANDOFF.md` + `SESSION-ARCHITECTURE.md`
+1. Read `HANDOFF.md` + `VISION.md` + `SESSION-ARCHITECTURE.md`
 2. Pick next `planned` task from `BACKLOG.md`
 3. Implement only that task
 4. Run validation (`typecheck`, `lint`, `build` as applicable)
