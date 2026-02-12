@@ -1,6 +1,6 @@
 # Backlog — Lumen Player
 
-> Datum: 11. februar 2026
+> Datum: 12. februar 2026
 
 ## Legend
 
@@ -30,6 +30,14 @@
 | LP-0110 | Add phone-as-remote UI mode when renderer is remote | S | idea |
 | LP-0111 | Add AirPlay control flow (secondary renderer) | M | idea |
 | LP-0112 | Add idempotency tests for session commands | S | idea |
+
+---
+
+## Quick Wins — Bugfixes
+
+| ID | Task | Size | Status |
+|----|------|------|--------|
+| LP-0202 | FIX: Catch-up seek mora pozivati real `playerRef.seek()` (ne samo UI progress update) | S | done |
 
 ---
 

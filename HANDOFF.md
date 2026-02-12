@@ -1,5 +1,20 @@
 # Handoff — Lumen Player
 
+## Session 2026-02-12 — LP-0202 catch-up seek fix
+
+- **Commit:** (pending)
+- **Done:**
+  - Completed `LP-0202` only (bugfix scope)
+  - `Player` now routes `onCatchUpPositionChange` through a dedicated handler
+  - Handler updates `catchUpPosition` state and calls real player seek (`playerRef.seek(position)`) while catch-up is active
+  - Updated `BACKLOG.md`: `LP-0202` status -> `done`
+- **Validation / test gate:**
+  - `pnpm lint` failed due existing ESLint config issue (`ESLint couldn't find an eslint.config.(js|mjs|cjs) file`)
+  - `pnpm typecheck` passed
+  - `pnpm build` passed (Vite + PWA build successful)
+
+---
+
 ## Session 2026-02-11
 
 - **Commit:** (pending)
