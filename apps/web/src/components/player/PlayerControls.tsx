@@ -24,6 +24,7 @@ import {
 import { type Program, formatTime } from '@/data/channels';
 import type { PlayerChannel } from '@/types/player';
 import { ChannelLogo } from '@/components/player/ChannelLogo';
+import { formatDuration } from '@lumen/core';
 
 interface PlayerControlsProps {
   channel: PlayerChannel;
@@ -77,16 +78,6 @@ const formatFullDate = (date: Date): string => {
   return date.toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long' });
 };
 
-const formatDuration = (seconds: number): string => {
-  const hrs = Math.floor(seconds / 3600);
-  const mins = Math.floor((seconds % 3600) / 60);
-  const secs = Math.floor(seconds % 60);
-
-  if (hrs > 0) {
-    return `${hrs}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  }
-  return `${mins}:${secs.toString().padStart(2, '0')}`;
-};
 
 const PlayerControls = ({
   channel,

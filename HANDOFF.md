@@ -1,5 +1,17 @@
 # Handoff — Lumen Player
 
+## Session 2026-02-12 — LP-0205 formatDuration cleanup
+
+- **Done:**
+  - LP-0205: Replaced inline `formatDuration` in `PlayerControls.tsx` with import from `@lumen/core`
+  - Implementations were identical — safe drop-in replacement
+  - `pnpm typecheck` passes
+- **Next:**
+  - LP-0206 (replace inline channel filtering in `Player.tsx`)
+  - Session core: LP-0101 → LP-0102 → LP-0103
+
+---
+
 ## Session 2026-02-12 — Codex batch: LP-0202, LP-0203, LP-0204
 
 - **PRs:** #3 (merged), #4 (merged), #2 (merged)

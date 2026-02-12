@@ -70,7 +70,7 @@
 |----|------|------|--------|------------|
 | LP-0203 | Replace `useFavorites.ts` inline implementation with `@lumen/storage` functions (loadFavorites, saveFavorites, toggleFavorite, etc.) | S | done | — |
 | LP-0204 | Replace inline channel mappers in `useXtreamChannels.ts` (lines 59-85) with `@lumen/api` mapXtreamCategory/mapXtreamChannel | S | done | — |
-| LP-0205 | Replace inline `formatDuration` in `PlayerControls.tsx` with `@lumen/core` formatDuration | S | planned | — |
+| LP-0205 | Replace inline `formatDuration` in `PlayerControls.tsx` with `@lumen/core` formatDuration | S | done | — |
 | LP-0206 | Replace inline channel filtering in `Player.tsx` with `@lumen/core` filterChannels/sortChannels | S | planned | — |
 
 ### Wire unwired packages
