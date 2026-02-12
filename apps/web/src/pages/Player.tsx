@@ -174,6 +174,14 @@ const Player = () => {
     setIsPlaying(!isPlaying);
   }, [isPlaying]);
 
+  const handleVolumeChange = useCallback((newVolume: number) => {
+    playerRef.current?.setVolume(newVolume / 100);
+  }, []);
+
+  const handleMuteChange = useCallback((muted: boolean) => {
+    playerRef.current?.setMuted(muted);
+  }, []);
+
   const currentProgram = currentChannel ? getCurrentProgram(currentChannel as any) : undefined;
 
   // Loading state
@@ -329,6 +337,8 @@ const Player = () => {
                   onCatchUpPositionChange={setCatchUpPosition}
                   onTogglePlay={togglePlay}
                   onToggleFavorite={() => toggleFavorite(currentChannel.id)}
+                  onVolumeChange={handleVolumeChange}
+                  onMuteChange={handleMuteChange}
                   onToggleFullscreen={toggleFullscreen}
                   onPrevChannel={goToPrevChannel}
                   onNextChannel={goToNextChannel}

@@ -38,6 +38,8 @@ interface PlayerControlsProps {
   onCatchUpPositionChange: (position: number) => void;
   onTogglePlay: () => void;
   onToggleFavorite: () => void;
+  onVolumeChange: (volume: number) => void;
+  onMuteChange: (muted: boolean) => void;
   onToggleFullscreen: () => void;
   onPrevChannel: () => void;
   onNextChannel: () => void;
@@ -99,6 +101,8 @@ const PlayerControls = ({
   onCatchUpPositionChange,
   onTogglePlay,
   onToggleFavorite,
+  onVolumeChange,
+  onMuteChange,
   onToggleFullscreen,
   onPrevChannel,
   onNextChannel,
@@ -147,11 +151,21 @@ const PlayerControls = ({
   const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newVolume = parseInt(e.target.value);
     setVolume(newVolume);
-    setIsMuted(newVolume === 0);
+    onVolumeChange(newVolume);
+
+    const nextMuted = newVolume === 0;
+    if (nextMuted !== isMuted) {
+      setIsMuted(nextMuted);
+      onMuteChange(nextMuted);
+    }
   };
 
   const toggleMute = () => {
-    setIsMuted(!isMuted);
+    setIsMuted(prev => {
+      const nextMuted = !prev;
+      onMuteChange(nextMuted);
+      return nextMuted;
+    });
   };
 
   const toggleDay = (dateKey: string) => {
