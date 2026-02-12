@@ -1,22 +1,17 @@
 # Handoff — Lumen Player
 
-## Session 2026-02-12 — LP-0204 channel mapper dedup
+## Session 2026-02-12 — LP-0202 catch-up seek fix
 
 - **Commit:** (pending)
 - **Done:**
-  - Potvrdjen aktivni task: `LP-0204`
-  - `apps/web/src/hooks/useXtreamChannels.ts` vise ne koristi lokalne inline mappere
-  - Importovani `mapXtreamCategory` i `mapXtreamChannel` iz `@lumen/api`
-  - Zadrzano postojece ponasanje za mock EPG kroz `epgGenerator` callback (`generateMockEPG`)
-  - Azuriran `BACKLOG.md`: `LP-0204` status -> `done`
-
+  - Completed `LP-0202` only (bugfix scope)
+  - `Player` now routes `onCatchUpPositionChange` through a dedicated handler
+  - Handler updates `catchUpPosition` state and calls real player seek (`playerRef.seek(position)`) while catch-up is active
+  - Updated `BACKLOG.md`: `LP-0202` status -> `done`
 - **Validation / test gate:**
+  - `pnpm lint` failed due existing ESLint config issue (`ESLint couldn't find an eslint.config.(js|mjs|cjs) file`)
   - `pnpm typecheck` passed
-  - `pnpm lint` failed (postojeci repo issue: nedostaje `eslint.config.*`)
-  - `pnpm build` passed
-
-- **Scope guard:**
-  - Radjen iskljucivo `LP-0204` bez dodatnih refaktora van zadatka
+  - `pnpm build` passed (Vite + PWA build successful)
 
 ---
 
