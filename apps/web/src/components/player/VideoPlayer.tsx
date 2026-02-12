@@ -20,6 +20,7 @@ export interface VideoPlayerHandle {
   pause: () => void;
   seek: (time: number) => void;
   setVolume: (volume: number) => void;
+  setMuted: (muted: boolean) => void;
   toggleMute: () => void;
   getCurrentTime: () => number;
   getDuration: () => number;
@@ -61,6 +62,11 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
     setVolume: (volume: number) => {
       if (videoRef.current) {
         videoRef.current.volume = Math.max(0, Math.min(1, volume));
+      }
+    },
+    setMuted: (muted: boolean) => {
+      if (videoRef.current) {
+        videoRef.current.muted = muted;
       }
     },
     toggleMute: () => {

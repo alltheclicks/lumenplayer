@@ -38,6 +38,8 @@ interface PlayerControlsProps {
   onCatchUpPositionChange: (position: number) => void;
   onTogglePlay: () => void;
   onToggleFavorite: () => void;
+  onVolumeChange: (volume: number) => void;
+  onMuteChange: (muted: boolean) => void;
   onToggleFullscreen: () => void;
   onPrevChannel: () => void;
   onNextChannel: () => void;
@@ -99,12 +101,15 @@ const PlayerControls = ({
   onCatchUpPositionChange,
   onTogglePlay,
   onToggleFavorite,
+  onVolumeChange,
+  onMuteChange,
   onToggleFullscreen,
   onPrevChannel,
   onNextChannel,
 }: PlayerControlsProps) => {
+  const DEFAULT_VOLUME = 80;
   const [showControls, setShowControls] = useState(true);
-  const [volume, setVolume] = useState(80);
+  const [volume, setVolume] = useState(DEFAULT_VOLUME);
   const [isMuted, setIsMuted] = useState(false);
   const [showVolumeSlider, setShowVolumeSlider] = useState(false);
   const [showCatchUp, setShowCatchUp] = useState(false);
@@ -112,6 +117,7 @@ const PlayerControls = ({
   const [hoverPosition, setHoverPosition] = useState<number | null>(null);
   const [isSeeking, setIsSeeking] = useState(false);
   const progressRef = useRef<HTMLDivElement>(null);
+  const lastNonZeroVolumeRef = useRef(DEFAULT_VOLUME);
 
   const catchUpDuration = catchUpProgram
     ? (catchUpProgram.endTime.getTime() - catchUpProgram.startTime.getTime()) / 1000
@@ -147,11 +153,30 @@ const PlayerControls = ({
   const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newVolume = parseInt(e.target.value);
     setVolume(newVolume);
-    setIsMuted(newVolume === 0);
+    onVolumeChange(newVolume);
+
+    if (newVolume > 0) {
+      lastNonZeroVolumeRef.current = newVolume;
+    }
+
+    const nextMuted = newVolume === 0;
+    if (nextMuted !== isMuted) {
+      setIsMuted(nextMuted);
+      onMuteChange(nextMuted);
+    }
   };
 
   const toggleMute = () => {
-    setIsMuted(!isMuted);
+    setIsMuted(prev => {
+      const nextMuted = !prev;
+      if (!nextMuted && volume === 0) {
+        const restoredVolume = lastNonZeroVolumeRef.current;
+        setVolume(restoredVolume);
+        onVolumeChange(restoredVolume);
+      }
+      onMuteChange(nextMuted);
+      return nextMuted;
+    });
   };
 
   const toggleDay = (dateKey: string) => {

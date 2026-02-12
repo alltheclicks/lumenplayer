@@ -3,6 +3,8 @@ import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import { VitePWA } from "vite-plugin-pwa";
 
+const pwaWorkboxMode = process.env.LUMEN_PWA_SW_MODE === "production" ? "production" : "development";
+
 export default defineConfig({
   server: {
     host: "::",
@@ -43,6 +45,7 @@ export default defineConfig({
         ],
       },
       workbox: {
+        mode: pwaWorkboxMode,
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff,woff2}"],
       },
     }),
