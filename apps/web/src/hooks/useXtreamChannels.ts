@@ -5,11 +5,10 @@
  */
 
 import { useQuery } from '@tanstack/react-query';
+import { mapXtreamCategory, mapXtreamChannel } from '@lumen/api';
 import {
   xtreamCodesService,
   loadXtreamCredentials,
-  type XtreamLiveStream,
-  type XtreamCategory,
 } from '@/services/xtreamCodes';
 import { channels as mockChannels } from '@/data/channels';
 import type { PlayerChannel, PlayerCategory, UseXtreamChannelsResult } from '@/types/player';
@@ -54,34 +53,6 @@ const generateMockEPG = (channelId: string, hasCatchUp: boolean): Program[] => {
   }
 
   return programs;
-};
-
-const mapXtreamCategory = (category: XtreamCategory): PlayerCategory => ({
-  id: category.category_id,
-  name: category.category_name,
-});
-
-const mapXtreamChannel = (
-  stream: XtreamLiveStream,
-  index: number,
-  categories: XtreamCategory[]
-): PlayerChannel => {
-  const category = categories.find(c => c.category_id === stream.category_id);
-  const hasCatchUp = stream.tv_archive === 1;
-
-  return {
-    id: String(stream.stream_id),
-    streamId: stream.stream_id,
-    number: index + 1,
-    name: stream.name,
-    logo: stream.stream_icon || '📺',
-    categoryId: stream.category_id,
-    categoryName: category?.category_name || 'Uncategorized',
-    hasCatchUp,
-    catchUpDays: stream.tv_archive_duration || 0,
-    epgChannelId: stream.epg_channel_id,
-    epg: generateMockEPG(String(stream.stream_id), hasCatchUp),
-  };
 };
 
 const mapMockChannel = (channel: typeof mockChannels[0], index: number): PlayerChannel => ({
@@ -131,7 +102,7 @@ const fetchXtreamChannels = async (): Promise<{
 
   const categories = xtreamCategories.map(mapXtreamCategory);
   const channels = xtreamStreams.map((stream, idx) =>
-    mapXtreamChannel(stream, idx, xtreamCategories)
+    mapXtreamChannel(stream, idx, xtreamCategories, generateMockEPG)
   );
 
   return { channels, categories };
