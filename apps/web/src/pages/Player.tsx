@@ -182,6 +182,14 @@ const Player = () => {
     playerRef.current?.setMuted(muted);
   }, []);
 
+  const handleCatchUpPositionChange = useCallback((position: number) => {
+    setCatchUpPosition(position);
+
+    if (catchUpProgram) {
+      playerRef.current?.seek(position);
+    }
+  }, [catchUpProgram]);
+
   const currentProgram = currentChannel ? getCurrentProgram(currentChannel as any) : undefined;
 
   // Loading state
@@ -334,7 +342,7 @@ const Player = () => {
                   catchUpProgram={catchUpProgram}
                   catchUpPosition={catchUpPosition}
                   onCatchUpProgramChange={setCatchUpProgram}
-                  onCatchUpPositionChange={setCatchUpPosition}
+                  onCatchUpPositionChange={handleCatchUpPositionChange}
                   onTogglePlay={togglePlay}
                   onToggleFavorite={() => toggleFavorite(currentChannel.id)}
                   onVolumeChange={handleVolumeChange}
