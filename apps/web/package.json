@@ -17,6 +17,7 @@
     "@lumen/demo-data": "workspace:*",
     "@lumen/api": "workspace:*",
     "@lumen/player-core": "workspace:*",
+    "@lumen/session-core": "workspace:*",
     "@lumen/storage": "workspace:*",
     "@lumen/input": "workspace:*",
     "@radix-ui/react-alert-dialog": "^1.1.14",

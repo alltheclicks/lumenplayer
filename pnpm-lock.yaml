@@ -32,6 +32,9 @@ importers:
       '@lumen/player-core':
         specifier: workspace:*
         version: link:../../packages/player-core
+      '@lumen/session-core':
+        specifier: workspace:*
+        version: link:../../packages/session-core
       '@lumen/storage':
         specifier: workspace:*
         version: link:../../packages/storage
@@ -166,6 +169,12 @@ importers:
   packages/input: {}
 
   packages/player-core:
+    dependencies:
+      '@lumen/types':
+        specifier: workspace:*
+        version: link:../types
+
+  packages/session-core:
     dependencies:
       '@lumen/types':
         specifier: workspace:*
