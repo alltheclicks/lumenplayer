@@ -11,6 +11,7 @@
     }
   },
   "scripts": {
+    "lint": "eslint src",
     "test": "vitest run src/session-store.idempotency.test.ts"
   },
   "main": "./src/index.ts",

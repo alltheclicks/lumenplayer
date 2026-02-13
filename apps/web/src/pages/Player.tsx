@@ -250,7 +250,7 @@ const Player = () => {
 
     watchedChannelIdRef.current = currentChannel.id;
     watchedStartedAtRef.current = now;
-  }, [currentChannel?.id]);
+  }, [currentChannel]);
 
   useEffect(() => {
     return () => {
