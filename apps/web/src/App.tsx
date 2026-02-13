@@ -7,6 +7,7 @@ import { SessionProvider } from '@/context/SessionProvider';
 import Login from '@/pages/Login';
 import M3UImport from '@/pages/M3UImport';
 import Player from '@/pages/Player';
+import VodCategories from '@/pages/VodCategories';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -26,6 +27,7 @@ function App() {
             <Route path="/" element={<Navigate to="/login" replace />} />
             <Route path="/login" element={<Login />} />
             <Route path="/import/m3u" element={<M3UImport />} />
+            <Route path="/vod" element={<VodCategories />} />
             <Route
               path="/player"
               element={(

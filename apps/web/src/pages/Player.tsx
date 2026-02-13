@@ -458,13 +458,18 @@ const Player = () => {
           <div className="p-4 border-b border-border">
             <div className="flex items-center justify-between mb-4">
               <h1 className="text-xl font-bold">Channels</h1>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setShowLogoutDialog(true)}
-              >
-                <LogOut className="w-4 h-4" />
-              </Button>
+              <div className="flex items-center gap-1">
+                <Button variant="ghost" size="sm" onClick={() => navigate('/vod')}>
+                  VOD
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setShowLogoutDialog(true)}
+                >
+                  <LogOut className="w-4 h-4" />
+                </Button>
+              </div>
             </div>
 
             <div className="relative">
@@ -674,6 +679,15 @@ const Player = () => {
                 </div>
               </SheetContent>
             </Sheet>
+
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full mt-2"
+              onClick={() => navigate('/vod')}
+            >
+              VOD Catalog
+            </Button>
 
             <Button
               variant="ghost"
