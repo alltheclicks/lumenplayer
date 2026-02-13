@@ -122,6 +122,16 @@ export class XtreamCodesService {
     );
   }
 
+  async getXMLTVEPG(): Promise<string> {
+    if (!this.credentials) {
+      throw new Error("Credentials not set");
+    }
+    const url = new URL(`${this.credentials.server}/xmltv.php`);
+    url.searchParams.set("username", this.credentials.username);
+    url.searchParams.set("password", this.credentials.password);
+    return this.http.getText(url.toString());
+  }
+
   getLiveStreamUrl(streamId: number, extension = "m3u8"): string {
     if (!this.credentials) {
       throw new Error("Credentials not set");
