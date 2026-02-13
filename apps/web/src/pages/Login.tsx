@@ -8,7 +8,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, Tv, AlertCircle, Info } from 'lucide-react';
 import { XTREAM_SERVER_URL, isServerConfigured, getServerDisplayName } from '@/config/xtream';
-import { xtreamCodesService, saveXtreamCredentials } from '@/services/xtreamCodes';
+import { saveXtreamCredentials } from '@/services/xtreamCredentials';
+import { xtreamCodesService } from '@/services/xtreamService';
 
 const Login = () => {
   const navigate = useNavigate();

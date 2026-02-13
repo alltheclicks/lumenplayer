@@ -6,13 +6,20 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { mapXtreamCategory, mapXtreamChannel } from '@lumen/api';
+import { channels as mockChannels } from '@lumen/demo-data';
+import type { PlayerCategory, PlayerChannel, Program } from '@lumen/types';
 import {
-  xtreamCodesService,
   loadXtreamCredentials,
-} from '@/services/xtreamCodes';
-import { channels as mockChannels } from '@/data/channels';
-import type { PlayerChannel, PlayerCategory, UseXtreamChannelsResult } from '@/types/player';
-import type { Program } from '@/data/channels';
+} from '@/services/xtreamCredentials';
+import { xtreamCodesService } from '@/services/xtreamService';
+
+interface UseXtreamChannelsResult {
+  channels: PlayerChannel[];
+  categories: PlayerCategory[];
+  isLoading: boolean;
+  error: Error | null;
+  refetch: () => void;
+}
 
 /**
  * Generate mock EPG data for a channel.

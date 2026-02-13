@@ -21,14 +21,13 @@ import {
   Radio,
   Calendar,
 } from 'lucide-react';
-import { type Program, formatTime } from '@/data/channels';
-import type { PlayerChannel } from '@/types/player';
+import type { PlayerChannel, Program } from '@lumen/types';
 import { ChannelLogo } from '@/components/player/ChannelLogo';
 import { useSessionContext } from '@/context/session-context';
-import { xtreamCodesService } from '@/services/xtreamCodes';
+import { xtreamCodesService } from '@/services/xtreamService';
 import type { VideoPlayerHandle } from '@/components/player/VideoPlayer';
 import { IdleTimer, SeekEngine, type SeekDirection } from '@lumen/player-core';
-import { formatDuration } from '@lumen/core';
+import { formatDuration, formatTime } from '@lumen/core';
 
 interface PlayerControlsProps {
   channel: PlayerChannel;

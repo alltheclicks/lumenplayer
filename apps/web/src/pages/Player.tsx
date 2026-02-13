@@ -20,15 +20,14 @@ import { useXtreamChannels } from '@/hooks/useXtreamChannels';
 import { useFavorites } from '@/hooks/useFavorites';
 import { useSessionContext } from '@/context/session-context';
 import { NumericChannelInput, WebKeyCodes } from '@lumen/input';
+import { filterChannels, getCurrentProgram, getProgramProgress } from '@lumen/core';
+import type { PlayerChannel } from '@lumen/types';
 import {
-  xtreamCodesService,
   loadXtreamCredentials,
   clearXtreamCredentials,
-} from '@/services/xtreamCodes';
+} from '@/services/xtreamCredentials';
+import { xtreamCodesService } from '@/services/xtreamService';
 import { addWatchHistoryEntry } from '@/services/watchHistory';
-import { getCurrentProgram, getProgramProgress } from '@/data/channels';
-import type { PlayerChannel } from '@/types/player';
-import { filterChannels } from '@lumen/core';
 import {
   AlertDialog,
   AlertDialogAction,
