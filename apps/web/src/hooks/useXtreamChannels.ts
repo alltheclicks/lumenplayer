@@ -7,7 +7,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { mapM3UChannel, mapXtreamCategory, mapXtreamChannel } from '@lumen/api';
 import { channels as mockChannels } from '@lumen/demo-data';
-import type { PlayerCategory, PlayerChannel, Program } from '@lumen/types';
+import type { PlayerCategory, PlayerChannel } from '@lumen/types';
 import {
   loadXtreamCredentials,
 } from '@/services/xtreamCredentials';
@@ -21,47 +21,6 @@ interface UseXtreamChannelsResult {
   error: Error | null;
   refetch: () => void;
 }
-
-/**
- * Generate mock EPG data for a channel.
- */
-const generateMockEPG = (channelId: string, hasCatchUp: boolean): Program[] => {
-  const programs: Program[] = [];
-  const now = new Date();
-  const startDate = new Date(now);
-  startDate.setDate(startDate.getDate() - 7);
-  startDate.setHours(6, 0, 0, 0);
-
-  const programTitles = [
-    'Morning Show', 'News', 'Movie', 'Series',
-    'Documentary', 'Sports', 'Music', 'Evening News',
-    'Talk Show', 'Quiz', 'Reality Show', 'Comedy'
-  ];
-
-  let currentTime = new Date(startDate);
-  const endDate = new Date(now);
-  endDate.setDate(endDate.getDate() + 1);
-
-  while (currentTime < endDate) {
-    const programIndex = Math.floor(Math.random() * programTitles.length);
-    const duration = [30, 45, 60, 90, 120][Math.floor(Math.random() * 5)];
-    const endTime = new Date(currentTime.getTime() + duration * 60000);
-
-    programs.push({
-      id: `${channelId}-${currentTime.getTime()}`,
-      title: programTitles[programIndex],
-      description: `Description for ${programTitles[programIndex]}`,
-      startTime: new Date(currentTime),
-      endTime: endTime,
-      category: 'show',
-      hasCatchUp: hasCatchUp && currentTime < now,
-    });
-
-    currentTime = endTime;
-  }
-
-  return programs;
-};
 
 const mapMockChannel = (channel: typeof mockChannels[0], index: number): PlayerChannel => ({
   id: channel.id,
@@ -135,7 +94,7 @@ const fetchXtreamChannels = async (): Promise<{
 
   const categories = xtreamCategories.map(mapXtreamCategory);
   const xtreamChannels = xtreamStreams.map((stream, idx) =>
-    mapXtreamChannel(stream, idx, xtreamCategories, generateMockEPG)
+    mapXtreamChannel(stream, idx, xtreamCategories)
   );
   const channels = [...xtreamChannels, ...m3uChannels.map((channel, index) => ({
     ...channel,
