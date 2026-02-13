@@ -102,13 +102,13 @@
 | LP-0301 | Add `get_vod_info` endpoint to XtreamCodesService (movie details, TMDB ID) | S | done | — |
 | LP-0302 | Add `get_series_info` endpoint to XtreamCodesService (seasons, episodes) | S | done | — |
 | LP-0303 | Add series episode stream URL builder | S | done | LP-0302 |
-| LP-0304 | Add XMLTV EPG endpoint (bulk EPG download) | S | idea | — |
+| LP-0304 | Add XMLTV EPG endpoint (bulk EPG download) | S | done | — |
 
 ### M3U podrška
 
 | ID | Task | Size | Status | Depends on |
 |----|------|------|--------|------------|
-| LP-0305 | Create M3U parser package (`@lumen/m3u` or in `@lumen/api`) — parse .m3u/.m3u8 files to Channel[] | M | idea | — |
+| LP-0305 | Create M3U parser package (`@lumen/m3u` or in `@lumen/api`) — parse .m3u/.m3u8 files to Channel[] | M | done | — |
 | LP-0306 | M3U playlist import UI (URL paste + file upload) | M | idea | LP-0305 |
 | LP-0307 | Unified channel model — ensure Xtream + M3U sources map to same Channel type | S | idea | LP-0305 |
 
@@ -210,8 +210,8 @@
 | LP-0004 | Add unit tests for `@lumen/player-core` (SeekEngine, IdleTimer) | S | idea | — |
 | LP-0005 | Add unit tests for `@lumen/input` (NumericChannelInput) | S | idea | — |
 | LP-0006 | Add unit tests for `@lumen/storage` (favorites, credentials, watch-history) | S | idea | — |
-| LP-0014 | Add ESLint flat config (`eslint.config.*`) for repo/app | S | in-progress | — |
-| LP-0015 | CI pipeline: typecheck + lint + build | S | planned | — |
+| LP-0014 | Add ESLint flat config (`eslint.config.*`) for repo/app | S | done | — |
+| LP-0015 | CI pipeline: typecheck + lint + build | S | done | — |
 | LP-0211 | FIX: `VersionedStorage.clear()` must clear only namespaced keys (not entire storage) | S | done | — |
 | LP-0013 | Replace demo-data import guard so it doesn't enter production bundle | S | idea | — |
 
@@ -282,5 +282,5 @@
 
 ### Sync notes (2026-02-12)
 
-- `LP-0014` je pokrenut: dodat je `apps/web/eslint.config.mjs`, `pnpm --filter @lumen/web lint` sada radi.
+- `LP-0014` zavrsen: dodat je root `eslint.config.mjs`, package-level lint skripte i pun workspace lint gate.
 - `LP-0209` je završen u kasnijoj sesiji kroz app-level `VersionedStorage` wiring (`apps/web` hooks/services).
