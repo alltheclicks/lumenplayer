@@ -1,7 +1,8 @@
 import { useRef, useEffect, useState, useCallback, forwardRef, useImperativeHandle } from 'react';
-import Hls from 'hls.js';
 import { AlertCircle, Loader2, WifiOff, ShieldAlert } from 'lucide-react';
 import { useSessionContext } from '@/context/session-context';
+import { HlsPlayerAdapter } from '@/adapters/HlsPlayerAdapter';
+import type { PlaybackError } from '@lumen/types';
 
 export interface VideoPlayerProps {
   poster?: string;
@@ -41,7 +42,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
   const { session, commands } = useSessionContext();
   const src = session.source?.url ?? '';
   const videoRef = useRef<HTMLVideoElement>(null);
-  const hlsRef = useRef<Hls | null>(null);
+  const adapterRef = useRef<HlsPlayerAdapter | null>(null);
   const isApplyingSessionSeekRef = useRef(false);
   const lastReportedPositionMsRef = useRef<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -51,17 +52,13 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
     session.playback === 'playing' || session.playback === 'buffering';
 
   useImperativeHandle(ref, () => ({
-    play: () => videoRef.current?.play(),
-    pause: () => videoRef.current?.pause(),
+    play: () => adapterRef.current?.play(),
+    pause: () => adapterRef.current?.pause(),
     seek: (time: number) => {
-      if (videoRef.current) {
-        videoRef.current.currentTime = time;
-      }
+      adapterRef.current?.seek(time);
     },
     setVolume: (volume: number) => {
-      if (videoRef.current) {
-        videoRef.current.volume = Math.max(0, Math.min(1, volume));
-      }
+      adapterRef.current?.setVolume(volume);
     },
     setMuted: (muted: boolean) => {
       if (videoRef.current) {
@@ -73,137 +70,122 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
         videoRef.current.muted = !videoRef.current.muted;
       }
     },
-    getCurrentTime: () => videoRef.current?.currentTime || 0,
-    getDuration: () => videoRef.current?.duration || 0,
+    getCurrentTime: () => adapterRef.current?.getCurrentTime() || 0,
+    getDuration: () => adapterRef.current?.getDuration() || 0,
     isPlaying: () => isPlaying,
   }));
 
-  const isMixedContent = useCallback(() => {
-    if (typeof window === 'undefined') return false;
-    const isHttpsSite = window.location.protocol === 'https:';
-    const isHttpSource = src.startsWith('http://');
-    return isHttpsSite && isHttpSource;
-  }, [src]);
-
-  const destroyHls = useCallback(() => {
-    if (hlsRef.current) {
-      hlsRef.current.destroy();
-      hlsRef.current = null;
+  const mapPlaybackError = useCallback((playbackError: PlaybackError): PlayerError => {
+    if (playbackError.code === 'MIXED_CONTENT') {
+      return {
+        type: 'mixed-content',
+        message: 'Cannot load stream',
+        details: 'HTTPS page cannot access HTTP stream. Use HTTPS stream source or open app via HTTP.',
+      };
     }
+
+    if (playbackError.code === 'NETWORK_ERROR') {
+      return {
+        type: 'network',
+        message: 'Network error',
+        details: 'Check your internet connection and stream availability.',
+      };
+    }
+
+    if (playbackError.code === 'MEDIA_ERROR' || playbackError.code === 'HLS_NOT_SUPPORTED') {
+      return {
+        type: 'format',
+        message: 'Stream format not supported',
+        details: playbackError.message,
+      };
+    }
+
+    return {
+      type: 'unknown',
+      message: 'Playback error',
+      details: playbackError.message,
+    };
   }, []);
 
   useEffect(() => {
     if (!src || !videoRef.current) return;
+
+    const video = videoRef.current;
+    let cancelled = false;
 
     setIsLoading(true);
     setError(null);
     isApplyingSessionSeekRef.current = false;
     lastReportedPositionMsRef.current = null;
 
-    if (isMixedContent()) {
-      setError({
-        type: 'mixed-content',
-        message: 'Cannot load stream',
-        details: 'HTTPS page cannot access HTTP stream. Use HTTPS version of IPTV server or access app via HTTP.',
-      });
-      setIsLoading(false);
-      onError?.('Mixed content blocked');
-      return;
-    }
+    const adapter = new HlsPlayerAdapter(video);
+    adapterRef.current = adapter;
 
-    const video = videoRef.current;
-    const isHls = src.includes('.m3u8');
-
-    if (isHls) {
-      if (Hls.isSupported()) {
-        destroyHls();
-
-        const hls = new Hls({
-          enableWorker: true,
-          lowLatencyMode: true,
-          backBufferLength: 90,
-          maxBufferLength: 30,
-          maxMaxBufferLength: 600,
-          maxBufferSize: 60 * 1000 * 1000,
-          maxBufferHole: 0.5,
-          startLevel: -1,
-        });
-
-        hls.loadSource(src);
-        hls.attachMedia(video);
-
-        hls.on(Hls.Events.MANIFEST_PARSED, () => {
-          setIsLoading(false);
-          if (autoPlay && playbackWantsPlaying) {
-            video.play().catch(() => {});
-          }
-        });
-
-        hls.on(Hls.Events.ERROR, (_, data) => {
-          if (data.fatal) {
-            switch (data.type) {
-              case Hls.ErrorTypes.NETWORK_ERROR:
-                setError({
-                  type: 'network',
-                  message: 'Network error',
-                  details: 'Check your internet connection and server availability.',
-                });
-                hls.startLoad();
-                break;
-              case Hls.ErrorTypes.MEDIA_ERROR:
-                setError({
-                  type: 'format',
-                  message: 'Media error',
-                  details: 'Stream format not supported.',
-                });
-                hls.recoverMediaError();
-                break;
-              default:
-                setError({
-                  type: 'unknown',
-                  message: 'Unknown error',
-                  details: data.details || 'Please try again.',
-                });
-                destroyHls();
-                break;
-            }
-            onError?.(data.details || 'HLS error');
-          }
-        });
-
-        hlsRef.current = hls;
-      } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-        video.src = src;
-        setIsLoading(false);
-        if (autoPlay && playbackWantsPlaying) {
-          video.play().catch(() => {});
-        }
-      } else {
-        setError({
-          type: 'format',
-          message: 'HLS not supported',
-          details: 'Your browser does not support HLS streaming.',
-        });
-        setIsLoading(false);
-        onError?.('HLS not supported');
+    const unsubscribeState = adapter.onStateChange((state) => {
+      if (cancelled) {
+        return;
       }
-    } else {
-      video.src = src;
+
+      if (state === 'loading' || state === 'buffering') {
+        setIsLoading(true);
+        return;
+      }
+
+      if (state === 'playing') {
+        setIsPlaying(true);
+      } else if (state === 'paused' || state === 'ended' || state === 'idle') {
+        setIsPlaying(false);
+      }
+
+      if (state !== 'error') {
+        setIsLoading(false);
+      }
+    });
+
+    const unsubscribeError = adapter.onError((playbackError) => {
+      if (cancelled) {
+        return;
+      }
+      setError(mapPlaybackError(playbackError));
       setIsLoading(false);
+      onError?.(playbackError.message);
+    });
+
+    void adapter.load({
+      url: src,
+      type: src.includes('.m3u8') ? 'hls' : 'mp4',
+    }).then(() => {
+      if (cancelled) {
+        return;
+      }
       if (autoPlay && playbackWantsPlaying) {
-        video.play().catch(() => {});
+        adapter.play();
       }
-    }
+    }).catch((loadError: unknown) => {
+      if (cancelled) {
+        return;
+      }
+
+      setIsLoading(false);
+      const message = loadError instanceof Error ? loadError.message : 'Failed to load stream';
+      setError((prev) => prev ?? {
+        type: 'unknown',
+        message: 'Cannot load stream',
+        details: message,
+      });
+      onError?.(message);
+    });
 
     return () => {
-      if (video) {
-        video.pause();
-        video.src = '';
-        video.load();
+      cancelled = true;
+      unsubscribeState();
+      unsubscribeError();
+      adapter.destroy();
+      if (adapterRef.current === adapter) {
+        adapterRef.current = null;
       }
-      destroyHls();
     };
-  }, [autoPlay, destroyHls, isMixedContent, onError, playbackWantsPlaying, src]);
+  }, [autoPlay, mapPlaybackError, onError, playbackWantsPlaying, src]);
 
   useEffect(() => {
     const video = videoRef.current;
