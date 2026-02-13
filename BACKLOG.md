@@ -118,15 +118,15 @@
 |----|------|------|--------|------------|
 | LP-0308 | VOD categories page (grid layout, posters) | M | done | LP-0301 |
 | LP-0309 | VOD film detail page (poster, description, cast, TMDB metadata) | M | done | LP-0301 |
-| LP-0310 | VOD player (uses session for playback) | M | idea | LP-0103, LP-0309 |
+| LP-0310 | VOD player (uses session for playback) | M | done | LP-0103, LP-0309 |
 
 ### Series UI
 
 | ID | Task | Size | Status | Depends on |
 |----|------|------|--------|------------|
-| LP-0311 | Series list + categories page | M | idea | LP-0302 |
-| LP-0312 | Series detail page (seasons, episodes, metadata) | M | idea | LP-0302 |
-| LP-0313 | Episode player (uses session for playback) | M | idea | LP-0103, LP-0312 |
+| LP-0311 | Series list + categories page | M | done | LP-0302 |
+| LP-0312 | Series detail page (seasons, episodes, metadata) | M | done | LP-0302 |
+| LP-0313 | Episode player (uses session for playback) | M | done | LP-0103, LP-0312 |
 
 ### Performanse velikih listi
 
