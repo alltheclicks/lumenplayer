@@ -43,41 +43,76 @@ const mapSeriesItem = (series: XtreamSeries): SeriesItem => ({
   releaseDate: series.release_date || undefined,
 });
 
-const fetchSeriesCatalog = async (): Promise<SeriesCatalogResult> => {
+const isDemoCredentials = (server: string, username: string): boolean => (
+  username === 'demo' || server.includes('your-server.com')
+);
+
+const fetchSeriesCategories = async (): Promise<SeriesCategory[]> => {
   const credentials = await loadXtreamCredentials();
   if (!credentials ||
-      credentials.username === 'demo' ||
-      credentials.server.includes('your-server.com')) {
-    return {
-      categories: mockCategories,
-      items: mockItems,
-    };
+      isDemoCredentials(credentials.server, credentials.username)) {
+    return mockCategories;
   }
 
   xtreamCodesService.setCredentials(credentials);
+  const categories = await xtreamCodesService.getSeriesCategories();
 
-  const [categories, series] = await Promise.all([
-    xtreamCodesService.getSeriesCategories(),
-    xtreamCodesService.getSeries(),
-  ]);
-
-  return {
-    categories: categories.map((category) => ({
-      id: category.category_id,
-      name: category.category_name,
-    })),
-    items: series.map(mapSeriesItem),
-  };
+  return categories.map((category) => ({
+    id: category.category_id,
+    name: category.category_name,
+  }));
 };
 
-export const useSeriesCatalog = () => {
-  return useQuery({
-    queryKey: ['series-catalog'],
-    queryFn: fetchSeriesCatalog,
+const fetchSeriesItems = async (categoryId: string | null): Promise<SeriesItem[]> => {
+  const credentials = await loadXtreamCredentials();
+  if (!credentials ||
+      isDemoCredentials(credentials.server, credentials.username)) {
+    return categoryId
+      ? mockItems.filter((item) => item.categoryId === categoryId)
+      : mockItems;
+  }
+
+  xtreamCodesService.setCredentials(credentials);
+  const series = await xtreamCodesService.getSeries(categoryId ?? undefined);
+  return series.map(mapSeriesItem);
+};
+
+export const useSeriesCatalog = (selectedCategory: string | undefined) => {
+  const categoriesQuery = useQuery({
+    queryKey: ['series-categories'],
+    queryFn: fetchSeriesCategories,
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
     retry: 2,
     refetchOnWindowFocus: false,
   });
-};
 
+  const resolvedCategory = selectedCategory === undefined
+    ? undefined
+    : selectedCategory === '__all__'
+      ? null
+      : selectedCategory;
+
+  const itemsQuery = useQuery({
+    queryKey: ['series-catalog-items', resolvedCategory ?? '__all__'],
+    queryFn: () => fetchSeriesItems(resolvedCategory ?? null),
+    enabled: resolvedCategory !== undefined,
+    staleTime: 2 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+    retry: 2,
+    refetchOnWindowFocus: false,
+  });
+
+  return {
+    data: {
+      categories: categoriesQuery.data ?? [],
+      items: itemsQuery.data ?? [],
+    } as SeriesCatalogResult,
+    isLoading: categoriesQuery.isLoading || itemsQuery.isLoading,
+    error: (categoriesQuery.error ?? itemsQuery.error) as Error | null,
+    refetch: () => {
+      void categoriesQuery.refetch();
+      void itemsQuery.refetch();
+    },
+  };
+};
