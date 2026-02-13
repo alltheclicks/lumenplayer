@@ -15,7 +15,11 @@
     "tasks:docs-sync": "bash scripts/automation/docs-sync.sh"
   },
   "devDependencies": {
+    "@eslint/js": "^9.9.0",
+    "eslint": "^9.9.0",
+    "globals": "^15.9.0",
     "turbo": "^2.3.0",
+    "typescript-eslint": "^8.3.0",
     "typescript": "^5.7.0",
     "vitest": "^4.0.18"
   }
