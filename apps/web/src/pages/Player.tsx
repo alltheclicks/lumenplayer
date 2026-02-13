@@ -476,6 +476,9 @@ const Player = () => {
                 <Button variant="ghost" size="sm" onClick={() => navigate('/vod')}>
                   VOD
                 </Button>
+                <Button variant="ghost" size="sm" onClick={() => navigate('/series')}>
+                  Series
+                </Button>
                 <Button
                   variant="ghost"
                   size="icon"
@@ -735,6 +738,15 @@ const Player = () => {
               onClick={() => navigate('/vod')}
             >
               VOD Catalog
+            </Button>
+
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full mt-2"
+              onClick={() => navigate('/series')}
+            >
+              Series Catalog
             </Button>
 
             <Button
