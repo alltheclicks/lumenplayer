@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import { Button } from '@/components/ui/button';
@@ -23,7 +24,7 @@ import { useFavorites } from '@/hooks/useFavorites';
 import { useSessionContext } from '@/context/session-context';
 import { NumericChannelInput, WebKeyCodes } from '@lumen/input';
 import { filterChannels, getCurrentProgram, getProgramProgress } from '@lumen/core';
-import type { PlayerChannel } from '@lumen/types';
+import type { PlayerChannel, Program, XtreamEPGItem } from '@lumen/types';
 import {
   loadXtreamCredentials,
   clearXtreamCredentials,
@@ -102,6 +103,37 @@ const getDigitFromWebKeyCode = (keyCode: number): number | null => {
   return null;
 };
 
+const parseEpgTimestamp = (timestamp: string, fallback: string): Date => {
+  const numericTimestamp = Number(timestamp);
+  if (Number.isFinite(numericTimestamp) && numericTimestamp > 0) {
+    return new Date(numericTimestamp * 1000);
+  }
+
+  const normalizedDate = fallback.replace(' ', 'T');
+  const parsedTimestamp = Date.parse(normalizedDate);
+  if (!Number.isNaN(parsedTimestamp)) {
+    return new Date(parsedTimestamp);
+  }
+
+  return new Date();
+};
+
+const mapXtreamEpgItemToProgram = (item: XtreamEPGItem, index: number): Program => {
+  const startTime = parseEpgTimestamp(item.start_timestamp, item.start);
+  const endTime = parseEpgTimestamp(item.stop_timestamp, item.end);
+  const now = Date.now();
+
+  return {
+    id: item.id || item.epg_id || `${item.channel_id}-${index}`,
+    title: item.title || 'Untitled Program',
+    description: item.description || '',
+    startTime,
+    endTime,
+    category: 'show',
+    hasCatchUp: item.has_archive === 1 || startTime.getTime() < now,
+  };
+};
+
 const Player = () => {
   const navigate = useNavigate();
   const playerRef = useRef<VideoPlayerHandle>(null);
@@ -171,6 +203,46 @@ const Player = () => {
 
     return null;
   }, [channels, isOnDemandSource, session.source?.channelId, session.source?.title, sessionSourceMetadata]);
+
+  const currentChannelEPGQuery = useQuery({
+    queryKey: ['channel-epg', currentChannel?.id, currentChannel?.streamId],
+    queryFn: async () => {
+      if (!currentChannel || currentChannel.source !== 'xtream') {
+        return currentChannel?.epg ?? [];
+      }
+
+      const credentials = await loadXtreamCredentials();
+      if (!credentials ||
+          credentials.username === 'demo' ||
+          credentials.server.includes('your-server.com')) {
+        return currentChannel.epg;
+      }
+
+      xtreamCodesService.setCredentials(credentials);
+      const epg = await xtreamCodesService.getEPG(String(currentChannel.streamId));
+      return epg.map(mapXtreamEpgItemToProgram);
+    },
+    enabled: Boolean(currentChannel) && !isOnDemandSource,
+    staleTime: 2 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+    retry: 1,
+  });
+
+  const currentChannelWithEPG = useMemo(() => {
+    if (!currentChannel) {
+      return null;
+    }
+
+    const channelEpg = currentChannelEPGQuery.data;
+    if (!channelEpg) {
+      return currentChannel;
+    }
+
+    return {
+      ...currentChannel,
+      epg: channelEpg,
+    };
+  }, [currentChannel, currentChannelEPGQuery.data]);
 
   const switchToLiveChannel = useCallback(
     (channel: PlayerChannel) => {
@@ -441,7 +513,7 @@ const Player = () => {
     });
   };
 
-  const currentProgram = currentChannel ? getCurrentProgram(currentChannel as any) : undefined;
+  const currentProgram = currentChannelWithEPG ? getCurrentProgram(currentChannelWithEPG as any) : undefined;
   const progress = currentProgram ? getProgramProgress(currentProgram) : 0;
   const onDemandTitle = sessionSourceMetadata.mode === 'series-episode'
     ? 'Episode Playback'
@@ -588,15 +660,15 @@ const Player = () => {
               />
             )}
 
-            {currentChannel && !isOnDemandSource && (
+            {currentChannelWithEPG && !isOnDemandSource && (
               <>
                 <PlayerControls
-                  channel={currentChannel}
+                  channel={currentChannelWithEPG}
                   currentProgram={currentProgram}
                   progress={progress}
-                  isFavorite={isFavorite(currentChannel.id)}
+                  isFavorite={isFavorite(currentChannelWithEPG.id)}
                   isFullscreen={isFullscreen}
-                  onToggleFavorite={() => toggleFavorite(currentChannel.id)}
+                  onToggleFavorite={() => toggleFavorite(currentChannelWithEPG.id)}
                   onToggleFullscreen={toggleFullscreen}
                   onPrevChannel={goToPrevChannel}
                   onNextChannel={goToNextChannel}
