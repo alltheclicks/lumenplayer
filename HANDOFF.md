@@ -1,5 +1,27 @@
 # Handoff — Lumen Player
 
+## Session 2026-02-13 — LP-0104a, LP-0104b, LP-0104c, LP-0104d (session wiring batch)
+
+- **PRs:** #12 (merged), #13 (merged), #14 (merged), #15 (merged)
+- **Done:**
+  - LP-0104a: Added `useSession(store)` hook (`useSyncExternalStore`) for reactive `SessionState` subscription
+  - LP-0104b: Added `useSessionCommands(store)` typed dispatch helpers (`setSource`, `play`, `pause`, `seek`, `switchRenderer`, `stop`)
+  - LP-0104c: Added `SessionProvider` + session context (`store`, `session`, `commands`) and wrapped `/player` route in provider
+  - LP-0104d: Refactored `Player.tsx` to session-driven source-of-truth:
+    - removed local state for `currentChannel`, `isPlaying`, `catchUpProgram`, `catchUpPosition`, `progress`
+    - derive active channel/catch-up mode from session source metadata
+    - dispatch session commands for channel switch, play/pause, and seek
+  - Local test gate passed per PR:
+    - `pnpm lint`
+    - `pnpm typecheck`
+    - `pnpm build`
+  - Greptile/check comments: none reported on PRs at merge time
+- **Next:**
+  - LP-0104e (PlayerControls refactor: remove prop/callback plumbing, read session directly)
+  - LP-0104f (VideoPlayer as pure session renderer + position reporting)
+
+---
+
 ## Session 2026-02-13 — LP-0101, LP-0102, LP-0103 (session core batch)
 
 - **PRs:** #8 (merged), #9 (merged), #10 (merged)
