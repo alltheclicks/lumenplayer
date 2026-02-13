@@ -30,11 +30,14 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Typecheck web app
-        run: pnpm --filter @lumen/web typecheck
+      - name: Lint workspace
+        run: pnpm lint
+
+      - name: Typecheck workspace
+        run: pnpm typecheck
 
       - name: Build web app
-        run: pnpm --filter @lumen/web build
+        run: pnpm build
 
   automation-scripts:
     name: automation-scripts
