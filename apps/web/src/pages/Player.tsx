@@ -113,6 +113,7 @@ const Player = () => {
 
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
@@ -221,6 +222,14 @@ const Player = () => {
     };
   }, [channels, switchToLiveChannel]);
 
+  useEffect(() => {
+    const debounceTimer = window.setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, 200);
+
+    return () => window.clearTimeout(debounceTimer);
+  }, [searchQuery]);
+
   // Load credentials on mount
   useEffect(() => {
     let isCancelled = false;
@@ -291,7 +300,7 @@ const Player = () => {
   }, []);
 
   // Filter channels
-  const filteredChannels = filterChannels(channels, searchQuery).filter(channel => {
+  const filteredChannels = filterChannels(channels, debouncedSearchQuery).filter(channel => {
     const matchesCategory = !selectedCategory || selectedCategory === 'favorites'
       ? true
       : channel.categoryId === selectedCategory;
