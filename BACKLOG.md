@@ -132,10 +132,10 @@
 
 | ID | Task | Size | Status | Depends on |
 |----|------|------|--------|------------|
-| LP-0314 | Virtualize channel list with @tanstack/react-virtual | M | idea | — |
-| LP-0315 | Debounce search input | S | idea | — |
-| LP-0316 | Paginate/lazy-load API calls for categories | M | idea | — |
-| LP-0317 | EPG lazy loading (load per-channel, not all at once) | M | idea | — |
+| LP-0314 | Virtualize channel list with @tanstack/react-virtual | M | done | — |
+| LP-0315 | Debounce search input | S | done | — |
+| LP-0316 | Paginate/lazy-load API calls for categories | M | done | — |
+| LP-0317 | EPG lazy loading (load per-channel, not all at once) | M | done | — |
 
 ### EPG
 

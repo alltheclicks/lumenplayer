@@ -1,5 +1,30 @@
 # Handoff — Lumen Player
 
+## Session 2026-02-13 — LP-0314, LP-0315, LP-0316, LP-0317 (ordered batch)
+
+- PRs: #55 (merged), #56 (merged), #57 (merged), #58 (merged)
+- Done:
+  - LP-0314: Virtualized `/player` channel lists (desktop sidebar + mobile sheet) with `@tanstack/react-virtual`
+  - LP-0315: Added 200ms debounce for live channel search filtering in `Player.tsx`
+  - LP-0316: Implemented category-targeted lazy catalog loading (VOD/Series) and paginated grid rendering (`Load more`)
+  - LP-0317: Switched EPG to per-active-channel lazy loading (removed eager full-list EPG generation)
+  - Local test gate passed on each task PR:
+    - `pnpm lint`
+    - `pnpm typecheck`
+    - `pnpm build`
+  - Greptile/check comments:
+    - #55: confidence 5/5, no actionable comments
+    - #56: confidence 5/5, no actionable comments
+    - #57: confidence 4/5 overview, no actionable comments
+    - #58: confidence 5/5, no actionable comments
+    - GitHub PR checks green before every merge
+
+- Next:
+  - LP-0318 (EPG grid view)
+  - LP-0319 (XMLTV bulk EPG import + caching)
+
+---
+
 ## Session 2026-02-13 — LP-0310, LP-0311, LP-0312, LP-0313 (ordered batch)
 
 - PRs: #50 (merged), #51 (merged), #52 (merged), #53 (merged)
