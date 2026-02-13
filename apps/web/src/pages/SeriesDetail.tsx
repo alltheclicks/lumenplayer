@@ -67,6 +67,10 @@ const parseSeasonNumber = (seasonKey: string): number => {
   return Number(trimmed);
 };
 
+const sanitizeCssUrl = (url: string): string => {
+  return url.replace(/["'()\\]/g, (char) => encodeURIComponent(char));
+};
+
 const fetchSeriesDetail = async (seriesId: string): Promise<SeriesDetailData> => {
   const credentials = await loadXtreamCredentials();
 
@@ -214,7 +218,9 @@ const SeriesDetail = () => {
         <div
           className="h-52 w-full bg-cover bg-center md:h-64"
           style={{
-            backgroundImage: data?.backdrop ? `linear-gradient(to bottom, transparent, hsl(var(--background))), url(${data.backdrop})` : 'none',
+            backgroundImage: data?.backdrop
+              ? `linear-gradient(to bottom, transparent, hsl(var(--background))), url("${sanitizeCssUrl(data.backdrop)}")`
+              : 'none',
           }}
         />
 
@@ -347,4 +353,3 @@ const SeriesDetail = () => {
 };
 
 export default SeriesDetail;
-
