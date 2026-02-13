@@ -164,6 +164,37 @@ export interface XtreamSeries {
   category_id: string;
 }
 
+export interface XtreamSeriesEpisode {
+  id: string | number;
+  episode_num?: number;
+  title?: string;
+  container_extension?: string;
+  info?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+export interface XtreamSeriesInfo {
+  info: {
+    tmdb?: string | number;
+    name?: string;
+    cover?: string;
+    plot?: string;
+    cast?: string;
+    director?: string;
+    genre?: string;
+    releaseDate?: string;
+    last_modified?: string;
+    rating?: string;
+    rating_5based?: string | number;
+    backdrop_path?: string[] | string;
+    youtube_trailer?: string;
+    episode_run_time?: string;
+    [key: string]: unknown;
+  };
+  episodes: Record<string, XtreamSeriesEpisode[]>;
+  seasons?: Array<Record<string, unknown>>;
+}
+
 export interface XtreamEPGItem {
   id: string;
   epg_id: string;
