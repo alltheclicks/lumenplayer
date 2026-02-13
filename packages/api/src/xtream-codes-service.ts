@@ -136,6 +136,16 @@ export class XtreamCodesService {
     return `${this.credentials.server}/movie/${this.credentials.username}/${this.credentials.password}/${streamId}.${extension}`;
   }
 
+  getSeriesEpisodeStreamUrl(
+    episodeId: number,
+    extension = "mp4",
+  ): string {
+    if (!this.credentials) {
+      throw new Error("Credentials not set");
+    }
+    return `${this.credentials.server}/series/${this.credentials.username}/${this.credentials.password}/${episodeId}.${extension}`;
+  }
+
   getCatchUpUrl(
     streamId: number,
     startTime: number,
