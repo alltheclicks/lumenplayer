@@ -1,5 +1,27 @@
 # Handoff — Lumen Player
 
+## Session 2026-02-13 — LP-0302, LP-0303 (Xtream series API batch)
+
+- PRs: #37 (merged), #38 (merged)
+- Done:
+  - LP-0302: Added get_series_info endpoint via XtreamCodesService.getSeriesInfo(seriesId)
+  - LP-0302: Added new series metadata response types in @lumen/types (XtreamSeriesInfo, XtreamSeriesEpisode)
+  - LP-0303: Added series episode stream URL builder getSeriesEpisodeStreamUrl(episodeId, extension?)
+  - LP-0303: Addressed Greptile API consistency feedback by aligning getVODStreamUrl default extension to mp4
+  - Local test gate passed on each task PR:
+    - pnpm lint
+    - pnpm typecheck
+    - pnpm build
+  - Greptile/check comments:
+    - #37: Greptile was pinged, no bot review/comments were returned
+    - #38: 1 Greptile comment (confidence 4/5) addressed in follow-up fix commit, no additional bot review on latest HEAD
+
+- Next:
+  - LP-0304 (XMLTV EPG endpoint)
+  - LP-0305 (M3U parser package)
+
+---
+
 ## Session 2026-02-13 — LP-0208, LP-0209, LP-0210, LP-0301 (batch + ordered merge)
 
 - **PRs:** #32 (merged), #33 (merged), #34 (merged), #35 (merged)
@@ -20,7 +42,6 @@
   - LP-0015 (planned) CI pipeline: typecheck + lint + build
 
 ---
-
 ## Session 2026-02-13 — LP-0008, LP-0009, LP-0012, LP-0207 (unwired package batch + keyboard wiring)
 
 - **PRs:** #27 (merged), #28 (merged), #29 (merged), #30 (merged)
