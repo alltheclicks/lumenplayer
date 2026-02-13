@@ -25,6 +25,7 @@ import {
   loadXtreamCredentials,
   clearXtreamCredentials,
 } from '@/services/xtreamCodes';
+import { addWatchHistoryEntry } from '@/services/watchHistory';
 import { getCurrentProgram, getProgramProgress } from '@/data/channels';
 import type { PlayerChannel } from '@/types/player';
 import { filterChannels } from '@lumen/core';
@@ -110,6 +111,8 @@ const Player = () => {
   const [numericZapBuffer, setNumericZapBuffer] = useState<string | null>(null);
   const [numericZapMatchName, setNumericZapMatchName] = useState<string | null>(null);
   const numericInputRef = useRef<NumericChannelInput<PlayerChannel> | null>(null);
+  const watchedChannelIdRef = useRef<string | null>(null);
+  const watchedStartedAtRef = useRef<number | null>(null);
 
   const sessionSourceMetadata = useMemo(
     () => parseSessionSourceMetadata(session.source?.metadata),
@@ -216,6 +219,48 @@ const Player = () => {
       switchToLiveChannel(channels[0]);
     }
   }, [channels, currentChannel, session.source, switchToLiveChannel]);
+
+  useEffect(() => {
+    if (!currentChannel) {
+      return;
+    }
+
+    const now = Date.now();
+    const previousChannelId = watchedChannelIdRef.current;
+    const startedAt = watchedStartedAtRef.current;
+    const watchedDuration = startedAt ? Math.max(0, Math.floor((now - startedAt) / 1000)) : 0;
+
+    if (previousChannelId && previousChannelId !== currentChannel.id) {
+      void addWatchHistoryEntry({
+        channelId: previousChannelId,
+        timestamp: now,
+        duration: watchedDuration,
+        progress: watchedDuration,
+      });
+    }
+
+    watchedChannelIdRef.current = currentChannel.id;
+    watchedStartedAtRef.current = now;
+  }, [currentChannel?.id]);
+
+  useEffect(() => {
+    return () => {
+      const channelId = watchedChannelIdRef.current;
+      const startedAt = watchedStartedAtRef.current;
+      if (!channelId || !startedAt) {
+        return;
+      }
+
+      const now = Date.now();
+      const watchedDuration = Math.max(0, Math.floor((now - startedAt) / 1000));
+      void addWatchHistoryEntry({
+        channelId,
+        timestamp: now,
+        duration: watchedDuration,
+        progress: watchedDuration,
+      });
+    };
+  }, []);
 
   // Filter channels
   const filteredChannels = filterChannels(channels, searchQuery).filter(channel => {
