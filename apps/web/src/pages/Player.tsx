@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import {
   Search,
@@ -18,7 +17,7 @@ import {
 } from 'lucide-react';
 import VideoPlayer, { type VideoPlayerHandle } from '@/components/player/VideoPlayer';
 import PlayerControls from '@/components/player/PlayerControls';
-import { ChannelLogo } from '@/components/player/ChannelLogo';
+import ChannelList from '@/components/player/ChannelList';
 import { useXtreamChannels } from '@/hooks/useXtreamChannels';
 import { useFavorites } from '@/hooks/useFavorites';
 import { useSessionContext } from '@/context/session-context';
@@ -543,33 +542,14 @@ const Player = () => {
           </div>
 
           {/* Channel list */}
-          <ScrollArea className="flex-1">
-            <div className="p-2 space-y-1">
-              {filteredChannels.map(channel => (
-                <button
-                  key={channel.id}
-                  onClick={() => switchToLiveChannel(channel)}
-                  className={`w-full flex items-center gap-3 p-2 rounded-lg transition-colors ${currentChannel?.id === channel.id
-                      ? 'bg-primary/20 border border-primary/50'
-                      : 'hover:bg-secondary'
-                    }`}
-                >
-                  <div className="w-10 h-10 rounded-lg bg-background/50 flex items-center justify-center">
-                    <ChannelLogo logo={channel.logo} name={channel.name} />
-                  </div>
-                  <div className="flex-1 text-left min-w-0">
-                    <p className="font-medium text-sm truncate">{channel.name}</p>
-                    <p className="text-xs text-muted-foreground truncate">
-                      {channel.categoryName}
-                    </p>
-                  </div>
-                  {isFavorite(channel.id) && (
-                    <Star className="w-4 h-4 text-primary fill-primary flex-shrink-0" />
-                  )}
-                </button>
-              ))}
-            </div>
-          </ScrollArea>
+          <ChannelList
+            className="flex-1"
+            channels={filteredChannels}
+            currentChannelId={currentChannel?.id}
+            variant="desktop"
+            onSelectChannel={switchToLiveChannel}
+            isFavorite={isFavorite}
+          />
         </aside>
 
         {/* Main content */}
@@ -708,36 +688,17 @@ const Player = () => {
                     ))}
                   </div>
 
-                  <ScrollArea className="h-[calc(80vh-200px)]">
-                    <div className="space-y-1 pr-4">
-                      {filteredChannels.map(channel => (
-                        <button
-                          key={channel.id}
-                          onClick={() => {
-                            switchToLiveChannel(channel);
-                            setSidebarOpen(false);
-                          }}
-                          className={`w-full flex items-center gap-3 p-3 rounded-lg transition-colors ${currentChannel?.id === channel.id
-                              ? 'bg-primary/20 border border-primary/50'
-                              : 'hover:bg-secondary'
-                            }`}
-                        >
-                          <div className="w-12 h-12 rounded-lg bg-background/50 flex items-center justify-center">
-                            <ChannelLogo logo={channel.logo} name={channel.name} size="lg" />
-                          </div>
-                          <div className="flex-1 text-left min-w-0">
-                            <p className="font-medium truncate">{channel.name}</p>
-                            <p className="text-sm text-muted-foreground truncate">
-                              {channel.categoryName}
-                            </p>
-                          </div>
-                          {isFavorite(channel.id) && (
-                            <Star className="w-5 h-5 text-primary fill-primary flex-shrink-0" />
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                  </ScrollArea>
+                  <ChannelList
+                    className="h-[calc(80vh-200px)]"
+                    channels={filteredChannels}
+                    currentChannelId={currentChannel?.id}
+                    variant="mobile"
+                    onSelectChannel={(channel) => {
+                      switchToLiveChannel(channel);
+                      setSidebarOpen(false);
+                    }}
+                    isFavorite={isFavorite}
+                  />
                 </div>
               </SheetContent>
             </Sheet>

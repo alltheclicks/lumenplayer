@@ -12,14 +12,14 @@
     "clean": "rm -rf dist .turbo"
   },
   "dependencies": {
-    "@lumen/types": "workspace:*",
+    "@lumen/api": "workspace:*",
     "@lumen/core": "workspace:*",
     "@lumen/demo-data": "workspace:*",
-    "@lumen/api": "workspace:*",
+    "@lumen/input": "workspace:*",
     "@lumen/player-core": "workspace:*",
     "@lumen/session-core": "workspace:*",
     "@lumen/storage": "workspace:*",
-    "@lumen/input": "workspace:*",
+    "@lumen/types": "workspace:*",
     "@radix-ui/react-alert-dialog": "^1.1.14",
     "@radix-ui/react-collapsible": "^1.1.11",
     "@radix-ui/react-dialog": "^1.1.14",
@@ -28,6 +28,7 @@
     "@radix-ui/react-slot": "^1.2.3",
     "@radix-ui/react-toast": "^1.2.14",
     "@tanstack/react-query": "^5.56.2",
+    "@tanstack/react-virtual": "^3.11.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "hls.js": "^1.5.15",
@@ -39,8 +40,8 @@
     "tailwind-merge": "^2.5.2"
   },
   "devDependencies": {
-    "@lumen/tsconfig": "workspace:*",
     "@eslint/js": "^9.9.0",
+    "@lumen/tsconfig": "workspace:*",
     "@types/node": "^22.5.0",
     "@types/react": "^18.3.5",
     "@types/react-dom": "^18.3.0",
