@@ -198,7 +198,6 @@ const Player = () => {
 
   const currentProgram = currentChannel ? getCurrentProgram(currentChannel as any) : undefined;
   const progress = currentProgram ? getProgramProgress(currentProgram) : 0;
-  const streamUrl = session.source?.url ?? '';
 
   // Loading state
   if (isLoading) {
@@ -330,10 +329,7 @@ const Player = () => {
               <>
                 <VideoPlayer
                   ref={playerRef}
-                  src={streamUrl}
                   autoPlay={true}
-                  onPlay={() => commands.play()}
-                  onPause={() => commands.pause()}
                 />
 
                 <PlayerControls
