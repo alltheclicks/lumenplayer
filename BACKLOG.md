@@ -100,8 +100,8 @@
 | ID | Task | Size | Status | Depends on |
 |----|------|------|--------|------------|
 | LP-0301 | Add `get_vod_info` endpoint to XtreamCodesService (movie details, TMDB ID) | S | idea | — |
-| LP-0302 | Add `get_series_info` endpoint to XtreamCodesService (seasons, episodes) | S | idea | — |
-| LP-0303 | Add series episode stream URL builder | S | idea | LP-0302 |
+| LP-0302 | Add `get_series_info` endpoint to XtreamCodesService (seasons, episodes) | S | done | — |
+| LP-0303 | Add series episode stream URL builder | S | done | LP-0302 |
 | LP-0304 | Add XMLTV EPG endpoint (bulk EPG download) | S | idea | — |
 
 ### M3U podrška
@@ -182,6 +182,11 @@
 | LP-0324 | PWA offline fallback page | S | idea | — |
 | LP-0325 | PWA app icon + splash screen assets | S | idea | — |
 | LP-0011 | Code-splitting: lazy load Player page | S | idea | — |
+| LP-0330 | Web Push compatibility spike — verify iOS Home Screen PWA flow (iOS/iPadOS 16.4+), Android browser matrix, and unsupported TV browser behavior | S | idea | LP-0010 |
+| LP-0331 | Add push opt-in UX (pre-permission screen + user-gesture prompt) with explicit unsupported-device fallback copy | S | idea | LP-0330 |
+| LP-0332 | Persist push subscriptions in backend (subscribe/unsubscribe endpoints, per-user/per-device mapping) | M | idea | LP-1502 |
+| LP-0333 | Implement web push sender service (VAPID keys, queue/retry, delivery logging) | M | idea | LP-0332 |
+| LP-0334 | Add service worker push handlers (`push`, `notificationclick`) + deep-link routing into player/dashboard | S | idea | LP-0331, LP-0333 |
 
 ---
 
@@ -222,6 +227,10 @@
 | LP-1504 | Xtream/M3U credential management per device in dashboard | M | idea | LP-1503 |
 | LP-1505 | Provider accounts — multi-device management, bulk provisioning | L | idea | LP-1502 |
 | LP-1506 | Payment integration — free vs paid tier logic | L | idea | LP-1502 |
+| LP-1507 | Data-plane spike in dashboard backend: Xtream/M3U/EPG proxy + cache feasibility, tenant isolation, and cost model | M | idea | LP-1504 |
+| LP-1508 | Implement optional ingest/cache middleware in dashboard backend (feature-flagged, non-blocking for direct mode) | L | idea | LP-1507 |
+| LP-1509 | Add parser/normalization pipeline for large Xtream payloads (channels, VOD, series, EPG) with incremental refresh | L | idea | LP-1508 |
+| LP-1510 | Define middleware activation criteria + SLO gates (enable when direct mode exceeds latency/memory/error thresholds) | S | idea | LP-1507, LP-0327, LP-0328 |
 
 ---
 
