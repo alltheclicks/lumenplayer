@@ -82,14 +82,14 @@
 | LP-0009 | Integrate `IdleTimer` (`@lumen/player-core`) into controls — auto-hide with grace period | S | done | LP-0104e |
 | LP-0012 | Implement `HlsPlayerAdapter` — wrap HLS.js behind `PlayerAdapter` interface from `@lumen/types` | M | done | LP-0104f |
 | LP-0207 | Wire `WebKeyCodes` from `@lumen/input` for keyboard navigation (arrows, space, etc.) | S | done | LP-0104d |
-| LP-0208 | Wire `WatchHistoryStorage` from `@lumen/storage` — track what user watched | S | idea | LP-0104d |
-| LP-0209 | Wire `WebStorageAdapter` + `VersionedStorage` from `@lumen/storage` — replace raw localStorage usage in `apps/web` hooks/services | S | idea | LP-0203 |
+| LP-0208 | Wire `WatchHistoryStorage` from `@lumen/storage` — track what user watched | S | done | LP-0104d |
+| LP-0209 | Wire `WebStorageAdapter` + `VersionedStorage` from `@lumen/storage` — replace raw localStorage usage in `apps/web` hooks/services | S | done | LP-0203 |
 
 ### Remove migration shims (after all above done)
 
 | ID | Task | Size | Status | Depends on |
 |----|------|------|--------|------------|
-| LP-0210 | Remove re-export shims (`src/data/channels.ts`, `src/services/xtreamCodes.ts`, `src/types/channel.ts`, `src/types/player.ts`) — import from packages directly | S | idea | LP-0203, LP-0204, LP-0206 |
+| LP-0210 | Remove re-export shims (`src/data/channels.ts`, `src/services/xtreamCodes.ts`, `src/types/channel.ts`, `src/types/player.ts`) — import from packages directly | S | done | LP-0203, LP-0204, LP-0206 |
 
 ---
 
@@ -99,7 +99,7 @@
 
 | ID | Task | Size | Status | Depends on |
 |----|------|------|--------|------------|
-| LP-0301 | Add `get_vod_info` endpoint to XtreamCodesService (movie details, TMDB ID) | S | idea | — |
+| LP-0301 | Add `get_vod_info` endpoint to XtreamCodesService (movie details, TMDB ID) | S | done | — |
 | LP-0302 | Add `get_series_info` endpoint to XtreamCodesService (seasons, episodes) | S | idea | — |
 | LP-0303 | Add series episode stream URL builder | S | idea | LP-0302 |
 | LP-0304 | Add XMLTV EPG endpoint (bulk EPG download) | S | idea | — |
@@ -274,4 +274,4 @@
 ### Sync notes (2026-02-12)
 
 - `LP-0014` je pokrenut: dodat je `apps/web/eslint.config.mjs`, `pnpm --filter @lumen/web lint` sada radi.
-- `LP-0209` nije završen (apps/web još ima raw localStorage), ali storage osnova je poboljšana kroz LP-0211.
+- `LP-0209` je završen u kasnijoj sesiji kroz app-level `VersionedStorage` wiring (`apps/web` hooks/services).

@@ -1,5 +1,26 @@
 # Handoff — Lumen Player
 
+## Session 2026-02-13 — LP-0208, LP-0209, LP-0210, LP-0301 (batch + ordered merge)
+
+- **PRs:** #32 (merged), #33 (merged), #34 (merged), #35 (merged)
+- **Done:**
+  - LP-0208: Wired `WatchHistoryStorage` in web app and track watch entries on channel switch/unmount
+  - LP-0209: Wired app-level `WebStorageAdapter + VersionedStorage` for favorites/credentials and aligned watch-history storage backend
+  - LP-0210: Removed shim layer files in `apps/web/src` and switched to direct `@lumen/*` imports
+  - LP-0301: Added `get_vod_info` endpoint via `XtreamCodesService.getVODInfo(vodId)` and added `XtreamVODInfo` type (with `tmdb_id`)
+  - Local test gate passed on each task PR:
+    - `pnpm lint`
+    - `pnpm typecheck`
+    - `pnpm build`
+  - Greptile/check comments:
+    - Greptile was pinged on each PR (`@greptileai` + `@greptile-apps`), no bot review/comments were returned
+
+- **Next:**
+  - LP-0014 (in-progress) final cleanup/validation
+  - LP-0015 (planned) CI pipeline: typecheck + lint + build
+
+---
+
 ## Session 2026-02-13 — LP-0008, LP-0009, LP-0012, LP-0207 (unwired package batch + keyboard wiring)
 
 - **PRs:** #27 (merged), #28 (merged), #29 (merged), #30 (merged)
