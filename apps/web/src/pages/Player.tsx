@@ -24,7 +24,7 @@ import {
   loadXtreamCredentials,
   clearXtreamCredentials,
 } from '@/services/xtreamCodes';
-import { getCurrentProgram, getProgramProgress, type Program } from '@/data/channels';
+import { getCurrentProgram, getProgramProgress } from '@/data/channels';
 import type { PlayerChannel } from '@/types/player';
 import { filterChannels } from '@lumen/core';
 import {
@@ -105,24 +105,6 @@ const Player = () => {
     return null;
   }, [channels, session.source?.channelId, sessionSourceMetadata]);
 
-  const catchUpProgram = useMemo(() => {
-    if (!currentChannel || sessionSourceMetadata.mode !== 'catchup') {
-      return null;
-    }
-
-    const catchUpProgramId = sessionSourceMetadata.catchUpProgramId;
-    if (!catchUpProgramId) {
-      return null;
-    }
-
-    return currentChannel.epg.find(program => program.id === catchUpProgramId) ?? null;
-  }, [currentChannel, sessionSourceMetadata]);
-
-  const catchUpPosition = catchUpProgram
-    ? Math.max(0, (session.positionMs ?? 0) / 1000)
-    : 0;
-  const isPlaying = session.playback === 'playing' || session.playback === 'buffering';
-
   const switchToLiveChannel = useCallback(
     (channel: PlayerChannel) => {
       const source = {
@@ -141,44 +123,6 @@ const Player = () => {
       commands.play();
     },
     [commands]
-  );
-
-  const handleCatchUpProgramChange = useCallback(
-    (program: Program | null) => {
-      if (!currentChannel) {
-        return;
-      }
-
-      if (!program) {
-        switchToLiveChannel(currentChannel);
-        return;
-      }
-
-      const startTimestamp = Math.floor(program.startTime.getTime() / 1000);
-      const duration = Math.floor(
-        (program.endTime.getTime() - program.startTime.getTime()) / 1000
-      );
-      const source = {
-        url: xtreamCodesService.getCatchUpUrl(
-          currentChannel.streamId,
-          startTimestamp,
-          duration
-        ),
-        type: 'hls' as const,
-        title: `${currentChannel.name} - ${program.title}`,
-        channelId: currentChannel.id,
-        metadata: {
-          channelId: currentChannel.id,
-          streamId: currentChannel.streamId,
-          mode: 'catchup',
-          catchUpProgramId: program.id,
-        },
-      };
-
-      commands.setSource(source, 0);
-      commands.play();
-    },
-    [commands, currentChannel, switchToLiveChannel]
   );
 
   // Load credentials on mount
@@ -252,36 +196,8 @@ const Player = () => {
     navigate('/login');
   };
 
-  // Toggle play/pause
-  const togglePlay = useCallback(() => {
-    if (isPlaying) {
-      playerRef.current?.pause();
-      commands.pause();
-    } else {
-      playerRef.current?.play();
-      commands.play();
-    }
-  }, [commands, isPlaying]);
-
-  const handleVolumeChange = useCallback((newVolume: number) => {
-    playerRef.current?.setVolume(newVolume / 100);
-  }, []);
-
-  const handleMuteChange = useCallback((muted: boolean) => {
-    playerRef.current?.setMuted(muted);
-  }, []);
-
-  const handleCatchUpPositionChange = useCallback((position: number) => {
-    if (!catchUpProgram) {
-      return;
-    }
-
-    playerRef.current?.seek(position);
-    commands.seek(Math.floor(position * 1000));
-  }, [catchUpProgram, commands]);
-
   const currentProgram = currentChannel ? getCurrentProgram(currentChannel as any) : undefined;
-  const progress = !catchUpProgram && currentProgram ? getProgramProgress(currentProgram) : 0;
+  const progress = currentProgram ? getProgramProgress(currentProgram) : 0;
   const streamUrl = session.source?.url ?? '';
 
   // Loading state
@@ -424,20 +340,13 @@ const Player = () => {
                   channel={currentChannel}
                   currentProgram={currentProgram}
                   progress={progress}
-                  isPlaying={isPlaying}
                   isFavorite={isFavorite(currentChannel.id)}
                   isFullscreen={isFullscreen}
-                  catchUpProgram={catchUpProgram}
-                  catchUpPosition={catchUpPosition}
-                  onCatchUpProgramChange={handleCatchUpProgramChange}
-                  onCatchUpPositionChange={handleCatchUpPositionChange}
-                  onTogglePlay={togglePlay}
                   onToggleFavorite={() => toggleFavorite(currentChannel.id)}
-                  onVolumeChange={handleVolumeChange}
-                  onMuteChange={handleMuteChange}
                   onToggleFullscreen={toggleFullscreen}
                   onPrevChannel={goToPrevChannel}
                   onNextChannel={goToNextChannel}
+                  playerRef={playerRef}
                 />
               </>
             )}
