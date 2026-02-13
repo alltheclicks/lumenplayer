@@ -47,6 +47,7 @@ type SessionSourceMetadata = {
   streamId?: number;
   mode?: 'live' | 'catchup' | 'vod' | 'series-episode';
   catchUpProgramId?: string;
+  seriesId?: string;
 };
 
 const parseSessionSourceMetadata = (
@@ -70,6 +71,7 @@ const parseSessionSourceMetadata = (
       ? metadata.mode
       : undefined,
     catchUpProgramId: typeof metadata.catchUpProgramId === 'string' ? metadata.catchUpProgramId : undefined,
+    seriesId: typeof metadata.seriesId === 'string' ? metadata.seriesId : undefined,
   };
 };
 
@@ -433,6 +435,15 @@ const Player = () => {
 
   const currentProgram = currentChannel ? getCurrentProgram(currentChannel as any) : undefined;
   const progress = currentProgram ? getProgramProgress(currentProgram) : 0;
+  const onDemandTitle = sessionSourceMetadata.mode === 'series-episode'
+    ? 'Episode Playback'
+    : 'VOD Playback';
+  const onDemandBackPath = sessionSourceMetadata.mode === 'series-episode' && sessionSourceMetadata.seriesId
+    ? `/series/${sessionSourceMetadata.seriesId}`
+    : '/vod';
+  const onDemandBackLabel = sessionSourceMetadata.mode === 'series-episode'
+    ? 'Back to Series'
+    : 'Back to VOD';
 
   // Loading state
   if (isLoading) {
@@ -611,7 +622,7 @@ const Player = () => {
                   <div className="min-w-0">
                     <p className="mb-1 flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-primary">
                       <Film className="h-4 w-4" />
-                      VOD Playback
+                      {onDemandTitle}
                     </p>
                     <h2 className="truncate text-lg font-semibold text-foreground sm:text-xl">
                       {session.source.title || 'On-demand playback'}
@@ -629,8 +640,8 @@ const Player = () => {
                       )}
                       {session.playback === 'playing' || session.playback === 'buffering' ? 'Pause' : 'Play'}
                     </Button>
-                    <Button variant="outline" onClick={() => navigate('/vod')}>
-                      Back to VOD
+                    <Button variant="outline" onClick={() => navigate(onDemandBackPath)}>
+                      {onDemandBackLabel}
                     </Button>
                   </div>
                 </div>
