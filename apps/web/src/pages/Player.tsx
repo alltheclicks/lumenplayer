@@ -19,6 +19,7 @@ import { ChannelLogo } from '@/components/player/ChannelLogo';
 import { useXtreamChannels } from '@/hooks/useXtreamChannels';
 import { useFavorites } from '@/hooks/useFavorites';
 import { useSessionContext } from '@/context/session-context';
+import { NumericChannelInput } from '@lumen/input';
 import {
   xtreamCodesService,
   loadXtreamCredentials,
@@ -64,6 +65,20 @@ const parseSessionSourceMetadata = (
   };
 };
 
+const isTypingTarget = (target: EventTarget | null): boolean => {
+  if (!(target instanceof HTMLElement)) {
+    return false;
+  }
+
+  const tagName = target.tagName;
+  return (
+    target.isContentEditable ||
+    tagName === 'INPUT' ||
+    tagName === 'TEXTAREA' ||
+    tagName === 'SELECT'
+  );
+};
+
 const Player = () => {
   const navigate = useNavigate();
   const playerRef = useRef<VideoPlayerHandle>(null);
@@ -78,6 +93,9 @@ const Player = () => {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
+  const [numericZapBuffer, setNumericZapBuffer] = useState<string | null>(null);
+  const [numericZapMatchName, setNumericZapMatchName] = useState<string | null>(null);
+  const numericInputRef = useRef<NumericChannelInput<PlayerChannel> | null>(null);
 
   const sessionSourceMetadata = useMemo(
     () => parseSessionSourceMetadata(session.source?.metadata),
@@ -141,6 +159,52 @@ const Player = () => {
     },
     [commands]
   );
+
+  useEffect(() => {
+    const numericInput = new NumericChannelInput<PlayerChannel>({
+      items: () => channels,
+      getNumber: (channel) => channel.number,
+      onMatch: (match) => {
+        const buffer = numericInput.getBuffer();
+        setNumericZapBuffer(buffer.length > 0 ? buffer : null);
+        setNumericZapMatchName(match?.item.name ?? null);
+      },
+      onSelect: (match) => {
+        setNumericZapBuffer(null);
+        setNumericZapMatchName(null);
+        if (match) {
+          switchToLiveChannel(match.item);
+        }
+      },
+    });
+
+    numericInputRef.current = numericInput;
+
+    return () => {
+      numericInput.destroy();
+      numericInputRef.current = null;
+      setNumericZapBuffer(null);
+      setNumericZapMatchName(null);
+    };
+  }, [channels, switchToLiveChannel]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.metaKey || event.ctrlKey || event.altKey || isTypingTarget(event.target)) {
+        return;
+      }
+
+      if (!/^[0-9]$/.test(event.key)) {
+        return;
+      }
+
+      event.preventDefault();
+      numericInputRef.current?.addDigit(Number(event.key));
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   // Load credentials on mount
   useEffect(() => {
@@ -342,6 +406,19 @@ const Player = () => {
             ref={containerRef}
             className={`relative bg-black ${isFullscreen ? 'fixed inset-0 z-50' : 'aspect-video'}`}
           >
+            {numericZapBuffer && (
+              <div className="absolute top-4 right-4 z-[60] rounded-lg bg-black/80 border border-primary/40 px-3 py-2 text-sm">
+                <div className="font-semibold tracking-[0.2em] tabular-nums">{numericZapBuffer}</div>
+                {numericZapMatchName ? (
+                  <div className="text-xs text-muted-foreground mt-1 truncate max-w-44">
+                    {numericZapMatchName}
+                  </div>
+                ) : (
+                  <div className="text-xs text-destructive mt-1">No channel</div>
+                )}
+              </div>
+            )}
+
             {currentChannel && (
               <>
                 <VideoPlayer
