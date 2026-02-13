@@ -54,7 +54,11 @@ const parseSessionSourceMetadata = (
 
   return {
     channelId: typeof metadata.channelId === 'string' ? metadata.channelId : undefined,
-    streamId: typeof metadata.streamId === 'number' ? metadata.streamId : undefined,
+    streamId: typeof metadata.streamId === 'number'
+      ? metadata.streamId
+      : typeof metadata.streamId === 'string' && !Number.isNaN(Number(metadata.streamId))
+        ? Number(metadata.streamId)
+        : undefined,
     mode: metadata.mode === 'live' || metadata.mode === 'catchup' ? metadata.mode : undefined,
     catchUpProgramId: typeof metadata.catchUpProgramId === 'string' ? metadata.catchUpProgramId : undefined,
   };
@@ -102,8 +106,21 @@ const Player = () => {
       }
     }
 
+    const sourceTitle = session.source?.title;
+    if (sourceTitle) {
+      const normalizedTitle = sourceTitle.split(' - ')[0].trim();
+      const byTitle = channels.find(
+        channel =>
+          channel.name === sourceTitle ||
+          channel.name === normalizedTitle
+      );
+      if (byTitle) {
+        return byTitle;
+      }
+    }
+
     return null;
-  }, [channels, session.source?.channelId, sessionSourceMetadata]);
+  }, [channels, session.source?.channelId, session.source?.title, sessionSourceMetadata]);
 
   const switchToLiveChannel = useCallback(
     (channel: PlayerChannel) => {
@@ -135,10 +152,10 @@ const Player = () => {
 
   // Set first channel when loaded
   useEffect(() => {
-    if (channels.length > 0 && !currentChannel) {
+    if (channels.length > 0 && !currentChannel && !session.source) {
       switchToLiveChannel(channels[0]);
     }
-  }, [channels, currentChannel, switchToLiveChannel]);
+  }, [channels, currentChannel, session.source, switchToLiveChannel]);
 
   // Filter channels
   const filteredChannels = filterChannels(channels, searchQuery).filter(channel => {
