@@ -1,15 +1,12 @@
 import { useRef, useEffect, useState, useCallback, forwardRef, useImperativeHandle } from 'react';
 import Hls from 'hls.js';
 import { AlertCircle, Loader2, WifiOff, ShieldAlert } from 'lucide-react';
+import { useSessionContext } from '@/context/session-context';
 
 export interface VideoPlayerProps {
-  src: string;
   poster?: string;
   autoPlay?: boolean;
   onError?: (error: string) => void;
-  onPlay?: () => void;
-  onPause?: () => void;
-  onTimeUpdate?: (currentTime: number, duration: number) => void;
   onEnded?: () => void;
   onCanPlay?: () => void;
   className?: string;
@@ -34,22 +31,24 @@ type PlayerError = {
 };
 
 const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
-  src,
   poster,
   autoPlay = true,
   onError,
-  onPlay,
-  onPause,
-  onTimeUpdate,
   onEnded,
   onCanPlay,
   className = '',
 }, ref) => {
+  const { session, commands } = useSessionContext();
+  const src = session.source?.url ?? '';
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
+  const isApplyingSessionSeekRef = useRef(false);
+  const lastReportedPositionMsRef = useRef<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<PlayerError | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const playbackWantsPlaying =
+    session.playback === 'playing' || session.playback === 'buffering';
 
   useImperativeHandle(ref, () => ({
     play: () => videoRef.current?.play(),
@@ -98,6 +97,8 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
 
     setIsLoading(true);
     setError(null);
+    isApplyingSessionSeekRef.current = false;
+    lastReportedPositionMsRef.current = null;
 
     if (isMixedContent()) {
       setError({
@@ -133,7 +134,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
 
         hls.on(Hls.Events.MANIFEST_PARSED, () => {
           setIsLoading(false);
-          if (autoPlay) {
+          if (autoPlay && playbackWantsPlaying) {
             video.play().catch(() => {});
           }
         });
@@ -174,6 +175,9 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
       } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
         video.src = src;
         setIsLoading(false);
+        if (autoPlay && playbackWantsPlaying) {
+          video.play().catch(() => {});
+        }
       } else {
         setError({
           type: 'format',
@@ -186,6 +190,9 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
     } else {
       video.src = src;
       setIsLoading(false);
+      if (autoPlay && playbackWantsPlaying) {
+        video.play().catch(() => {});
+      }
     }
 
     return () => {
@@ -196,7 +203,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
       }
       destroyHls();
     };
-  }, [src, autoPlay, destroyHls, isMixedContent, onError]);
+  }, [autoPlay, destroyHls, isMixedContent, onError, playbackWantsPlaying, src]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -204,16 +211,16 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
 
     const handlePlay = () => {
       setIsPlaying(true);
-      onPlay?.();
+      if (!playbackWantsPlaying) {
+        commands.play();
+      }
     };
 
     const handlePause = () => {
       setIsPlaying(false);
-      onPause?.();
-    };
-
-    const handleTimeUpdate = () => {
-      onTimeUpdate?.(video.currentTime, video.duration);
+      if (session.source && playbackWantsPlaying) {
+        commands.pause();
+      }
     };
 
     const handleEnded = () => {
@@ -232,6 +239,41 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
 
     const handlePlaying = () => {
       setIsLoading(false);
+    };
+
+    const handleTimeUpdate = () => {
+      if (!session.source) {
+        return;
+      }
+
+      const currentPositionMs = Math.floor(video.currentTime * 1000);
+      if (isApplyingSessionSeekRef.current) {
+        if (
+          session.positionMs === null ||
+          Math.abs(currentPositionMs - session.positionMs) < 500
+        ) {
+          isApplyingSessionSeekRef.current = false;
+        }
+        return;
+      }
+
+      const lastReportedPositionMs = lastReportedPositionMsRef.current;
+      if (
+        lastReportedPositionMs !== null &&
+        Math.abs(currentPositionMs - lastReportedPositionMs) < 1000
+      ) {
+        return;
+      }
+
+      if (
+        session.positionMs !== null &&
+        Math.abs(currentPositionMs - session.positionMs) < 1000
+      ) {
+        return;
+      }
+
+      lastReportedPositionMsRef.current = currentPositionMs;
+      commands.seek(currentPositionMs);
     };
 
     const handleError = () => {
@@ -280,7 +322,55 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
       video.removeEventListener('playing', handlePlaying);
       video.removeEventListener('error', handleError);
     };
-  }, [onPlay, onPause, onTimeUpdate, onEnded, onCanPlay, onError]);
+  }, [
+    commands,
+    onCanPlay,
+    onEnded,
+    onError,
+    playbackWantsPlaying,
+    session.positionMs,
+    session.source,
+  ]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !session.source || session.positionMs === null) {
+      return;
+    }
+
+    const targetTime = session.positionMs / 1000;
+    if (Math.abs(video.currentTime - targetTime) < 1) {
+      return;
+    }
+
+    isApplyingSessionSeekRef.current = true;
+    video.currentTime = targetTime;
+  }, [session.positionMs, session.source]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) {
+      return;
+    }
+
+    if (!session.source) {
+      if (!video.paused) {
+        video.pause();
+      }
+      return;
+    }
+
+    if (playbackWantsPlaying) {
+      if (video.paused) {
+        video.play().catch(() => {});
+      }
+      return;
+    }
+
+    if (!video.paused) {
+      video.pause();
+    }
+  }, [playbackWantsPlaying, session.source]);
 
   const ErrorDisplay = ({ error }: { error: PlayerError }) => {
     const Icon = error.type === 'mixed-content' ? ShieldAlert
