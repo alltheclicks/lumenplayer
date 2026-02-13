@@ -78,10 +78,10 @@
 | ID | Task | Size | Status | Depends on |
 |----|------|------|--------|------------|
 | LP-0007 | Integrate `SeekEngine` (`@lumen/player-core`) into player — exponential seek (5x→640x) on long-press/hold | M | done | LP-0104f |
-| LP-0008 | Integrate `NumericChannelInput` (`@lumen/input`) — digit accumulation for channel zapping | S | pending-review | LP-0104d |
-| LP-0009 | Integrate `IdleTimer` (`@lumen/player-core`) into controls — auto-hide with grace period | S | pending-review | LP-0104e |
-| LP-0012 | Implement `HlsPlayerAdapter` — wrap HLS.js behind `PlayerAdapter` interface from `@lumen/types` | M | pending-review | LP-0104f |
-| LP-0207 | Wire `WebKeyCodes` from `@lumen/input` for keyboard navigation (arrows, space, etc.) | S | idea | LP-0104d |
+| LP-0008 | Integrate `NumericChannelInput` (`@lumen/input`) — digit accumulation for channel zapping | S | done | LP-0104d |
+| LP-0009 | Integrate `IdleTimer` (`@lumen/player-core`) into controls — auto-hide with grace period | S | done | LP-0104e |
+| LP-0012 | Implement `HlsPlayerAdapter` — wrap HLS.js behind `PlayerAdapter` interface from `@lumen/types` | M | done | LP-0104f |
+| LP-0207 | Wire `WebKeyCodes` from `@lumen/input` for keyboard navigation (arrows, space, etc.) | S | done | LP-0104d |
 | LP-0208 | Wire `WatchHistoryStorage` from `@lumen/storage` — track what user watched | S | idea | LP-0104d |
 | LP-0209 | Wire `WebStorageAdapter` + `VersionedStorage` from `@lumen/storage` — replace raw localStorage usage in `apps/web` hooks/services | S | idea | LP-0203 |
 
