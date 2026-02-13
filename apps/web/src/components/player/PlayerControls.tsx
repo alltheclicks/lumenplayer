@@ -27,7 +27,7 @@ import { ChannelLogo } from '@/components/player/ChannelLogo';
 import { useSessionContext } from '@/context/session-context';
 import { xtreamCodesService } from '@/services/xtreamCodes';
 import type { VideoPlayerHandle } from '@/components/player/VideoPlayer';
-import { SeekEngine, type SeekDirection } from '@lumen/player-core';
+import { IdleTimer, SeekEngine, type SeekDirection } from '@lumen/player-core';
 import { formatDuration } from '@lumen/core';
 
 interface PlayerControlsProps {
@@ -54,6 +54,8 @@ interface PendingSeekInteraction {
 }
 
 const LONG_PRESS_THRESHOLD_MS = 250;
+const CONTROLS_IDLE_TIMEOUT_MS = 3000;
+const CONTROLS_IDLE_GRACE_MS = 1000;
 
 const parseSessionSourceMetadata = (
   metadata: Record<string, unknown> | undefined
@@ -127,6 +129,7 @@ const PlayerControls = ({
   const progressRef = useRef<HTMLDivElement>(null);
   const lastNonZeroVolumeRef = useRef(DEFAULT_VOLUME);
   const seekEngineRef = useRef<SeekEngine | null>(null);
+  const idleTimerRef = useRef<IdleTimer | null>(null);
   const seekHoldTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingSeekInteractionRef = useRef<PendingSeekInteraction | null>(null);
   const seekHoldActiveRef = useRef(false);
@@ -195,26 +198,83 @@ const PlayerControls = ({
   }, []);
 
   useEffect(() => {
-    if (!showControls || showCatchUp || isSeeking || !isFullscreen) return;
+    const idleTimer = new IdleTimer(
+      () => setShowControls(false),
+      {
+        timeoutMs: CONTROLS_IDLE_TIMEOUT_MS,
+        graceMs: CONTROLS_IDLE_GRACE_MS,
+      }
+    );
+    idleTimerRef.current = idleTimer;
 
-    const timer = setTimeout(() => {
-      setShowControls(false);
-    }, 3000);
+    return () => {
+      idleTimer.destroy();
+      idleTimerRef.current = null;
+    };
+  }, []);
 
-    return () => clearTimeout(timer);
-  }, [showControls, showCatchUp, isSeeking, isFullscreen]);
+  const resetControlsIdleTimer = useCallback(() => {
+    const idleTimer = idleTimerRef.current;
+    if (!idleTimer) {
+      return;
+    }
+
+    if (!isFullscreen || showCatchUp || isSeeking) {
+      return;
+    }
+
+    if (idleTimer.isInGracePeriod()) {
+      return;
+    }
+
+    setShowControls(true);
+    idleTimer.reset();
+  }, [isFullscreen, isSeeking, showCatchUp]);
+
+  useEffect(() => {
+    const idleTimer = idleTimerRef.current;
+    if (!idleTimer) {
+      return;
+    }
+
+    if (!isFullscreen || showCatchUp || isSeeking) {
+      idleTimer.clear();
+      setShowControls(true);
+      return;
+    }
+
+    if (showControls) {
+      idleTimer.reset();
+    }
+  }, [isFullscreen, showCatchUp, isSeeking, showControls]);
 
   const handleMouseMove = useCallback(() => {
-    setShowControls(true);
-  }, []);
+    resetControlsIdleTimer();
+  }, [resetControlsIdleTimer]);
 
   const handleClick = useCallback(() => {
     if (showCatchUp) {
       setShowCatchUp(false);
+      resetControlsIdleTimer();
     } else {
-      setShowControls(prev => !prev);
+      const idleTimer = idleTimerRef.current;
+      if (!showControls && idleTimer?.isInGracePeriod()) {
+        return;
+      }
+
+      setShowControls(prev => {
+        const nextShowControls = !prev;
+        if (idleTimer && isFullscreen && !showCatchUp && !isSeeking) {
+          if (nextShowControls) {
+            idleTimer.reset();
+          } else {
+            idleTimer.clear();
+          }
+        }
+        return nextShowControls;
+      });
     }
-  }, [showCatchUp]);
+  }, [isFullscreen, isSeeking, resetControlsIdleTimer, showCatchUp, showControls]);
 
   const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newVolume = parseInt(e.target.value);
