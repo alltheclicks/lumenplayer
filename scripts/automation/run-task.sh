@@ -15,7 +15,12 @@ BRANCH_NAME="codex/${TASK_LOWER}-auto"
 WORKTREE_BASE="${WORKTREE_BASE:-$ROOT_DIR/.codex/worktrees}"
 WORKTREE_DIR="$WORKTREE_BASE/$TASK_ID"
 LOG_BASE="${LOG_BASE:-$ROOT_DIR/.codex/logs}"
-CODEx_LOG="$LOG_BASE/${TASK_ID}.codex.log"
+CODEX_LOG="$LOG_BASE/${TASK_ID}.codex.log"
+READ_DOC_PATH="$ROOT_DIR/VISION.md"
+
+if [[ ! -f "$READ_DOC_PATH" ]]; then
+  READ_DOC_PATH="$ROOT_DIR/ROADMAP.md"
+fi
 
 mkdir -p "$WORKTREE_BASE" "$LOG_BASE"
 
@@ -44,7 +49,7 @@ else
 fi
 
 PROMPT=$(cat <<PROMPT_EOF
-Procitaj ${ROOT_DIR}/HANDOFF.md, ${ROOT_DIR}/VISION.md, ${ROOT_DIR}/SESSION-ARCHITECTURE.md i ${ROOT_DIR}/BACKLOG.md.
+Procitaj ${ROOT_DIR}/HANDOFF.md, ${READ_DOC_PATH}, ${ROOT_DIR}/SESSION-ARCHITECTURE.md i ${ROOT_DIR}/BACKLOG.md.
 Potvrdi aktivni task ID: ${TASK_ID}.
 Uradi iskljucivo taj task (bez rada van scope-a).
 Nalazis se vec na branchu ${BRANCH_NAME}; ne kreiraj novu granu.
@@ -57,7 +62,7 @@ PROMPT_EOF
 
 echo "[${TASK_ID}] Starting codex exec"
 set +e
-codex exec --cd "$WORKTREE_DIR" --dangerously-bypass-approvals-and-sandbox "$PROMPT" | tee "$CODEx_LOG"
+codex exec --cd "$WORKTREE_DIR" --dangerously-bypass-approvals-and-sandbox "$PROMPT" | tee "$CODEX_LOG"
 CODEX_EXIT=${PIPESTATUS[0]}
 set -e
 
@@ -76,7 +81,7 @@ PR_URL="$(echo "$PR_JSON" | jq -r '.[0].url // empty')"
 
 if [[ -z "$PR_NUMBER" ]]; then
   echo "[${TASK_ID}] No open PR found for branch $BRANCH_NAME."
-  echo "[${TASK_ID}] Codex may not have created it. Check log: $CODEx_LOG"
+  echo "[${TASK_ID}] Codex may not have created it. Check log: $CODEX_LOG"
   exit 2
 fi
 
