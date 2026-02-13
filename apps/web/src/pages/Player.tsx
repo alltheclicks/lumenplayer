@@ -19,7 +19,7 @@ import { ChannelLogo } from '@/components/player/ChannelLogo';
 import { useXtreamChannels } from '@/hooks/useXtreamChannels';
 import { useFavorites } from '@/hooks/useFavorites';
 import { useSessionContext } from '@/context/session-context';
-import { NumericChannelInput } from '@lumen/input';
+import { NumericChannelInput, WebKeyCodes } from '@lumen/input';
 import {
   xtreamCodesService,
   loadXtreamCredentials,
@@ -77,6 +77,20 @@ const isTypingTarget = (target: EventTarget | null): boolean => {
     tagName === 'TEXTAREA' ||
     tagName === 'SELECT'
   );
+};
+
+const getDigitFromWebKeyCode = (keyCode: number): number | null => {
+  if (keyCode === WebKeyCodes[0]) return 0;
+  if (keyCode === WebKeyCodes[1]) return 1;
+  if (keyCode === WebKeyCodes[2]) return 2;
+  if (keyCode === WebKeyCodes[3]) return 3;
+  if (keyCode === WebKeyCodes[4]) return 4;
+  if (keyCode === WebKeyCodes[5]) return 5;
+  if (keyCode === WebKeyCodes[6]) return 6;
+  if (keyCode === WebKeyCodes[7]) return 7;
+  if (keyCode === WebKeyCodes[8]) return 8;
+  if (keyCode === WebKeyCodes[9]) return 9;
+  return null;
 };
 
 const Player = () => {
@@ -188,24 +202,6 @@ const Player = () => {
     };
   }, [channels, switchToLiveChannel]);
 
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.metaKey || event.ctrlKey || event.altKey || isTypingTarget(event.target)) {
-        return;
-      }
-
-      if (!/^[0-9]$/.test(event.key)) {
-        return;
-      }
-
-      event.preventDefault();
-      numericInputRef.current?.addDigit(Number(event.key));
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
-
   // Load credentials on mount
   useEffect(() => {
     const credentials = loadXtreamCredentials();
@@ -270,6 +266,91 @@ const Player = () => {
     const prevIndex = (currentIndex - 1 + channels.length) % channels.length;
     switchToLiveChannel(channels[prevIndex]);
   }, [currentChannel, channels, switchToLiveChannel]);
+
+  const togglePlayback = useCallback(() => {
+    if (!session.source) {
+      return;
+    }
+
+    if (session.playback === 'playing' || session.playback === 'buffering') {
+      playerRef.current?.pause();
+      commands.pause();
+      return;
+    }
+
+    playerRef.current?.play();
+    commands.play();
+  }, [commands, session.playback, session.source]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.metaKey || event.ctrlKey || event.altKey || isTypingTarget(event.target)) {
+        return;
+      }
+
+      const keyCode = event.keyCode || event.which;
+      const digit = getDigitFromWebKeyCode(keyCode);
+      if (digit !== null) {
+        event.preventDefault();
+        numericInputRef.current?.addDigit(digit);
+        return;
+      }
+
+      switch (keyCode) {
+        case WebKeyCodes.up:
+        case WebKeyCodes.right:
+        case WebKeyCodes.forward:
+        case WebKeyCodes.channelUp:
+          event.preventDefault();
+          goToNextChannel();
+          return;
+        case WebKeyCodes.down:
+        case WebKeyCodes.left:
+        case WebKeyCodes.backward:
+        case WebKeyCodes.channelDown:
+          event.preventDefault();
+          goToPrevChannel();
+          return;
+        case WebKeyCodes.smartPlayPause:
+          event.preventDefault();
+          togglePlayback();
+          return;
+        case WebKeyCodes.play:
+          event.preventDefault();
+          playerRef.current?.play();
+          commands.play();
+          return;
+        case WebKeyCodes.pause:
+          event.preventDefault();
+          playerRef.current?.pause();
+          commands.pause();
+          return;
+        case WebKeyCodes.enter:
+          event.preventDefault();
+          toggleFullscreen();
+          return;
+        case WebKeyCodes.back:
+        case WebKeyCodes.esc:
+        case WebKeyCodes.exit:
+          if (isFullscreen) {
+            event.preventDefault();
+            toggleFullscreen();
+          }
+          return;
+        default:
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [
+    commands,
+    goToNextChannel,
+    goToPrevChannel,
+    isFullscreen,
+    toggleFullscreen,
+    togglePlayback,
+  ]);
 
   // Handle logout
   const handleLogout = () => {
