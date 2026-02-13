@@ -1,6 +1,7 @@
 import type { MediaSourceType } from "@lumen/types";
+import type { RendererType } from "@lumen/types";
 
-export type SessionRenderer = "local-web" | "cast" | "airplay";
+export type SessionRenderer = RendererType;
 
 export type SessionPlaybackState =
   | "idle"

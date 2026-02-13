@@ -211,6 +211,33 @@ export interface PlayerAdapter {
   onTimeUpdate(callback: (time: number) => void): () => void;
 }
 
+export type RendererType = "local-web" | "cast" | "airplay";
+
+export interface RendererSnapshot {
+  source: MediaSource | null;
+  playback: PlaybackState;
+  positionMs: number | null;
+  liveOffsetMs: number | null;
+}
+
+export interface RendererAdapter {
+  readonly type: RendererType;
+  readonly id: string;
+  isAvailable(): boolean | Promise<boolean>;
+  connect(): Promise<void>;
+  disconnect(): Promise<void>;
+  load(source: MediaSource, positionMs?: number): Promise<void>;
+  play(): void | Promise<void>;
+  pause(): void | Promise<void>;
+  seek(positionMs: number): void | Promise<void>;
+  stop(): void | Promise<void>;
+  getSnapshot(): RendererSnapshot | Promise<RendererSnapshot>;
+  setVolume?(volume: number): void | Promise<void>;
+  setMuted?(muted: boolean): void | Promise<void>;
+  onPlaybackStateChange(callback: (state: PlaybackState) => void): () => void;
+  onError(callback: (error: PlaybackError) => void): () => void;
+}
+
 export interface StorageAdapter {
   get<T>(key: string): Promise<T | null>;
   set<T>(key: string, value: T): Promise<void>;
