@@ -1,5 +1,30 @@
 # Handoff — Lumen Player
 
+## Session 2026-02-13 — LP-0101, LP-0102, LP-0103 (session core batch)
+
+- **PRs:** #8 (merged), #9 (merged), #10 (merged)
+- **Done:**
+  - LP-0101: Created `@lumen/session-core` package scaffold (`package.json`, `tsconfig.json`, `src/index.ts`)
+  - LP-0102: Defined session contracts:
+    - `SessionState`, `SessionSource`, renderer/playback/error types
+    - command types: `setSource`, `play`, `pause`, `seek`, `switchRenderer`, `stop`
+    - event types: `sessionUpdated`, `rendererChanged`, `playbackStateChanged`, `error`
+  - LP-0103: Implemented `SessionStore` with:
+    - command dispatch + idempotent state transitions
+    - event emission (`sessionUpdated`, `rendererChanged`, `playbackStateChanged`, `error`)
+    - `BroadcastChannel` cross-tab sync (`latest command wins` via `updatedAt`)
+    - localStorage persistence + hydration on reload
+  - Local test gate passed on each PR:
+    - `pnpm lint`
+    - `pnpm typecheck`
+    - `pnpm build`
+  - Greptile/check comments: none reported on PRs at merge time
+- **Next:**
+  - LP-0104a -> LP-0104b -> LP-0104c (session hooks + provider)
+  - then LP-0104d/0104e/0104f refactor of Player flow to session-driven architecture
+
+---
+
 ## Session 2026-02-12 — LP-0205 + LP-0206 deduplicate @lumen/core utils
 
 - **Done:**

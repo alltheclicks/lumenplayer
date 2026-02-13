@@ -23,9 +23,9 @@
 
 | ID | Task | Size | Status | Depends on |
 |----|------|------|--------|------------|
-| LP-0101 | Create `@lumen/session-core` package scaffold (package.json, tsconfig, src/index.ts, exports) | S | planned | — |
-| LP-0102 | Define `SessionState` type + all command types (`SetSource`, `Play`, `Pause`, `Seek`, `SwitchRenderer`, `Stop`) + all event types (`SessionUpdated`, `RendererChanged`, `PlaybackStateChanged`, `Error`) | S | planned | LP-0101 |
-| LP-0103 | Implement `SessionStore`: command dispatch, event emission, BroadcastChannel sync, localStorage persistence, reconnect on reload | M | planned | LP-0102 |
+| LP-0101 | Create `@lumen/session-core` package scaffold (package.json, tsconfig, src/index.ts, exports) | S | done | — |
+| LP-0102 | Define `SessionState` type + all command types (`SetSource`, `Play`, `Pause`, `Seek`, `SwitchRenderer`, `Stop`) + all event types (`SessionUpdated`, `RendererChanged`, `PlaybackStateChanged`, `Error`) | S | done | LP-0101 |
+| LP-0103 | Implement `SessionStore`: command dispatch, event emission, BroadcastChannel sync, localStorage persistence, reconnect on reload | M | done | LP-0102 |
 
 ### Step 2: Wire session into apps/web (refactor god component)
 
