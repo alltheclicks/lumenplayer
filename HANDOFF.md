@@ -1,5 +1,30 @@
 # Handoff — Lumen Player
 
+## Session 2026-02-13 — LP-0106, LP-0007 (renderer abstraction + seek engine integration)
+
+- **PRs:** #24 (merged), #25 (merged)
+- **Done:**
+  - LP-0106: Added `RendererAdapter` abstraction in `@lumen/types`:
+    - introduced `RendererType` (`local-web|cast|airplay`)
+    - introduced `RendererSnapshot`
+    - introduced `RendererAdapter` interface (connect/load/play/pause/seek/stop/error/state contract)
+    - aligned `SessionRenderer` in `@lumen/session-core` to shared `RendererType`
+  - LP-0007: Integrated `SeekEngine` (`@lumen/player-core`) into `PlayerControls` catch-up flow:
+    - long-press/hold on rewind/forward now uses exponential seek progression from engine
+    - quick tap behavior preserved for fixed-step jumps (10s/30s)
+    - hold preview position is rendered in progress UI and committed back via session `seek` on release
+    - cleanup added for pointer cancel/leave and mode transitions
+  - Local test gate passed per PR:
+    - `pnpm lint`
+    - `pnpm typecheck`
+    - `pnpm build`
+  - Greptile/check comments: none reported on PRs at merge time
+- **Next:**
+  - LP-0008 (NumericChannelInput integration for digit channel zapping)
+  - LP-0009 (IdleTimer integration for controls auto-hide grace period)
+
+---
+
 ## Session 2026-02-13 — LP-0104e, LP-0104f, LP-0105, LP-0112 (session continuity batch)
 
 - **PRs:** #19 (merged), #20 (merged), #21 (merged), #22 (merged)
