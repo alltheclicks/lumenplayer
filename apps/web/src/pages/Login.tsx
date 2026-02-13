@@ -47,7 +47,7 @@ const Login = () => {
       const response = await xtreamCodesService.authenticate();
 
       if (response.user_info?.auth === 1) {
-        saveXtreamCredentials(credentials);
+        await saveXtreamCredentials(credentials);
         navigate('/player');
       } else {
         setError('Invalid credentials. Please try again.');
@@ -60,13 +60,13 @@ const Login = () => {
     }
   };
 
-  const handleDemoLogin = () => {
+  const handleDemoLogin = async () => {
     const demoCredentials = {
       server: 'http://demo.server.com',
       username: 'demo',
       password: 'demo',
     };
-    saveXtreamCredentials(demoCredentials);
+    await saveXtreamCredentials(demoCredentials);
     navigate('/player');
   };
 
@@ -172,7 +172,9 @@ const Login = () => {
                 type="button"
                 variant="outline"
                 className="w-full"
-                onClick={handleDemoLogin}
+                onClick={() => {
+                  void handleDemoLogin();
+                }}
               >
                 Try Demo Mode
               </Button>

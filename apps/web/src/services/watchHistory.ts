@@ -1,17 +1,17 @@
-import { WatchHistoryStorage, WebStorageAdapter } from "@lumen/storage";
+import { WatchHistoryStorage } from "@lumen/storage";
 import type { WatchHistoryEntry } from "@lumen/types";
+import { getAppStorage } from "@/services/storage";
 
 let watchHistoryStorage: WatchHistoryStorage | null = null;
 
 const getWatchHistoryStorage = (): WatchHistoryStorage | null => {
-  if (typeof window === "undefined") {
+  const storage = getAppStorage();
+  if (!storage) {
     return null;
   }
 
   if (!watchHistoryStorage) {
-    watchHistoryStorage = new WatchHistoryStorage(
-      new WebStorageAdapter(window.localStorage),
-    );
+    watchHistoryStorage = new WatchHistoryStorage(storage);
   }
 
   return watchHistoryStorage;

@@ -1,19 +1,43 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
-  loadFavorites,
-  saveFavorites,
   addFavorite as addFavoriteToList,
   removeFavorite as removeFavoriteFromList,
   toggleFavorite as toggleFavoriteInList,
   isFavorite as isFavoriteInList,
 } from '@lumen/storage';
+import { loadStoredFavorites, saveStoredFavorites } from '@/services/storage';
 
 export const useFavorites = () => {
-  const [favorites, setFavorites] = useState<string[]>(() => loadFavorites());
+  const [favorites, setFavorites] = useState<string[]>([]);
+  const [isHydrated, setIsHydrated] = useState(false);
 
   useEffect(() => {
-    saveFavorites(favorites);
-  }, [favorites]);
+    let isCancelled = false;
+
+    const hydrateFavorites = async () => {
+      const storedFavorites = await loadStoredFavorites();
+      if (isCancelled) {
+        return;
+      }
+
+      setFavorites(storedFavorites);
+      setIsHydrated(true);
+    };
+
+    void hydrateFavorites();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isHydrated) {
+      return;
+    }
+
+    void saveStoredFavorites(favorites);
+  }, [favorites, isHydrated]);
 
   const addFavorite = useCallback((channelId: string) => {
     setFavorites((prev) => addFavoriteToList(prev, channelId));
