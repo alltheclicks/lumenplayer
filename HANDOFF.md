@@ -1,5 +1,33 @@
 # Handoff — Lumen Player
 
+## Session 2026-02-13 — LP-0310, LP-0311, LP-0312, LP-0313 (ordered batch)
+
+- PRs: #50 (merged), #51 (merged), #52 (merged), #53 (merged)
+- Done:
+  - LP-0310: Implemented session-based VOD playback end-to-end
+    - moved `SessionProvider` to app scope
+    - wired `VodDetail` play action to dispatch session source + playback
+    - updated `/player` to render and control on-demand session sources
+  - LP-0311: Added series catalog page (`/series`) with categories + search and player entry points
+  - LP-0312: Added series detail page (`/series/:seriesId`) with metadata, seasons, and episodes
+  - LP-0313: Added episode playback via session from series detail (`Play Episode`) and episode-aware on-demand player overlay
+  - Local test gate passed on each PR:
+    - `pnpm lint`
+    - `pnpm typecheck`
+    - `pnpm build`
+  - Greptile/check comments:
+    - #50: review 5/5, no comments
+    - #51: initial 4/5 (broken detail link) fixed in follow-up commit, final review 5/5
+    - #52: initial 4/5 (style URL sanitization + type note) fixed in follow-up commits, final review 5/5
+    - #53: review 5/5, no comments
+    - GitHub PR checks green before every merge
+
+- Next:
+  - LP-0314 (virtualize channel list with `@tanstack/react-virtual`)
+  - LP-0315 (debounce search input)
+
+---
+
 ## Session 2026-02-13 — LP-0306, LP-0307, LP-0308, LP-0309 (ordered batch)
 
 - PRs: #45 (merged), #46 (merged), #47 (merged), #48 (merged)
