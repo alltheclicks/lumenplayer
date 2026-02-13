@@ -1,5 +1,36 @@
 # Handoff — Lumen Player
 
+## Session 2026-02-13 — LP-0008, LP-0009, LP-0012, LP-0207 (unwired package batch + keyboard wiring)
+
+- **PRs:** #27 (merged), #28 (merged), #29 (merged), #30 (merged)
+- **Done:**
+  - LP-0008: Integrated `NumericChannelInput` into `/player`:
+    - digit accumulation (`0-9`) with 2s auto-select
+    - on-screen numeric preview with matched channel feedback
+  - LP-0009: Integrated `IdleTimer` into fullscreen controls:
+    - replaced manual hide timer with package timer + grace period
+    - auto-hide behavior tied to fullscreen/catch-up/seeking state
+  - LP-0012: Implemented `HlsPlayerAdapter` (`PlayerAdapter` contract from `@lumen/types`) and wired `VideoPlayer` through adapter lifecycle
+    - initial Greptile pass reported integration issues (duplicate listeners/direct element control)
+    - follow-up fix pass refactored `VideoPlayer` to single adapter ownership and session sync through adapter callbacks
+  - LP-0207: Wired `WebKeyCodes` for keyboard/remote navigation in `/player`:
+    - channel up/down via arrows/page keys
+    - play/pause controls via smart/media keys
+    - fullscreen enter/exit via enter/esc/back/exit keys
+    - numeric channel input routed through WebKeyCodes digit map
+  - Local test gate passed for each task PR:
+    - `pnpm lint`
+    - `pnpm typecheck`
+    - `pnpm build`
+  - Greptile/check comments:
+    - #27, #28, #30: no comments
+    - #29: comments addressed in fix pass, final review no comments
+- **Next:**
+  - LP-0208 (wire `WatchHistoryStorage`)
+  - LP-0209 (wire `WebStorageAdapter` + `VersionedStorage`)
+
+---
+
 ## Session 2026-02-13 — LP-0106, LP-0007 (renderer abstraction + seek engine integration)
 
 - **PRs:** #24 (merged), #25 (merged)
