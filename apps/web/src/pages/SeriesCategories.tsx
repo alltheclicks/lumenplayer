@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import { ArrowLeft, Clapperboard, Loader2, Search, Star } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -86,39 +86,40 @@ const SeriesCategories = () => {
           {!isLoading && !error && (
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
               {filteredItems.map((item) => (
-                <Card
-                  key={item.id}
-                  className="group h-full overflow-hidden border-border/70 transition-all hover:-translate-y-0.5 hover:border-primary/40"
-                >
-                  <CardContent className="p-0">
-                    <div className="aspect-[2/3] bg-muted">
-                      {item.cover ? (
-                        <img
-                          src={item.cover}
-                          alt={item.name}
-                          loading="lazy"
-                          className="h-full w-full object-cover"
-                        />
-                      ) : (
-                        <div className="flex h-full w-full items-center justify-center">
-                          <Clapperboard className="h-8 w-8 text-muted-foreground" />
-                        </div>
-                      )}
-                    </div>
-                    <div className="space-y-1 p-3">
-                      <p className="line-clamp-2 text-sm font-medium">{item.name}</p>
-                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                        {item.rating && (
-                          <span className="flex items-center gap-1">
-                            <Star className="h-3 w-3" />
-                            {item.rating}
-                          </span>
+                <Link key={item.id} to={`/series/${item.id}`}>
+                  <Card
+                    className="group h-full overflow-hidden border-border/70 transition-all hover:-translate-y-0.5 hover:border-primary/40"
+                  >
+                    <CardContent className="p-0">
+                      <div className="aspect-[2/3] bg-muted">
+                        {item.cover ? (
+                          <img
+                            src={item.cover}
+                            alt={item.name}
+                            loading="lazy"
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center">
+                            <Clapperboard className="h-8 w-8 text-muted-foreground" />
+                          </div>
                         )}
-                        {item.releaseDate && <span>{item.releaseDate}</span>}
                       </div>
-                    </div>
-                  </CardContent>
-                </Card>
+                      <div className="space-y-1 p-3">
+                        <p className="line-clamp-2 text-sm font-medium">{item.name}</p>
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                          {item.rating && (
+                            <span className="flex items-center gap-1">
+                              <Star className="h-3 w-3" />
+                              {item.rating}
+                            </span>
+                          )}
+                          {item.releaseDate && <span>{item.releaseDate}</span>}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </Link>
               ))}
             </div>
           )}
