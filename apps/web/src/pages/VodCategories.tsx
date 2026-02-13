@@ -20,18 +20,6 @@ const VodCategories = () => {
   const categories = useMemo(() => data?.categories ?? [], [data?.categories]);
 
   useEffect(() => {
-    if (selectedCategory !== undefined) {
-      return;
-    }
-
-    if (categories.length > 0) {
-      setSelectedCategory(categories[0].id);
-    } else if (!isLoading) {
-      setSelectedCategory(ALL_CATEGORY);
-    }
-  }, [categories, isLoading, selectedCategory]);
-
-  useEffect(() => {
     setVisibleCount(PAGE_SIZE);
   }, [searchQuery, selectedCategory]);
 
@@ -95,11 +83,17 @@ const VodCategories = () => {
             ))}
           </div>
 
-          {(isLoading || selectedCategory === undefined) && (
+          {isLoading && (
             <div className="flex items-center gap-2 text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" />
               Loading VOD catalog...
             </div>
+          )}
+
+          {!isLoading && !error && selectedCategory === undefined && (
+            <p className="text-sm text-muted-foreground">
+              Select a category to load movies, or choose <strong>All</strong> to load the full catalog.
+            </p>
           )}
 
           {error && (
