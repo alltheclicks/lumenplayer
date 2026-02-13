@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback, type MutableRefObject } from 'react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -24,26 +24,40 @@ import {
 import { type Program, formatTime } from '@/data/channels';
 import type { PlayerChannel } from '@/types/player';
 import { ChannelLogo } from '@/components/player/ChannelLogo';
+import { useSessionContext } from '@/context/session-context';
+import { xtreamCodesService } from '@/services/xtreamCodes';
+import type { VideoPlayerHandle } from '@/components/player/VideoPlayer';
 import { formatDuration } from '@lumen/core';
 
 interface PlayerControlsProps {
   channel: PlayerChannel;
   currentProgram?: Program;
   progress: number;
-  isPlaying: boolean;
   isFavorite: boolean;
   isFullscreen: boolean;
-  catchUpProgram: Program | null;
-  catchUpPosition: number;
-  onCatchUpProgramChange: (program: Program | null) => void;
-  onCatchUpPositionChange: (position: number) => void;
-  onTogglePlay: () => void;
   onToggleFavorite: () => void;
-  onVolumeChange: (volume: number) => void;
-  onMuteChange: (muted: boolean) => void;
   onToggleFullscreen: () => void;
   onPrevChannel: () => void;
   onNextChannel: () => void;
+  playerRef: MutableRefObject<VideoPlayerHandle | null>;
+}
+
+type SessionSourceMetadata = {
+  mode?: 'live' | 'catchup';
+  catchUpProgramId?: string;
+};
+
+const parseSessionSourceMetadata = (
+  metadata: Record<string, unknown> | undefined
+): SessionSourceMetadata => {
+  if (!metadata) {
+    return {};
+  }
+
+  return {
+    mode: metadata.mode === 'live' || metadata.mode === 'catchup' ? metadata.mode : undefined,
+    catchUpProgramId: typeof metadata.catchUpProgramId === 'string' ? metadata.catchUpProgramId : undefined,
+  };
 }
 
 const groupProgramsByDate = (programs: Program[]): Map<string, Program[]> => {
@@ -83,21 +97,15 @@ const PlayerControls = ({
   channel,
   currentProgram,
   progress,
-  isPlaying,
   isFavorite,
   isFullscreen,
-  catchUpProgram,
-  catchUpPosition,
-  onCatchUpProgramChange,
-  onCatchUpPositionChange,
-  onTogglePlay,
   onToggleFavorite,
-  onVolumeChange,
-  onMuteChange,
   onToggleFullscreen,
   onPrevChannel,
   onNextChannel,
+  playerRef,
 }: PlayerControlsProps) => {
+  const { session, commands } = useSessionContext();
   const DEFAULT_VOLUME = 80;
   const [showControls, setShowControls] = useState(true);
   const [volume, setVolume] = useState(DEFAULT_VOLUME);
@@ -109,6 +117,27 @@ const PlayerControls = ({
   const [isSeeking, setIsSeeking] = useState(false);
   const progressRef = useRef<HTMLDivElement>(null);
   const lastNonZeroVolumeRef = useRef(DEFAULT_VOLUME);
+
+  const sessionSourceMetadata = useMemo(
+    () => parseSessionSourceMetadata(session.source?.metadata),
+    [session.source?.metadata]
+  );
+  const catchUpProgram = useMemo(() => {
+    if (sessionSourceMetadata.mode !== 'catchup') {
+      return null;
+    }
+
+    const catchUpProgramId = sessionSourceMetadata.catchUpProgramId;
+    if (!catchUpProgramId) {
+      return null;
+    }
+
+    return channel.epg.find(program => program.id === catchUpProgramId) ?? null;
+  }, [channel.epg, sessionSourceMetadata]);
+  const catchUpPosition = catchUpProgram
+    ? Math.max(0, (session.positionMs ?? 0) / 1000)
+    : 0;
+  const isPlaying = session.playback === 'playing' || session.playback === 'buffering';
 
   const catchUpDuration = catchUpProgram
     ? (catchUpProgram.endTime.getTime() - catchUpProgram.startTime.getTime()) / 1000
@@ -144,7 +173,7 @@ const PlayerControls = ({
   const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newVolume = parseInt(e.target.value);
     setVolume(newVolume);
-    onVolumeChange(newVolume);
+    playerRef.current?.setVolume(newVolume / 100);
 
     if (newVolume > 0) {
       lastNonZeroVolumeRef.current = newVolume;
@@ -153,7 +182,7 @@ const PlayerControls = ({
     const nextMuted = newVolume === 0;
     if (nextMuted !== isMuted) {
       setIsMuted(nextMuted);
-      onMuteChange(nextMuted);
+      playerRef.current?.setMuted(nextMuted);
     }
   };
 
@@ -163,9 +192,9 @@ const PlayerControls = ({
       if (!nextMuted && volume === 0) {
         const restoredVolume = lastNonZeroVolumeRef.current;
         setVolume(restoredVolume);
-        onVolumeChange(restoredVolume);
+        playerRef.current?.setVolume(restoredVolume / 100);
       }
-      onMuteChange(nextMuted);
+      playerRef.current?.setMuted(nextMuted);
       return nextMuted;
     });
   };
@@ -178,15 +207,77 @@ const PlayerControls = ({
     );
   };
 
+  const switchToLive = useCallback(() => {
+    const source = {
+      url: xtreamCodesService.getLiveStreamUrl(channel.streamId),
+      type: 'hls' as const,
+      title: channel.name,
+      channelId: channel.id,
+      metadata: {
+        channelId: channel.id,
+        streamId: channel.streamId,
+        mode: 'live',
+      },
+    };
+
+    commands.setSource(source, 0);
+    commands.play();
+  }, [channel.id, channel.name, channel.streamId, commands]);
+
+  const switchToCatchUpProgram = useCallback((program: Program) => {
+    const startTimestamp = Math.floor(program.startTime.getTime() / 1000);
+    const duration = Math.floor(
+      (program.endTime.getTime() - program.startTime.getTime()) / 1000
+    );
+    const source = {
+      url: xtreamCodesService.getCatchUpUrl(
+        channel.streamId,
+        startTimestamp,
+        duration
+      ),
+      type: 'hls' as const,
+      title: `${channel.name} - ${program.title}`,
+      channelId: channel.id,
+      metadata: {
+        channelId: channel.id,
+        streamId: channel.streamId,
+        mode: 'catchup',
+        catchUpProgramId: program.id,
+      },
+    };
+
+    commands.setSource(source, 0);
+    commands.play();
+  }, [channel.id, channel.name, channel.streamId, commands]);
+
+  const updateCatchUpPosition = useCallback((positionSeconds: number) => {
+    if (!catchUpProgram) {
+      return;
+    }
+
+    playerRef.current?.seek(positionSeconds);
+    commands.seek(Math.floor(positionSeconds * 1000));
+  }, [catchUpProgram, commands, playerRef]);
+
+  const togglePlay = useCallback(() => {
+    if (isPlaying) {
+      playerRef.current?.pause();
+      commands.pause();
+      return;
+    }
+
+    playerRef.current?.play();
+    commands.play();
+  }, [commands, isPlaying, playerRef]);
+
   const handleSelectProgram = (program: Program) => {
-    onCatchUpProgramChange(program);
-    onCatchUpPositionChange(0);
+    switchToCatchUpProgram(program);
+    updateCatchUpPosition(0);
     setShowCatchUp(false);
   };
 
   const goToLive = () => {
-    onCatchUpProgramChange(null);
-    onCatchUpPositionChange(0);
+    switchToLive();
   };
 
   const handleSeek = (e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>) => {
@@ -198,7 +289,7 @@ const PlayerControls = ({
     const percentage = Math.max(0, Math.min(1, x / rect.width));
     const newPosition = percentage * catchUpDuration;
 
-    onCatchUpPositionChange(newPosition);
+    updateCatchUpPosition(newPosition);
   };
 
   const handleProgressHover = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -211,11 +302,11 @@ const PlayerControls = ({
   };
 
   const skipBackward = (seconds: number = 10) => {
-    onCatchUpPositionChange(Math.max(0, catchUpPosition - seconds));
+    updateCatchUpPosition(Math.max(0, catchUpPosition - seconds));
   };
 
   const skipForward = (seconds: number = 10) => {
-    onCatchUpPositionChange(Math.min(catchUpDuration, catchUpPosition + seconds));
+    updateCatchUpPosition(Math.min(catchUpDuration, catchUpPosition + seconds));
   };
 
   if (!isFullscreen) {
@@ -265,7 +356,7 @@ const PlayerControls = ({
 
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="icon" className="hover:bg-secondary/50" onClick={onTogglePlay}>
+            <Button variant="ghost" size="icon" className="hover:bg-secondary/50" onClick={togglePlay}>
               {isPlaying ? <Pause className="w-6 h-6" /> : <Play className="w-6 h-6" />}
             </Button>
             <Button variant="ghost" size="icon" className="hover:bg-secondary/50" onClick={toggleMute}>
@@ -469,7 +560,7 @@ const PlayerControls = ({
               className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-primary/90 hover:bg-primary hover:scale-110 transition-transform"
               onClick={(e) => {
                 e.stopPropagation();
-                onTogglePlay();
+                togglePlay();
               }}
             >
               {isPlaying ? (
@@ -512,7 +603,7 @@ const PlayerControls = ({
               className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-primary/90 hover:bg-primary hover:scale-110 transition-transform"
               onClick={(e) => {
                 e.stopPropagation();
-                onTogglePlay();
+                togglePlay();
               }}
             >
               {isPlaying ? (
@@ -633,7 +724,7 @@ const PlayerControls = ({
                 className="w-9 h-9 sm:w-10 sm:h-10 hover:bg-secondary/50"
                 onClick={(e) => {
                   e.stopPropagation();
-                  onTogglePlay();
+                  togglePlay();
                 }}
               >
                 {isPlaying ? <Pause className="w-4 h-4 sm:w-5 sm:h-5" /> : <Play className="w-4 h-4 sm:w-5 sm:h-5" />}
