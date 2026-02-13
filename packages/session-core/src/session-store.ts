@@ -312,6 +312,7 @@ function reduceCommand(
       return {
         ...state,
         playback: "playing",
+        error: null,
         updatedAt: now,
       };
     }
