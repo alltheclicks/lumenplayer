@@ -82,7 +82,7 @@ const fetchXtreamChannels = async (): Promise<{
   channels: PlayerChannel[];
   categories: PlayerCategory[];
 }> => {
-  const credentials = loadXtreamCredentials();
+  const credentials = await loadXtreamCredentials();
 
   if (!credentials ||
       credentials.username === 'demo' ||

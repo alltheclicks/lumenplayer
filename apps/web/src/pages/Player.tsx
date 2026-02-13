@@ -207,10 +207,20 @@ const Player = () => {
 
   // Load credentials on mount
   useEffect(() => {
-    const credentials = loadXtreamCredentials();
-    if (!credentials) {
-      navigate('/login');
-    }
+    let isCancelled = false;
+
+    const hydrateCredentials = async () => {
+      const credentials = await loadXtreamCredentials();
+      if (!credentials && !isCancelled) {
+        navigate('/login');
+      }
+    };
+
+    void hydrateCredentials();
+
+    return () => {
+      isCancelled = true;
+    };
   }, [navigate]);
 
   // Set first channel when loaded
@@ -399,8 +409,9 @@ const Player = () => {
 
   // Handle logout
   const handleLogout = () => {
-    clearXtreamCredentials();
-    navigate('/login');
+    void clearXtreamCredentials().finally(() => {
+      navigate('/login');
+    });
   };
 
   const currentProgram = currentChannel ? getCurrentProgram(currentChannel as any) : undefined;
