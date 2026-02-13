@@ -188,7 +188,11 @@ export class SessionStore {
     }
 
     for (const listener of this.stateListeners) {
-      listener(this.state);
+      try {
+        listener(this.state);
+      } catch (error) {
+        console.error("SessionStore: state listener error", error);
+      }
     }
 
     if (options.emitEvents) {
@@ -247,7 +251,11 @@ export class SessionStore {
 
   private emitEvent(event: SessionEvent): void {
     for (const listener of this.eventListeners) {
-      listener(event);
+      try {
+        listener(event);
+      } catch (error) {
+        console.error("SessionStore: event listener error", error);
+      }
     }
   }
 }
@@ -406,7 +414,7 @@ function isSameSource(
     left.type === right.type &&
     left.title === right.title &&
     left.channelId === right.channelId &&
-    JSON.stringify(left.metadata ?? null) === JSON.stringify(right.metadata ?? null)
+    isDeepEqual(left.metadata ?? null, right.metadata ?? null)
   );
 }
 
@@ -423,8 +431,60 @@ function isSameError(left: SessionError | null, right: SessionError | null): boo
     left.code === right.code &&
     left.message === right.message &&
     left.fatal === right.fatal &&
-    JSON.stringify(left.details ?? null) === JSON.stringify(right.details ?? null)
+    isDeepEqual(left.details ?? null, right.details ?? null)
   );
+}
+
+function isDeepEqual(left: unknown, right: unknown): boolean {
+  if (left === right) {
+    return true;
+  }
+
+  if (left === null || right === null) {
+    return false;
+  }
+
+  if (Array.isArray(left) || Array.isArray(right)) {
+    if (!Array.isArray(left) || !Array.isArray(right)) {
+      return false;
+    }
+
+    if (left.length !== right.length) {
+      return false;
+    }
+
+    for (let i = 0; i < left.length; i += 1) {
+      if (!isDeepEqual(left[i], right[i])) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  if (!isObject(left) || !isObject(right)) {
+    return false;
+  }
+
+  const leftKeys = Object.keys(left).sort();
+  const rightKeys = Object.keys(right).sort();
+
+  if (leftKeys.length !== rightKeys.length) {
+    return false;
+  }
+
+  for (let i = 0; i < leftKeys.length; i += 1) {
+    const leftKey = leftKeys[i];
+    const rightKey = rightKeys[i];
+    if (leftKey !== rightKey) {
+      return false;
+    }
+    if (!isDeepEqual(left[leftKey], right[rightKey])) {
+      return false;
+    }
+  }
+
+  return true;
 }
 
 function persistState(storageKey: string, state: SessionState): void {
