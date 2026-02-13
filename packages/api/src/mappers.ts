@@ -1,6 +1,7 @@
 import type {
   XtreamCategory,
   XtreamLiveStream,
+  Channel,
   PlayerChannel,
   PlayerCategory,
   Program,
@@ -27,6 +28,7 @@ export const mapXtreamChannel = (
   return {
     id: String(stream.stream_id),
     streamId: stream.stream_id,
+    source: "xtream",
     number: index + 1,
     name: stream.name,
     logo: stream.stream_icon || "\u{1F4FA}",
@@ -38,5 +40,34 @@ export const mapXtreamChannel = (
     epg: epgGenerator
       ? epgGenerator(String(stream.stream_id), hasCatchUp)
       : [],
+  };
+};
+
+const slugifyCategory = (value: string): string =>
+  value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "") || "uncategorized";
+
+export const mapM3UChannel = (
+  channel: Channel,
+  index: number,
+): PlayerChannel => {
+  const categoryName = channel.category || "Uncategorized";
+  return {
+    id: `m3u:${channel.id || index + 1}`,
+    streamId: -(index + 1),
+    source: "m3u",
+    streamUrl: channel.streamUrl,
+    number: channel.number || index + 1,
+    name: channel.name,
+    logo: channel.logo || "TV",
+    categoryId: `m3u-category:${slugifyCategory(categoryName)}`,
+    categoryName,
+    hasCatchUp: channel.hasCatchUp,
+    catchUpDays: channel.hasCatchUp ? 7 : 0,
+    epgChannelId: null,
+    epg: channel.epg,
   };
 };
