@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import { Button } from '@/components/ui/button';
@@ -18,6 +18,7 @@ import PlayerControls from '@/components/player/PlayerControls';
 import { ChannelLogo } from '@/components/player/ChannelLogo';
 import { useXtreamChannels } from '@/hooks/useXtreamChannels';
 import { useFavorites } from '@/hooks/useFavorites';
+import { useSessionContext } from '@/context/session-context';
 import {
   xtreamCodesService,
   loadXtreamCredentials,
@@ -37,6 +38,28 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 
+type SessionSourceMetadata = {
+  channelId?: string;
+  streamId?: number;
+  mode?: 'live' | 'catchup';
+  catchUpProgramId?: string;
+};
+
+const parseSessionSourceMetadata = (
+  metadata: Record<string, unknown> | undefined
+): SessionSourceMetadata => {
+  if (!metadata) {
+    return {};
+  }
+
+  return {
+    channelId: typeof metadata.channelId === 'string' ? metadata.channelId : undefined,
+    streamId: typeof metadata.streamId === 'number' ? metadata.streamId : undefined,
+    mode: metadata.mode === 'live' || metadata.mode === 'catchup' ? metadata.mode : undefined,
+    catchUpProgramId: typeof metadata.catchUpProgramId === 'string' ? metadata.catchUpProgramId : undefined,
+  };
+};
+
 const Player = () => {
   const navigate = useNavigate();
   const playerRef = useRef<VideoPlayerHandle>(null);
@@ -44,17 +67,119 @@ const Player = () => {
 
   const { channels, categories, isLoading, error } = useXtreamChannels();
   const { favorites, toggleFavorite, isFavorite } = useFavorites();
+  const { session, commands } = useSessionContext();
 
-  const [currentChannel, setCurrentChannel] = useState<PlayerChannel | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [isPlaying, setIsPlaying] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
-  const [catchUpProgram, setCatchUpProgram] = useState<Program | null>(null);
-  const [catchUpPosition, setCatchUpPosition] = useState(0);
-  const [progress, setProgress] = useState(0);
+
+  const sessionSourceMetadata = useMemo(
+    () => parseSessionSourceMetadata(session.source?.metadata),
+    [session.source?.metadata]
+  );
+
+  const currentChannel = useMemo(() => {
+    if (channels.length === 0) {
+      return null;
+    }
+
+    const channelId = session.source?.channelId ?? sessionSourceMetadata.channelId;
+    if (channelId) {
+      const byId = channels.find(channel => channel.id === channelId);
+      if (byId) {
+        return byId;
+      }
+    }
+
+    if (typeof sessionSourceMetadata.streamId === 'number') {
+      const byStreamId = channels.find(
+        channel => channel.streamId === sessionSourceMetadata.streamId
+      );
+      if (byStreamId) {
+        return byStreamId;
+      }
+    }
+
+    return null;
+  }, [channels, session.source?.channelId, sessionSourceMetadata]);
+
+  const catchUpProgram = useMemo(() => {
+    if (!currentChannel || sessionSourceMetadata.mode !== 'catchup') {
+      return null;
+    }
+
+    const catchUpProgramId = sessionSourceMetadata.catchUpProgramId;
+    if (!catchUpProgramId) {
+      return null;
+    }
+
+    return currentChannel.epg.find(program => program.id === catchUpProgramId) ?? null;
+  }, [currentChannel, sessionSourceMetadata]);
+
+  const catchUpPosition = catchUpProgram
+    ? Math.max(0, (session.positionMs ?? 0) / 1000)
+    : 0;
+  const isPlaying = session.playback === 'playing' || session.playback === 'buffering';
+
+  const switchToLiveChannel = useCallback(
+    (channel: PlayerChannel) => {
+      const source = {
+        url: xtreamCodesService.getLiveStreamUrl(channel.streamId),
+        type: 'hls' as const,
+        title: channel.name,
+        channelId: channel.id,
+        metadata: {
+          channelId: channel.id,
+          streamId: channel.streamId,
+          mode: 'live',
+        },
+      };
+
+      commands.setSource(source, 0);
+      commands.play();
+    },
+    [commands]
+  );
+
+  const handleCatchUpProgramChange = useCallback(
+    (program: Program | null) => {
+      if (!currentChannel) {
+        return;
+      }
+
+      if (!program) {
+        switchToLiveChannel(currentChannel);
+        return;
+      }
+
+      const startTimestamp = Math.floor(program.startTime.getTime() / 1000);
+      const duration = Math.floor(
+        (program.endTime.getTime() - program.startTime.getTime()) / 1000
+      );
+      const source = {
+        url: xtreamCodesService.getCatchUpUrl(
+          currentChannel.streamId,
+          startTimestamp,
+          duration
+        ),
+        type: 'hls' as const,
+        title: `${currentChannel.name} - ${program.title}`,
+        channelId: currentChannel.id,
+        metadata: {
+          channelId: currentChannel.id,
+          streamId: currentChannel.streamId,
+          mode: 'catchup',
+          catchUpProgramId: program.id,
+        },
+      };
+
+      commands.setSource(source, 0);
+      commands.play();
+    },
+    [commands, currentChannel, switchToLiveChannel]
+  );
 
   // Load credentials on mount
   useEffect(() => {
@@ -67,42 +192,9 @@ const Player = () => {
   // Set first channel when loaded
   useEffect(() => {
     if (channels.length > 0 && !currentChannel) {
-      setCurrentChannel(channels[0]);
+      switchToLiveChannel(channels[0]);
     }
-  }, [channels, currentChannel]);
-
-  // Update progress for live stream
-  useEffect(() => {
-    if (!currentChannel || catchUpProgram) return;
-
-    const interval = setInterval(() => {
-      const program = getCurrentProgram(currentChannel as any);
-      if (program) {
-        setProgress(getProgramProgress(program));
-      }
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [currentChannel, catchUpProgram]);
-
-  // Get stream URL
-  const getStreamUrl = useCallback((): string => {
-    if (!currentChannel) return '';
-
-    if (catchUpProgram) {
-      const startTimestamp = Math.floor(catchUpProgram.startTime.getTime() / 1000);
-      const duration = Math.floor(
-        (catchUpProgram.endTime.getTime() - catchUpProgram.startTime.getTime()) / 1000
-      );
-      return xtreamCodesService.getCatchUpUrl(
-        currentChannel.streamId,
-        startTimestamp,
-        duration
-      );
-    }
-
-    return xtreamCodesService.getLiveStreamUrl(currentChannel.streamId);
-  }, [currentChannel, catchUpProgram]);
+  }, [channels, currentChannel, switchToLiveChannel]);
 
   // Filter channels
   const filteredChannels = filterChannels(channels, searchQuery).filter(channel => {
@@ -144,19 +236,15 @@ const Player = () => {
     if (!currentChannel || channels.length === 0) return;
     const currentIndex = channels.findIndex(c => c.id === currentChannel.id);
     const nextIndex = (currentIndex + 1) % channels.length;
-    setCurrentChannel(channels[nextIndex]);
-    setCatchUpProgram(null);
-    setCatchUpPosition(0);
-  }, [currentChannel, channels]);
+    switchToLiveChannel(channels[nextIndex]);
+  }, [currentChannel, channels, switchToLiveChannel]);
 
   const goToPrevChannel = useCallback(() => {
     if (!currentChannel || channels.length === 0) return;
     const currentIndex = channels.findIndex(c => c.id === currentChannel.id);
     const prevIndex = (currentIndex - 1 + channels.length) % channels.length;
-    setCurrentChannel(channels[prevIndex]);
-    setCatchUpProgram(null);
-    setCatchUpPosition(0);
-  }, [currentChannel, channels]);
+    switchToLiveChannel(channels[prevIndex]);
+  }, [currentChannel, channels, switchToLiveChannel]);
 
   // Handle logout
   const handleLogout = () => {
@@ -168,11 +256,12 @@ const Player = () => {
   const togglePlay = useCallback(() => {
     if (isPlaying) {
       playerRef.current?.pause();
+      commands.pause();
     } else {
       playerRef.current?.play();
+      commands.play();
     }
-    setIsPlaying(!isPlaying);
-  }, [isPlaying]);
+  }, [commands, isPlaying]);
 
   const handleVolumeChange = useCallback((newVolume: number) => {
     playerRef.current?.setVolume(newVolume / 100);
@@ -183,14 +272,17 @@ const Player = () => {
   }, []);
 
   const handleCatchUpPositionChange = useCallback((position: number) => {
-    setCatchUpPosition(position);
-
-    if (catchUpProgram) {
-      playerRef.current?.seek(position);
+    if (!catchUpProgram) {
+      return;
     }
-  }, [catchUpProgram]);
+
+    playerRef.current?.seek(position);
+    commands.seek(Math.floor(position * 1000));
+  }, [catchUpProgram, commands]);
 
   const currentProgram = currentChannel ? getCurrentProgram(currentChannel as any) : undefined;
+  const progress = !catchUpProgram && currentProgram ? getProgramProgress(currentProgram) : 0;
+  const streamUrl = session.source?.url ?? '';
 
   // Loading state
   if (isLoading) {
@@ -287,11 +379,7 @@ const Player = () => {
               {filteredChannels.map(channel => (
                 <button
                   key={channel.id}
-                  onClick={() => {
-                    setCurrentChannel(channel);
-                    setCatchUpProgram(null);
-                    setCatchUpPosition(0);
-                  }}
+                  onClick={() => switchToLiveChannel(channel)}
                   className={`w-full flex items-center gap-3 p-2 rounded-lg transition-colors ${currentChannel?.id === channel.id
                       ? 'bg-primary/20 border border-primary/50'
                       : 'hover:bg-secondary'
@@ -326,10 +414,10 @@ const Player = () => {
               <>
                 <VideoPlayer
                   ref={playerRef}
-                  src={getStreamUrl()}
+                  src={streamUrl}
                   autoPlay={true}
-                  onPlay={() => setIsPlaying(true)}
-                  onPause={() => setIsPlaying(false)}
+                  onPlay={() => commands.play()}
+                  onPause={() => commands.pause()}
                 />
 
                 <PlayerControls
@@ -341,7 +429,7 @@ const Player = () => {
                   isFullscreen={isFullscreen}
                   catchUpProgram={catchUpProgram}
                   catchUpPosition={catchUpPosition}
-                  onCatchUpProgramChange={setCatchUpProgram}
+                  onCatchUpProgramChange={handleCatchUpProgramChange}
                   onCatchUpPositionChange={handleCatchUpPositionChange}
                   onTogglePlay={togglePlay}
                   onToggleFavorite={() => toggleFavorite(currentChannel.id)}
@@ -420,9 +508,7 @@ const Player = () => {
                         <button
                           key={channel.id}
                           onClick={() => {
-                            setCurrentChannel(channel);
-                            setCatchUpProgram(null);
-                            setCatchUpPosition(0);
+                            switchToLiveChannel(channel);
                             setSidebarOpen(false);
                           }}
                           className={`w-full flex items-center gap-3 p-3 rounded-lg transition-colors ${currentChannel?.id === channel.id
