@@ -12,6 +12,9 @@ import {
   LogOut,
   Loader2,
   AlertCircle,
+  Film,
+  Play,
+  Pause,
 } from 'lucide-react';
 import VideoPlayer, { type VideoPlayerHandle } from '@/components/player/VideoPlayer';
 import PlayerControls from '@/components/player/PlayerControls';
@@ -42,7 +45,7 @@ import {
 type SessionSourceMetadata = {
   channelId?: string;
   streamId?: number;
-  mode?: 'live' | 'catchup';
+  mode?: 'live' | 'catchup' | 'vod' | 'series-episode';
   catchUpProgramId?: string;
 };
 
@@ -60,7 +63,12 @@ const parseSessionSourceMetadata = (
       : typeof metadata.streamId === 'string' && !Number.isNaN(Number(metadata.streamId))
         ? Number(metadata.streamId)
         : undefined,
-    mode: metadata.mode === 'live' || metadata.mode === 'catchup' ? metadata.mode : undefined,
+    mode: metadata.mode === 'live' ||
+      metadata.mode === 'catchup' ||
+      metadata.mode === 'vod' ||
+      metadata.mode === 'series-episode'
+      ? metadata.mode
+      : undefined,
     catchUpProgramId: typeof metadata.catchUpProgramId === 'string' ? metadata.catchUpProgramId : undefined,
   };
 };
@@ -117,9 +125,15 @@ const Player = () => {
     () => parseSessionSourceMetadata(session.source?.metadata),
     [session.source?.metadata]
   );
+  const isOnDemandSource = sessionSourceMetadata.mode === 'vod' ||
+    sessionSourceMetadata.mode === 'series-episode';
 
   const currentChannel = useMemo(() => {
     if (channels.length === 0) {
+      return null;
+    }
+
+    if (isOnDemandSource) {
       return null;
     }
 
@@ -154,7 +168,7 @@ const Player = () => {
     }
 
     return null;
-  }, [channels, session.source?.channelId, session.source?.title, sessionSourceMetadata]);
+  }, [channels, isOnDemandSource, session.source?.channelId, session.source?.title, sessionSourceMetadata]);
 
   const switchToLiveChannel = useCallback(
     (channel: PlayerChannel) => {
@@ -564,13 +578,15 @@ const Player = () => {
               </div>
             )}
 
-            {currentChannel && (
-              <>
-                <VideoPlayer
-                  ref={playerRef}
-                  autoPlay={true}
-                />
+            {session.source && (
+              <VideoPlayer
+                ref={playerRef}
+                autoPlay={true}
+              />
+            )}
 
+            {currentChannel && !isOnDemandSource && (
+              <>
                 <PlayerControls
                   channel={currentChannel}
                   currentProgram={currentProgram}
@@ -586,7 +602,39 @@ const Player = () => {
               </>
             )}
 
-            {!currentChannel && (
+            {isOnDemandSource && session.source && (
+              <div className="absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/90 via-black/60 to-transparent p-4 sm:p-6">
+                <div className="mx-auto flex max-w-screen-xl flex-wrap items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="mb-1 flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-primary">
+                      <Film className="h-4 w-4" />
+                      VOD Playback
+                    </p>
+                    <h2 className="truncate text-lg font-semibold text-foreground sm:text-xl">
+                      {session.source.title || 'On-demand playback'}
+                    </h2>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      variant="secondary"
+                      onClick={togglePlayback}
+                    >
+                      {session.playback === 'playing' || session.playback === 'buffering' ? (
+                        <Pause className="mr-2 h-4 w-4" />
+                      ) : (
+                        <Play className="mr-2 h-4 w-4" />
+                      )}
+                      {session.playback === 'playing' || session.playback === 'buffering' ? 'Pause' : 'Play'}
+                    </Button>
+                    <Button variant="outline" onClick={() => navigate('/vod')}>
+                      Back to VOD
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {!currentChannel && !session.source && (
               <div className="absolute inset-0 flex items-center justify-center">
                 <p className="text-muted-foreground">Select a channel to start watching</p>
               </div>

@@ -3,12 +3,46 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Helmet } from 'react-helmet-async';
 import { ArrowLeft, Clock3, Film, Star, UserRound } from 'lucide-react';
+import type { XtreamVOD } from '@lumen/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { useSessionContext } from '@/context/session-context';
 import { loadXtreamCredentials } from '@/services/xtreamCredentials';
 import { xtreamCodesService } from '@/services/xtreamService';
 
-const fetchVodDetail = async (vodId: string) => {
+const DEMO_VOD_STREAM_URL = 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8';
+
+type VodSessionSourceType = 'hls' | 'mp4';
+
+interface VodDetailData {
+  title: string;
+  plot: string;
+  cast: string;
+  director: string;
+  genre: string;
+  duration: string;
+  rating: string;
+  poster: string;
+  backdrop: string;
+  tmdbId: string;
+  releaseDate: string;
+  streamId?: number;
+  streamUrl: string;
+  streamType: VodSessionSourceType;
+}
+
+const inferVodSourceType = (
+  streamUrl: string,
+  extension?: string
+): VodSessionSourceType => {
+  if (extension === 'm3u8' || streamUrl.includes('.m3u8')) {
+    return 'hls';
+  }
+
+  return 'mp4';
+};
+
+const fetchVodDetail = async (vodId: string): Promise<VodDetailData> => {
   const credentials = await loadXtreamCredentials();
 
   if (!credentials ||
@@ -26,12 +60,33 @@ const fetchVodDetail = async (vodId: string) => {
       backdrop: '',
       tmdbId: '',
       releaseDate: '',
+      streamId: Number(vodId),
+      streamUrl: DEMO_VOD_STREAM_URL,
+      streamType: 'hls' as VodSessionSourceType,
     };
   }
 
   xtreamCodesService.setCredentials(credentials);
   const vodInfo = await xtreamCodesService.getVODInfo(vodId);
   const info = vodInfo.info ?? {};
+  const movieData = (vodInfo.movie_data ?? {}) as Partial<XtreamVOD>;
+  const rawStreamId = movieData.stream_id;
+  const streamId = typeof rawStreamId === 'number'
+    ? rawStreamId
+    : Number(rawStreamId);
+  const extension = typeof movieData.container_extension === 'string' &&
+      movieData.container_extension.length > 0
+    ? movieData.container_extension
+    : 'mp4';
+  const directSource = typeof movieData.direct_source === 'string'
+    ? movieData.direct_source.trim()
+    : '';
+  const streamUrl = directSource || (
+    Number.isFinite(streamId)
+      ? xtreamCodesService.getVODStreamUrl(streamId, extension)
+      : ''
+  );
+  const streamType = inferVodSourceType(streamUrl, extension);
 
   const backdrop = Array.isArray(info.backdrop_path)
     ? info.backdrop_path[0] || ''
@@ -51,11 +106,15 @@ const fetchVodDetail = async (vodId: string) => {
     backdrop,
     tmdbId: info.tmdb_id ? String(info.tmdb_id) : '',
     releaseDate: info.release_date || info.releasedate || '',
+    streamId: Number.isFinite(streamId) ? streamId : undefined,
+    streamUrl,
+    streamType,
   };
 };
 
 const VodDetail = () => {
   const navigate = useNavigate();
+  const { commands } = useSessionContext();
   const params = useParams<{ vodId: string }>();
   const vodId = params.vodId;
 
@@ -65,6 +124,29 @@ const VodDetail = () => {
     enabled: Boolean(vodId),
     staleTime: 5 * 60 * 1000,
   });
+
+  const handlePlayVod = () => {
+    if (!data?.streamUrl) {
+      navigate('/player');
+      return;
+    }
+
+    commands.setSource(
+      {
+        url: data.streamUrl,
+        type: data.streamType,
+        title: data.title,
+        metadata: {
+          mode: 'vod',
+          vodId: vodId ?? '',
+          streamId: data.streamId,
+        },
+      },
+      0
+    );
+    commands.play();
+    navigate('/player');
+  };
 
   const metadata = useMemo(() => {
     if (!data) {
@@ -157,7 +239,7 @@ const VodDetail = () => {
                 )}
 
                 <div className="flex flex-wrap gap-2">
-                  <Button onClick={() => navigate('/player')}>Open Player</Button>
+                  <Button onClick={handlePlayVod}>Play in Player</Button>
                   {data.tmdbId && (
                     <Button
                       variant="outline"

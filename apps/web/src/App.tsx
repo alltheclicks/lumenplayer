@@ -23,25 +23,20 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <HelmetProvider>
-        <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<Navigate to="/login" replace />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/import/m3u" element={<M3UImport />} />
-            <Route path="/vod" element={<VodCategories />} />
-            <Route path="/vod/:vodId" element={<VodDetail />} />
-            <Route
-              path="/player"
-              element={(
-                <SessionProvider>
-                  <Player />
-                </SessionProvider>
-              )}
-            />
-            <Route path="*" element={<Navigate to="/login" replace />} />
-          </Routes>
-          <Toaster />
-        </BrowserRouter>
+        <SessionProvider>
+          <BrowserRouter>
+            <Routes>
+              <Route path="/" element={<Navigate to="/login" replace />} />
+              <Route path="/login" element={<Login />} />
+              <Route path="/import/m3u" element={<M3UImport />} />
+              <Route path="/vod" element={<VodCategories />} />
+              <Route path="/vod/:vodId" element={<VodDetail />} />
+              <Route path="/player" element={<Player />} />
+              <Route path="*" element={<Navigate to="/login" replace />} />
+            </Routes>
+            <Toaster />
+          </BrowserRouter>
+        </SessionProvider>
       </HelmetProvider>
     </QueryClientProvider>
   );
