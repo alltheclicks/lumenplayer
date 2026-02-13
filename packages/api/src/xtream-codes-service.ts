@@ -4,6 +4,7 @@ import type {
   XtreamCategory,
   XtreamLiveStream,
   XtreamVOD,
+  XtreamVODInfo,
   XtreamSeries,
   XtreamEPGItem,
 } from "@lumen/types";
@@ -79,6 +80,12 @@ export class XtreamCodesService {
     const params = categoryId ? { category_id: categoryId } : {};
     return this.http.get<XtreamVOD[]>(
       this.buildUrl("get_vod_streams", params),
+    );
+  }
+
+  async getVODInfo(vodId: string | number): Promise<XtreamVODInfo> {
+    return this.http.get<XtreamVODInfo>(
+      this.buildUrl("get_vod_info", { vod_id: String(vodId) }),
     );
   }
 

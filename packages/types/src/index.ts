@@ -122,6 +122,29 @@ export interface XtreamVOD {
   direct_source: string;
 }
 
+export interface XtreamVODInfo {
+  info: {
+    tmdb_id?: string | number;
+    name?: string;
+    o_name?: string;
+    releasedate?: string;
+    release_date?: string;
+    plot?: string;
+    cast?: string;
+    director?: string;
+    genre?: string;
+    duration?: string;
+    duration_secs?: string | number;
+    rating?: string;
+    rating_5based?: string | number;
+    movie_image?: string;
+    backdrop_path?: string[] | string;
+    youtube_trailer?: string;
+    [key: string]: unknown;
+  };
+  movie_data: XtreamVOD & Record<string, unknown>;
+}
+
 export interface XtreamSeries {
   num: number;
   name: string;
