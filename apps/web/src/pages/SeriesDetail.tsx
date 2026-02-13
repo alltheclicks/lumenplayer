@@ -5,8 +5,13 @@ import { Helmet } from 'react-helmet-async';
 import { ArrowLeft, Calendar, Clapperboard, Film, Star, UserRound } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { useSessionContext } from '@/context/session-context';
 import { loadXtreamCredentials } from '@/services/xtreamCredentials';
 import { xtreamCodesService } from '@/services/xtreamService';
+
+const DEMO_EPISODE_STREAM_URL = 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8';
+
+type OnDemandSourceType = 'hls' | 'mp4';
 
 interface SeriesEpisodeItem {
   id: string;
@@ -14,6 +19,8 @@ interface SeriesEpisodeItem {
   episodeNumber: number;
   title: string;
   containerExtension: string;
+  streamUrl: string;
+  streamType: OnDemandSourceType;
   duration?: string;
   releaseDate?: string;
   plot?: string;
@@ -71,6 +78,14 @@ const sanitizeCssUrl = (url: string): string => {
   return url.replace(/["'()\\]/g, (char) => encodeURIComponent(char));
 };
 
+const inferSourceType = (streamUrl: string, extension?: string): OnDemandSourceType => {
+  if (extension === 'm3u8' || streamUrl.includes('.m3u8')) {
+    return 'hls';
+  }
+
+  return 'mp4';
+};
+
 const fetchSeriesDetail = async (seriesId: string): Promise<SeriesDetailData> => {
   const credentials = await loadXtreamCredentials();
 
@@ -98,6 +113,8 @@ const fetchSeriesDetail = async (seriesId: string): Promise<SeriesDetailData> =>
               episodeNumber: 1,
               title: 'Pilot',
               containerExtension: 'mp4',
+              streamUrl: DEMO_EPISODE_STREAM_URL,
+              streamType: 'hls',
               duration: '45m',
               releaseDate: '2024-01-01',
             },
@@ -107,6 +124,8 @@ const fetchSeriesDetail = async (seriesId: string): Promise<SeriesDetailData> =>
               episodeNumber: 2,
               title: 'Second Episode',
               containerExtension: 'mp4',
+              streamUrl: DEMO_EPISODE_STREAM_URL,
+              streamType: 'hls',
               duration: '44m',
               releaseDate: '2024-01-08',
             },
@@ -133,15 +152,28 @@ const fetchSeriesDetail = async (seriesId: string): Promise<SeriesDetailData> =>
               ? episodeInfo.title
               : `Episode ${episodeNumber > 0 ? episodeNumber : '-'}`;
           const id = String(episode.id);
+          const rawDirectSource = episode.direct_source;
+          const directSource = typeof rawDirectSource === 'string' && rawDirectSource.trim().length > 0
+            ? rawDirectSource.trim()
+            : '';
+          const numericEpisodeId = parseEpisodeNumber(episode.id);
+          const containerExtension = typeof episode.container_extension === 'string' && episode.container_extension.length > 0
+            ? episode.container_extension
+            : 'mp4';
+          const streamUrl = directSource || (
+            numericEpisodeId > 0
+              ? xtreamCodesService.getSeriesEpisodeStreamUrl(numericEpisodeId, containerExtension)
+              : ''
+          );
 
           return {
             id,
             seasonNumber,
             episodeNumber,
             title,
-            containerExtension: typeof episode.container_extension === 'string' && episode.container_extension.length > 0
-              ? episode.container_extension
-              : 'mp4',
+            containerExtension,
+            streamUrl,
+            streamType: inferSourceType(streamUrl, containerExtension),
             duration: typeof episodeInfo.duration === 'string'
               ? episodeInfo.duration
               : undefined,
@@ -179,6 +211,7 @@ const fetchSeriesDetail = async (seriesId: string): Promise<SeriesDetailData> =>
 
 const SeriesDetail = () => {
   const navigate = useNavigate();
+  const { commands } = useSessionContext();
   const params = useParams<{ seriesId: string }>();
   const seriesId = params.seriesId;
 
@@ -207,6 +240,30 @@ const SeriesDetail = () => {
   const seasonOptions = data?.seasons ?? [];
   const effectiveSeason = selectedSeason ?? seasonOptions[0]?.seasonNumber ?? null;
   const activeSeason = seasonOptions.find((season) => season.seasonNumber === effectiveSeason) ?? null;
+
+  const handlePlayEpisode = (episode: SeriesEpisodeItem) => {
+    if (!data || !episode.streamUrl) {
+      return;
+    }
+
+    commands.setSource(
+      {
+        url: episode.streamUrl,
+        type: episode.streamType,
+        title: `${data.title} - S${episode.seasonNumber}E${episode.episodeNumber > 0 ? episode.episodeNumber : '-'}`,
+        metadata: {
+          mode: 'series-episode',
+          seriesId: seriesId ?? '',
+          seasonNumber: episode.seasonNumber,
+          episodeId: episode.id,
+          episodeNumber: episode.episodeNumber,
+        },
+      },
+      0
+    );
+    commands.play();
+    navigate('/player');
+  };
 
   return (
     <>
@@ -309,13 +366,22 @@ const SeriesDetail = () => {
                             key={episode.id}
                             className="rounded-lg border border-border/70 bg-card/60 p-3"
                           >
-                            <div className="flex flex-wrap items-center justify-between gap-2">
-                              <p className="text-sm font-medium">
-                                E{episode.episodeNumber > 0 ? episode.episodeNumber : '-'} • {episode.title}
-                              </p>
-                              <p className="text-xs text-muted-foreground">
-                                {episode.duration || episode.containerExtension.toUpperCase()}
-                              </p>
+                            <div className="flex flex-wrap items-start justify-between gap-2">
+                              <div>
+                                <p className="text-sm font-medium">
+                                  E{episode.episodeNumber > 0 ? episode.episodeNumber : '-'} • {episode.title}
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  {episode.duration || episode.containerExtension.toUpperCase()}
+                                </p>
+                              </div>
+                              <Button
+                                size="sm"
+                                onClick={() => handlePlayEpisode(episode)}
+                                disabled={!episode.streamUrl}
+                              >
+                                Play Episode
+                              </Button>
                             </div>
                             {episode.releaseDate && (
                               <p className="mt-1 text-xs text-muted-foreground">{episode.releaseDate}</p>
