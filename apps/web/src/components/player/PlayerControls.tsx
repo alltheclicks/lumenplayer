@@ -27,6 +27,7 @@ import { ChannelLogo } from '@/components/player/ChannelLogo';
 import { useSessionContext } from '@/context/session-context';
 import { xtreamCodesService } from '@/services/xtreamCodes';
 import type { VideoPlayerHandle } from '@/components/player/VideoPlayer';
+import { SeekEngine, type SeekDirection } from '@lumen/player-core';
 import { formatDuration } from '@lumen/core';
 
 interface PlayerControlsProps {
@@ -47,6 +48,13 @@ type SessionSourceMetadata = {
   catchUpProgramId?: string;
 };
 
+interface PendingSeekInteraction {
+  direction: SeekDirection;
+  tapStepSeconds: number;
+}
+
+const LONG_PRESS_THRESHOLD_MS = 250;
+
 const parseSessionSourceMetadata = (
   metadata: Record<string, unknown> | undefined
 ): SessionSourceMetadata => {
@@ -58,7 +66,7 @@ const parseSessionSourceMetadata = (
     mode: metadata.mode === 'live' || metadata.mode === 'catchup' ? metadata.mode : undefined,
     catchUpProgramId: typeof metadata.catchUpProgramId === 'string' ? metadata.catchUpProgramId : undefined,
   };
-}
+};
 
 const groupProgramsByDate = (programs: Program[]): Map<string, Program[]> => {
   const grouped = new Map<string, Program[]>();
@@ -115,8 +123,13 @@ const PlayerControls = ({
   const [openDays, setOpenDays] = useState<string[]>([]);
   const [hoverPosition, setHoverPosition] = useState<number | null>(null);
   const [isSeeking, setIsSeeking] = useState(false);
+  const [seekPreviewPosition, setSeekPreviewPosition] = useState<number | null>(null);
   const progressRef = useRef<HTMLDivElement>(null);
   const lastNonZeroVolumeRef = useRef(DEFAULT_VOLUME);
+  const seekEngineRef = useRef<SeekEngine | null>(null);
+  const seekHoldTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingSeekInteractionRef = useRef<PendingSeekInteraction | null>(null);
+  const seekHoldActiveRef = useRef(false);
 
   const sessionSourceMetadata = useMemo(
     () => parseSessionSourceMetadata(session.source?.metadata),
@@ -142,11 +155,44 @@ const PlayerControls = ({
   const catchUpDuration = catchUpProgram
     ? (catchUpProgram.endTime.getTime() - catchUpProgram.startTime.getTime()) / 1000
     : 0;
+  const effectiveCatchUpPosition = catchUpProgram
+    ? Math.max(
+      0,
+      Math.min(catchUpDuration, seekPreviewPosition ?? catchUpPosition)
+    )
+    : 0;
+  const catchUpProgressPercent = catchUpDuration > 0
+    ? (effectiveCatchUpPosition / catchUpDuration) * 100
+    : 0;
 
   const catchUpByDate = groupProgramsByDate(channel.epg);
   const sortedDates = Array.from(catchUpByDate.keys()).sort((a, b) =>
     new Date(b).getTime() - new Date(a).getTime()
   );
+
+  useEffect(() => {
+    const seekEngine = new SeekEngine();
+    seekEngineRef.current = seekEngine;
+
+    const unsubscribe = seekEngine.onStateChange(state => {
+      setSeekPreviewPosition(state.active ? state.time : null);
+      if (!state.active) {
+        setIsSeeking(false);
+      }
+    });
+
+    return () => {
+      if (seekHoldTimeoutRef.current) {
+        clearTimeout(seekHoldTimeoutRef.current);
+        seekHoldTimeoutRef.current = null;
+      }
+      pendingSeekInteractionRef.current = null;
+      seekHoldActiveRef.current = false;
+      unsubscribe();
+      seekEngine.destroy();
+      seekEngineRef.current = null;
+    };
+  }, []);
 
   useEffect(() => {
     if (!showControls || showCatchUp || isSeeking || !isFullscreen) return;
@@ -301,13 +347,105 @@ const PlayerControls = ({
     setHoverPosition(percentage * catchUpDuration);
   };
 
-  const skipBackward = (seconds: number = 10) => {
-    updateCatchUpPosition(Math.max(0, catchUpPosition - seconds));
-  };
+  const applySeekStep = useCallback((direction: SeekDirection, seconds: number) => {
+    const delta = direction === 'forward' ? seconds : -seconds;
+    const nextPosition = Math.max(
+      0,
+      Math.min(catchUpDuration, effectiveCatchUpPosition + delta)
+    );
+    updateCatchUpPosition(nextPosition);
+  }, [catchUpDuration, effectiveCatchUpPosition, updateCatchUpPosition]);
 
-  const skipForward = (seconds: number = 10) => {
-    updateCatchUpPosition(Math.min(catchUpDuration, catchUpPosition + seconds));
-  };
+  const clearSeekHoldTimeout = useCallback(() => {
+    if (seekHoldTimeoutRef.current) {
+      clearTimeout(seekHoldTimeoutRef.current);
+      seekHoldTimeoutRef.current = null;
+    }
+  }, []);
+
+  const finishPendingSeekInteraction = useCallback((applyTapStep: boolean) => {
+    const pendingInteraction = pendingSeekInteractionRef.current;
+    pendingSeekInteractionRef.current = null;
+    clearSeekHoldTimeout();
+
+    const seekEngine = seekEngineRef.current;
+    if (seekHoldActiveRef.current && seekEngine) {
+      const finalPosition = seekEngine.stop();
+      seekHoldActiveRef.current = false;
+      updateCatchUpPosition(finalPosition);
+      return;
+    }
+
+    setIsSeeking(false);
+    setSeekPreviewPosition(null);
+
+    if (!applyTapStep || !pendingInteraction) {
+      return;
+    }
+
+    applySeekStep(pendingInteraction.direction, pendingInteraction.tapStepSeconds);
+  }, [applySeekStep, clearSeekHoldTimeout, updateCatchUpPosition]);
+
+  const startPendingSeekInteraction = useCallback(
+    (direction: SeekDirection, tapStepSeconds: number) => {
+      if (!catchUpProgram || catchUpDuration <= 0) {
+        return;
+      }
+
+      pendingSeekInteractionRef.current = { direction, tapStepSeconds };
+      clearSeekHoldTimeout();
+
+      seekHoldTimeoutRef.current = setTimeout(() => {
+        if (!pendingSeekInteractionRef.current) {
+          return;
+        }
+
+        const seekEngine = seekEngineRef.current;
+        if (!seekEngine) {
+          return;
+        }
+
+        seekHoldActiveRef.current = true;
+        setIsSeeking(true);
+        seekEngine.start(direction, effectiveCatchUpPosition, catchUpDuration);
+      }, LONG_PRESS_THRESHOLD_MS);
+    },
+    [catchUpDuration, catchUpProgram, clearSeekHoldTimeout, effectiveCatchUpPosition]
+  );
+
+  useEffect(() => {
+    if (catchUpProgram) {
+      return;
+    }
+
+    finishPendingSeekInteraction(false);
+  }, [catchUpProgram, finishPendingSeekInteraction]);
+
+  const handleSeekButtonPointerDown = useCallback((
+    event: React.PointerEvent<HTMLButtonElement>,
+    direction: SeekDirection,
+    tapStepSeconds: number
+  ) => {
+    event.preventDefault();
+    event.stopPropagation();
+    startPendingSeekInteraction(direction, tapStepSeconds);
+  }, [startPendingSeekInteraction]);
+
+  const handleSeekButtonPointerUp = useCallback((event: React.PointerEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    finishPendingSeekInteraction(true);
+  }, [finishPendingSeekInteraction]);
+
+  const handleSeekButtonPointerCancel = useCallback((event: React.PointerEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    finishPendingSeekInteraction(false);
+  }, [finishPendingSeekInteraction]);
+
+  const preventSeekContextMenu = useCallback((event: React.MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+  }, []);
 
   if (!isFullscreen) {
     return (
@@ -339,12 +477,12 @@ const PlayerControls = ({
               <div
                 className="h-full bg-primary rounded-full transition-all"
                 style={{
-                  width: `${(catchUpPosition / catchUpDuration) * 100}%`
+                  width: `${catchUpProgressPercent}%`
                 }}
               />
             </div>
             <div className="flex justify-between mt-1 text-xs text-muted-foreground">
-              <span>{formatDuration(catchUpPosition)}</span>
+              <span>{formatDuration(effectiveCatchUpPosition)}</span>
               <span>{formatDuration(catchUpDuration)}</span>
             </div>
           </div>
@@ -545,10 +683,11 @@ const PlayerControls = ({
               variant="ghost"
               size="icon"
               className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-background/20 backdrop-blur-sm hover:bg-background/40 hover:scale-110 transition-transform flex flex-col items-center justify-center gap-0"
-              onClick={(e) => {
-                e.stopPropagation();
-                skipBackward(10);
-              }}
+              onPointerDown={(e) => handleSeekButtonPointerDown(e, 'backward', 10)}
+              onPointerUp={handleSeekButtonPointerUp}
+              onPointerCancel={handleSeekButtonPointerCancel}
+              onPointerLeave={handleSeekButtonPointerCancel}
+              onContextMenu={preventSeekContextMenu}
             >
               <SkipBack className="w-5 h-5 sm:w-6 sm:h-6" />
               <span className="text-[9px] sm:text-[10px] font-semibold leading-none mt-0.5">10s</span>
@@ -574,10 +713,11 @@ const PlayerControls = ({
               variant="ghost"
               size="icon"
               className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-background/20 backdrop-blur-sm hover:bg-background/40 hover:scale-110 transition-transform flex flex-col items-center justify-center gap-0"
-              onClick={(e) => {
-                e.stopPropagation();
-                skipForward(10);
-              }}
+              onPointerDown={(e) => handleSeekButtonPointerDown(e, 'forward', 10)}
+              onPointerUp={handleSeekButtonPointerUp}
+              onPointerCancel={handleSeekButtonPointerCancel}
+              onPointerLeave={handleSeekButtonPointerCancel}
+              onContextMenu={preventSeekContextMenu}
             >
               <SkipForward className="w-5 h-5 sm:w-6 sm:h-6" />
               <span className="text-[9px] sm:text-[10px] font-semibold leading-none mt-0.5">10s</span>
@@ -683,7 +823,7 @@ const PlayerControls = ({
 
                 <div
                   className="h-full bg-primary rounded-full transition-all relative"
-                  style={{ width: `${(catchUpPosition / catchUpDuration) * 100}%` }}
+                  style={{ width: `${catchUpProgressPercent}%` }}
                 >
                   <div className="absolute right-0 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 bg-primary rounded-full shadow-lg transform scale-100 group-hover:scale-110 transition-transform" />
                 </div>
@@ -699,7 +839,7 @@ const PlayerControls = ({
               </div>
 
               <div className="flex justify-between text-xs text-muted-foreground tabular-nums">
-                <span>{formatDuration(catchUpPosition)}</span>
+                <span>{formatDuration(effectiveCatchUpPosition)}</span>
                 <span>{formatDuration(catchUpDuration)}</span>
               </div>
             </div>
@@ -736,10 +876,11 @@ const PlayerControls = ({
                     variant="ghost"
                     size="icon"
                     className="w-9 h-9 sm:w-10 sm:h-10 hover:bg-secondary/50 flex flex-col items-center justify-center gap-0"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      skipBackward(30);
-                    }}
+                    onPointerDown={(e) => handleSeekButtonPointerDown(e, 'backward', 30)}
+                    onPointerUp={handleSeekButtonPointerUp}
+                    onPointerCancel={handleSeekButtonPointerCancel}
+                    onPointerLeave={handleSeekButtonPointerCancel}
+                    onContextMenu={preventSeekContextMenu}
                   >
                     <SkipBack className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                     <span className="text-[7px] sm:text-[8px] font-semibold leading-none">30s</span>
@@ -748,10 +889,11 @@ const PlayerControls = ({
                     variant="ghost"
                     size="icon"
                     className="w-9 h-9 sm:w-10 sm:h-10 hover:bg-secondary/50 flex flex-col items-center justify-center gap-0"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      skipForward(30);
-                    }}
+                    onPointerDown={(e) => handleSeekButtonPointerDown(e, 'forward', 30)}
+                    onPointerUp={handleSeekButtonPointerUp}
+                    onPointerCancel={handleSeekButtonPointerCancel}
+                    onPointerLeave={handleSeekButtonPointerCancel}
+                    onContextMenu={preventSeekContextMenu}
                   >
                     <SkipForward className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                     <span className="text-[7px] sm:text-[8px] font-semibold leading-none">30s</span>
