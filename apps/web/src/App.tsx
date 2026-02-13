@@ -8,6 +8,7 @@ import Login from '@/pages/Login';
 import M3UImport from '@/pages/M3UImport';
 import Player from '@/pages/Player';
 import VodCategories from '@/pages/VodCategories';
+import VodDetail from '@/pages/VodDetail';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -28,6 +29,7 @@ function App() {
             <Route path="/login" element={<Login />} />
             <Route path="/import/m3u" element={<M3UImport />} />
             <Route path="/vod" element={<VodCategories />} />
+            <Route path="/vod/:vodId" element={<VodDetail />} />
             <Route
               path="/player"
               element={(
