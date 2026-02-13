@@ -37,6 +37,8 @@ export interface Category {
 export interface PlayerChannel {
   id: string;
   streamId: number;
+  source: "xtream" | "m3u";
+  streamUrl?: string;
   number: number;
   name: string;
   logo: string;

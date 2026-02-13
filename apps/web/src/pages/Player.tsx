@@ -158,8 +158,9 @@ const Player = () => {
 
   const switchToLiveChannel = useCallback(
     (channel: PlayerChannel) => {
+      const sourceUrl = channel.streamUrl ?? xtreamCodesService.getLiveStreamUrl(channel.streamId);
       const source = {
-        url: xtreamCodesService.getLiveStreamUrl(channel.streamId),
+        url: sourceUrl,
         type: 'hls' as const,
         title: channel.name,
         channelId: channel.id,
@@ -167,6 +168,7 @@ const Player = () => {
           channelId: channel.id,
           streamId: channel.streamId,
           mode: 'live',
+          source: channel.source,
         },
       };
 

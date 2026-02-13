@@ -5,12 +5,13 @@
  */
 
 import { useQuery } from '@tanstack/react-query';
-import { mapXtreamCategory, mapXtreamChannel } from '@lumen/api';
+import { mapM3UChannel, mapXtreamCategory, mapXtreamChannel } from '@lumen/api';
 import { channels as mockChannels } from '@lumen/demo-data';
 import type { PlayerCategory, PlayerChannel, Program } from '@lumen/types';
 import {
   loadXtreamCredentials,
 } from '@/services/xtreamCredentials';
+import { loadImportedM3UPlaylist } from '@/services/m3uImport';
 import { xtreamCodesService } from '@/services/xtreamService';
 
 interface UseXtreamChannelsResult {
@@ -65,6 +66,7 @@ const generateMockEPG = (channelId: string, hasCatchUp: boolean): Program[] => {
 const mapMockChannel = (channel: typeof mockChannels[0], index: number): PlayerChannel => ({
   id: channel.id,
   streamId: index + 1,
+  source: 'xtream',
   number: channel.number,
   name: channel.name,
   logo: channel.logo,
@@ -85,15 +87,39 @@ const getMockCategories = (): PlayerCategory[] => {
   }));
 };
 
+const mapM3UCategories = (channels: PlayerChannel[]): PlayerCategory[] => {
+  const categoryMap = new Map<string, string>();
+  channels.forEach((channel) => {
+    if (!categoryMap.has(channel.categoryId)) {
+      categoryMap.set(channel.categoryId, channel.categoryName);
+    }
+  });
+  return Array.from(categoryMap.entries()).map(([id, name]) => ({ id, name }));
+};
+
 const fetchXtreamChannels = async (): Promise<{
   channels: PlayerChannel[];
   categories: PlayerCategory[];
 }> => {
-  const credentials = await loadXtreamCredentials();
+  const [credentials, importedPlaylist] = await Promise.all([
+    loadXtreamCredentials(),
+    loadImportedM3UPlaylist(),
+  ]);
+  const m3uChannels = (importedPlaylist?.channels ?? []).map((channel, index) =>
+    mapM3UChannel(channel, index)
+  );
+  const m3uCategories = mapM3UCategories(m3uChannels);
 
   if (!credentials ||
       credentials.username === 'demo' ||
       credentials.server.includes('your-server.com')) {
+    if (m3uChannels.length > 0) {
+      return {
+        channels: m3uChannels,
+        categories: m3uCategories,
+      };
+    }
+
     return {
       channels: mockChannels.map((ch, idx) => mapMockChannel(ch, idx)),
       categories: getMockCategories(),
@@ -108,11 +134,19 @@ const fetchXtreamChannels = async (): Promise<{
   ]);
 
   const categories = xtreamCategories.map(mapXtreamCategory);
-  const channels = xtreamStreams.map((stream, idx) =>
+  const xtreamChannels = xtreamStreams.map((stream, idx) =>
     mapXtreamChannel(stream, idx, xtreamCategories, generateMockEPG)
   );
+  const channels = [...xtreamChannels, ...m3uChannels.map((channel, index) => ({
+    ...channel,
+    number: xtreamChannels.length + index + 1,
+  }))];
+  const unifiedCategories = [
+    ...categories,
+    ...m3uCategories.filter((category) => !categories.some((item) => item.id === category.id)),
+  ];
 
-  return { channels, categories };
+  return { channels, categories: unifiedCategories };
 };
 
 export const useXtreamChannels = (): UseXtreamChannelsResult => {
