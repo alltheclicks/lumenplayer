@@ -1,5 +1,27 @@
 # Handoff — Lumen Player
 
+## Session 2026-02-13 — LP-0306, LP-0307, LP-0308, LP-0309 (ordered batch)
+
+- PRs: #45 (merged), #46 (merged), #47 (merged), #48 (merged)
+- Done:
+  - LP-0306: Added dedicated M3U import UI (`/import/m3u`) with URL paste + file upload and persisted imported playlists in app storage
+  - LP-0307: Unified Xtream + imported M3U channels into shared `PlayerChannel` model and updated playback source resolution for M3U URLs
+  - LP-0308: Added VOD categories catalog page (`/vod`) with category filters, search, and responsive poster grid
+  - LP-0309: Added VOD movie detail page (`/vod/:vodId`) with plot/cast/director/genre/rating/metadata and TMDB deep-link support
+  - Local test gate passed on each task PR:
+    - `pnpm lint`
+    - `pnpm typecheck`
+    - `pnpm build`
+  - Greptile/check comments:
+    - Greptile was pinged on each PR (`@greptile-apps`), but no bot review/comments were returned on latest HEAD commits
+    - GitHub PR checks were green before each merge
+
+- Next:
+  - LP-0310 (VOD player using session)
+  - LP-0311 (Series list + categories page)
+
+---
+
 ## Session 2026-02-13 — LP-0014, LP-0015, LP-0304, LP-0305 (ordered batch)
 
 - PRs: #40 (merged), #41 (merged), #42 (merged), #43 (merged)

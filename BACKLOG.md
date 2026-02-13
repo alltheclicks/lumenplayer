@@ -109,15 +109,15 @@
 | ID | Task | Size | Status | Depends on |
 |----|------|------|--------|------------|
 | LP-0305 | Create M3U parser package (`@lumen/m3u` or in `@lumen/api`) — parse .m3u/.m3u8 files to Channel[] | M | done | — |
-| LP-0306 | M3U playlist import UI (URL paste + file upload) | M | idea | LP-0305 |
-| LP-0307 | Unified channel model — ensure Xtream + M3U sources map to same Channel type | S | idea | LP-0305 |
+| LP-0306 | M3U playlist import UI (URL paste + file upload) | M | done | LP-0305 |
+| LP-0307 | Unified channel model — ensure Xtream + M3U sources map to same Channel type | S | done | LP-0305 |
 
 ### VOD UI
 
 | ID | Task | Size | Status | Depends on |
 |----|------|------|--------|------------|
-| LP-0308 | VOD categories page (grid layout, posters) | M | idea | LP-0301 |
-| LP-0309 | VOD film detail page (poster, description, cast, TMDB metadata) | M | idea | LP-0301 |
+| LP-0308 | VOD categories page (grid layout, posters) | M | done | LP-0301 |
+| LP-0309 | VOD film detail page (poster, description, cast, TMDB metadata) | M | done | LP-0301 |
 | LP-0310 | VOD player (uses session for playback) | M | idea | LP-0103, LP-0309 |
 
 ### Series UI
