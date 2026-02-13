@@ -10,6 +10,7 @@ import Player from '@/pages/Player';
 import VodCategories from '@/pages/VodCategories';
 import VodDetail from '@/pages/VodDetail';
 import SeriesCategories from '@/pages/SeriesCategories';
+import SeriesDetail from '@/pages/SeriesDetail';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -33,6 +34,7 @@ function App() {
               <Route path="/vod" element={<VodCategories />} />
               <Route path="/vod/:vodId" element={<VodDetail />} />
               <Route path="/series" element={<SeriesCategories />} />
+              <Route path="/series/:seriesId" element={<SeriesDetail />} />
               <Route path="/player" element={<Player />} />
               <Route path="*" element={<Navigate to="/login" replace />} />
             </Routes>

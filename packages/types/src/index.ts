@@ -168,7 +168,7 @@ export interface XtreamSeries {
 
 export interface XtreamSeriesEpisode {
   id: string | number;
-  episode_num?: number;
+  episode_num?: string | number;
   title?: string;
   container_extension?: string;
   info?: Record<string, unknown>;
