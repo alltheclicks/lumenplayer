@@ -1,5 +1,30 @@
 # Handoff — Lumen Player
 
+## Session 2026-02-13 — LP-0014, LP-0015, LP-0304, LP-0305 (ordered batch)
+
+- PRs: #40 (merged), #41 (merged), #42 (merged), #43 (merged)
+- Done:
+  - LP-0014: Added repo-level flat ESLint config (`eslint.config.mjs`) + package lint scripts (`turbo lint` now covers workspace packages)
+  - LP-0014: Addressed Greptile performance note in `Player.tsx` watch-history effect by keying on `currentChannelId` only
+  - LP-0015: Updated PR quality gate workflow to run `pnpm lint`, `pnpm typecheck`, `pnpm build`
+  - LP-0304: Extended `HttpClient` with `getText()` and added `XtreamCodesService.getXMLTVEPG()` (`/xmltv.php` bulk EPG endpoint)
+  - LP-0305: Added `parseM3U(content)` in `@lumen/api` and exported parser from package index
+  - Local test gate passed on each task PR:
+    - `pnpm lint`
+    - `pnpm typecheck`
+    - `pnpm build`
+  - Greptile/check comments:
+    - #40: initial 4/5 feedback addressed in follow-up commit; final review 5/5
+    - #41: review 5/5
+    - #42: review 5/5
+    - #43: review 5/5
+
+- Next:
+  - LP-0306 (M3U playlist import UI)
+  - LP-0307 (unified channel model for Xtream + M3U)
+
+---
+
 ## Session 2026-02-13 — LP-0302, LP-0303 (Xtream series API batch)
 
 - PRs: #37 (merged), #38 (merged)
