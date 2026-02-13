@@ -10,6 +10,9 @@
       "default": "./src/index.ts"
     }
   },
+  "scripts": {
+    "test": "vitest run src/session-store.idempotency.test.ts"
+  },
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "dependencies": {
