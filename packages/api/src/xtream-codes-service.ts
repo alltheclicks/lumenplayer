@@ -129,7 +129,7 @@ export class XtreamCodesService {
     return `${this.credentials.server}/live/${this.credentials.username}/${this.credentials.password}/${streamId}.${extension}`;
   }
 
-  getVODStreamUrl(streamId: number, extension: string): string {
+  getVODStreamUrl(streamId: number, extension = "mp4"): string {
     if (!this.credentials) {
       throw new Error("Credentials not set");
     }
