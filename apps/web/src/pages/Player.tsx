@@ -229,8 +229,10 @@ const Player = () => {
     }
   }, [channels, currentChannel, session.source, switchToLiveChannel]);
 
+  const currentChannelId = currentChannel?.id;
+
   useEffect(() => {
-    if (!currentChannel) {
+    if (!currentChannelId) {
       return;
     }
 
@@ -239,7 +241,7 @@ const Player = () => {
     const startedAt = watchedStartedAtRef.current;
     const watchedDuration = startedAt ? Math.max(0, Math.floor((now - startedAt) / 1000)) : 0;
 
-    if (previousChannelId && previousChannelId !== currentChannel.id) {
+    if (previousChannelId && previousChannelId !== currentChannelId) {
       void addWatchHistoryEntry({
         channelId: previousChannelId,
         timestamp: now,
@@ -248,9 +250,9 @@ const Player = () => {
       });
     }
 
-    watchedChannelIdRef.current = currentChannel.id;
+    watchedChannelIdRef.current = currentChannelId;
     watchedStartedAtRef.current = now;
-  }, [currentChannel]);
+  }, [currentChannelId]);
 
   useEffect(() => {
     return () => {
