@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { HelmetProvider } from 'react-helmet-async';
 import { Toaster } from '@/components/ui/toaster';
+import { SessionProvider } from '@/context/SessionProvider';
 
 import Login from '@/pages/Login';
 import Player from '@/pages/Player';
@@ -23,7 +24,14 @@ function App() {
           <Routes>
             <Route path="/" element={<Navigate to="/login" replace />} />
             <Route path="/login" element={<Login />} />
-            <Route path="/player" element={<Player />} />
+            <Route
+              path="/player"
+              element={(
+                <SessionProvider>
+                  <Player />
+                </SessionProvider>
+              )}
+            />
             <Route path="*" element={<Navigate to="/login" replace />} />
           </Routes>
           <Toaster />
