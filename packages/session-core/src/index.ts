@@ -17,3 +17,10 @@ export type {
   SwitchRendererCommand,
   RendererChangedEvent,
 } from "./contracts";
+
+export { SessionStore } from "./session-store";
+export type {
+  SessionStoreOptions,
+  SessionStateListener,
+  SessionEventListener,
+} from "./session-store";
