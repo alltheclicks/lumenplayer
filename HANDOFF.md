@@ -1,5 +1,30 @@
 # Handoff — Lumen Player
 
+## Session 2026-02-13 — LP-0104e, LP-0104f, LP-0105, LP-0112 (session continuity batch)
+
+- **PRs:** #19 (merged), #20 (merged), #21 (merged), #22 (merged)
+- **Done:**
+  - LP-0104e: Refactored `PlayerControls.tsx` to read session state directly and dispatch session commands (`play`, `pause`, `seek`, `setSource`) without callback-heavy prop plumbing
+  - LP-0104f: Refactored `VideoPlayer.tsx` into a session-driven renderer (binds source/playback from session and reports playback position back to session store)
+  - LP-0105: Hardened reconnect/resume on reload in `Player.tsx`:
+    - do not auto-select first channel when persisted session source exists
+    - added fallback channel resolution by source title
+    - accept numeric-string `streamId` metadata during hydration
+  - LP-0112: Added idempotency tests for `SessionStore` commands (`play`, `pause`, `seek`, `switchRenderer`, `stop`, `setSource`) in `packages/session-core/src/session-store.idempotency.test.ts`
+  - Added package test command for `@lumen/session-core` and workspace `vitest` dependency
+  - Local test gate passed for each task PR:
+    - `pnpm lint`
+    - `pnpm typecheck`
+    - `pnpm build`
+  - Additional test validation for LP-0112:
+    - `pnpm --filter @lumen/session-core test` (6/6 passed)
+  - Greptile/check comments: none reported on PRs at merge time
+- **Next:**
+  - LP-0106 (RendererAdapter abstraction) as follow-up after session local flow is stabilized
+  - LP-0015 (CI pipeline: typecheck + lint + build) remains `planned`
+
+---
+
 ## Session 2026-02-13 — LP-0104a, LP-0104b, LP-0104c, LP-0104d (session wiring batch)
 
 - **PRs:** #12 (merged), #13 (merged), #14 (merged), #15 (merged)

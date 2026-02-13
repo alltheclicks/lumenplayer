@@ -38,10 +38,10 @@
 | LP-0104b | Create `useSessionCommands()` hook — returns typed dispatch functions (play, pause, setSource, seek, stop) | S | done | LP-0103 |
 | LP-0104c | Create `SessionProvider` context — initializes `SessionStore`, provides session + commands to component tree | S | done | LP-0104a, LP-0104b |
 | LP-0104d | Refactor Player.tsx — remove `currentChannel`, `isPlaying`, `catchUpProgram`, `catchUpPosition`, `progress` state; read from session instead; dispatch commands instead of local setState | M | done | LP-0104c |
-| LP-0104e | Refactor PlayerControls.tsx — remove 14 props / 7 callbacks pattern; read from session context; dispatch commands directly | M | planned | LP-0104d |
-| LP-0104f | Refactor VideoPlayer.tsx — make it a pure session renderer (subscribes to session source + playback state, reports position back to session) | M | planned | LP-0104d |
-| LP-0105 | Add reconnect/resume behavior on app reload (session survives refresh) | S | idea | LP-0103 |
-| LP-0112 | Add idempotency tests for session commands | S | idea | LP-0103 |
+| LP-0104e | Refactor PlayerControls.tsx — remove 14 props / 7 callbacks pattern; read from session context; dispatch commands directly | M | done | LP-0104d |
+| LP-0104f | Refactor VideoPlayer.tsx — make it a pure session renderer (subscribes to session source + playback state, reports position back to session) | M | done | LP-0104d |
+| LP-0105 | Add reconnect/resume behavior on app reload (session survives refresh) | S | done | LP-0103 |
+| LP-0112 | Add idempotency tests for session commands | S | done | LP-0103 |
 
 ### Step 3: Renderer abstraction (after session works locally)
 
