@@ -1,5 +1,31 @@
 # Handoff — Lumen Player
 
+## Session 2026-02-15 — LP-0318, LP-0319, LP-0320, LP-0321 (ordered batch)
+
+- PRs: #61 (merged), #62 (merged), #63 (merged), #64 (merged)
+- Done:
+  - LP-0318: Added EPG grid page (`/epg`) with horizontal timeline (TV guide style) and player entry points (desktop + mobile)
+  - LP-0319: Implemented XMLTV bulk EPG import + caching service (TTL + account signature) and wired EPG grid to prefer cached XMLTV with fallback to per-channel EPG
+  - LP-0320: Added settings page (`/settings`) for theme/language/player preferences, applied runtime theme switching, and wired player prefs (`autoplay`, `defaultVolume`, `preferNativeHls`)
+  - LP-0321: Added multi-audio track selection end-to-end (adapter discovery/switch + player handle APIs + controls UI)
+  - Local test gate passed on each task PR:
+    - `pnpm lint`
+    - `pnpm typecheck`
+    - `pnpm build`
+  - Greptile/check comments:
+    - #61: no actionable comments
+    - #62: addressed XMLTV query invalidation/order feedback and refresh handling
+    - #63: addressed theme apply UX feedback and wired `preferNativeHls` into playback adapter setup
+    - #64: addressed audio-track sync feedback (native selection consistency, event-driven track updates, HLS listener lifecycle, selected-index hardening)
+    - GitHub PR checks green before every merge
+
+- Next:
+  - LP-0322 (Subtitle track selection in player)
+  - LP-0323 (Picture-in-Picture support)
+
+---
+
+
 ## Session 2026-02-13 — LP-0314, LP-0315, LP-0316, LP-0317 (ordered batch)
 
 - PRs: #55 (merged), #56 (merged), #57 (merged), #58 (merged)
