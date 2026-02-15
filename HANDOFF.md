@@ -1,5 +1,32 @@
 # Handoff — Lumen Player
 
+## Session 2026-02-15 — LP-0322, LP-0323, LP-0107 (ordered batch)
+
+- PRs: #66 (merged), #67 (merged), #68 (merged)
+- Done:
+  - LP-0322: Added subtitle track selection end-to-end (type contracts, HLS/native subtitle discovery + switching, controls UI with `Off` option)
+  - LP-0323: Added Picture-in-Picture support end-to-end (standard PiP + WebKit fallback in player handle, PiP toggles in live controls and on-demand toolbar)
+  - LP-0107: Implemented Google Cast sender flow in web app:
+    - added Cast SDK/session hook (`useGoogleCastSender`)
+    - wired connect/disconnect controls (desktop, mobile, on-demand toolbar)
+    - synced session source/playback/seek to Cast session
+    - switched local renderer behavior when `session.renderer === 'cast'` and added casting overlay
+  - Local test gate passed on each task PR:
+    - `pnpm lint`
+    - `pnpm typecheck`
+    - `pnpm build`
+  - Greptile/check comments:
+    - #66: addressed valid comments (`isDefault` mapping and HLS listener lifecycle); marked/closed event-name false-positive with versioned evidence
+    - #67: no actionable review threads
+    - #68: addressed Cast SDK existing-script initialization path and re-reviewed
+    - GitHub PR checks green before merge
+
+- Next:
+  - LP-0108 (Cast receiver app at `cast.lumenplayer.com`)
+  - LP-0109 (`switchRenderer(local <-> cast)` without session reset)
+
+---
+
 ## Session 2026-02-15 — LP-0318, LP-0319, LP-0320, LP-0321 (ordered batch)
 
 - PRs: #61 (merged), #62 (merged), #63 (merged), #64 (merged)

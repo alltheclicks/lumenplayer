@@ -150,8 +150,8 @@
 |----|------|------|--------|------------|
 | LP-0320 | Settings page (theme, language, player preferences) | M | done | — |
 | LP-0321 | Multi-audio track selection in player | S | done | LP-0012 |
-| LP-0322 | Subtitle track selection in player | S | idea | LP-0012 |
-| LP-0323 | Picture-in-Picture support | S | idea | — |
+| LP-0322 | Subtitle track selection in player | S | done | LP-0012 |
+| LP-0323 | Picture-in-Picture support | S | done | — |
 
 ---
 
@@ -159,7 +159,7 @@
 
 | ID | Task | Size | Status | Depends on |
 |----|------|------|--------|------------|
-| LP-0107 | Implement Google Cast sender flow in web app | M | idea | LP-0106 |
+| LP-0107 | Implement Google Cast sender flow in web app | M | done | LP-0106 |
 | LP-0108 | Implement Cast receiver app (HTML + dual-video player bridge) at `cast.lumenplayer.com` | M | idea | LP-0106 |
 | LP-0109 | Add `switchRenderer(local <-> cast)` without session reset | M | idea | LP-0107, LP-0108 |
 | LP-0110 | Add phone-as-remote UI mode when renderer is remote | S | idea | LP-0109 |
