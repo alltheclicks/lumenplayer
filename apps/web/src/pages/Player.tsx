@@ -963,7 +963,7 @@ const Player = () => {
                         {castSender.isConnected ? 'Disconnect Cast' : 'Cast'}
                       </Button>
                     )}
-                    {isAirPlaySupported && (
+                    {isAirPlaySupported && session.renderer !== 'cast' && (
                       <Button
                         variant={isAirPlayConnected ? 'secondary' : 'outline'}
                         onClick={openAirPlayPicker}
