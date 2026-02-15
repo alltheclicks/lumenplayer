@@ -110,6 +110,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
   const [isPictureInPicture, setIsPictureInPicture] = useState(false);
   const pictureInPictureListenersRef = useRef(new Set<(isInPictureInPicture: boolean) => void>());
   const playbackWantsPlaying = wantsPlayback(session);
+  const isLocalRenderer = session.renderer === 'local-web';
 
   useEffect(() => {
     pictureInPictureListenersRef.current.forEach((listener) => {
@@ -385,7 +386,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
     isApplyingSessionSeekRef.current = false;
     lastReportedPositionMsRef.current = null;
 
-    if (!src) {
+    if (!src || !isLocalRenderer) {
       void exitPictureInPicture();
       setError(null);
       setIsLoading(false);
@@ -429,7 +430,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
     return () => {
       cancelled = true;
     };
-  }, [autoPlay, exitPictureInPicture, onCanPlay, onError, src]);
+  }, [autoPlay, exitPictureInPicture, isLocalRenderer, onCanPlay, onError, src]);
 
   useEffect(() => {
     const adapter = adapterRef.current;
@@ -453,7 +454,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
       return;
     }
 
-    if (!session.source) {
+    if (!session.source || !isLocalRenderer) {
       adapter.pause();
       return;
     }
@@ -464,7 +465,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
     }
 
     adapter.pause();
-  }, [playbackWantsPlaying, session.source]);
+  }, [isLocalRenderer, playbackWantsPlaying, session.source]);
 
   useEffect(() => {
     const video = videoRef.current as WebKitPictureInPictureVideoElement | null;
