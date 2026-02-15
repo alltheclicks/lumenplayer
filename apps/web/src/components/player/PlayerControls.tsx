@@ -20,8 +20,9 @@ import {
   SkipForward,
   Radio,
   Calendar,
+  Languages,
 } from 'lucide-react';
-import type { PlayerChannel, Program } from '@lumen/types';
+import type { AudioTrackOption, PlayerChannel, Program } from '@lumen/types';
 import { ChannelLogo } from '@/components/player/ChannelLogo';
 import { useSessionContext } from '@/context/session-context';
 import { xtreamCodesService } from '@/services/xtreamService';
@@ -123,6 +124,9 @@ const PlayerControls = ({
   const [isMuted, setIsMuted] = useState(false);
   const [showVolumeSlider, setShowVolumeSlider] = useState(false);
   const [showCatchUp, setShowCatchUp] = useState(false);
+  const [showAudioTracks, setShowAudioTracks] = useState(false);
+  const [audioTracks, setAudioTracks] = useState<AudioTrackOption[]>([]);
+  const [selectedAudioTrackId, setSelectedAudioTrackId] = useState<string | null>(null);
   const [openDays, setOpenDays] = useState<string[]>([]);
   const [hoverPosition, setHoverPosition] = useState<number | null>(null);
   const [isSeeking, setIsSeeking] = useState(false);
@@ -173,6 +177,7 @@ const PlayerControls = ({
   const sortedDates = Array.from(catchUpByDate.keys()).sort((a, b) =>
     new Date(b).getTime() - new Date(a).getTime()
   );
+  const hasMultipleAudioTracks = audioTracks.length > 1;
 
   useEffect(() => {
     setVolume(normalizedDefaultVolume);
@@ -231,7 +236,7 @@ const PlayerControls = ({
       return;
     }
 
-    if (!isFullscreen || showCatchUp || isSeeking) {
+    if (!isFullscreen || showCatchUp || showAudioTracks || isSeeking) {
       return;
     }
 
@@ -241,7 +246,7 @@ const PlayerControls = ({
 
     setShowControls(true);
     idleTimer.reset();
-  }, [isFullscreen, isSeeking, showCatchUp]);
+  }, [isFullscreen, isSeeking, showAudioTracks, showCatchUp]);
 
   useEffect(() => {
     const idleTimer = idleTimerRef.current;
@@ -249,7 +254,7 @@ const PlayerControls = ({
       return;
     }
 
-    if (!isFullscreen || showCatchUp || isSeeking) {
+    if (!isFullscreen || showCatchUp || showAudioTracks || isSeeking) {
       idleTimer.clear();
       setShowControls(true);
       return;
@@ -258,7 +263,39 @@ const PlayerControls = ({
     if (showControls) {
       idleTimer.reset();
     }
-  }, [isFullscreen, showCatchUp, isSeeking, showControls]);
+  }, [isFullscreen, showAudioTracks, showCatchUp, isSeeking, showControls]);
+
+  const syncAudioTracks = useCallback(() => {
+    const tracks = playerRef.current?.getAudioTracks() ?? [];
+    setAudioTracks(tracks);
+    setSelectedAudioTrackId(playerRef.current?.getSelectedAudioTrackId() ?? null);
+
+    if (tracks.length <= 1) {
+      setShowAudioTracks(false);
+    }
+  }, [playerRef]);
+
+  useEffect(() => {
+    if (!session.source) {
+      setAudioTracks([]);
+      setSelectedAudioTrackId(null);
+      setShowAudioTracks(false);
+      return;
+    }
+
+    const unsubscribe = playerRef.current?.onAudioTracksChange((tracks, selectedTrackId) => {
+      setAudioTracks(tracks);
+      setSelectedAudioTrackId(selectedTrackId);
+      if (tracks.length <= 1) {
+        setShowAudioTracks(false);
+      }
+    }) ?? (() => {});
+
+    syncAudioTracks();
+    return () => {
+      unsubscribe();
+    };
+  }, [playerRef, session.source, syncAudioTracks]);
 
   const handleMouseMove = useCallback(() => {
     resetControlsIdleTimer();
@@ -268,6 +305,9 @@ const PlayerControls = ({
     if (showCatchUp) {
       setShowCatchUp(false);
       resetControlsIdleTimer();
+    } else if (showAudioTracks) {
+      setShowAudioTracks(false);
+      resetControlsIdleTimer();
     } else {
       const idleTimer = idleTimerRef.current;
       if (!showControls && idleTimer?.isInGracePeriod()) {
@@ -276,7 +316,7 @@ const PlayerControls = ({
 
       setShowControls(prev => {
         const nextShowControls = !prev;
-        if (idleTimer && isFullscreen && !showCatchUp && !isSeeking) {
+        if (idleTimer && isFullscreen && !showCatchUp && !showAudioTracks && !isSeeking) {
           if (nextShowControls) {
             idleTimer.reset();
           } else {
@@ -286,7 +326,7 @@ const PlayerControls = ({
         return nextShowControls;
       });
     }
-  }, [isFullscreen, isSeeking, resetControlsIdleTimer, showCatchUp, showControls]);
+  }, [isFullscreen, isSeeking, resetControlsIdleTimer, showAudioTracks, showCatchUp, showControls]);
 
   const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newVolume = parseInt(e.target.value);
@@ -519,9 +559,50 @@ const PlayerControls = ({
     event.preventDefault();
   }, []);
 
+  const handleSelectAudioTrack = useCallback((trackId: string) => {
+    const applied = playerRef.current?.setAudioTrack(trackId) ?? false;
+    if (!applied) {
+      return;
+    }
+
+    setSelectedAudioTrackId(trackId);
+    setShowAudioTracks(false);
+  }, [playerRef]);
+
+  const audioTrackPanel = hasMultipleAudioTracks && showAudioTracks ? (
+    <div
+      className="absolute bottom-16 right-3 z-30 w-64 rounded-lg border border-border/80 bg-background/95 p-2 shadow-2xl backdrop-blur-md sm:bottom-20 sm:right-4"
+      onClick={(event) => event.stopPropagation()}
+    >
+      <p className="px-2 pb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        Audio Tracks
+      </p>
+      <div className="max-h-56 space-y-1 overflow-y-auto">
+        {audioTracks.map((track) => (
+          <button
+            key={track.id}
+            className={`w-full rounded-md px-2 py-2 text-left text-sm transition-colors ${
+              selectedAudioTrackId === track.id
+                ? 'bg-primary/20 text-primary'
+                : 'hover:bg-secondary/60'
+            }`}
+            onClick={() => handleSelectAudioTrack(track.id)}
+          >
+            <span className="block truncate font-medium">{track.label}</span>
+            <span className="block text-xs text-muted-foreground">
+              {track.language || 'Unknown language'}
+              {track.isDefault ? ' • default' : ''}
+            </span>
+          </button>
+        ))}
+      </div>
+    </div>
+  ) : null;
+
   if (!isFullscreen) {
     return (
       <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/95 via-black/60 to-transparent p-4 sm:p-6">
+        {audioTrackPanel}
         <div className="flex items-center gap-4 mb-4">
           <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-2xl bg-background/10 backdrop-blur flex items-center justify-center">
             <ChannelLogo logo={channel.logo} name={channel.name} size="lg" />
@@ -592,7 +673,25 @@ const PlayerControls = ({
             <Button variant="ghost" size="icon" className="hover:bg-secondary/50" onClick={onToggleFavorite}>
               <Heart className={`w-5 h-5 ${isFavorite ? 'fill-primary text-primary' : ''}`} />
             </Button>
-            <Button variant="ghost" size="icon" className="hover:bg-secondary/50" onClick={() => setShowCatchUp(true)}>
+            {hasMultipleAudioTracks && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className={`hover:bg-secondary/50 ${showAudioTracks ? 'text-primary' : ''}`}
+                onClick={() => setShowAudioTracks((prev) => !prev)}
+              >
+                <Languages className="w-5 h-5" />
+              </Button>
+            )}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="hover:bg-secondary/50"
+              onClick={() => {
+                setShowAudioTracks(false);
+                setShowCatchUp(true);
+              }}
+            >
               <Clock className="w-5 h-5" />
             </Button>
             <Button variant="ghost" size="icon" className="hover:bg-secondary/50" onClick={onToggleFullscreen}>
@@ -610,6 +709,7 @@ const PlayerControls = ({
       onMouseMove={handleMouseMove}
       onClick={handleClick}
     >
+      {audioTrackPanel}
       {showCatchUp && (
         <div
           className="absolute right-0 top-0 bottom-0 w-full sm:w-96 z-30 bg-background/95 backdrop-blur-md border-l border-border/50"
@@ -1051,10 +1151,24 @@ const PlayerControls = ({
                   className={`w-9 h-9 sm:w-10 sm:h-10 hover:bg-secondary/50 ${catchUpProgram ? 'text-primary' : ''}`}
                   onClick={(e) => {
                     e.stopPropagation();
+                    setShowAudioTracks(false);
                     setShowCatchUp(true);
                   }}
                 >
                   <Clock className="w-4 h-4 sm:w-5 sm:h-5" />
+                </Button>
+              )}
+              {hasMultipleAudioTracks && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className={`w-9 h-9 sm:w-10 sm:h-10 hover:bg-secondary/50 ${showAudioTracks ? 'text-primary' : ''}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowAudioTracks((prev) => !prev);
+                  }}
+                >
+                  <Languages className="w-4 h-4 sm:w-5 sm:h-5" />
                 </Button>
               )}
               <Button

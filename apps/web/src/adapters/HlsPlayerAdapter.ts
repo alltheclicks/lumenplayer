@@ -1,5 +1,6 @@
 import Hls, { type ErrorData } from 'hls.js';
 import type {
+  AudioTrackOption,
   MediaSource,
   PlaybackError,
   PlaybackState,
@@ -11,19 +12,34 @@ const HLS_MIME_TYPE = 'application/vnd.apple.mpegurl';
 type StateListener = (state: PlaybackState) => void;
 type ErrorListener = (error: PlaybackError) => void;
 type TimeListener = (time: number) => void;
+type AudioTracksListener = (tracks: AudioTrackOption[], selectedTrackId: string | null) => void;
 
 interface HlsPlayerAdapterOptions {
   preferNativeHls?: boolean;
+}
+
+interface NativeAudioTrack {
+  enabled?: boolean;
+  language?: string;
+  label?: string;
+}
+
+interface NativeAudioTrackListLike {
+  length: number;
+  [index: number]: NativeAudioTrack;
 }
 
 export class HlsPlayerAdapter implements PlayerAdapter {
   private readonly video: HTMLVideoElement;
   private readonly preferNativeHls: boolean;
   private hls: Hls | null = null;
+  private audioTracks: AudioTrackOption[] = [];
+  private selectedAudioTrackId: string | null = null;
   private state: PlaybackState = 'idle';
   private readonly stateListeners = new Set<StateListener>();
   private readonly errorListeners = new Set<ErrorListener>();
   private readonly timeListeners = new Set<TimeListener>();
+  private readonly audioTracksListeners = new Set<AudioTracksListener>();
   private readonly removeVideoListeners: () => void;
 
   constructor(video: HTMLVideoElement, options: HlsPlayerAdapterOptions = {}) {
@@ -79,6 +95,9 @@ export class HlsPlayerAdapter implements PlayerAdapter {
     this.video.pause();
     this.video.removeAttribute('src');
     this.video.load();
+    this.audioTracks = [];
+    this.selectedAudioTrackId = null;
+    this.emitAudioTracksChange();
     this.updateState('idle');
   }
 
@@ -89,6 +108,7 @@ export class HlsPlayerAdapter implements PlayerAdapter {
     this.stateListeners.clear();
     this.errorListeners.clear();
     this.timeListeners.clear();
+    this.audioTracksListeners.clear();
   }
 
   getCurrentTime(): number {
@@ -111,6 +131,49 @@ export class HlsPlayerAdapter implements PlayerAdapter {
     return this.video.volume;
   }
 
+  getAudioTracks(): AudioTrackOption[] {
+    return this.audioTracks;
+  }
+
+  getSelectedAudioTrackId(): string | null {
+    return this.selectedAudioTrackId;
+  }
+
+  setAudioTrack(trackId: string): boolean {
+    const selectedTrack = this.audioTracks.find((track) => track.id === trackId);
+    if (!selectedTrack) {
+      return false;
+    }
+
+    if (this.hls) {
+      const hlsIndex = this.parseTrackIndex(trackId, 'hls-');
+      if (hlsIndex === null || hlsIndex < 0 || hlsIndex >= this.hls.audioTracks.length) {
+        return false;
+      }
+      this.hls.audioTrack = hlsIndex;
+      this.selectedAudioTrackId = trackId;
+      this.emitAudioTracksChange();
+      return true;
+    }
+
+    const nativeAudioTracks = this.getNativeAudioTracks();
+    if (nativeAudioTracks) {
+      const nativeIndex = this.parseTrackIndex(trackId, 'native-');
+      if (nativeIndex === null || nativeIndex < 0 || nativeIndex >= nativeAudioTracks.length) {
+        return false;
+      }
+
+      for (let index = 0; index < nativeAudioTracks.length; index += 1) {
+        nativeAudioTracks[index].enabled = index === nativeIndex;
+      }
+
+      this.syncNativeAudioTracks();
+      return true;
+    }
+
+    return false;
+  }
+
   onStateChange(callback: StateListener): () => void {
     this.stateListeners.add(callback);
     return () => this.stateListeners.delete(callback);
@@ -126,10 +189,17 @@ export class HlsPlayerAdapter implements PlayerAdapter {
     return () => this.timeListeners.delete(callback);
   }
 
+  onAudioTracksChange(callback: AudioTracksListener): () => void {
+    this.audioTracksListeners.add(callback);
+    callback(this.audioTracks, this.selectedAudioTrackId);
+    return () => this.audioTracksListeners.delete(callback);
+  }
+
   private async loadHlsSource(url: string): Promise<void> {
     if (this.preferNativeHls && this.video.canPlayType(HLS_MIME_TYPE)) {
       this.video.src = url;
       this.video.load();
+      this.syncNativeAudioTracks();
       this.updateState('paused');
       return;
     }
@@ -148,6 +218,7 @@ export class HlsPlayerAdapter implements PlayerAdapter {
 
       await new Promise<void>((resolve, reject) => {
         const onManifestParsed = () => {
+          this.syncHlsAudioTracks(hls.audioTrack);
           cleanup();
           this.updateState('paused');
           resolve();
@@ -171,8 +242,18 @@ export class HlsPlayerAdapter implements PlayerAdapter {
           hls.off(Hls.Events.ERROR, onHlsError);
         };
 
+        const onAudioTracksUpdated = () => {
+          this.syncHlsAudioTracks(hls.audioTrack);
+        };
+
+        const onAudioTrackSwitched = () => {
+          this.syncHlsAudioTracks(hls.audioTrack);
+        };
+
         hls.on(Hls.Events.MANIFEST_PARSED, onManifestParsed);
         hls.on(Hls.Events.ERROR, onHlsError);
+        hls.on(Hls.Events.AUDIO_TRACKS_UPDATED, onAudioTracksUpdated);
+        hls.on(Hls.Events.AUDIO_TRACK_SWITCHED, onAudioTrackSwitched);
         hls.loadSource(url);
         hls.attachMedia(this.video);
       });
@@ -184,6 +265,7 @@ export class HlsPlayerAdapter implements PlayerAdapter {
     if (this.video.canPlayType(HLS_MIME_TYPE)) {
       this.video.src = url;
       this.video.load();
+      this.syncNativeAudioTracks();
       this.updateState('paused');
       return;
     }
@@ -294,6 +376,86 @@ export class HlsPlayerAdapter implements PlayerAdapter {
       return false;
     }
     return window.location.protocol === 'https:' && url.startsWith('http://');
+  }
+
+  private syncHlsAudioTracks(selectedIndex: number): void {
+    if (!this.hls) {
+      this.audioTracks = [];
+      this.selectedAudioTrackId = null;
+      this.emitAudioTracksChange();
+      return;
+    }
+
+    this.audioTracks = this.hls.audioTracks.map((track, index) => ({
+      id: `hls-${index}`,
+      label: track.name || track.lang || `Track ${index + 1}`,
+      language: track.lang || null,
+      isDefault: Boolean(track.default),
+    }));
+
+    const safeSelectedIndex = (
+      selectedIndex >= 0 && selectedIndex < this.audioTracks.length
+    ) ? selectedIndex : 0;
+    this.selectedAudioTrackId = this.audioTracks.length > 0
+      ? this.audioTracks[safeSelectedIndex]?.id ?? null
+      : null;
+    this.emitAudioTracksChange();
+  }
+
+  private syncNativeAudioTracks(): void {
+    const nativeAudioTracks = this.getNativeAudioTracks();
+    if (!nativeAudioTracks || nativeAudioTracks.length === 0) {
+      this.audioTracks = [];
+      this.selectedAudioTrackId = null;
+      this.emitAudioTracksChange();
+      return;
+    }
+
+    const mappedTracks: AudioTrackOption[] = [];
+    let selectedId: string | null = null;
+
+    for (let index = 0; index < nativeAudioTracks.length; index += 1) {
+      const track = nativeAudioTracks[index];
+      const id = `native-${index}`;
+      mappedTracks.push({
+        id,
+        label: track.label || track.language || `Track ${index + 1}`,
+        language: track.language || null,
+        isDefault: index === 0,
+      });
+
+      if (track.enabled) {
+        selectedId = id;
+      }
+    }
+
+    this.audioTracks = mappedTracks;
+    this.selectedAudioTrackId = selectedId ?? mappedTracks[0]?.id ?? null;
+    this.emitAudioTracksChange();
+  }
+
+  private getNativeAudioTracks(): NativeAudioTrackListLike | null {
+    const elementWithTracks = this.video as HTMLVideoElement & { audioTracks?: NativeAudioTrackListLike };
+    return elementWithTracks.audioTracks ?? null;
+  }
+
+  private parseTrackIndex(trackId: string, prefix: string): number | null {
+    if (!trackId.startsWith(prefix)) {
+      return null;
+    }
+
+    const numericIndex = Number(trackId.slice(prefix.length));
+    if (!Number.isInteger(numericIndex)) {
+      return null;
+    }
+
+    return numericIndex;
+  }
+
+  private emitAudioTracksChange(): void {
+    this.audioTracksListeners.forEach((listener) => {
+      listener(this.audioTracks, this.selectedAudioTrackId);
+    });
   }
 }
 
