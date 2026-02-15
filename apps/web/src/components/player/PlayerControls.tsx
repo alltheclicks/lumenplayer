@@ -186,6 +186,13 @@ const PlayerControls = ({
   );
   const hasMultipleAudioTracks = audioTracks.length > 1;
   const hasSubtitleTracks = subtitleTracks.length > 0;
+  const selectedSubtitleTrackLabel = useMemo(() => {
+    if (selectedSubtitleTrackId === null) {
+      return 'Off';
+    }
+
+    return subtitleTracks.find((track) => track.id === selectedSubtitleTrackId)?.label ?? 'Unknown';
+  }, [selectedSubtitleTrackId, subtitleTracks]);
 
   useEffect(() => {
     setVolume(normalizedDefaultVolume);
@@ -837,6 +844,7 @@ const PlayerControls = ({
                 variant="ghost"
                 size="icon"
                 className={`hover:bg-secondary/50 ${showSubtitleTracks ? 'text-primary' : ''}`}
+                title={`Subtitles: ${selectedSubtitleTrackLabel}`}
                 onClick={() => {
                   setShowAudioTracks(false);
                   setShowSubtitleTracks((prev) => !prev);
@@ -1352,6 +1360,7 @@ const PlayerControls = ({
                   variant="ghost"
                   size="icon"
                   className={`w-9 h-9 sm:w-10 sm:h-10 hover:bg-secondary/50 ${showSubtitleTracks ? 'text-primary' : ''}`}
+                  title={`Subtitles: ${selectedSubtitleTrackLabel}`}
                   onClick={(e) => {
                     e.stopPropagation();
                     setShowAudioTracks(false);
