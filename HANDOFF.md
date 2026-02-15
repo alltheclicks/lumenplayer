@@ -1,5 +1,30 @@
 # Handoff — Lumen Player
 
+## Session 2026-02-15 — LP-0011, LP-0330, LP-0331, LP-0326 (ordered batch)
+
+- PRs: #85 (merged), #86 (merged), #87 (merged), #88 (merged)
+- Done:
+  - LP-0011: Lazy-loaded `/player` route with `React.lazy` + `Suspense` fallback, producing a dedicated Player chunk.
+  - LP-0330: Added web push compatibility spike in `/settings` (runtime capability evaluator + iOS/Android/TV matrix).
+  - LP-0331: Added two-step push opt-in UX (pre-permission screen + user-gesture native prompt) with explicit unsupported-device fallback copy.
+  - LP-0326: Extended `@lumen/demo-data` with benchmark dataset generator (`20k` channels / `50k` EPG defaults), plus `nowMs` and `minEpgPerChannel` options for deterministic and denser scenarios.
+  - Local test gate passed on each task PR:
+    - `pnpm lint`
+    - `pnpm typecheck`
+    - `pnpm build`
+  - Greptile/check comments:
+    - #85: checks green, no actionable Greptile comments
+    - #86: checks green, no actionable Greptile comments
+    - #87: addressed 1 Greptile comment (effect overlap) in follow-up commit; final checks green
+    - #88: addressed determinism/density feedback in follow-up commit; one final ID-collision comment marked false-positive with rationale on PR thread
+
+- Next:
+  - LP-0327 (Performance test: time-to-first-channel < 3s with 20k dataset)
+  - LP-0328 (Performance test: memory cap < 200MB RSS with 20k dataset)
+
+---
+
+
 ## Session 2026-02-15 — LP-0322, LP-0323, LP-0107, LP-0325 (ordered batch)
 
 - PRs: #80 (merged), #81 (merged), #82 (merged), #83 (merged)
