@@ -16,6 +16,7 @@ import {
   Play,
   Pause,
   PictureInPicture2,
+  Cast,
   CalendarDays,
   Settings2,
 } from 'lucide-react';
@@ -25,6 +26,7 @@ import ChannelList from '@/components/player/ChannelList';
 import { useXtreamChannels } from '@/hooks/useXtreamChannels';
 import { useFavorites } from '@/hooks/useFavorites';
 import { useSessionContext } from '@/context/session-context';
+import { useGoogleCastSender } from '@/hooks/useGoogleCastSender';
 import { NumericChannelInput, WebKeyCodes } from '@lumen/input';
 import { filterChannels, getCurrentProgram, getProgramProgress } from '@lumen/core';
 import type { PlayerChannel, Program, XtreamEPGItem } from '@lumen/types';
@@ -150,6 +152,7 @@ const Player = () => {
   const { channels, categories, isLoading, error } = useXtreamChannels();
   const { favorites, toggleFavorite, isFavorite } = useFavorites();
   const { session, commands } = useSessionContext();
+  const castSender = useGoogleCastSender({ session, commands });
 
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -635,6 +638,19 @@ const Player = () => {
                 <Button variant="ghost" size="sm" onClick={() => navigate('/settings')}>
                   Settings
                 </Button>
+                {castSender.isAvailable && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    disabled={castSender.isConnecting}
+                    onClick={() => {
+                      void castSender.toggleCasting();
+                    }}
+                    title={castSender.isConnected ? 'Disconnect Cast' : 'Connect Cast'}
+                  >
+                    <Cast className={`w-4 h-4 ${castSender.isConnected ? 'text-primary' : ''}`} />
+                  </Button>
+                )}
                 <Button
                   variant="ghost"
                   size="icon"
@@ -718,12 +734,34 @@ const Player = () => {
               </div>
             )}
 
-            {session.source && (
+            {session.source && session.renderer === 'local-web' && (
               <VideoPlayer
                 ref={playerRef}
                 autoPlay={appSettings.player.autoplay}
                 preferNativeHls={appSettings.player.preferNativeHls}
               />
+            )}
+
+            {session.source && session.renderer === 'cast' && (
+              <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/70">
+                <div className="rounded-xl border border-border/60 bg-background/90 px-5 py-4 text-center shadow-2xl backdrop-blur-sm">
+                  <p className="mb-1 flex items-center justify-center gap-2 text-sm font-semibold text-primary">
+                    <Cast className="h-4 w-4" />
+                    Casting Active
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    {castSender.deviceName ? `Playing on ${castSender.deviceName}` : 'Playing on Cast device'}
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="mt-3"
+                    onClick={castSender.stopCasting}
+                  >
+                    Stop Casting
+                  </Button>
+                </div>
+              </div>
             )}
 
             {currentChannelWithEPG && !isOnDemandSource && (
@@ -774,6 +812,18 @@ const Player = () => {
                         {isPictureInPicture ? 'Exit PiP' : 'PiP'}
                       </Button>
                     )}
+                    {castSender.isAvailable && (
+                      <Button
+                        variant={castSender.isConnected ? 'secondary' : 'outline'}
+                        onClick={() => {
+                          void castSender.toggleCasting();
+                        }}
+                        disabled={castSender.isConnecting}
+                      >
+                        <Cast className="mr-2 h-4 w-4" />
+                        {castSender.isConnected ? 'Disconnect Cast' : 'Cast'}
+                      </Button>
+                    )}
                     <Button variant="outline" onClick={() => navigate(onDemandBackPath)}>
                       {onDemandBackLabel}
                     </Button>
@@ -809,6 +859,20 @@ const Player = () => {
                 Settings
               </Button>
             </div>
+            {castSender.isAvailable && (
+              <Button
+                variant={castSender.isConnected ? 'default' : 'outline'}
+                size="sm"
+                className="mb-2 w-full"
+                disabled={castSender.isConnecting}
+                onClick={() => {
+                  void castSender.toggleCasting();
+                }}
+              >
+                <Cast className="mr-2 h-4 w-4" />
+                {castSender.isConnected ? 'Disconnect Cast' : 'Connect Cast'}
+              </Button>
+            )}
             <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
               <SheetTrigger asChild>
                 <Button variant="outline" className="w-full gap-2">
