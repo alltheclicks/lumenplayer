@@ -190,7 +190,7 @@ const EpgGuide = () => {
 
   const epgQueries = useQueries({
     queries: visibleChannels.map((channel) => ({
-      queryKey: ['epg-guide', channel.id, channel.streamId],
+      queryKey: ['epg-guide', channel.id, channel.streamId, Boolean(xmltvCacheQuery.data)],
       queryFn: async () => {
         const xmltvPrograms = resolveXMLTVProgramsForChannel(channel, xmltvCacheQuery.data);
         if (xmltvPrograms && xmltvPrograms.length > 0) {
@@ -291,8 +291,13 @@ const EpgGuide = () => {
                 className="h-7 px-2 text-xs"
                 disabled={xmltvCacheQuery.isLoading}
                 onClick={async () => {
-                  const refreshed = await loadXMLTVEPGMap({ forceRefresh: true });
-                  queryClient.setQueryData(['xmltv-epg-map'], refreshed);
+                  try {
+                    const refreshed = await loadXMLTVEPGMap({ forceRefresh: true });
+                    queryClient.setQueryData(['xmltv-epg-map'], refreshed);
+                    await queryClient.invalidateQueries({ queryKey: ['epg-guide'] });
+                  } catch {
+                    // UI continues to fallback per channel via existing query pipeline.
+                  }
                 }}
               >
                 <RefreshCw className="mr-1 h-3 w-3" />

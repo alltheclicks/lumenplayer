@@ -232,23 +232,6 @@ export const resolveXMLTVProgramsForChannel = (
     }
   }
 
-  const normalizedLookup = new Map<string, Program[]>();
-  Object.entries(xmltvProgramsByChannel).forEach(([key, programs]) => {
-    normalizedLookup.set(normalizeKey(key), programs);
-  });
-
-  for (const candidate of directCandidates) {
-    const normalized = normalizeKey(candidate);
-    if (!normalized) {
-      continue;
-    }
-
-    const programs = normalizedLookup.get(normalized);
-    if (programs) {
-      return programs;
-    }
-  }
-
   return null;
 };
 
