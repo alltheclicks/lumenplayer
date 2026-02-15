@@ -8,6 +8,7 @@ import type { SessionState } from '@lumen/session-core';
 export interface VideoPlayerProps {
   poster?: string;
   autoPlay?: boolean;
+  preferNativeHls?: boolean;
   onError?: (error: string) => void;
   onEnded?: () => void;
   onCanPlay?: () => void;
@@ -36,9 +37,10 @@ const wantsPlayback = (session: SessionState): boolean => (
   session.playback === 'playing' || session.playback === 'buffering'
 );
 
-const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ 
+const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
   poster,
   autoPlay = true,
+  preferNativeHls = false,
   onError,
   onEnded,
   onCanPlay,
@@ -122,7 +124,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
       return;
     }
 
-    const adapter = new HlsPlayerAdapter(video);
+    const adapter = new HlsPlayerAdapter(video, { preferNativeHls });
     adapterRef.current = adapter;
 
     const unsubscribeState = adapter.onStateChange((state) => {
@@ -217,7 +219,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
         adapterRef.current = null;
       }
     };
-  }, [commands, mapPlaybackError, onCanPlay, onEnded, onError]);
+  }, [commands, mapPlaybackError, onCanPlay, onEnded, onError, preferNativeHls]);
 
   useEffect(() => {
     const adapter = adapterRef.current;

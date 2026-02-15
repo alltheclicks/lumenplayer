@@ -688,6 +688,7 @@ const Player = () => {
               <VideoPlayer
                 ref={playerRef}
                 autoPlay={appSettings.player.autoplay}
+                preferNativeHls={appSettings.player.preferNativeHls}
               />
             )}
 

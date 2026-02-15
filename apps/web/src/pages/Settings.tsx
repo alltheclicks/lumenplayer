@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import {
+  applyThemePreference,
   getDefaultAppSettings,
   loadAppSettings,
   saveAppSettings,
@@ -55,6 +56,7 @@ const Settings = () => {
     const defaults = getDefaultAppSettings();
     setSettings(defaults);
     setSaveMessage(null);
+    applyThemePreference(defaults.theme);
   };
 
   return (
@@ -97,10 +99,14 @@ const Settings = () => {
                       id="theme"
                       className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                       value={settings.theme}
-                      onChange={(event) => setSettings((prev) => ({
-                        ...prev,
-                        theme: event.target.value as AppSettings['theme'],
-                      }))}
+                      onChange={(event) => {
+                        const nextTheme = event.target.value as AppSettings['theme'];
+                        setSettings((prev) => ({
+                          ...prev,
+                          theme: nextTheme,
+                        }));
+                        applyThemePreference(nextTheme);
+                      }}
                     >
                       <option value="dark">Dark</option>
                       <option value="light">Light</option>
