@@ -1,13 +1,18 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useQueries } from '@tanstack/react-query';
+import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Helmet } from 'react-helmet-async';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Clock, Loader2, Search, Tv } from 'lucide-react';
+import { ArrowLeft, Clock, Loader2, RefreshCw, Search, Tv } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useXtreamChannels } from '@/hooks/useXtreamChannels';
 import { loadXtreamCredentials } from '@/services/xtreamCredentials';
 import { xtreamCodesService } from '@/services/xtreamService';
+import {
+  getXMLTVCacheTTL,
+  loadXMLTVEPGMap,
+  resolveXMLTVProgramsForChannel,
+} from '@/services/xmltvEpg';
 import type { PlayerChannel, Program, XtreamEPGItem } from '@lumen/types';
 
 const ALL_CATEGORY = '__all__';
@@ -122,6 +127,7 @@ const clipProgramToWindow = (program: Program, windowStart: Date, windowEnd: Dat
 
 const EpgGuide = () => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { channels, categories, isLoading, error } = useXtreamChannels();
 
   const [selectedCategory, setSelectedCategory] = useState<string>(ALL_CATEGORY);
@@ -173,10 +179,26 @@ const EpgGuide = () => {
 
   const hasMoreChannels = visibleChannelsCount < filteredChannels.length;
 
+  const xmltvCacheQuery = useQuery({
+    queryKey: ['xmltv-epg-map'],
+    queryFn: () => loadXMLTVEPGMap(),
+    staleTime: getXMLTVCacheTTL(),
+    gcTime: getXMLTVCacheTTL() * 2,
+    retry: 1,
+    refetchOnWindowFocus: false,
+  });
+
   const epgQueries = useQueries({
     queries: visibleChannels.map((channel) => ({
-      queryKey: ['epg-guide', channel.id, channel.streamId],
-      queryFn: () => fetchChannelEpg(channel),
+      queryKey: ['epg-guide', channel.id, channel.streamId, Boolean(xmltvCacheQuery.data)],
+      queryFn: async () => {
+        const xmltvPrograms = resolveXMLTVProgramsForChannel(channel, xmltvCacheQuery.data);
+        if (xmltvPrograms && xmltvPrograms.length > 0) {
+          return xmltvPrograms;
+        }
+
+        return fetchChannelEpg(channel);
+      },
       staleTime: 2 * 60 * 1000,
       gcTime: 10 * 60 * 1000,
       retry: 1,
@@ -252,6 +274,36 @@ const EpgGuide = () => {
 
           {!isLoading && !error && filteredChannels.length === 0 && (
             <p className="text-sm text-muted-foreground">No channels found for the selected filters.</p>
+          )}
+
+          {!isLoading && !error && (
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border/70 bg-card/30 px-3 py-2 text-xs text-muted-foreground">
+              <span>
+                {xmltvCacheQuery.isLoading
+                  ? 'Loading XMLTV cache...'
+                  : xmltvCacheQuery.data
+                    ? `XMLTV cache active for ${Object.keys(xmltvCacheQuery.data).length} channels`
+                    : 'XMLTV cache unavailable (fallback to per-channel EPG requests)'}
+              </span>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 px-2 text-xs"
+                disabled={xmltvCacheQuery.isLoading}
+                onClick={async () => {
+                  try {
+                    const refreshed = await loadXMLTVEPGMap({ forceRefresh: true });
+                    queryClient.setQueryData(['xmltv-epg-map'], refreshed);
+                    await queryClient.invalidateQueries({ queryKey: ['epg-guide'] });
+                  } catch {
+                    // UI continues to fallback per channel via existing query pipeline.
+                  }
+                }}
+              >
+                <RefreshCw className="mr-1 h-3 w-3" />
+                Refresh XMLTV
+              </Button>
+            </div>
           )}
 
           {!isLoading && !error && visibleChannels.length > 0 && (
