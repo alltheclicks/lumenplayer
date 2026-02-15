@@ -160,9 +160,9 @@
 | ID | Task | Size | Status | Depends on |
 |----|------|------|--------|------------|
 | LP-0107 | Implement Google Cast sender flow in web app | M | idea | LP-0106 |
-| LP-0108 | Implement Cast receiver app (HTML + dual-video player bridge) at `cast.lumenplayer.com` | M | idea | LP-0106 |
-| LP-0109 | Add `switchRenderer(local <-> cast)` without session reset | M | idea | LP-0107, LP-0108 |
-| LP-0110 | Add phone-as-remote UI mode when renderer is remote | S | idea | LP-0109 |
+| LP-0108 | Implement Cast receiver app (HTML + dual-video player bridge) at `cast.lumenplayer.com` | M | done | LP-0106 |
+| LP-0109 | Add `switchRenderer(local <-> cast)` without session reset | M | done | LP-0107, LP-0108 |
+| LP-0110 | Add phone-as-remote UI mode when renderer is remote | S | done | LP-0109 |
 
 ---
 
