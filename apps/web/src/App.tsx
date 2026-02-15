@@ -7,6 +7,7 @@ import { SessionProvider } from '@/context/SessionProvider';
 import Login from '@/pages/Login';
 import M3UImport from '@/pages/M3UImport';
 import Player from '@/pages/Player';
+import EpgGuide from '@/pages/EpgGuide';
 import VodCategories from '@/pages/VodCategories';
 import VodDetail from '@/pages/VodDetail';
 import SeriesCategories from '@/pages/SeriesCategories';
@@ -36,6 +37,7 @@ function App() {
               <Route path="/series" element={<SeriesCategories />} />
               <Route path="/series/:seriesId" element={<SeriesDetail />} />
               <Route path="/player" element={<Player />} />
+              <Route path="/epg" element={<EpgGuide />} />
               <Route path="*" element={<Navigate to="/login" replace />} />
             </Routes>
             <Toaster />

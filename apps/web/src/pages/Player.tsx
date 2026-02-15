@@ -15,6 +15,7 @@ import {
   Film,
   Play,
   Pause,
+  CalendarDays,
 } from 'lucide-react';
 import VideoPlayer, { type VideoPlayerHandle } from '@/components/player/VideoPlayer';
 import PlayerControls from '@/components/player/PlayerControls';
@@ -570,6 +571,9 @@ const Player = () => {
                 <Button variant="ghost" size="sm" onClick={() => navigate('/series')}>
                   Series
                 </Button>
+                <Button variant="ghost" size="sm" onClick={() => navigate('/epg')}>
+                  EPG
+                </Button>
                 <Button
                   variant="ghost"
                   size="icon"
@@ -718,6 +722,20 @@ const Player = () => {
 
           {/* Mobile channel selector */}
           <div className="lg:hidden p-4 border-t border-border">
+            <div className="mb-3 grid grid-cols-3 gap-2">
+              <Button variant="outline" size="sm" onClick={() => navigate('/vod')}>
+                <Film className="mr-1 h-4 w-4" />
+                VOD
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => navigate('/series')}>
+                <Play className="mr-1 h-4 w-4" />
+                Series
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => navigate('/epg')}>
+                <CalendarDays className="mr-1 h-4 w-4" />
+                EPG
+              </Button>
+            </div>
             <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
               <SheetTrigger asChild>
                 <Button variant="outline" className="w-full gap-2">
