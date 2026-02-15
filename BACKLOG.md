@@ -181,9 +181,9 @@
 | LP-0010 | PWA install UI — wire existing `usePWA` hook, add install prompt + button | S | done | — |
 | LP-0324 | PWA offline fallback page | S | done | — |
 | LP-0325 | PWA app icon + splash screen assets | S | done | — |
-| LP-0011 | Code-splitting: lazy load Player page | S | idea | — |
-| LP-0330 | Web Push compatibility spike — verify iOS Home Screen PWA flow (iOS/iPadOS 16.4+), Android browser matrix, and unsupported TV browser behavior | S | idea | LP-0010 |
-| LP-0331 | Add push opt-in UX (pre-permission screen + user-gesture prompt) with explicit unsupported-device fallback copy | S | idea | LP-0330 |
+| LP-0011 | Code-splitting: lazy load Player page | S | done | — |
+| LP-0330 | Web Push compatibility spike — verify iOS Home Screen PWA flow (iOS/iPadOS 16.4+), Android browser matrix, and unsupported TV browser behavior | S | done | LP-0010 |
+| LP-0331 | Add push opt-in UX (pre-permission screen + user-gesture prompt) with explicit unsupported-device fallback copy | S | done | LP-0330 |
 | LP-0332 | Persist push subscriptions in backend (subscribe/unsubscribe endpoints, per-user/per-device mapping) | M | idea | LP-1502 |
 | LP-0333 | Implement web push sender service (VAPID keys, queue/retry, delivery logging) | M | idea | LP-0332 |
 | LP-0334 | Add service worker push handlers (`push`, `notificationclick`) + deep-link routing into player/dashboard | S | idea | LP-0331, LP-0333 |
@@ -194,7 +194,7 @@
 
 | ID | Task | Size | Status | Depends on |
 |----|------|------|--------|------------|
-| LP-0326 | Create benchmark dataset generator — 20k channels + 50k EPG entries (extend @lumen/demo-data) | M | idea | — |
+| LP-0326 | Create benchmark dataset generator — 20k channels + 50k EPG entries (extend @lumen/demo-data) | M | done | — |
 | LP-0327 | Performance test: time-to-first-channel < 3s with 20k channel dataset | S | idea | LP-0326, LP-0314 |
 | LP-0328 | Performance test: memory cap < 200MB RSS with 20k channel dataset | S | idea | LP-0326, LP-0314 |
 | LP-0329 | Profile + optimize Cast receiver on older devices (Samsung 2019–2020 target) | M | idea | LP-0108 |
