@@ -55,6 +55,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { useToast } from '@/hooks/use-toast';
 
 type SessionSourceMetadata = {
   channelId?: string;
@@ -158,6 +159,7 @@ const Player = () => {
   const { channels, categories, isLoading, error } = useXtreamChannels();
   const { favorites, toggleFavorite, isFavorite } = useFavorites();
   const { session, commands } = useSessionContext();
+  const { toast } = useToast();
   const castSender = useGoogleCastSender({ session, commands });
 
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -177,6 +179,7 @@ const Player = () => {
   const numericInputRef = useRef<NumericChannelInput<PlayerChannel> | null>(null);
   const watchedChannelIdRef = useRef<string | null>(null);
   const watchedStartedAtRef = useRef<number | null>(null);
+  const lastCastErrorRef = useRef<string | null>(null);
 
   const sessionSourceMetadata = useMemo(
     () => parseSessionSourceMetadata(session.source?.metadata),
@@ -571,6 +574,19 @@ const Player = () => {
       commands.switchRenderer('local-web');
     }
   }, [commands, isAirPlayConnected, session.renderer]);
+
+  useEffect(() => {
+    if (!castSender.error || castSender.error === lastCastErrorRef.current) {
+      return;
+    }
+
+    lastCastErrorRef.current = castSender.error;
+    toast({
+      title: 'Google Cast error',
+      description: castSender.error,
+      variant: 'destructive',
+    });
+  }, [castSender.error, toast]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {

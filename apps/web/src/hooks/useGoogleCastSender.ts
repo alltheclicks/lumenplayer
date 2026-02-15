@@ -258,13 +258,16 @@ export const useGoogleCastSender = ({
       }
     }
 
-    if (mediaSession.playerState === 'PLAYING' && !wantsPlaying(currentSession)) {
-      commands.pause();
+    if (
+      (mediaSession.playerState === 'PLAYING' || mediaSession.playerState === 'BUFFERING')
+      && !wantsPlaying(currentSession)
+    ) {
+      commands.play();
       return;
     }
 
     if (mediaSession.playerState === 'PAUSED' && wantsPlaying(currentSession)) {
-      commands.play();
+      commands.pause();
     }
   }, [commands]);
 
