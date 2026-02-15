@@ -117,6 +117,8 @@ const getDigitFromWebKeyCode = (keyCode: number): number | null => {
   return null;
 };
 
+const PICTURE_IN_PICTURE_KEY_CODE = 80; // Keyboard "P"
+
 const parseEpgTimestamp = (timestamp: string, fallback: string): Date => {
   const numericTimestamp = Number(timestamp);
   if (Number.isFinite(numericTimestamp) && numericTimestamp > 0) {
@@ -476,12 +478,15 @@ const Player = () => {
   }, [commands, session.playback, session.source]);
 
   const togglePictureInPicture = useCallback(() => {
-    if (!isPictureInPictureSupported) {
+    if (!session.source || !usesLocalRenderer || !isPictureInPictureSupported) {
       return;
     }
 
     void playerRef.current?.togglePictureInPicture();
-  }, [isPictureInPictureSupported]);
+  }, [isPictureInPictureSupported, session.source, usesLocalRenderer]);
+  const canTogglePictureInPicture = Boolean(
+    session.source && usesLocalRenderer && isPictureInPictureSupported
+  );
 
   const openAirPlayPicker = useCallback(() => {
     if (!isAirPlaySupported) {
@@ -614,6 +619,14 @@ const Player = () => {
           event.preventDefault();
           toggleFullscreen();
           return;
+        case WebKeyCodes.blue:
+        case PICTURE_IN_PICTURE_KEY_CODE:
+          if (!canTogglePictureInPicture) {
+            return;
+          }
+          event.preventDefault();
+          togglePictureInPicture();
+          return;
         case WebKeyCodes.back:
         case WebKeyCodes.esc:
         case WebKeyCodes.exit:
@@ -633,6 +646,8 @@ const Player = () => {
     goToNextChannel,
     goToPrevChannel,
     isFullscreen,
+    canTogglePictureInPicture,
+    togglePictureInPicture,
     toggleFullscreen,
     togglePlayback,
   ]);
@@ -946,7 +961,11 @@ const Player = () => {
                       {session.playback === 'playing' || session.playback === 'buffering' ? 'Pause' : 'Play'}
                     </Button>
                     {isPictureInPictureSupported && (
-                      <Button variant="outline" onClick={togglePictureInPicture}>
+                      <Button
+                        variant="outline"
+                        onClick={togglePictureInPicture}
+                        title="Picture in Picture (P / Blue key)"
+                      >
                         <PictureInPicture2 className="mr-2 h-4 w-4" />
                         {isPictureInPicture ? 'Exit PiP' : 'PiP'}
                       </Button>
