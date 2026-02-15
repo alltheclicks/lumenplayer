@@ -3,6 +3,7 @@ import { AlertCircle, Loader2, WifiOff, ShieldAlert } from 'lucide-react';
 import { useSessionContext } from '@/context/session-context';
 import { HlsPlayerAdapter } from '@/adapters/HlsPlayerAdapter';
 import type { PlaybackError } from '@lumen/types';
+import type { AudioTrackOption } from '@lumen/types';
 import type { SessionState } from '@lumen/session-core';
 
 export interface VideoPlayerProps {
@@ -25,6 +26,9 @@ export interface VideoPlayerHandle {
   getCurrentTime: () => number;
   getDuration: () => number;
   isPlaying: () => boolean;
+  getAudioTracks: () => AudioTrackOption[];
+  getSelectedAudioTrackId: () => string | null;
+  setAudioTrack: (trackId: string) => boolean;
 }
 
 type PlayerError = {
@@ -84,6 +88,9 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
     getCurrentTime: () => adapterRef.current?.getCurrentTime() || 0,
     getDuration: () => adapterRef.current?.getDuration() || 0,
     isPlaying: () => isPlaying,
+    getAudioTracks: () => adapterRef.current?.getAudioTracks?.() || [],
+    getSelectedAudioTrackId: () => adapterRef.current?.getSelectedAudioTrackId?.() || null,
+    setAudioTrack: (trackId: string) => adapterRef.current?.setAudioTrack?.(trackId) ?? false,
   }));
 
   const mapPlaybackError = useCallback((playbackError: PlaybackError): PlayerError => {

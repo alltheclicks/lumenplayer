@@ -250,6 +250,13 @@ export interface PlaybackError {
   details?: unknown;
 }
 
+export interface AudioTrackOption {
+  id: string;
+  label: string;
+  language: string | null;
+  isDefault: boolean;
+}
+
 export interface PlayerAdapter {
   load(source: MediaSource): Promise<void>;
   play(): void;
@@ -265,6 +272,9 @@ export interface PlayerAdapter {
   onStateChange(callback: (state: PlaybackState) => void): () => void;
   onError(callback: (error: PlaybackError) => void): () => void;
   onTimeUpdate(callback: (time: number) => void): () => void;
+  getAudioTracks?(): AudioTrackOption[];
+  getSelectedAudioTrackId?(): string | null;
+  setAudioTrack?(trackId: string): boolean;
 }
 
 export type RendererType = "local-web" | "cast" | "airplay";
