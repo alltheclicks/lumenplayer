@@ -240,8 +240,6 @@ export class HlsPlayerAdapter implements PlayerAdapter {
         const cleanup = () => {
           hls.off(Hls.Events.MANIFEST_PARSED, onManifestParsed);
           hls.off(Hls.Events.ERROR, onHlsError);
-          hls.off(Hls.Events.AUDIO_TRACKS_UPDATED, onAudioTracksUpdated);
-          hls.off(Hls.Events.AUDIO_TRACK_SWITCHED, onAudioTrackSwitched);
         };
 
         const onAudioTracksUpdated = () => {
