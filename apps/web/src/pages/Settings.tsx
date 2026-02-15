@@ -7,12 +7,29 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Label } from '@/components/ui/label';
 import { usePWA } from '@/hooks/usePWA';
 import {
+  evaluatePushCompatibility,
+  getPushCompatibilityMatrix,
+  type PushSupportStatus,
+} from '@/services/pushCompatibility';
+import {
   applyThemePreference,
   getDefaultAppSettings,
   loadAppSettings,
   saveAppSettings,
   type AppSettings,
 } from '@/services/appSettings';
+
+const statusText: Record<PushSupportStatus, string> = {
+  supported: 'Supported',
+  'requires-install': 'Requires install',
+  unsupported: 'Unsupported',
+};
+
+const statusClassName: Record<PushSupportStatus, string> = {
+  supported: 'text-emerald-600 dark:text-emerald-400',
+  'requires-install': 'text-amber-600 dark:text-amber-400',
+  unsupported: 'text-rose-600 dark:text-rose-400',
+};
 
 const Settings = () => {
   const navigate = useNavigate();
@@ -21,6 +38,8 @@ const Settings = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [installMessage, setInstallMessage] = useState<string | null>(null);
+  const [pushCompatibility, setPushCompatibility] = useState(() => evaluatePushCompatibility());
+  const pushMatrix = getPushCompatibilityMatrix();
   const { isInstalled, isInstallable, isOnline, promptInstall, isIOS, isAndroid } = usePWA();
 
   useEffect(() => {
@@ -40,6 +59,10 @@ const Settings = () => {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    setPushCompatibility(evaluatePushCompatibility());
+  }, [isInstalled, isInstallable, isIOS, isAndroid]);
 
   const handleSave = async () => {
     setIsSaving(true);
@@ -271,6 +294,57 @@ const Settings = () => {
                   {installMessage && (
                     <p className="text-sm text-muted-foreground">{installMessage}</p>
                   )}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Push Compatibility (Spike)</CardTitle>
+                  <CardDescription>
+                    Runtime capability check for web push support across current device/browser.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <p className={`text-sm font-medium ${statusClassName[pushCompatibility.status]}`}>
+                    {statusText[pushCompatibility.status]}: {pushCompatibility.message}
+                  </p>
+
+                  <div className="grid gap-2 text-sm sm:grid-cols-3">
+                    <div>
+                      <p className="text-muted-foreground">Platform</p>
+                      <p>{pushCompatibility.platform}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Browser</p>
+                      <p>{pushCompatibility.browser}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">iOS Version</p>
+                      <p>{pushCompatibility.iosVersion ?? 'n/a'}</p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium">Capability checks</p>
+                    <div className="space-y-1 text-sm">
+                      {pushCompatibility.capabilityFlags.map((flag) => (
+                        <p key={flag.label}>
+                          {flag.label}: {flag.supported ? 'yes' : 'no'}
+                        </p>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium">Device matrix</p>
+                    <div className="space-y-1 text-sm">
+                      {pushMatrix.map((row) => (
+                        <p key={row.target}>
+                          {row.target}: {statusText[row.status]} ({row.note})
+                        </p>
+                      ))}
+                    </div>
+                  </div>
                 </CardContent>
               </Card>
 
