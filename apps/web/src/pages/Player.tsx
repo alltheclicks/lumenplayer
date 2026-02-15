@@ -17,6 +17,7 @@ import {
   Pause,
   PictureInPicture2,
   Cast,
+  Airplay,
   SkipBack,
   SkipForward,
   Smartphone,
@@ -168,6 +169,9 @@ const Player = () => {
   const [appSettings, setAppSettings] = useState<AppSettings>(getDefaultAppSettings());
   const [isPictureInPictureSupported, setIsPictureInPictureSupported] = useState(false);
   const [isPictureInPicture, setIsPictureInPicture] = useState(false);
+  const [isAirPlaySupported, setIsAirPlaySupported] = useState(false);
+  const [isAirPlayAvailable, setIsAirPlayAvailable] = useState(false);
+  const [isAirPlayConnected, setIsAirPlayConnected] = useState(false);
   const numericInputRef = useRef<NumericChannelInput<PlayerChannel> | null>(null);
   const watchedChannelIdRef = useRef<string | null>(null);
   const watchedStartedAtRef = useRef<number | null>(null);
@@ -178,6 +182,7 @@ const Player = () => {
   );
   const isOnDemandSource = sessionSourceMetadata.mode === 'vod' ||
     sessionSourceMetadata.mode === 'series-episode';
+  const usesLocalRenderer = session.renderer === 'local-web' || session.renderer === 'airplay';
 
   const currentChannel = useMemo(() => {
     if (channels.length === 0) {
@@ -478,6 +483,14 @@ const Player = () => {
     void playerRef.current?.togglePictureInPicture();
   }, [isPictureInPictureSupported]);
 
+  const openAirPlayPicker = useCallback(() => {
+    if (!isAirPlaySupported) {
+      return;
+    }
+
+    playerRef.current?.showAirPlayPicker();
+  }, [isAirPlaySupported]);
+
   const seekBySeconds = useCallback(
     (deltaSeconds: number) => {
       if (!session.source) {
@@ -495,6 +508,9 @@ const Player = () => {
     if (!session.source) {
       setIsPictureInPicture(false);
       setIsPictureInPictureSupported(false);
+      setIsAirPlaySupported(false);
+      setIsAirPlayAvailable(false);
+      setIsAirPlayConnected(false);
       return;
     }
 
@@ -502,17 +518,54 @@ const Player = () => {
     if (!player) {
       setIsPictureInPicture(false);
       setIsPictureInPictureSupported(false);
+      setIsAirPlaySupported(false);
+      setIsAirPlayAvailable(false);
+      setIsAirPlayConnected(false);
       return;
     }
 
     setIsPictureInPictureSupported(player.isPictureInPictureSupported());
     setIsPictureInPicture(player.isPictureInPicture());
+    setIsAirPlaySupported(player.isAirPlaySupported());
+    setIsAirPlayAvailable(player.isAirPlayAvailable());
+    setIsAirPlayConnected(player.isAirPlayConnected());
 
-    return player.onPictureInPictureChange((inPictureInPicture) => {
+    const unsubscribeAirPlayAvailability = player.onAirPlayAvailabilityChange((available) => {
+      setIsAirPlaySupported(player.isAirPlaySupported());
+      setIsAirPlayAvailable(available);
+    });
+    const unsubscribeAirPlayConnection = player.onAirPlayConnectionChange((connected) => {
+      setIsAirPlaySupported(player.isAirPlaySupported());
+      setIsAirPlayAvailable(player.isAirPlayAvailable());
+      setIsAirPlayConnected(connected);
+    });
+
+    const unsubscribePictureInPicture = player.onPictureInPictureChange((inPictureInPicture) => {
       setIsPictureInPicture(inPictureInPicture);
       setIsPictureInPictureSupported(player.isPictureInPictureSupported());
     });
+
+    return () => {
+      unsubscribeAirPlayAvailability();
+      unsubscribeAirPlayConnection();
+      unsubscribePictureInPicture();
+    };
   }, [session.source]);
+
+  useEffect(() => {
+    if (session.renderer === 'cast') {
+      return;
+    }
+
+    if (isAirPlayConnected && session.renderer !== 'airplay') {
+      commands.switchRenderer('airplay');
+      return;
+    }
+
+    if (!isAirPlayConnected && session.renderer === 'airplay') {
+      commands.switchRenderer('local-web');
+    }
+  }, [commands, isAirPlayConnected, session.renderer]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -667,6 +720,17 @@ const Player = () => {
                     <Cast className={`w-4 h-4 ${castSender.isConnected ? 'text-primary' : ''}`} />
                   </Button>
                 )}
+                {isAirPlaySupported && session.renderer !== 'cast' && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    disabled={!isAirPlayAvailable}
+                    onClick={openAirPlayPicker}
+                    title={isAirPlayConnected ? 'AirPlay connected' : 'Open AirPlay picker'}
+                  >
+                    <Airplay className={`w-4 h-4 ${isAirPlayConnected ? 'text-primary' : ''}`} />
+                  </Button>
+                )}
                 <Button
                   variant="ghost"
                   size="icon"
@@ -750,7 +814,7 @@ const Player = () => {
               </div>
             )}
 
-            {session.source && session.renderer === 'local-web' && (
+            {session.source && usesLocalRenderer && (
               <VideoPlayer
                 ref={playerRef}
                 autoPlay={appSettings.player.autoplay}
@@ -839,7 +903,7 @@ const Player = () => {
               </div>
             )}
 
-            {currentChannelWithEPG && !isOnDemandSource && session.renderer === 'local-web' && (
+            {currentChannelWithEPG && !isOnDemandSource && usesLocalRenderer && (
               <>
                 <PlayerControls
                   channel={currentChannelWithEPG}
@@ -857,7 +921,7 @@ const Player = () => {
               </>
             )}
 
-            {isOnDemandSource && session.source && session.renderer === 'local-web' && (
+            {isOnDemandSource && session.source && usesLocalRenderer && (
               <div className="absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/90 via-black/60 to-transparent p-4 sm:p-6">
                 <div className="mx-auto flex max-w-screen-xl flex-wrap items-center justify-between gap-3">
                   <div className="min-w-0">
@@ -897,6 +961,16 @@ const Player = () => {
                       >
                         <Cast className="mr-2 h-4 w-4" />
                         {castSender.isConnected ? 'Disconnect Cast' : 'Cast'}
+                      </Button>
+                    )}
+                    {isAirPlaySupported && session.renderer !== 'cast' && (
+                      <Button
+                        variant={isAirPlayConnected ? 'secondary' : 'outline'}
+                        onClick={openAirPlayPicker}
+                        disabled={!isAirPlayAvailable}
+                      >
+                        <Airplay className="mr-2 h-4 w-4" />
+                        {isAirPlayConnected ? 'AirPlay Active' : 'AirPlay'}
                       </Button>
                     )}
                     <Button variant="outline" onClick={() => navigate(onDemandBackPath)}>
@@ -946,6 +1020,18 @@ const Player = () => {
               >
                 <Cast className="mr-2 h-4 w-4" />
                 {castSender.isConnected ? 'Disconnect Cast' : 'Connect Cast'}
+              </Button>
+            )}
+            {isAirPlaySupported && session.renderer !== 'cast' && (
+              <Button
+                variant={isAirPlayConnected ? 'default' : 'outline'}
+                size="sm"
+                className="mb-2 w-full"
+                disabled={!isAirPlayAvailable}
+                onClick={openAirPlayPicker}
+              >
+                <Airplay className="mr-2 h-4 w-4" />
+                {isAirPlayConnected ? 'AirPlay Active' : 'Connect AirPlay'}
               </Button>
             )}
             <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>

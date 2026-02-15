@@ -45,6 +45,12 @@ export interface VideoPlayerHandle {
   exitPictureInPicture: () => Promise<boolean>;
   togglePictureInPicture: () => Promise<boolean>;
   onPictureInPictureChange: (callback: (isInPictureInPicture: boolean) => void) => () => void;
+  isAirPlaySupported: () => boolean;
+  isAirPlayAvailable: () => boolean;
+  isAirPlayConnected: () => boolean;
+  showAirPlayPicker: () => boolean;
+  onAirPlayAvailabilityChange: (callback: (isAvailable: boolean) => void) => () => void;
+  onAirPlayConnectionChange: (callback: (isConnected: boolean) => void) => () => void;
 }
 
 type PlayerError = {
@@ -61,6 +67,14 @@ type WebKitPictureInPictureVideoElement = HTMLVideoElement & {
   webkitSupportsPresentationMode?: (mode: string) => boolean;
   webkitSetPresentationMode?: (mode: string) => void;
   webkitPresentationMode?: string;
+};
+
+type AirPlayAvailability = 'available' | 'not-available' | string;
+
+type WebKitAirPlayVideoElement = HTMLVideoElement & {
+  webkitShowPlaybackTargetPicker?: () => void;
+  webkitPlaybackTargetAvailability?: AirPlayAvailability;
+  webkitCurrentPlaybackTargetIsWireless?: boolean;
 };
 
 const canUseStandardPictureInPicture = (video: HTMLVideoElement): boolean => (
@@ -88,6 +102,18 @@ const isVideoInPictureInPicture = (
   return isStandardPictureInPicture || isWebKitPictureInPicture;
 };
 
+const canUseAirPlayPicker = (video: WebKitAirPlayVideoElement): boolean => (
+  typeof video.webkitShowPlaybackTargetPicker === 'function'
+);
+
+const isAirPlayDeviceAvailable = (video: WebKitAirPlayVideoElement): boolean => (
+  video.webkitPlaybackTargetAvailability === 'available'
+);
+
+const isAirPlayDeviceConnected = (video: WebKitAirPlayVideoElement): boolean => (
+  Boolean(video.webkitCurrentPlaybackTargetIsWireless)
+);
+
 const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
   poster,
   autoPlay = true,
@@ -108,15 +134,31 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
   const [error, setError] = useState<PlayerError | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isPictureInPicture, setIsPictureInPicture] = useState(false);
+  const [isAirPlayAvailable, setIsAirPlayAvailable] = useState(false);
+  const [isAirPlayConnected, setIsAirPlayConnected] = useState(false);
   const pictureInPictureListenersRef = useRef(new Set<(isInPictureInPicture: boolean) => void>());
+  const airPlayAvailabilityListenersRef = useRef(new Set<(isAvailable: boolean) => void>());
+  const airPlayConnectionListenersRef = useRef(new Set<(isConnected: boolean) => void>());
   const playbackWantsPlaying = wantsPlayback(session);
-  const isLocalRenderer = session.renderer === 'local-web';
+  const isLocalRenderer = session.renderer === 'local-web' || session.renderer === 'airplay';
 
   useEffect(() => {
     pictureInPictureListenersRef.current.forEach((listener) => {
       listener(isPictureInPicture);
     });
   }, [isPictureInPicture]);
+
+  useEffect(() => {
+    airPlayAvailabilityListenersRef.current.forEach((listener) => {
+      listener(isAirPlayAvailable);
+    });
+  }, [isAirPlayAvailable]);
+
+  useEffect(() => {
+    airPlayConnectionListenersRef.current.forEach((listener) => {
+      listener(isAirPlayConnected);
+    });
+  }, [isAirPlayConnected]);
 
   const isPictureInPictureSupported = useCallback((): boolean => {
     const video = videoRef.current as WebKitPictureInPictureVideoElement | null;
@@ -186,6 +228,29 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
     return enterPictureInPicture();
   }, [enterPictureInPicture, exitPictureInPicture, isPictureInPictureSupported]);
 
+  const isAirPlaySupported = useCallback((): boolean => {
+    const video = videoRef.current as WebKitAirPlayVideoElement | null;
+    if (!video) {
+      return false;
+    }
+
+    return canUseAirPlayPicker(video);
+  }, []);
+
+  const showAirPlayPicker = useCallback((): boolean => {
+    const video = videoRef.current as WebKitAirPlayVideoElement | null;
+    if (!video || !canUseAirPlayPicker(video)) {
+      return false;
+    }
+
+    try {
+      video.webkitShowPlaybackTargetPicker?.();
+      return true;
+    } catch {
+      return false;
+    }
+  }, []);
+
   useEffect(() => {
     sessionRef.current = session;
   }, [session]);
@@ -238,6 +303,24 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
       callback(isPictureInPicture);
       return () => {
         pictureInPictureListenersRef.current.delete(callback);
+      };
+    },
+    isAirPlaySupported: () => isAirPlaySupported(),
+    isAirPlayAvailable: () => isAirPlayAvailable,
+    isAirPlayConnected: () => isAirPlayConnected,
+    showAirPlayPicker: () => showAirPlayPicker(),
+    onAirPlayAvailabilityChange: (callback) => {
+      airPlayAvailabilityListenersRef.current.add(callback);
+      callback(isAirPlayAvailable);
+      return () => {
+        airPlayAvailabilityListenersRef.current.delete(callback);
+      };
+    },
+    onAirPlayConnectionChange: (callback) => {
+      airPlayConnectionListenersRef.current.add(callback);
+      callback(isAirPlayConnected);
+      return () => {
+        airPlayConnectionListenersRef.current.delete(callback);
       };
     },
   }));
@@ -486,6 +569,65 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
       video.removeEventListener('enterpictureinpicture', updatePictureInPictureState);
       video.removeEventListener('leavepictureinpicture', updatePictureInPictureState);
       video.removeEventListener('webkitpresentationmodechanged', updatePictureInPictureState);
+    };
+  }, []);
+
+  useEffect(() => {
+    const video = videoRef.current as WebKitAirPlayVideoElement | null;
+    if (!video) {
+      return;
+    }
+
+    const syncAirPlayState = () => {
+      if (!canUseAirPlayPicker(video)) {
+        setIsAirPlayAvailable(false);
+        setIsAirPlayConnected(false);
+        return;
+      }
+
+      setIsAirPlayAvailable(isAirPlayDeviceAvailable(video));
+      setIsAirPlayConnected(isAirPlayDeviceConnected(video));
+    };
+
+    const handleTargetAvailabilityChange = (
+      event: Event & { availability?: AirPlayAvailability }
+    ) => {
+      if (event.availability === 'available') {
+        setIsAirPlayAvailable(true);
+        return;
+      }
+
+      if (event.availability === 'not-available') {
+        setIsAirPlayAvailable(false);
+        return;
+      }
+
+      syncAirPlayState();
+    };
+
+    const handleWirelessTargetChange = () => {
+      syncAirPlayState();
+    };
+
+    syncAirPlayState();
+    video.addEventListener(
+      'webkitplaybacktargetavailabilitychanged',
+      handleTargetAvailabilityChange as EventListener
+    );
+    video.addEventListener(
+      'webkitcurrentplaybacktargetiswirelesschanged',
+      handleWirelessTargetChange
+    );
+
+    return () => {
+      video.removeEventListener(
+        'webkitplaybacktargetavailabilitychanged',
+        handleTargetAvailabilityChange as EventListener
+      );
+      video.removeEventListener(
+        'webkitcurrentplaybacktargetiswirelesschanged',
+        handleWirelessTargetChange
+      );
     };
   }, []);
 
