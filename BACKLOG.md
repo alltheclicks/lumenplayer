@@ -184,9 +184,9 @@
 | LP-0011 | Code-splitting: lazy load Player page | S | done | — |
 | LP-0330 | Web Push compatibility spike — verify iOS Home Screen PWA flow (iOS/iPadOS 16.4+), Android browser matrix, and unsupported TV browser behavior | S | done | LP-0010 |
 | LP-0331 | Add push opt-in UX (pre-permission screen + user-gesture prompt) with explicit unsupported-device fallback copy | S | done | LP-0330 |
-| LP-0332 | Persist push subscriptions in backend (subscribe/unsubscribe endpoints, per-user/per-device mapping) | M | idea | LP-1502 |
-| LP-0333 | Implement web push sender service (VAPID keys, queue/retry, delivery logging) | M | idea | LP-0332 |
-| LP-0334 | Add service worker push handlers (`push`, `notificationclick`) + deep-link routing into player/dashboard | S | idea | LP-0331, LP-0333 |
+| LP-0332 | Persist push subscriptions in backend (subscribe/unsubscribe endpoints, per-user/per-device mapping) | M | done | LP-1502 |
+| LP-0333 | Implement web push sender service (VAPID keys, queue/retry, delivery logging) | M | done | LP-0332 |
+| LP-0334 | Add service worker push handlers (`push`, `notificationclick`) + deep-link routing into player/dashboard | S | done | LP-0331, LP-0333 |
 
 ---
 
