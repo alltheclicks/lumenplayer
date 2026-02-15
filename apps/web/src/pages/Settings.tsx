@@ -98,11 +98,6 @@ const Settings = () => {
   }, []);
 
   useEffect(() => {
-    setPushCompatibility(evaluatePushCompatibility());
-    setPushPermission(getNotificationPermission());
-  }, [isInstalled, isInstallable, isIOS, isAndroid]);
-
-  useEffect(() => {
     const syncPermissionState = () => {
       setPushPermission(getNotificationPermission());
       setPushCompatibility(evaluatePushCompatibility());
@@ -116,7 +111,7 @@ const Settings = () => {
       document.removeEventListener('visibilitychange', syncPermissionState);
       window.removeEventListener('focus', syncPermissionState);
     };
-  }, []);
+  }, [isInstalled, isInstallable, isIOS, isAndroid]);
 
   useEffect(() => {
     if (pushPermission !== 'default') {
