@@ -22,6 +22,7 @@ import {
   Calendar,
   Languages,
   Captions,
+  PictureInPicture2,
 } from 'lucide-react';
 import type { AudioTrackOption, PlayerChannel, Program, SubtitleTrackOption } from '@lumen/types';
 import { ChannelLogo } from '@/components/player/ChannelLogo';
@@ -131,6 +132,8 @@ const PlayerControls = ({
   const [selectedAudioTrackId, setSelectedAudioTrackId] = useState<string | null>(null);
   const [subtitleTracks, setSubtitleTracks] = useState<SubtitleTrackOption[]>([]);
   const [selectedSubtitleTrackId, setSelectedSubtitleTrackId] = useState<string | null>(null);
+  const [isPictureInPictureSupported, setIsPictureInPictureSupported] = useState(false);
+  const [isPictureInPicture, setIsPictureInPicture] = useState(false);
   const [openDays, setOpenDays] = useState<string[]>([]);
   const [hoverPosition, setHoverPosition] = useState<number | null>(null);
   const [isSeeking, setIsSeeking] = useState(false);
@@ -320,6 +323,8 @@ const PlayerControls = ({
       setSubtitleTracks([]);
       setSelectedSubtitleTrackId(null);
       setShowSubtitleTracks(false);
+      setIsPictureInPicture(false);
+      setIsPictureInPictureSupported(false);
       return;
     }
 
@@ -336,6 +341,29 @@ const PlayerControls = ({
       unsubscribe();
     };
   }, [playerRef, session.source, syncSubtitleTracks]);
+
+  useEffect(() => {
+    if (!session.source) {
+      setIsPictureInPicture(false);
+      setIsPictureInPictureSupported(false);
+      return;
+    }
+
+    const player = playerRef.current;
+    if (!player) {
+      setIsPictureInPicture(false);
+      setIsPictureInPictureSupported(false);
+      return;
+    }
+
+    setIsPictureInPictureSupported(player.isPictureInPictureSupported());
+    setIsPictureInPicture(player.isPictureInPicture());
+
+    return player.onPictureInPictureChange((inPictureInPicture) => {
+      setIsPictureInPicture(inPictureInPicture);
+      setIsPictureInPictureSupported(player.isPictureInPictureSupported());
+    });
+  }, [playerRef, session.source]);
 
   const handleMouseMove = useCallback(() => {
     resetControlsIdleTimer();
@@ -637,6 +665,14 @@ const PlayerControls = ({
     setShowSubtitleTracks(false);
   }, [playerRef]);
 
+  const handleTogglePictureInPicture = useCallback(() => {
+    if (!isPictureInPictureSupported) {
+      return;
+    }
+
+    void playerRef.current?.togglePictureInPicture();
+  }, [isPictureInPictureSupported, playerRef]);
+
   const audioTrackPanel = hasMultipleAudioTracks && showAudioTracks ? (
     <div
       className="absolute bottom-16 right-3 z-30 w-64 rounded-lg border border-border/80 bg-background/95 p-2 shadow-2xl backdrop-blur-md sm:bottom-20 sm:right-4"
@@ -807,6 +843,16 @@ const PlayerControls = ({
                 }}
               >
                 <Captions className="w-5 h-5" />
+              </Button>
+            )}
+            {isPictureInPictureSupported && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className={`hover:bg-secondary/50 ${isPictureInPicture ? 'text-primary' : ''}`}
+                onClick={handleTogglePictureInPicture}
+              >
+                <PictureInPicture2 className="w-5 h-5" />
               </Button>
             )}
             <Button
@@ -1313,6 +1359,19 @@ const PlayerControls = ({
                   }}
                 >
                   <Captions className="w-4 h-4 sm:w-5 sm:h-5" />
+                </Button>
+              )}
+              {isPictureInPictureSupported && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className={`w-9 h-9 sm:w-10 sm:h-10 hover:bg-secondary/50 ${isPictureInPicture ? 'text-primary' : ''}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleTogglePictureInPicture();
+                  }}
+                >
+                  <PictureInPicture2 className="w-4 h-4 sm:w-5 sm:h-5" />
                 </Button>
               )}
               <Button
