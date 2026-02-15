@@ -113,24 +113,41 @@ const ensureGoogleCastSdk = (): Promise<void> => {
   }
 
   castSdkPromise = new Promise<void>((resolve, reject) => {
+    let settled = false;
+    const resolveSdk = () => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      resolve();
+    };
+    const rejectSdk = (message: string) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      castSdkPromise = null;
+      reject(new Error(message));
+    };
+
     const existingScript = document.getElementById(GOOGLE_CAST_SCRIPT_ID) as HTMLScriptElement | null;
     const previousCallback = window.__onGCastApiAvailable;
 
     const handleApiAvailable = (isAvailable: boolean) => {
       previousCallback?.(isAvailable);
       if (isAvailable && window.cast?.framework && window.chrome?.cast) {
-        resolve();
+        resolveSdk();
         return;
       }
 
-      reject(new Error('Google Cast API is unavailable.'));
+      rejectSdk('Google Cast API is unavailable.');
     };
 
     window.__onGCastApiAvailable = handleApiAvailable;
 
     if (existingScript) {
       if (window.cast?.framework && window.chrome?.cast) {
-        resolve();
+        resolveSdk();
         return;
       }
 
@@ -138,13 +155,13 @@ const ensureGoogleCastSdk = (): Promise<void> => {
       const intervalId = window.setInterval(() => {
         if (window.cast?.framework && window.chrome?.cast) {
           window.clearInterval(intervalId);
-          resolve();
+          resolveSdk();
           return;
         }
 
         if (Date.now() - startedAt > 8000) {
           window.clearInterval(intervalId);
-          reject(new Error('Google Cast script exists but API did not become available.'));
+          rejectSdk('Google Cast script exists but API did not become available.');
         }
       }, 100);
       return;
@@ -155,7 +172,7 @@ const ensureGoogleCastSdk = (): Promise<void> => {
     script.src = GOOGLE_CAST_SCRIPT_SRC;
     script.async = true;
     script.onerror = () => {
-      reject(new Error('Failed to load Google Cast SDK.'));
+      rejectSdk('Failed to load Google Cast SDK.');
     };
     document.head.appendChild(script);
   });
@@ -207,6 +224,8 @@ export const useGoogleCastSender = ({
   const [error, setError] = useState<string | null>(null);
   const sessionRef = useRef(session);
   const syncInProgressRef = useRef(false);
+  const pendingSyncUpdateRef = useRef(false);
+  const [syncRetryTick, setSyncRetryTick] = useState(0);
   const lastLoadedSourceUrlRef = useRef<string | null>(null);
   const lastSyncedCastPositionMsRef = useRef<number | null>(null);
 
@@ -360,10 +379,12 @@ export const useGoogleCastSender = ({
 
   useEffect(() => {
     if (!isConnected || session.renderer !== 'cast' || !session.source) {
+      pendingSyncUpdateRef.current = false;
       return;
     }
 
     if (syncInProgressRef.current) {
+      pendingSyncUpdateRef.current = true;
       return;
     }
 
@@ -433,9 +454,13 @@ export const useGoogleCastSender = ({
         setError(message);
       } finally {
         syncInProgressRef.current = false;
+        if (pendingSyncUpdateRef.current) {
+          pendingSyncUpdateRef.current = false;
+          setSyncRetryTick((value) => value + 1);
+        }
       }
     })();
-  }, [isConnected, session.playback, session.positionMs, session.renderer, session.source]);
+  }, [isConnected, session.playback, session.positionMs, session.renderer, session.source, syncRetryTick]);
 
   const startCasting = useCallback(async () => {
     try {
