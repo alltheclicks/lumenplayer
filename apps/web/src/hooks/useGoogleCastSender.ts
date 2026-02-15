@@ -240,12 +240,12 @@ export const useGoogleCastSender = ({
     }
 
     if (mediaSession.playerState === 'PLAYING' && !wantsPlaying(currentSession)) {
-      commands.play();
+      commands.pause();
       return;
     }
 
     if (mediaSession.playerState === 'PAUSED' && wantsPlaying(currentSession)) {
-      commands.pause();
+      commands.play();
     }
   }, [commands]);
 
