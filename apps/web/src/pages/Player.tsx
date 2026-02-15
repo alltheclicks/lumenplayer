@@ -17,6 +17,9 @@ import {
   Pause,
   PictureInPicture2,
   Cast,
+  SkipBack,
+  SkipForward,
+  Smartphone,
   CalendarDays,
   Settings2,
 } from 'lucide-react';
@@ -475,6 +478,19 @@ const Player = () => {
     void playerRef.current?.togglePictureInPicture();
   }, [isPictureInPictureSupported]);
 
+  const seekBySeconds = useCallback(
+    (deltaSeconds: number) => {
+      if (!session.source) {
+        return;
+      }
+
+      const currentPositionMs = session.positionMs ?? 0;
+      const nextPositionMs = Math.max(0, currentPositionMs + deltaSeconds * 1000);
+      commands.seek(nextPositionMs);
+    },
+    [commands, session.positionMs, session.source]
+  );
+
   useEffect(() => {
     if (!session.source) {
       setIsPictureInPicture(false);
@@ -764,7 +780,66 @@ const Player = () => {
               </div>
             )}
 
-            {currentChannelWithEPG && !isOnDemandSource && (
+            {session.source && session.renderer === 'cast' && (
+              <div className="absolute inset-x-0 bottom-0 z-30 bg-gradient-to-t from-black/90 via-black/65 to-transparent p-4 sm:p-6">
+                <div className="mx-auto flex max-w-screen-xl flex-col gap-3 rounded-xl border border-border/60 bg-background/75 p-4 backdrop-blur-sm sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0">
+                    <p className="mb-1 flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-primary">
+                      <Smartphone className="h-4 w-4" />
+                      Phone as remote
+                    </p>
+                    <h2 className="truncate text-lg font-semibold text-foreground sm:text-xl">
+                      {session.source.title || currentChannel?.name || 'Remote playback'}
+                    </h2>
+                    <p className="text-xs text-muted-foreground sm:text-sm">
+                      {castSender.deviceName
+                        ? `Controlling ${castSender.deviceName}`
+                        : 'Controlling Cast device'}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {!isOnDemandSource && (
+                      <>
+                        <Button variant="outline" onClick={goToPrevChannel}>
+                          <SkipBack className="mr-2 h-4 w-4" />
+                          Prev channel
+                        </Button>
+                        <Button variant="outline" onClick={goToNextChannel}>
+                          <SkipForward className="mr-2 h-4 w-4" />
+                          Next channel
+                        </Button>
+                      </>
+                    )}
+                    {isOnDemandSource && (
+                      <>
+                        <Button variant="outline" onClick={() => seekBySeconds(-15)}>
+                          <SkipBack className="mr-2 h-4 w-4" />
+                          -15s
+                        </Button>
+                        <Button variant="outline" onClick={() => seekBySeconds(15)}>
+                          <SkipForward className="mr-2 h-4 w-4" />
+                          +15s
+                        </Button>
+                      </>
+                    )}
+                    <Button variant="secondary" onClick={togglePlayback}>
+                      {session.playback === 'playing' || session.playback === 'buffering' ? (
+                        <Pause className="mr-2 h-4 w-4" />
+                      ) : (
+                        <Play className="mr-2 h-4 w-4" />
+                      )}
+                      {session.playback === 'playing' || session.playback === 'buffering' ? 'Pause' : 'Play'}
+                    </Button>
+                    <Button variant="outline" onClick={castSender.stopCasting}>
+                      <Cast className="mr-2 h-4 w-4" />
+                      Switch to this device
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {currentChannelWithEPG && !isOnDemandSource && session.renderer === 'local-web' && (
               <>
                 <PlayerControls
                   channel={currentChannelWithEPG}
@@ -782,7 +857,7 @@ const Player = () => {
               </>
             )}
 
-            {isOnDemandSource && session.source && (
+            {isOnDemandSource && session.source && session.renderer === 'local-web' && (
               <div className="absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/90 via-black/60 to-transparent p-4 sm:p-6">
                 <div className="mx-auto flex max-w-screen-xl flex-wrap items-center justify-between gap-3">
                   <div className="min-w-0">
