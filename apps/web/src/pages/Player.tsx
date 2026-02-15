@@ -576,7 +576,12 @@ const Player = () => {
   }, [commands, isAirPlayConnected, session.renderer]);
 
   useEffect(() => {
-    if (!castSender.error || castSender.error === lastCastErrorRef.current) {
+    if (!castSender.error) {
+      lastCastErrorRef.current = null;
+      return;
+    }
+
+    if (castSender.error === lastCastErrorRef.current) {
       return;
     }
 
