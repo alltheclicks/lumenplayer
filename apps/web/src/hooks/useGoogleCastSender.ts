@@ -6,6 +6,8 @@ const GOOGLE_CAST_SCRIPT_ID = 'lumen-google-cast-sdk';
 const GOOGLE_CAST_SCRIPT_SRC =
   'https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1';
 const DEFAULT_CAST_RECEIVER_APP_ID = 'CC1AD845';
+const CAST_POSITION_SYNC_INTERVAL_MS = 2000;
+const CAST_POSITION_SYNC_THRESHOLD_MS = 1500;
 
 type CastSessionState =
   | 'NO_SESSION'
@@ -92,6 +94,10 @@ declare global {
 }
 
 let castSdkPromise: Promise<void> | null = null;
+
+const wantsPlaying = (session: SessionState): boolean => (
+  session.playback === 'playing' || session.playback === 'buffering'
+);
 
 const ensureGoogleCastSdk = (): Promise<void> => {
   if (typeof window === 'undefined') {
@@ -202,10 +208,46 @@ export const useGoogleCastSender = ({
   const sessionRef = useRef(session);
   const syncInProgressRef = useRef(false);
   const lastLoadedSourceUrlRef = useRef<string | null>(null);
+  const lastSyncedCastPositionMsRef = useRef<number | null>(null);
 
   useEffect(() => {
     sessionRef.current = session;
   }, [session]);
+
+  const syncSessionFromCastMedia = useCallback(() => {
+    const castContext = getCastContext();
+    const castSession = castContext?.getCurrentSession() ?? null;
+    const mediaSession = castSession?.getMediaSession() ?? null;
+    const currentSession = sessionRef.current;
+    if (!mediaSession || currentSession.renderer !== 'cast') {
+      return;
+    }
+
+    const currentTime = mediaSession.currentTime;
+    if (typeof currentTime === 'number' && Number.isFinite(currentTime)) {
+      const positionMs = Math.max(0, Math.floor(currentTime * 1000));
+      const knownPositionMs = currentSession.positionMs;
+      const lastSyncedCastPositionMs = lastSyncedCastPositionMsRef.current;
+      const divergesFromSession = knownPositionMs === null ||
+        Math.abs(knownPositionMs - positionMs) >= CAST_POSITION_SYNC_THRESHOLD_MS;
+      const divergesFromPreviousSync = lastSyncedCastPositionMs === null ||
+        Math.abs(lastSyncedCastPositionMs - positionMs) >= 1000;
+
+      if (divergesFromSession && divergesFromPreviousSync) {
+        lastSyncedCastPositionMsRef.current = positionMs;
+        commands.seek(positionMs);
+      }
+    }
+
+    if (mediaSession.playerState === 'PLAYING' && !wantsPlaying(currentSession)) {
+      commands.play();
+      return;
+    }
+
+    if (mediaSession.playerState === 'PAUSED' && wantsPlaying(currentSession)) {
+      commands.pause();
+    }
+  }, [commands]);
 
   useEffect(() => {
     let cancelled = false;
@@ -247,8 +289,10 @@ export const useGoogleCastSender = ({
           }
 
           if (!connected && sessionRef.current.renderer === 'cast') {
+            syncSessionFromCastMedia();
             commands.switchRenderer('local-web');
             lastLoadedSourceUrlRef.current = null;
+            lastSyncedCastPositionMsRef.current = null;
           }
 
           setIsConnecting(event.sessionState === window.cast?.framework?.SessionState.SESSION_STARTING);
@@ -292,7 +336,27 @@ export const useGoogleCastSender = ({
       cancelled = true;
       removeListener?.();
     };
-  }, [commands]);
+  }, [commands, syncSessionFromCastMedia]);
+
+  useEffect(() => {
+    if (!isConnected || session.renderer !== 'cast') {
+      return;
+    }
+
+    const syncFromCast = () => {
+      if (syncInProgressRef.current) {
+        return;
+      }
+
+      syncSessionFromCastMedia();
+    };
+
+    syncFromCast();
+    const intervalId = window.setInterval(syncFromCast, CAST_POSITION_SYNC_INTERVAL_MS);
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [isConnected, session.renderer, syncSessionFromCastMedia]);
 
   useEffect(() => {
     if (!isConnected || session.renderer !== 'cast' || !session.source) {
@@ -398,14 +462,16 @@ export const useGoogleCastSender = ({
       return;
     }
 
+    syncSessionFromCastMedia();
     castContext.endCurrentSession(true);
     setIsConnected(false);
     setDeviceName(null);
     lastLoadedSourceUrlRef.current = null;
+    lastSyncedCastPositionMsRef.current = null;
     if (sessionRef.current.renderer === 'cast') {
       commands.switchRenderer('local-web');
     }
-  }, [commands]);
+  }, [commands, syncSessionFromCastMedia]);
 
   const toggleCasting = useCallback(async () => {
     if (isConnected) {
