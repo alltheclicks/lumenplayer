@@ -257,6 +257,13 @@ export interface AudioTrackOption {
   isDefault: boolean;
 }
 
+export interface SubtitleTrackOption {
+  id: string;
+  label: string;
+  language: string | null;
+  isDefault: boolean;
+}
+
 export interface PlayerAdapter {
   load(source: MediaSource): Promise<void>;
   play(): void;
@@ -278,6 +285,12 @@ export interface PlayerAdapter {
   getAudioTracks?(): AudioTrackOption[];
   getSelectedAudioTrackId?(): string | null;
   setAudioTrack?(trackId: string): boolean;
+  onSubtitleTracksChange?(
+    callback: (tracks: SubtitleTrackOption[], selectedTrackId: string | null) => void
+  ): () => void;
+  getSubtitleTracks?(): SubtitleTrackOption[];
+  getSelectedSubtitleTrackId?(): string | null;
+  setSubtitleTrack?(trackId: string | null): boolean;
 }
 
 export type RendererType = "local-web" | "cast" | "airplay";

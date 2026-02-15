@@ -21,8 +21,9 @@ import {
   Radio,
   Calendar,
   Languages,
+  Captions,
 } from 'lucide-react';
-import type { AudioTrackOption, PlayerChannel, Program } from '@lumen/types';
+import type { AudioTrackOption, PlayerChannel, Program, SubtitleTrackOption } from '@lumen/types';
 import { ChannelLogo } from '@/components/player/ChannelLogo';
 import { useSessionContext } from '@/context/session-context';
 import { xtreamCodesService } from '@/services/xtreamService';
@@ -125,8 +126,11 @@ const PlayerControls = ({
   const [showVolumeSlider, setShowVolumeSlider] = useState(false);
   const [showCatchUp, setShowCatchUp] = useState(false);
   const [showAudioTracks, setShowAudioTracks] = useState(false);
+  const [showSubtitleTracks, setShowSubtitleTracks] = useState(false);
   const [audioTracks, setAudioTracks] = useState<AudioTrackOption[]>([]);
   const [selectedAudioTrackId, setSelectedAudioTrackId] = useState<string | null>(null);
+  const [subtitleTracks, setSubtitleTracks] = useState<SubtitleTrackOption[]>([]);
+  const [selectedSubtitleTrackId, setSelectedSubtitleTrackId] = useState<string | null>(null);
   const [openDays, setOpenDays] = useState<string[]>([]);
   const [hoverPosition, setHoverPosition] = useState<number | null>(null);
   const [isSeeking, setIsSeeking] = useState(false);
@@ -178,6 +182,7 @@ const PlayerControls = ({
     new Date(b).getTime() - new Date(a).getTime()
   );
   const hasMultipleAudioTracks = audioTracks.length > 1;
+  const hasSubtitleTracks = subtitleTracks.length > 0;
 
   useEffect(() => {
     setVolume(normalizedDefaultVolume);
@@ -236,7 +241,7 @@ const PlayerControls = ({
       return;
     }
 
-    if (!isFullscreen || showCatchUp || showAudioTracks || isSeeking) {
+    if (!isFullscreen || showCatchUp || showAudioTracks || showSubtitleTracks || isSeeking) {
       return;
     }
 
@@ -246,7 +251,7 @@ const PlayerControls = ({
 
     setShowControls(true);
     idleTimer.reset();
-  }, [isFullscreen, isSeeking, showAudioTracks, showCatchUp]);
+  }, [isFullscreen, isSeeking, showAudioTracks, showCatchUp, showSubtitleTracks]);
 
   useEffect(() => {
     const idleTimer = idleTimerRef.current;
@@ -254,7 +259,7 @@ const PlayerControls = ({
       return;
     }
 
-    if (!isFullscreen || showCatchUp || showAudioTracks || isSeeking) {
+    if (!isFullscreen || showCatchUp || showAudioTracks || showSubtitleTracks || isSeeking) {
       idleTimer.clear();
       setShowControls(true);
       return;
@@ -263,7 +268,7 @@ const PlayerControls = ({
     if (showControls) {
       idleTimer.reset();
     }
-  }, [isFullscreen, showAudioTracks, showCatchUp, isSeeking, showControls]);
+  }, [isFullscreen, showAudioTracks, showCatchUp, showSubtitleTracks, isSeeking, showControls]);
 
   const syncAudioTracks = useCallback(() => {
     const tracks = playerRef.current?.getAudioTracks() ?? [];
@@ -275,11 +280,24 @@ const PlayerControls = ({
     }
   }, [playerRef]);
 
+  const syncSubtitleTracks = useCallback(() => {
+    const tracks = playerRef.current?.getSubtitleTracks() ?? [];
+    setSubtitleTracks(tracks);
+    setSelectedSubtitleTrackId(playerRef.current?.getSelectedSubtitleTrackId() ?? null);
+
+    if (tracks.length === 0) {
+      setShowSubtitleTracks(false);
+    }
+  }, [playerRef]);
+
   useEffect(() => {
     if (!session.source) {
       setAudioTracks([]);
       setSelectedAudioTrackId(null);
       setShowAudioTracks(false);
+      setSubtitleTracks([]);
+      setSelectedSubtitleTrackId(null);
+      setShowSubtitleTracks(false);
       return;
     }
 
@@ -297,6 +315,28 @@ const PlayerControls = ({
     };
   }, [playerRef, session.source, syncAudioTracks]);
 
+  useEffect(() => {
+    if (!session.source) {
+      setSubtitleTracks([]);
+      setSelectedSubtitleTrackId(null);
+      setShowSubtitleTracks(false);
+      return;
+    }
+
+    const unsubscribe = playerRef.current?.onSubtitleTracksChange((tracks, selectedTrackId) => {
+      setSubtitleTracks(tracks);
+      setSelectedSubtitleTrackId(selectedTrackId);
+      if (tracks.length === 0) {
+        setShowSubtitleTracks(false);
+      }
+    }) ?? (() => {});
+
+    syncSubtitleTracks();
+    return () => {
+      unsubscribe();
+    };
+  }, [playerRef, session.source, syncSubtitleTracks]);
+
   const handleMouseMove = useCallback(() => {
     resetControlsIdleTimer();
   }, [resetControlsIdleTimer]);
@@ -308,6 +348,9 @@ const PlayerControls = ({
     } else if (showAudioTracks) {
       setShowAudioTracks(false);
       resetControlsIdleTimer();
+    } else if (showSubtitleTracks) {
+      setShowSubtitleTracks(false);
+      resetControlsIdleTimer();
     } else {
       const idleTimer = idleTimerRef.current;
       if (!showControls && idleTimer?.isInGracePeriod()) {
@@ -316,7 +359,14 @@ const PlayerControls = ({
 
       setShowControls(prev => {
         const nextShowControls = !prev;
-        if (idleTimer && isFullscreen && !showCatchUp && !showAudioTracks && !isSeeking) {
+        if (
+          idleTimer &&
+          isFullscreen &&
+          !showCatchUp &&
+          !showAudioTracks &&
+          !showSubtitleTracks &&
+          !isSeeking
+        ) {
           if (nextShowControls) {
             idleTimer.reset();
           } else {
@@ -326,7 +376,15 @@ const PlayerControls = ({
         return nextShowControls;
       });
     }
-  }, [isFullscreen, isSeeking, resetControlsIdleTimer, showAudioTracks, showCatchUp, showControls]);
+  }, [
+    isFullscreen,
+    isSeeking,
+    resetControlsIdleTimer,
+    showAudioTracks,
+    showCatchUp,
+    showControls,
+    showSubtitleTracks,
+  ]);
 
   const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newVolume = parseInt(e.target.value);
@@ -569,6 +627,16 @@ const PlayerControls = ({
     setShowAudioTracks(false);
   }, [playerRef]);
 
+  const handleSelectSubtitleTrack = useCallback((trackId: string | null) => {
+    const applied = playerRef.current?.setSubtitleTrack(trackId) ?? false;
+    if (!applied) {
+      return;
+    }
+
+    setSelectedSubtitleTrackId(trackId);
+    setShowSubtitleTracks(false);
+  }, [playerRef]);
+
   const audioTrackPanel = hasMultipleAudioTracks && showAudioTracks ? (
     <div
       className="absolute bottom-16 right-3 z-30 w-64 rounded-lg border border-border/80 bg-background/95 p-2 shadow-2xl backdrop-blur-md sm:bottom-20 sm:right-4"
@@ -599,10 +667,52 @@ const PlayerControls = ({
     </div>
   ) : null;
 
+  const subtitleTrackPanel = hasSubtitleTracks && showSubtitleTracks ? (
+    <div
+      className="absolute bottom-16 right-3 z-30 w-64 rounded-lg border border-border/80 bg-background/95 p-2 shadow-2xl backdrop-blur-md sm:bottom-20 sm:right-4"
+      onClick={(event) => event.stopPropagation()}
+    >
+      <p className="px-2 pb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        Subtitles
+      </p>
+      <div className="max-h-56 space-y-1 overflow-y-auto">
+        <button
+          className={`w-full rounded-md px-2 py-2 text-left text-sm transition-colors ${
+            selectedSubtitleTrackId === null
+              ? 'bg-primary/20 text-primary'
+              : 'hover:bg-secondary/60'
+          }`}
+          onClick={() => handleSelectSubtitleTrack(null)}
+        >
+          <span className="block truncate font-medium">Off</span>
+          <span className="block text-xs text-muted-foreground">Disable subtitles</span>
+        </button>
+        {subtitleTracks.map((track) => (
+          <button
+            key={track.id}
+            className={`w-full rounded-md px-2 py-2 text-left text-sm transition-colors ${
+              selectedSubtitleTrackId === track.id
+                ? 'bg-primary/20 text-primary'
+                : 'hover:bg-secondary/60'
+            }`}
+            onClick={() => handleSelectSubtitleTrack(track.id)}
+          >
+            <span className="block truncate font-medium">{track.label}</span>
+            <span className="block text-xs text-muted-foreground">
+              {track.language || 'Unknown language'}
+              {track.isDefault ? ' • default' : ''}
+            </span>
+          </button>
+        ))}
+      </div>
+    </div>
+  ) : null;
+
   if (!isFullscreen) {
     return (
       <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/95 via-black/60 to-transparent p-4 sm:p-6">
         {audioTrackPanel}
+        {subtitleTrackPanel}
         <div className="flex items-center gap-4 mb-4">
           <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-2xl bg-background/10 backdrop-blur flex items-center justify-center">
             <ChannelLogo logo={channel.logo} name={channel.name} size="lg" />
@@ -678,9 +788,25 @@ const PlayerControls = ({
                 variant="ghost"
                 size="icon"
                 className={`hover:bg-secondary/50 ${showAudioTracks ? 'text-primary' : ''}`}
-                onClick={() => setShowAudioTracks((prev) => !prev)}
+                onClick={() => {
+                  setShowSubtitleTracks(false);
+                  setShowAudioTracks((prev) => !prev);
+                }}
               >
                 <Languages className="w-5 h-5" />
+              </Button>
+            )}
+            {hasSubtitleTracks && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className={`hover:bg-secondary/50 ${showSubtitleTracks ? 'text-primary' : ''}`}
+                onClick={() => {
+                  setShowAudioTracks(false);
+                  setShowSubtitleTracks((prev) => !prev);
+                }}
+              >
+                <Captions className="w-5 h-5" />
               </Button>
             )}
             <Button
@@ -689,6 +815,7 @@ const PlayerControls = ({
               className="hover:bg-secondary/50"
               onClick={() => {
                 setShowAudioTracks(false);
+                setShowSubtitleTracks(false);
                 setShowCatchUp(true);
               }}
             >
@@ -710,6 +837,7 @@ const PlayerControls = ({
       onClick={handleClick}
     >
       {audioTrackPanel}
+      {subtitleTrackPanel}
       {showCatchUp && (
         <div
           className="absolute right-0 top-0 bottom-0 w-full sm:w-96 z-30 bg-background/95 backdrop-blur-md border-l border-border/50"
@@ -1152,6 +1280,7 @@ const PlayerControls = ({
                   onClick={(e) => {
                     e.stopPropagation();
                     setShowAudioTracks(false);
+                    setShowSubtitleTracks(false);
                     setShowCatchUp(true);
                   }}
                 >
@@ -1165,10 +1294,25 @@ const PlayerControls = ({
                   className={`w-9 h-9 sm:w-10 sm:h-10 hover:bg-secondary/50 ${showAudioTracks ? 'text-primary' : ''}`}
                   onClick={(e) => {
                     e.stopPropagation();
+                    setShowSubtitleTracks(false);
                     setShowAudioTracks((prev) => !prev);
                   }}
                 >
                   <Languages className="w-4 h-4 sm:w-5 sm:h-5" />
+                </Button>
+              )}
+              {hasSubtitleTracks && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className={`w-9 h-9 sm:w-10 sm:h-10 hover:bg-secondary/50 ${showSubtitleTracks ? 'text-primary' : ''}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowAudioTracks(false);
+                    setShowSubtitleTracks((prev) => !prev);
+                  }}
+                >
+                  <Captions className="w-4 h-4 sm:w-5 sm:h-5" />
                 </Button>
               )}
               <Button

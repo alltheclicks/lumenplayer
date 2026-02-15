@@ -5,6 +5,7 @@ import type {
   PlaybackError,
   PlaybackState,
   PlayerAdapter,
+  SubtitleTrackOption,
 } from '@lumen/types';
 
 const HLS_MIME_TYPE = 'application/vnd.apple.mpegurl';
@@ -13,6 +14,10 @@ type StateListener = (state: PlaybackState) => void;
 type ErrorListener = (error: PlaybackError) => void;
 type TimeListener = (time: number) => void;
 type AudioTracksListener = (tracks: AudioTrackOption[], selectedTrackId: string | null) => void;
+type SubtitleTracksListener = (
+  tracks: SubtitleTrackOption[],
+  selectedTrackId: string | null
+) => void;
 
 interface HlsPlayerAdapterOptions {
   preferNativeHls?: boolean;
@@ -29,17 +34,32 @@ interface NativeAudioTrackListLike {
   [index: number]: NativeAudioTrack;
 }
 
+interface NativeTextTrack {
+  mode: string;
+  language?: string;
+  label?: string;
+  kind?: string;
+}
+
+interface NativeTextTrackListLike {
+  length: number;
+  [index: number]: NativeTextTrack;
+}
+
 export class HlsPlayerAdapter implements PlayerAdapter {
   private readonly video: HTMLVideoElement;
   private readonly preferNativeHls: boolean;
   private hls: Hls | null = null;
   private audioTracks: AudioTrackOption[] = [];
   private selectedAudioTrackId: string | null = null;
+  private subtitleTracks: SubtitleTrackOption[] = [];
+  private selectedSubtitleTrackId: string | null = null;
   private state: PlaybackState = 'idle';
   private readonly stateListeners = new Set<StateListener>();
   private readonly errorListeners = new Set<ErrorListener>();
   private readonly timeListeners = new Set<TimeListener>();
   private readonly audioTracksListeners = new Set<AudioTracksListener>();
+  private readonly subtitleTracksListeners = new Set<SubtitleTracksListener>();
   private readonly removeVideoListeners: () => void;
 
   constructor(video: HTMLVideoElement, options: HlsPlayerAdapterOptions = {}) {
@@ -97,7 +117,10 @@ export class HlsPlayerAdapter implements PlayerAdapter {
     this.video.load();
     this.audioTracks = [];
     this.selectedAudioTrackId = null;
+    this.subtitleTracks = [];
+    this.selectedSubtitleTrackId = null;
     this.emitAudioTracksChange();
+    this.emitSubtitleTracksChange();
     this.updateState('idle');
   }
 
@@ -109,6 +132,7 @@ export class HlsPlayerAdapter implements PlayerAdapter {
     this.errorListeners.clear();
     this.timeListeners.clear();
     this.audioTracksListeners.clear();
+    this.subtitleTracksListeners.clear();
   }
 
   getCurrentTime(): number {
@@ -137,6 +161,14 @@ export class HlsPlayerAdapter implements PlayerAdapter {
 
   getSelectedAudioTrackId(): string | null {
     return this.selectedAudioTrackId;
+  }
+
+  getSubtitleTracks(): SubtitleTrackOption[] {
+    return this.subtitleTracks;
+  }
+
+  getSelectedSubtitleTrackId(): string | null {
+    return this.selectedSubtitleTrackId;
   }
 
   setAudioTrack(trackId: string): boolean {
@@ -174,6 +206,59 @@ export class HlsPlayerAdapter implements PlayerAdapter {
     return false;
   }
 
+  setSubtitleTrack(trackId: string | null): boolean {
+    if (trackId !== null) {
+      const selectedTrack = this.subtitleTracks.find((track) => track.id === trackId);
+      if (!selectedTrack) {
+        return false;
+      }
+    }
+
+    if (this.hls) {
+      if (trackId === null) {
+        this.hls.subtitleTrack = -1;
+        this.selectedSubtitleTrackId = null;
+        this.emitSubtitleTracksChange();
+        return true;
+      }
+
+      const hlsIndex = this.parseTrackIndex(trackId, 'hls-subtitle-');
+      if (hlsIndex === null || hlsIndex < 0 || hlsIndex >= this.hls.subtitleTracks.length) {
+        return false;
+      }
+
+      this.hls.subtitleTrack = hlsIndex;
+      this.selectedSubtitleTrackId = trackId;
+      this.emitSubtitleTracksChange();
+      return true;
+    }
+
+    const nativeTextTracks = this.getNativeTextTracks();
+    if (nativeTextTracks) {
+      if (trackId === null) {
+        for (let index = 0; index < nativeTextTracks.length; index += 1) {
+          nativeTextTracks[index].mode = 'disabled';
+        }
+        this.syncNativeSubtitleTracks();
+        return true;
+      }
+
+      const nativeIndex = this.parseTrackIndex(trackId, 'native-subtitle-');
+      if (nativeIndex === null || nativeIndex < 0 || nativeIndex >= nativeTextTracks.length) {
+        return false;
+      }
+
+      for (let index = 0; index < nativeTextTracks.length; index += 1) {
+        nativeTextTracks[index].mode = index === nativeIndex ? 'showing' : 'disabled';
+      }
+
+      this.syncNativeSubtitleTracks();
+      return true;
+    }
+
+    return false;
+  }
+
   onStateChange(callback: StateListener): () => void {
     this.stateListeners.add(callback);
     return () => this.stateListeners.delete(callback);
@@ -195,11 +280,18 @@ export class HlsPlayerAdapter implements PlayerAdapter {
     return () => this.audioTracksListeners.delete(callback);
   }
 
+  onSubtitleTracksChange(callback: SubtitleTracksListener): () => void {
+    this.subtitleTracksListeners.add(callback);
+    callback(this.subtitleTracks, this.selectedSubtitleTrackId);
+    return () => this.subtitleTracksListeners.delete(callback);
+  }
+
   private async loadHlsSource(url: string): Promise<void> {
     if (this.preferNativeHls && this.video.canPlayType(HLS_MIME_TYPE)) {
       this.video.src = url;
       this.video.load();
       this.syncNativeAudioTracks();
+      this.syncNativeSubtitleTracks();
       this.updateState('paused');
       return;
     }
@@ -215,50 +307,72 @@ export class HlsPlayerAdapter implements PlayerAdapter {
         maxBufferHole: 0.5,
         startLevel: -1,
       });
-
-      await new Promise<void>((resolve, reject) => {
-        const onManifestParsed = () => {
-          this.syncHlsAudioTracks(hls.audioTrack);
-          cleanup();
-          this.updateState('paused');
-          resolve();
-        };
-
-        const onHlsError = (_event: string, data: ErrorData) => {
-          const mappedError = this.mapHlsError(data);
-          this.emitError(mappedError);
-
-          if (!data.fatal) {
-            return;
-          }
-
-          cleanup();
-          hls.destroy();
-          reject(new Error(mappedError.message));
-        };
-
-        const cleanup = () => {
-          hls.off(Hls.Events.MANIFEST_PARSED, onManifestParsed);
-          hls.off(Hls.Events.ERROR, onHlsError);
-        };
-
-        const onAudioTracksUpdated = () => {
-          this.syncHlsAudioTracks(hls.audioTrack);
-        };
-
-        const onAudioTrackSwitched = () => {
-          this.syncHlsAudioTracks(hls.audioTrack);
-        };
-
-        hls.on(Hls.Events.MANIFEST_PARSED, onManifestParsed);
-        hls.on(Hls.Events.ERROR, onHlsError);
-        hls.on(Hls.Events.AUDIO_TRACKS_UPDATED, onAudioTracksUpdated);
-        hls.on(Hls.Events.AUDIO_TRACK_SWITCHED, onAudioTrackSwitched);
-        hls.loadSource(url);
-        hls.attachMedia(this.video);
-      });
-
       this.hls = hls;
+
+      try {
+        await new Promise<void>((resolve, reject) => {
+          const onManifestParsed = () => {
+            this.syncHlsAudioTracks(hls.audioTrack);
+            this.syncHlsSubtitleTracks(hls.subtitleTrack);
+            cleanup();
+            this.updateState('paused');
+            resolve();
+          };
+
+          const onHlsError = (_event: string, data: ErrorData) => {
+            const mappedError = this.mapHlsError(data);
+            this.emitError(mappedError);
+
+            if (!data.fatal) {
+              return;
+            }
+
+            cleanup();
+            hls.destroy();
+            reject(new Error(mappedError.message));
+          };
+
+          const onAudioTracksUpdated = () => {
+            this.syncHlsAudioTracks(hls.audioTrack);
+          };
+
+          const onAudioTrackSwitched = () => {
+            this.syncHlsAudioTracks(hls.audioTrack);
+          };
+
+          const onSubtitleTracksUpdated = () => {
+            this.syncHlsSubtitleTracks(hls.subtitleTrack);
+          };
+
+          const onSubtitleTrackSwitched = () => {
+            this.syncHlsSubtitleTracks(hls.subtitleTrack);
+          };
+
+          const cleanup = () => {
+            hls.off(Hls.Events.MANIFEST_PARSED, onManifestParsed);
+            hls.off(Hls.Events.ERROR, onHlsError);
+            hls.off(Hls.Events.AUDIO_TRACKS_UPDATED, onAudioTracksUpdated);
+            hls.off(Hls.Events.AUDIO_TRACK_SWITCHED, onAudioTrackSwitched);
+            hls.off(Hls.Events.SUBTITLE_TRACKS_UPDATED, onSubtitleTracksUpdated);
+            hls.off(Hls.Events.SUBTITLE_TRACK_SWITCH, onSubtitleTrackSwitched);
+          };
+
+          hls.on(Hls.Events.MANIFEST_PARSED, onManifestParsed);
+          hls.on(Hls.Events.ERROR, onHlsError);
+          hls.on(Hls.Events.AUDIO_TRACKS_UPDATED, onAudioTracksUpdated);
+          hls.on(Hls.Events.AUDIO_TRACK_SWITCHED, onAudioTrackSwitched);
+          hls.on(Hls.Events.SUBTITLE_TRACKS_UPDATED, onSubtitleTracksUpdated);
+          hls.on(Hls.Events.SUBTITLE_TRACK_SWITCH, onSubtitleTrackSwitched);
+          hls.loadSource(url);
+          hls.attachMedia(this.video);
+        });
+      } catch (error) {
+        if (this.hls === hls) {
+          this.hls = null;
+        }
+        throw error;
+      }
+
       return;
     }
 
@@ -266,6 +380,7 @@ export class HlsPlayerAdapter implements PlayerAdapter {
       this.video.src = url;
       this.video.load();
       this.syncNativeAudioTracks();
+      this.syncNativeSubtitleTracks();
       this.updateState('paused');
       return;
     }
@@ -301,6 +416,10 @@ export class HlsPlayerAdapter implements PlayerAdapter {
         fatal: mediaError.code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED,
       });
     };
+    const handleLoadedMetadata = () => {
+      this.syncNativeAudioTracks();
+      this.syncNativeSubtitleTracks();
+    };
 
     this.video.addEventListener('play', handlePlay);
     this.video.addEventListener('pause', handlePause);
@@ -310,6 +429,14 @@ export class HlsPlayerAdapter implements PlayerAdapter {
     this.video.addEventListener('seeked', handleSeeked);
     this.video.addEventListener('timeupdate', handleTimeUpdate);
     this.video.addEventListener('error', handleError);
+    this.video.addEventListener('loadedmetadata', handleLoadedMetadata);
+
+    const nativeTextTracks = this.getNativeTextTracks();
+    const nativeTextTracksTarget = nativeTextTracks as (
+      NativeTextTrackListLike & { addEventListener?: (event: string, handler: () => void) => void }
+    ) | null;
+
+    nativeTextTracksTarget?.addEventListener?.('change', handleLoadedMetadata);
 
     return () => {
       this.video.removeEventListener('play', handlePlay);
@@ -320,6 +447,12 @@ export class HlsPlayerAdapter implements PlayerAdapter {
       this.video.removeEventListener('seeked', handleSeeked);
       this.video.removeEventListener('timeupdate', handleTimeUpdate);
       this.video.removeEventListener('error', handleError);
+      this.video.removeEventListener('loadedmetadata', handleLoadedMetadata);
+      (
+        nativeTextTracks as (
+          NativeTextTrackListLike & { removeEventListener?: (event: string, handler: () => void) => void }
+        ) | null
+      )?.removeEventListener?.('change', handleLoadedMetadata);
     };
   }
 
@@ -402,6 +535,31 @@ export class HlsPlayerAdapter implements PlayerAdapter {
     this.emitAudioTracksChange();
   }
 
+  private syncHlsSubtitleTracks(selectedIndex: number): void {
+    if (!this.hls) {
+      this.subtitleTracks = [];
+      this.selectedSubtitleTrackId = null;
+      this.emitSubtitleTracksChange();
+      return;
+    }
+
+    this.subtitleTracks = this.hls.subtitleTracks.map((track, index) => ({
+      id: `hls-subtitle-${index}`,
+      label: track.name || track.lang || `Subtitle ${index + 1}`,
+      language: track.lang || null,
+      isDefault: Boolean(track.default),
+    }));
+
+    if (selectedIndex < 0 || selectedIndex >= this.subtitleTracks.length) {
+      this.selectedSubtitleTrackId = null;
+      this.emitSubtitleTracksChange();
+      return;
+    }
+
+    this.selectedSubtitleTrackId = this.subtitleTracks[selectedIndex]?.id ?? null;
+    this.emitSubtitleTracksChange();
+  }
+
   private syncNativeAudioTracks(): void {
     const nativeAudioTracks = this.getNativeAudioTracks();
     if (!nativeAudioTracks || nativeAudioTracks.length === 0) {
@@ -434,9 +592,51 @@ export class HlsPlayerAdapter implements PlayerAdapter {
     this.emitAudioTracksChange();
   }
 
+  private syncNativeSubtitleTracks(): void {
+    const nativeTextTracks = this.getNativeTextTracks();
+    if (!nativeTextTracks || nativeTextTracks.length === 0) {
+      this.subtitleTracks = [];
+      this.selectedSubtitleTrackId = null;
+      this.emitSubtitleTracksChange();
+      return;
+    }
+
+    const mappedTracks: SubtitleTrackOption[] = [];
+    let selectedId: string | null = null;
+
+    for (let index = 0; index < nativeTextTracks.length; index += 1) {
+      const track = nativeTextTracks[index];
+      const kind = track.kind?.toLowerCase() ?? '';
+      if (kind && kind !== 'subtitles' && kind !== 'captions') {
+        continue;
+      }
+
+      const id = `native-subtitle-${index}`;
+      mappedTracks.push({
+        id,
+        label: track.label || track.language || `Subtitle ${mappedTracks.length + 1}`,
+        language: track.language || null,
+        isDefault: index === 0,
+      });
+
+      if (track.mode === 'showing' || track.mode === 'hidden') {
+        selectedId = id;
+      }
+    }
+
+    this.subtitleTracks = mappedTracks;
+    this.selectedSubtitleTrackId = selectedId;
+    this.emitSubtitleTracksChange();
+  }
+
   private getNativeAudioTracks(): NativeAudioTrackListLike | null {
     const elementWithTracks = this.video as HTMLVideoElement & { audioTracks?: NativeAudioTrackListLike };
     return elementWithTracks.audioTracks ?? null;
+  }
+
+  private getNativeTextTracks(): NativeTextTrackListLike | null {
+    const elementWithTracks = this.video as HTMLVideoElement & { textTracks?: NativeTextTrackListLike };
+    return elementWithTracks.textTracks ?? null;
   }
 
   private parseTrackIndex(trackId: string, prefix: string): number | null {
@@ -455,6 +655,12 @@ export class HlsPlayerAdapter implements PlayerAdapter {
   private emitAudioTracksChange(): void {
     this.audioTracksListeners.forEach((listener) => {
       listener(this.audioTracks, this.selectedAudioTrackId);
+    });
+  }
+
+  private emitSubtitleTracksChange(): void {
+    this.subtitleTracksListeners.forEach((listener) => {
+      listener(this.subtitleTracks, this.selectedSubtitleTrackId);
     });
   }
 }
