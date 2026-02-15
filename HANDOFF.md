@@ -1,5 +1,34 @@
 # Handoff — Lumen Player
 
+## Session 2026-02-15 — LP-0111, LP-0010, LP-0324 (ordered batch)
+
+- PRs: #76 (merged), #77 (merged), #78 (merged)
+- Done:
+  - LP-0111: Added AirPlay sender control flow in web player:
+    - `VideoPlayerHandle` now exposes AirPlay support/availability/connection APIs + picker trigger
+    - `/player` now wires AirPlay state and picker controls (desktop, mobile, on-demand UI)
+    - session renderer now switches `local-web <-> airplay` based on AirPlay connection state
+  - LP-0010: Wired existing `usePWA` hook into `/settings`:
+    - added install app card with real install prompt button when available
+    - added iOS/Android fallback guidance and online/offline indicator
+  - LP-0324: Added offline fallback page for PWA navigation failures:
+    - new `apps/web/public/offline.html`
+    - Workbox navigation runtime caching with `precacheFallback` to `/offline.html`
+  - Local test gate passed on each task PR:
+    - `pnpm lint`
+    - `pnpm typecheck`
+    - `pnpm build`
+  - Greptile/check comments:
+    - #76: one Greptile inline comment addressed in follow-up commit, final checks green
+    - #77: Greptile check green, no bot comments returned
+    - #78: Greptile check green, no bot comments returned
+
+- Next:
+  - LP-0325 (PWA app icon + splash screen assets)
+  - LP-0011 (Code-splitting: lazy load Player page)
+
+---
+
 ## Session 2026-02-15 — LP-0108, LP-0109, LP-0110 (ordered batch)
 
 - PRs: #70 (merged), #71 (merged), #72 (merged)

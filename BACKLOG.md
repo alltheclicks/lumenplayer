@@ -170,7 +170,7 @@
 
 | ID | Task | Size | Status | Depends on |
 |----|------|------|--------|------------|
-| LP-0111 | Add AirPlay control flow (secondary renderer) | M | idea | LP-0106 |
+| LP-0111 | Add AirPlay control flow (secondary renderer) | M | done | LP-0106 |
 
 ---
 
@@ -178,8 +178,8 @@
 
 | ID | Task | Size | Status | Depends on |
 |----|------|------|--------|------------|
-| LP-0010 | PWA install UI — wire existing `usePWA` hook, add install prompt + button | S | idea | — |
-| LP-0324 | PWA offline fallback page | S | idea | — |
+| LP-0010 | PWA install UI — wire existing `usePWA` hook, add install prompt + button | S | done | — |
+| LP-0324 | PWA offline fallback page | S | done | — |
 | LP-0325 | PWA app icon + splash screen assets | S | idea | — |
 | LP-0011 | Code-splitting: lazy load Player page | S | idea | — |
 | LP-0330 | Web Push compatibility spike — verify iOS Home Screen PWA flow (iOS/iPadOS 16.4+), Android browser matrix, and unsupported TV browser behavior | S | idea | LP-0010 |
