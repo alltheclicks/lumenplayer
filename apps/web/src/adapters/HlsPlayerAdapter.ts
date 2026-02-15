@@ -12,8 +12,13 @@ type StateListener = (state: PlaybackState) => void;
 type ErrorListener = (error: PlaybackError) => void;
 type TimeListener = (time: number) => void;
 
+interface HlsPlayerAdapterOptions {
+  preferNativeHls?: boolean;
+}
+
 export class HlsPlayerAdapter implements PlayerAdapter {
   private readonly video: HTMLVideoElement;
+  private readonly preferNativeHls: boolean;
   private hls: Hls | null = null;
   private state: PlaybackState = 'idle';
   private readonly stateListeners = new Set<StateListener>();
@@ -21,8 +26,9 @@ export class HlsPlayerAdapter implements PlayerAdapter {
   private readonly timeListeners = new Set<TimeListener>();
   private readonly removeVideoListeners: () => void;
 
-  constructor(video: HTMLVideoElement) {
+  constructor(video: HTMLVideoElement, options: HlsPlayerAdapterOptions = {}) {
     this.video = video;
+    this.preferNativeHls = options.preferNativeHls ?? false;
     this.removeVideoListeners = this.attachVideoListeners();
   }
 
@@ -121,6 +127,13 @@ export class HlsPlayerAdapter implements PlayerAdapter {
   }
 
   private async loadHlsSource(url: string): Promise<void> {
+    if (this.preferNativeHls && this.video.canPlayType(HLS_MIME_TYPE)) {
+      this.video.src = url;
+      this.video.load();
+      this.updateState('paused');
+      return;
+    }
+
     if (Hls.isSupported()) {
       const hls = new Hls({
         enableWorker: true,

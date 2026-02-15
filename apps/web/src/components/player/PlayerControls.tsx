@@ -40,6 +40,7 @@ interface PlayerControlsProps {
   onPrevChannel: () => void;
   onNextChannel: () => void;
   playerRef: MutableRefObject<VideoPlayerHandle | null>;
+  defaultVolume?: number;
 }
 
 type SessionSourceMetadata = {
@@ -113,11 +114,12 @@ const PlayerControls = ({
   onPrevChannel,
   onNextChannel,
   playerRef,
+  defaultVolume = 80,
 }: PlayerControlsProps) => {
   const { session, commands } = useSessionContext();
-  const DEFAULT_VOLUME = 80;
+  const normalizedDefaultVolume = Math.max(0, Math.min(100, Math.round(defaultVolume)));
   const [showControls, setShowControls] = useState(true);
-  const [volume, setVolume] = useState(DEFAULT_VOLUME);
+  const [volume, setVolume] = useState(normalizedDefaultVolume);
   const [isMuted, setIsMuted] = useState(false);
   const [showVolumeSlider, setShowVolumeSlider] = useState(false);
   const [showCatchUp, setShowCatchUp] = useState(false);
@@ -126,7 +128,7 @@ const PlayerControls = ({
   const [isSeeking, setIsSeeking] = useState(false);
   const [seekPreviewPosition, setSeekPreviewPosition] = useState<number | null>(null);
   const progressRef = useRef<HTMLDivElement>(null);
-  const lastNonZeroVolumeRef = useRef(DEFAULT_VOLUME);
+  const lastNonZeroVolumeRef = useRef(normalizedDefaultVolume || 80);
   const seekEngineRef = useRef<SeekEngine | null>(null);
   const idleTimerRef = useRef<IdleTimer | null>(null);
   const seekHoldTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -171,6 +173,17 @@ const PlayerControls = ({
   const sortedDates = Array.from(catchUpByDate.keys()).sort((a, b) =>
     new Date(b).getTime() - new Date(a).getTime()
   );
+
+  useEffect(() => {
+    setVolume(normalizedDefaultVolume);
+    if (normalizedDefaultVolume > 0) {
+      lastNonZeroVolumeRef.current = normalizedDefaultVolume;
+    }
+    playerRef.current?.setVolume(normalizedDefaultVolume / 100);
+    const nextMuted = normalizedDefaultVolume === 0;
+    setIsMuted(nextMuted);
+    playerRef.current?.setMuted(nextMuted);
+  }, [normalizedDefaultVolume, playerRef]);
 
   useEffect(() => {
     const seekEngine = new SeekEngine();
