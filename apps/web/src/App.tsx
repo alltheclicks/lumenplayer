@@ -1,3 +1,4 @@
+import { Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { HelmetProvider } from 'react-helmet-async';
@@ -6,13 +7,14 @@ import { SessionProvider } from '@/context/SessionProvider';
 
 import Login from '@/pages/Login';
 import M3UImport from '@/pages/M3UImport';
-import Player from '@/pages/Player';
 import EpgGuide from '@/pages/EpgGuide';
 import Settings from '@/pages/Settings';
 import VodCategories from '@/pages/VodCategories';
 import VodDetail from '@/pages/VodDetail';
 import SeriesCategories from '@/pages/SeriesCategories';
 import SeriesDetail from '@/pages/SeriesDetail';
+
+const Player = lazy(() => import('@/pages/Player'));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -22,6 +24,12 @@ const queryClient = new QueryClient({
     },
   },
 });
+
+const PlayerRouteFallback = () => (
+  <div className="min-h-screen bg-background p-4 md:p-6">
+    <div className="mx-auto max-w-3xl text-sm text-muted-foreground">Loading player...</div>
+  </div>
+);
 
 function App() {
   return (
@@ -37,7 +45,14 @@ function App() {
               <Route path="/vod/:vodId" element={<VodDetail />} />
               <Route path="/series" element={<SeriesCategories />} />
               <Route path="/series/:seriesId" element={<SeriesDetail />} />
-              <Route path="/player" element={<Player />} />
+              <Route
+                path="/player"
+                element={(
+                  <Suspense fallback={<PlayerRouteFallback />}>
+                    <Player />
+                  </Suspense>
+                )}
+              />
               <Route path="/epg" element={<EpgGuide />} />
               <Route path="/settings" element={<Settings />} />
               <Route path="*" element={<Navigate to="/login" replace />} />
