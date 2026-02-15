@@ -123,6 +123,24 @@ const ensureGoogleCastSdk = (): Promise<void> => {
     window.__onGCastApiAvailable = handleApiAvailable;
 
     if (existingScript) {
+      if (window.cast?.framework && window.chrome?.cast) {
+        resolve();
+        return;
+      }
+
+      const startedAt = Date.now();
+      const intervalId = window.setInterval(() => {
+        if (window.cast?.framework && window.chrome?.cast) {
+          window.clearInterval(intervalId);
+          resolve();
+          return;
+        }
+
+        if (Date.now() - startedAt > 8000) {
+          window.clearInterval(intervalId);
+          reject(new Error('Google Cast script exists but API did not become available.'));
+        }
+      }, 100);
       return;
     }
 
