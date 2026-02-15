@@ -9,6 +9,7 @@ import { usePWA } from '@/hooks/usePWA';
 import {
   evaluatePushCompatibility,
   getPushCompatibilityMatrix,
+  type PushCompatibilityResult,
   type PushSupportStatus,
 } from '@/services/pushCompatibility';
 import {
@@ -31,6 +32,37 @@ const statusClassName: Record<PushSupportStatus, string> = {
   unsupported: 'text-rose-600 dark:text-rose-400',
 };
 
+const permissionText: Record<NotificationPermission | 'unsupported', string> = {
+  granted: 'Granted',
+  denied: 'Denied',
+  default: 'Not requested',
+  unsupported: 'Unsupported',
+};
+
+const getNotificationPermission = (): NotificationPermission | 'unsupported' => {
+  if (typeof window === 'undefined' || !('Notification' in window)) {
+    return 'unsupported';
+  }
+
+  return Notification.permission;
+};
+
+const getUnsupportedPushCopy = (compatibility: PushCompatibilityResult): string => {
+  if (compatibility.platform !== 'web') {
+    return 'Push notifications are disabled on TV browser platforms. Use mobile or desktop browser.';
+  }
+
+  if (compatibility.isIOS && compatibility.iosVersion === null) {
+    return 'Unable to verify iOS version. Update iOS/iPadOS to 16.4+ and install app to Home Screen.';
+  }
+
+  if (compatibility.isIOS) {
+    return 'Push needs iOS/iPadOS 16.4+ plus Home Screen install. Open this app in Safari and install it.';
+  }
+
+  return 'This browser/device currently cannot complete web push setup. Use a modern Chrome/Edge/Samsung Internet/Firefox build.';
+};
+
 const Settings = () => {
   const navigate = useNavigate();
   const [settings, setSettings] = useState<AppSettings>(getDefaultAppSettings());
@@ -39,6 +71,11 @@ const Settings = () => {
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [installMessage, setInstallMessage] = useState<string | null>(null);
   const [pushCompatibility, setPushCompatibility] = useState(() => evaluatePushCompatibility());
+  const [pushPermission, setPushPermission] = useState<NotificationPermission | 'unsupported'>(() =>
+    getNotificationPermission()
+  );
+  const [pushOptInMessage, setPushOptInMessage] = useState<string | null>(null);
+  const [showPermissionPromptStep, setShowPermissionPromptStep] = useState(false);
   const pushMatrix = getPushCompatibilityMatrix();
   const { isInstalled, isInstallable, isOnline, promptInstall, isIOS, isAndroid } = usePWA();
 
@@ -61,8 +98,26 @@ const Settings = () => {
   }, []);
 
   useEffect(() => {
-    setPushCompatibility(evaluatePushCompatibility());
+    const syncPermissionState = () => {
+      setPushPermission(getNotificationPermission());
+      setPushCompatibility(evaluatePushCompatibility());
+    };
+
+    syncPermissionState();
+    document.addEventListener('visibilitychange', syncPermissionState);
+    window.addEventListener('focus', syncPermissionState);
+
+    return () => {
+      document.removeEventListener('visibilitychange', syncPermissionState);
+      window.removeEventListener('focus', syncPermissionState);
+    };
   }, [isInstalled, isInstallable, isIOS, isAndroid]);
+
+  useEffect(() => {
+    if (pushPermission !== 'default') {
+      setShowPermissionPromptStep(false);
+    }
+  }, [pushPermission]);
 
   const handleSave = async () => {
     setIsSaving(true);
@@ -95,6 +150,39 @@ const Settings = () => {
     }
 
     setInstallMessage('Install prompt dismissed or unavailable.');
+  };
+
+  const handleStartPushOptIn = () => {
+    setPushOptInMessage(null);
+    setShowPermissionPromptStep(true);
+  };
+
+  const handlePushPermissionPrompt = async () => {
+    if (!('Notification' in window)) {
+      setPushPermission('unsupported');
+      setPushOptInMessage('Notifications API is not available on this device/browser.');
+      return;
+    }
+
+    try {
+      const result = await Notification.requestPermission();
+      setPushPermission(result);
+      setPushCompatibility(evaluatePushCompatibility());
+
+      if (result === 'granted') {
+        setPushOptInMessage('Notifications enabled. Device subscription wiring is handled in backend task phase.');
+        return;
+      }
+
+      if (result === 'denied') {
+        setPushOptInMessage('Permission denied. Enable notifications manually from browser settings if needed.');
+        return;
+      }
+
+      setPushOptInMessage('Permission prompt dismissed. You can retry anytime.');
+    } catch {
+      setPushOptInMessage('Failed to request notification permission. Try again.');
+    }
   };
 
   return (
@@ -345,6 +433,71 @@ const Settings = () => {
                       ))}
                     </div>
                   </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Push Notifications</CardTitle>
+                  <CardDescription>
+                    Opt-in flow with explicit pre-permission step and gesture-based browser prompt.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex flex-wrap items-center gap-2 text-sm">
+                    <span className="text-muted-foreground">Permission:</span>
+                    <span>{permissionText[pushPermission]}</span>
+                  </div>
+
+                  {pushCompatibility.status === 'unsupported' && (
+                    <p className="text-sm text-muted-foreground">
+                      {getUnsupportedPushCopy(pushCompatibility)}
+                    </p>
+                  )}
+
+                  {pushCompatibility.status === 'requires-install' && (
+                    <p className="text-sm text-muted-foreground">
+                      Push on iOS/iPadOS works only from Home Screen install. Install app first, then return here.
+                    </p>
+                  )}
+
+                  {pushCompatibility.status === 'supported' && pushPermission === 'default' && !showPermissionPromptStep && (
+                    <div className="space-y-2">
+                      <p className="text-sm text-muted-foreground">
+                        Enable channel reminders and playback alerts. We ask permission only after explicit confirmation.
+                      </p>
+                      <Button variant="outline" onClick={handleStartPushOptIn}>
+                        Continue
+                      </Button>
+                    </div>
+                  )}
+
+                  {pushCompatibility.status === 'supported' && pushPermission === 'default' && showPermissionPromptStep && (
+                    <div className="space-y-2">
+                      <p className="text-sm text-muted-foreground">
+                        Next step opens the browser notification permission prompt.
+                      </p>
+                      <Button onClick={() => void handlePushPermissionPrompt()}>
+                        Allow notifications
+                      </Button>
+                    </div>
+                  )}
+
+                  {pushCompatibility.status === 'supported' && pushPermission === 'granted' && (
+                    <p className="text-sm text-emerald-600 dark:text-emerald-400">
+                      Notification permission is active on this device.
+                    </p>
+                  )}
+
+                  {pushCompatibility.status === 'supported' && pushPermission === 'denied' && (
+                    <p className="text-sm text-muted-foreground">
+                      Browser blocked notifications for this site. Change site notification settings to retry.
+                    </p>
+                  )}
+
+                  {pushOptInMessage && (
+                    <p className="text-sm text-muted-foreground">{pushOptInMessage}</p>
+                  )}
                 </CardContent>
               </Card>
 
