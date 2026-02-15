@@ -32,6 +32,8 @@ interface NativeAudioTrack {
 interface NativeAudioTrackListLike {
   length: number;
   [index: number]: NativeAudioTrack;
+  addEventListener?: (event: string, handler: () => void) => void;
+  removeEventListener?: (event: string, handler: () => void) => void;
 }
 
 interface NativeTextTrack {
@@ -44,6 +46,8 @@ interface NativeTextTrack {
 interface NativeTextTrackListLike {
   length: number;
   [index: number]: NativeTextTrack;
+  addEventListener?: (event: string, handler: () => void) => void;
+  removeEventListener?: (event: string, handler: () => void) => void;
 }
 
 export class HlsPlayerAdapter implements PlayerAdapter {
@@ -416,6 +420,12 @@ export class HlsPlayerAdapter implements PlayerAdapter {
       this.syncNativeAudioTracks();
       this.syncNativeSubtitleTracks();
     };
+    const handleNativeAudioTracksChange = () => {
+      this.syncNativeAudioTracks();
+    };
+    const handleNativeTextTracksChange = () => {
+      this.syncNativeSubtitleTracks();
+    };
 
     this.video.addEventListener('play', handlePlay);
     this.video.addEventListener('pause', handlePause);
@@ -427,12 +437,15 @@ export class HlsPlayerAdapter implements PlayerAdapter {
     this.video.addEventListener('error', handleError);
     this.video.addEventListener('loadedmetadata', handleLoadedMetadata);
 
+    const nativeAudioTracks = this.getNativeAudioTracks();
     const nativeTextTracks = this.getNativeTextTracks();
-    const nativeTextTracksTarget = nativeTextTracks as (
-      NativeTextTrackListLike & { addEventListener?: (event: string, handler: () => void) => void }
-    ) | null;
 
-    nativeTextTracksTarget?.addEventListener?.('change', handleLoadedMetadata);
+    nativeAudioTracks?.addEventListener?.('change', handleNativeAudioTracksChange);
+    nativeAudioTracks?.addEventListener?.('addtrack', handleNativeAudioTracksChange);
+    nativeAudioTracks?.addEventListener?.('removetrack', handleNativeAudioTracksChange);
+    nativeTextTracks?.addEventListener?.('change', handleNativeTextTracksChange);
+    nativeTextTracks?.addEventListener?.('addtrack', handleNativeTextTracksChange);
+    nativeTextTracks?.addEventListener?.('removetrack', handleNativeTextTracksChange);
 
     return () => {
       this.video.removeEventListener('play', handlePlay);
@@ -444,11 +457,12 @@ export class HlsPlayerAdapter implements PlayerAdapter {
       this.video.removeEventListener('timeupdate', handleTimeUpdate);
       this.video.removeEventListener('error', handleError);
       this.video.removeEventListener('loadedmetadata', handleLoadedMetadata);
-      (
-        nativeTextTracks as (
-          NativeTextTrackListLike & { removeEventListener?: (event: string, handler: () => void) => void }
-        ) | null
-      )?.removeEventListener?.('change', handleLoadedMetadata);
+      nativeAudioTracks?.removeEventListener?.('change', handleNativeAudioTracksChange);
+      nativeAudioTracks?.removeEventListener?.('addtrack', handleNativeAudioTracksChange);
+      nativeAudioTracks?.removeEventListener?.('removetrack', handleNativeAudioTracksChange);
+      nativeTextTracks?.removeEventListener?.('change', handleNativeTextTracksChange);
+      nativeTextTracks?.removeEventListener?.('addtrack', handleNativeTextTracksChange);
+      nativeTextTracks?.removeEventListener?.('removetrack', handleNativeTextTracksChange);
     };
   }
 
