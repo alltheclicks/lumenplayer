@@ -1,0 +1,317 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Lumen Cast Receiver</title>
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+
+      html,
+      body {
+        margin: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: #05070b;
+        color: #f4f6ff;
+        font-family: "Segoe UI", sans-serif;
+      }
+
+      body {
+        position: relative;
+      }
+
+      cast-media-player {
+        --theme-hue: 202;
+        --logo-image: none;
+        width: 100%;
+        height: 100%;
+        z-index: 2;
+      }
+
+      #bridge-root {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        z-index: 1;
+      }
+
+      #bridge-root video {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        background: #000;
+        opacity: 0;
+        transition: opacity 180ms ease;
+      }
+
+      #bridge-root video[data-active="true"] {
+        opacity: 1;
+      }
+
+      #status-chip {
+        position: absolute;
+        top: 16px;
+        right: 16px;
+        z-index: 4;
+        padding: 8px 10px;
+        border-radius: 999px;
+        background: rgba(4, 8, 18, 0.72);
+        border: 1px solid rgba(82, 165, 255, 0.35);
+        font-size: 12px;
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
+      }
+    </style>
+    <script src="https://www.gstatic.com/cast/sdk/libs/caf_receiver/v3/cast_receiver_framework.js"></script>
+  </head>
+  <body>
+    <cast-media-player id="default-player"></cast-media-player>
+
+    <div id="bridge-root" aria-hidden="true">
+      <video id="bridge-video-a" preload="auto" playsinline muted></video>
+      <video id="bridge-video-b" preload="auto" playsinline muted></video>
+    </div>
+
+    <div id="status-chip">Bridge idle</div>
+
+    <script>
+      (function () {
+        var BRIDGE_NAMESPACE = 'urn:x-cast:com.lumenplayer.bridge';
+        var castFramework = window.cast && window.cast.framework;
+        if (!castFramework) {
+          return;
+        }
+
+        var castContext = castFramework.CastReceiverContext.getInstance();
+        var playerManager = castContext.getPlayerManager();
+        var statusChip = document.getElementById('status-chip');
+        var slotA = document.getElementById('bridge-video-a');
+        var slotB = document.getElementById('bridge-video-b');
+
+        var state = {
+          activeSlot: 'a',
+          standbySourceUrl: null,
+          standbyReady: false,
+          activeSourceUrl: null,
+        };
+
+        var getSlots = function () {
+          if (state.activeSlot === 'a') {
+            return {
+              active: slotA,
+              standby: slotB,
+            };
+          }
+
+          return {
+            active: slotB,
+            standby: slotA,
+          };
+        };
+
+        var renderLayers = function () {
+          slotA.dataset.active = state.activeSlot === 'a' ? 'true' : 'false';
+          slotB.dataset.active = state.activeSlot === 'b' ? 'true' : 'false';
+        };
+
+        var setStatus = function (label) {
+          if (!statusChip) {
+            return;
+          }
+
+          statusChip.textContent = label;
+        };
+
+        var waitForCanPlay = function (videoElement) {
+          return new Promise(function (resolve) {
+            if (videoElement.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) {
+              resolve();
+              return;
+            }
+
+            var onCanPlay = function () {
+              videoElement.removeEventListener('canplay', onCanPlay);
+              resolve();
+            };
+
+            videoElement.addEventListener('canplay', onCanPlay, { once: true });
+          });
+        };
+
+        var loadIntoSlot = async function (videoElement, payload, options) {
+          if (!payload || typeof payload.url !== 'string' || payload.url.length === 0) {
+            throw new Error('Missing bridge source URL.');
+          }
+
+          if (videoElement.src !== payload.url) {
+            videoElement.src = payload.url;
+            videoElement.load();
+          }
+
+          await waitForCanPlay(videoElement);
+
+          if (typeof payload.startTimeSeconds === 'number' && Number.isFinite(payload.startTimeSeconds)) {
+            var safeStart = Math.max(0, payload.startTimeSeconds);
+            if (Math.abs(videoElement.currentTime - safeStart) > 1) {
+              videoElement.currentTime = safeStart;
+            }
+          }
+
+          if (options && options.play === true) {
+            try {
+              await videoElement.play();
+            } catch (_playbackError) {
+              // Browser-level autoplay limitations are ignored on Cast devices.
+            }
+          } else {
+            videoElement.pause();
+          }
+        };
+
+        var preloadStandby = async function (payload) {
+          var slots = getSlots();
+          await loadIntoSlot(slots.standby, payload, { play: false });
+          state.standbySourceUrl = payload.url;
+          state.standbyReady = true;
+          setStatus('Bridge preloaded');
+        };
+
+        var swapToStandby = async function (payload) {
+          var slots = getSlots();
+          var canSwapPreloaded = state.standbyReady && state.standbySourceUrl === payload.url;
+
+          if (!canSwapPreloaded) {
+            await loadIntoSlot(slots.standby, payload, {
+              play: payload.play !== false,
+            });
+            state.standbyReady = true;
+            state.standbySourceUrl = payload.url;
+          }
+
+          slots.active.pause();
+          state.activeSlot = state.activeSlot === 'a' ? 'b' : 'a';
+          state.activeSourceUrl = payload.url;
+          state.standbyReady = false;
+          state.standbySourceUrl = null;
+          renderLayers();
+
+          var newActive = getSlots().active;
+          if (payload.play !== false) {
+            try {
+              await newActive.play();
+            } catch (_playbackError) {
+              // Ignore device playback race; sender retries commands.
+            }
+          }
+
+          setStatus('Bridge active');
+        };
+
+        var applyPlaybackCommand = async function (command) {
+          var active = getSlots().active;
+          if (command === 'play') {
+            try {
+              await active.play();
+            } catch (_playbackError) {
+              // Cast devices should allow playback; keep flow resilient.
+            }
+            return;
+          }
+
+          if (command === 'pause') {
+            active.pause();
+            return;
+          }
+
+          if (command === 'stop') {
+            active.pause();
+            active.removeAttribute('src');
+            active.load();
+            state.activeSourceUrl = null;
+            setStatus('Bridge stopped');
+          }
+        };
+
+        var applyBridgeMessage = async function (data) {
+          if (!data || typeof data !== 'object') {
+            return;
+          }
+
+          if (data.type === 'preload') {
+            await preloadStandby(data);
+            return;
+          }
+
+          if (data.type === 'swap') {
+            await swapToStandby(data);
+            return;
+          }
+
+          if (data.type === 'seek') {
+            var active = getSlots().active;
+            if (typeof data.positionSeconds === 'number' && Number.isFinite(data.positionSeconds)) {
+              active.currentTime = Math.max(0, data.positionSeconds);
+            }
+            return;
+          }
+
+          if (data.type === 'set-volume') {
+            var volumeTarget = getSlots().active;
+            if (typeof data.level === 'number' && Number.isFinite(data.level)) {
+              volumeTarget.volume = Math.max(0, Math.min(1, data.level));
+            }
+            if (typeof data.muted === 'boolean') {
+              volumeTarget.muted = data.muted;
+            }
+            return;
+          }
+
+          if (data.type === 'play' || data.type === 'pause' || data.type === 'stop') {
+            await applyPlaybackCommand(data.type);
+          }
+        };
+
+        castContext.addCustomMessageListener(BRIDGE_NAMESPACE, function (event) {
+          Promise.resolve(applyBridgeMessage(event.data)).catch(function () {
+            setStatus('Bridge command failed');
+          });
+        });
+
+        playerManager.setMessageInterceptor(
+          castFramework.messages.MessageType.PRELOAD,
+          function (requestData) {
+            if (requestData && requestData.media && typeof requestData.media.contentId === 'string') {
+              Promise.resolve(
+                preloadStandby({
+                  type: 'preload',
+                  url: requestData.media.contentId,
+                  startTimeSeconds:
+                    typeof requestData.currentTime === 'number' ? requestData.currentTime : 0,
+                })
+              ).catch(function () {
+                setStatus('Bridge preload failed');
+              });
+            }
+
+            return requestData;
+          }
+        );
+
+        playerManager.addEventListener(castFramework.events.EventType.READY, function () {
+          setStatus('Bridge ready');
+        });
+
+        renderLayers();
+        castContext.start({
+          disableIdleTimeout: true,
+        });
+      })();
+    </script>
+  </body>
+</html>
