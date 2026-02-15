@@ -55,6 +55,8 @@ export interface BenchmarkDatasetOptions {
   channelCount?: number;
   epgEntryCount?: number;
   categoryCount?: number;
+  minEpgPerChannel?: number;
+  nowMs?: number;
 }
 
 export interface BenchmarkDataset {
@@ -98,11 +100,17 @@ export const createBenchmarkDataset = (
   options: BenchmarkDatasetOptions = {},
 ): BenchmarkDataset => {
   const channelCount = normalizeCount(options.channelCount, DEFAULT_BENCHMARK_CHANNEL_COUNT, 1);
-  const epgEntryCount = normalizeCount(options.epgEntryCount, DEFAULT_BENCHMARK_EPG_ENTRY_COUNT, 0);
+  const requestedEpgEntryCount = normalizeCount(
+    options.epgEntryCount,
+    DEFAULT_BENCHMARK_EPG_ENTRY_COUNT,
+    0,
+  );
+  const minEpgPerChannel = normalizeCount(options.minEpgPerChannel, 0, 0);
+  const epgEntryCount = Math.max(requestedEpgEntryCount, channelCount * minEpgPerChannel);
   const categoryCount = normalizeCount(options.categoryCount, 32, 1);
   const categories = buildBenchmarkCategories(categoryCount);
 
-  const nowMs = Date.now();
+  const nowMs = normalizeCount(options.nowMs, Date.now(), 0);
   const channels: Channel[] = Array.from({ length: channelCount }, (_, index) => ({
     id: `bench-ch-${index + 1}`,
     number: index + 1,
@@ -126,7 +134,8 @@ export const createBenchmarkDataset = (
     const duration =
       benchmarkDurationMinutes[(entryIndex + channelIndex) % benchmarkDurationMinutes.length];
     const endMs = startMs + duration * 60 * 1000;
-    const title = benchmarkProgramTitles[(entryIndex * 13 + channelIndex) % benchmarkProgramTitles.length];
+    const title =
+      benchmarkProgramTitles[(entryIndex * 13 + channelIndex) % benchmarkProgramTitles.length];
 
     channel.epg.push({
       id: `bench-${channel.id}-epg-${entryIndex + 1}`,
