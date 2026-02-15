@@ -1,5 +1,30 @@
 # Handoff — Lumen Player
 
+## Session 2026-02-15 — LP-0108, LP-0109, LP-0110 (ordered batch)
+
+- PRs: #70 (merged), #71 (merged), #72 (merged)
+- Done:
+  - LP-0108: Added Cast receiver entrypoint at `apps/web/public/receiver.html` (deploy path `/receiver.html`) with CAF init + dual-video bridge namespace (`urn:x-cast:com.lumenplayer.bridge`) and preload/swap/playback command handling.
+  - LP-0109: Updated Cast sender sync so renderer switching (`cast <-> local-web`) keeps session continuity:
+    - periodic remote position/playback sync from Cast media session back into `SessionStore`
+    - disconnect flow now snapshots latest Cast position before switching renderer back to local
+  - LP-0110: Added explicit phone-as-remote mode in `/player` when renderer is remote:
+    - dedicated remote control panel (play/pause, channel prev/next, on-demand seek, switch-to-local action)
+    - local overlays/controls now render only for `local-web` renderer mode
+  - Local test gate passed on each task PR:
+    - `pnpm lint`
+    - `pnpm typecheck`
+    - `pnpm build`
+  - Greptile/check comments:
+    - Greptile was pinged on each PR (`@greptileai`, `@greptile-apps`), no bot comments were returned on the latest HEAD commits
+    - GitHub PR checks were green before merge (Greptile status stayed in-progress without comment payload)
+
+- Next:
+  - LP-0111 (AirPlay control flow)
+  - LP-0010 (PWA install UI)
+
+---
+
 ## Session 2026-02-15 — LP-0318, LP-0319, LP-0320, LP-0321 (ordered batch)
 
 - PRs: #61 (merged), #62 (merged), #63 (merged), #64 (merged)
