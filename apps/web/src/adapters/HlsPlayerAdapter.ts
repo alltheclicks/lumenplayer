@@ -616,7 +616,7 @@ export class HlsPlayerAdapter implements PlayerAdapter {
         id,
         label: track.label || track.language || `Subtitle ${mappedTracks.length + 1}`,
         language: track.language || null,
-        isDefault: index === 0,
+        isDefault: mappedTracks.length === 0,
       });
 
       if (track.mode === 'showing' || track.mode === 'hidden') {
