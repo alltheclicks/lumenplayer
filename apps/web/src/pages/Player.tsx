@@ -16,6 +16,7 @@ import {
   Play,
   Pause,
   CalendarDays,
+  Settings2,
 } from 'lucide-react';
 import VideoPlayer, { type VideoPlayerHandle } from '@/components/player/VideoPlayer';
 import PlayerControls from '@/components/player/PlayerControls';
@@ -30,6 +31,11 @@ import {
   loadXtreamCredentials,
   clearXtreamCredentials,
 } from '@/services/xtreamCredentials';
+import {
+  getDefaultAppSettings,
+  loadAppSettings,
+  type AppSettings,
+} from '@/services/appSettings';
 import { xtreamCodesService } from '@/services/xtreamService';
 import { addWatchHistoryEntry } from '@/services/watchHistory';
 import {
@@ -152,6 +158,7 @@ const Player = () => {
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
   const [numericZapBuffer, setNumericZapBuffer] = useState<string | null>(null);
   const [numericZapMatchName, setNumericZapMatchName] = useState<string | null>(null);
+  const [appSettings, setAppSettings] = useState<AppSettings>(getDefaultAppSettings());
   const numericInputRef = useRef<NumericChannelInput<PlayerChannel> | null>(null);
   const watchedChannelIdRef = useRef<string | null>(null);
   const watchedStartedAtRef = useRef<number | null>(null);
@@ -320,6 +327,23 @@ const Player = () => {
       isCancelled = true;
     };
   }, [navigate]);
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    const hydrateSettings = async () => {
+      const loadedSettings = await loadAppSettings();
+      if (!isCancelled) {
+        setAppSettings(loadedSettings);
+      }
+    };
+
+    void hydrateSettings();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, []);
 
   // Set first channel when loaded
   useEffect(() => {
@@ -574,6 +598,9 @@ const Player = () => {
                 <Button variant="ghost" size="sm" onClick={() => navigate('/epg')}>
                   EPG
                 </Button>
+                <Button variant="ghost" size="sm" onClick={() => navigate('/settings')}>
+                  Settings
+                </Button>
                 <Button
                   variant="ghost"
                   size="icon"
@@ -660,7 +687,7 @@ const Player = () => {
             {session.source && (
               <VideoPlayer
                 ref={playerRef}
-                autoPlay={true}
+                autoPlay={appSettings.player.autoplay}
               />
             )}
 
@@ -677,6 +704,7 @@ const Player = () => {
                   onPrevChannel={goToPrevChannel}
                   onNextChannel={goToNextChannel}
                   playerRef={playerRef}
+                  defaultVolume={appSettings.player.defaultVolume}
                 />
               </>
             )}
@@ -722,7 +750,7 @@ const Player = () => {
 
           {/* Mobile channel selector */}
           <div className="lg:hidden p-4 border-t border-border">
-            <div className="mb-3 grid grid-cols-3 gap-2">
+            <div className="mb-3 grid grid-cols-4 gap-2">
               <Button variant="outline" size="sm" onClick={() => navigate('/vod')}>
                 <Film className="mr-1 h-4 w-4" />
                 VOD
@@ -734,6 +762,10 @@ const Player = () => {
               <Button variant="outline" size="sm" onClick={() => navigate('/epg')}>
                 <CalendarDays className="mr-1 h-4 w-4" />
                 EPG
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => navigate('/settings')}>
+                <Settings2 className="mr-1 h-4 w-4" />
+                Settings
               </Button>
             </div>
             <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
