@@ -1,5 +1,26 @@
 # Handoff — Lumen Player
 
+## Session 2026-02-15 — LP-0332, LP-0333, LP-0334 (ordered batch)
+
+- PRs: #90 (merged), #91 (merged), #92 (merged)
+- Done:
+  - LP-0332: Added push subscription persistence keyed by user/device with subscribe/unsubscribe endpoint service and Settings sync wiring.
+  - LP-0333: Added `@lumen/push-api` sender backend with VAPID env config, queue/retry delivery flow, and append-only delivery logging.
+  - LP-0334: Added service worker `push` + `notificationclick` handlers and deep-link routing into app paths.
+  - Local test gate passed on each task PR:
+    - `pnpm typecheck`
+    - `pnpm lint`
+  - Greptile/check notes:
+    - Greptile bot was pinged on each PR but did not return review comments in this repository setup.
+    - GitHub PR checks were green before each merge.
+
+- Next:
+  - LP-0327 (Performance test: time-to-first-channel < 3s with 20k dataset)
+  - LP-0328 (Performance test: memory cap < 200MB RSS with 20k dataset)
+
+---
+
+
 ## Session 2026-02-15 — LP-0011, LP-0330, LP-0331, LP-0326 (ordered batch)
 
 - PRs: #85 (merged), #86 (merged), #87 (merged), #88 (merged)
