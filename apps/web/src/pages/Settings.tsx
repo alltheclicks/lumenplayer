@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Loader2, Save, Settings2 } from 'lucide-react';
+import { ArrowLeft, Download, Loader2, Save, Settings2, Smartphone, Wifi, WifiOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
+import { usePWA } from '@/hooks/usePWA';
 import {
   applyThemePreference,
   getDefaultAppSettings,
@@ -19,6 +20,8 @@ const Settings = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
+  const [installMessage, setInstallMessage] = useState<string | null>(null);
+  const { isInstalled, isInstallable, isOnline, promptInstall, isIOS, isAndroid } = usePWA();
 
   useEffect(() => {
     let cancelled = false;
@@ -57,6 +60,18 @@ const Settings = () => {
     setSettings(defaults);
     setSaveMessage(null);
     applyThemePreference(defaults.theme);
+  };
+
+  const handleInstall = async () => {
+    setInstallMessage(null);
+    const accepted = await promptInstall();
+
+    if (accepted) {
+      setInstallMessage('Install prompt accepted.');
+      return;
+    }
+
+    setInstallMessage('Install prompt dismissed or unavailable.');
   };
 
   return (
@@ -194,6 +209,68 @@ const Settings = () => {
                       }))}
                     />
                   </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <Smartphone className="h-4 w-4" />
+                    Install App
+                  </CardTitle>
+                  <CardDescription>
+                    Install this app on your device for a full-screen, app-like experience.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    {isOnline ? (
+                      <Wifi className="h-4 w-4 text-emerald-500" />
+                    ) : (
+                      <WifiOff className="h-4 w-4 text-amber-500" />
+                    )}
+                    <span>{isOnline ? 'You are online' : 'You are offline'}</span>
+                  </div>
+
+                  {isInstalled && (
+                    <p className="text-sm text-emerald-600 dark:text-emerald-400">
+                      App is already installed on this device.
+                    </p>
+                  )}
+
+                  {!isInstalled && isInstallable && (
+                    <div className="space-y-2">
+                      <Button onClick={() => void handleInstall()}>
+                        <Download className="mr-2 h-4 w-4" />
+                        Install app
+                      </Button>
+                      <p className="text-sm text-muted-foreground">
+                        The browser will show a native install prompt.
+                      </p>
+                    </div>
+                  )}
+
+                  {!isInstalled && !isInstallable && isIOS && (
+                    <p className="text-sm text-muted-foreground">
+                      On iOS: open Share menu in Safari, then choose "Add to Home Screen".
+                    </p>
+                  )}
+
+                  {!isInstalled && !isInstallable && isAndroid && (
+                    <p className="text-sm text-muted-foreground">
+                      Install becomes available after browsing this app for a short time in Chrome.
+                    </p>
+                  )}
+
+                  {!isInstalled && !isInstallable && !isIOS && !isAndroid && (
+                    <p className="text-sm text-muted-foreground">
+                      Install prompt is not available on this browser/device.
+                    </p>
+                  )}
+
+                  {installMessage && (
+                    <p className="text-sm text-muted-foreground">{installMessage}</p>
+                  )}
                 </CardContent>
               </Card>
 
