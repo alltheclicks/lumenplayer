@@ -484,6 +484,9 @@ const Player = () => {
 
     void playerRef.current?.togglePictureInPicture();
   }, [isPictureInPictureSupported, session.source, usesLocalRenderer]);
+  const canTogglePictureInPicture = Boolean(
+    session.source && usesLocalRenderer && isPictureInPictureSupported
+  );
 
   const openAirPlayPicker = useCallback(() => {
     if (!isAirPlaySupported) {
@@ -618,6 +621,9 @@ const Player = () => {
           return;
         case WebKeyCodes.blue:
         case PICTURE_IN_PICTURE_KEY_CODE:
+          if (!canTogglePictureInPicture) {
+            return;
+          }
           event.preventDefault();
           togglePictureInPicture();
           return;
@@ -640,6 +646,7 @@ const Player = () => {
     goToNextChannel,
     goToPrevChannel,
     isFullscreen,
+    canTogglePictureInPicture,
     togglePictureInPicture,
     toggleFullscreen,
     togglePlayback,

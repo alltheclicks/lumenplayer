@@ -858,6 +858,7 @@ const PlayerControls = ({
                 variant="ghost"
                 size="icon"
                 className={`hover:bg-secondary/50 ${isPictureInPicture ? 'text-primary' : ''}`}
+                title="Picture in Picture (P / Blue key)"
                 onClick={handleTogglePictureInPicture}
               >
                 <PictureInPicture2 className="w-5 h-5" />
@@ -1375,6 +1376,7 @@ const PlayerControls = ({
                   variant="ghost"
                   size="icon"
                   className={`w-9 h-9 sm:w-10 sm:h-10 hover:bg-secondary/50 ${isPictureInPicture ? 'text-primary' : ''}`}
+                  title="Picture in Picture (P / Blue key)"
                   onClick={(e) => {
                     e.stopPropagation();
                     handleTogglePictureInPicture();
