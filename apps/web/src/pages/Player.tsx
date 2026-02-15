@@ -15,6 +15,7 @@ import {
   Film,
   Play,
   Pause,
+  PictureInPicture2,
   CalendarDays,
   Settings2,
 } from 'lucide-react';
@@ -159,6 +160,8 @@ const Player = () => {
   const [numericZapBuffer, setNumericZapBuffer] = useState<string | null>(null);
   const [numericZapMatchName, setNumericZapMatchName] = useState<string | null>(null);
   const [appSettings, setAppSettings] = useState<AppSettings>(getDefaultAppSettings());
+  const [isPictureInPictureSupported, setIsPictureInPictureSupported] = useState(false);
+  const [isPictureInPicture, setIsPictureInPicture] = useState(false);
   const numericInputRef = useRef<NumericChannelInput<PlayerChannel> | null>(null);
   const watchedChannelIdRef = useRef<string | null>(null);
   const watchedStartedAtRef = useRef<number | null>(null);
@@ -461,6 +464,37 @@ const Player = () => {
     commands.play();
   }, [commands, session.playback, session.source]);
 
+  const togglePictureInPicture = useCallback(() => {
+    if (!isPictureInPictureSupported) {
+      return;
+    }
+
+    void playerRef.current?.togglePictureInPicture();
+  }, [isPictureInPictureSupported]);
+
+  useEffect(() => {
+    if (!session.source) {
+      setIsPictureInPicture(false);
+      setIsPictureInPictureSupported(false);
+      return;
+    }
+
+    const player = playerRef.current;
+    if (!player) {
+      setIsPictureInPicture(false);
+      setIsPictureInPictureSupported(false);
+      return;
+    }
+
+    setIsPictureInPictureSupported(player.isPictureInPictureSupported());
+    setIsPictureInPicture(player.isPictureInPicture());
+
+    return player.onPictureInPictureChange((inPictureInPicture) => {
+      setIsPictureInPicture(inPictureInPicture);
+      setIsPictureInPictureSupported(player.isPictureInPictureSupported());
+    });
+  }, [session.source]);
+
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.metaKey || event.ctrlKey || event.altKey || isTypingTarget(event.target)) {
@@ -734,6 +768,12 @@ const Player = () => {
                       )}
                       {session.playback === 'playing' || session.playback === 'buffering' ? 'Pause' : 'Play'}
                     </Button>
+                    {isPictureInPictureSupported && (
+                      <Button variant="outline" onClick={togglePictureInPicture}>
+                        <PictureInPicture2 className="mr-2 h-4 w-4" />
+                        {isPictureInPicture ? 'Exit PiP' : 'PiP'}
+                      </Button>
+                    )}
                     <Button variant="outline" onClick={() => navigate(onDemandBackPath)}>
                       {onDemandBackLabel}
                     </Button>

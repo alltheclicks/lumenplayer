@@ -39,6 +39,12 @@ export interface VideoPlayerHandle {
   onSubtitleTracksChange: (
     callback: (tracks: SubtitleTrackOption[], selectedTrackId: string | null) => void
   ) => () => void;
+  isPictureInPictureSupported: () => boolean;
+  isPictureInPicture: () => boolean;
+  enterPictureInPicture: () => Promise<boolean>;
+  exitPictureInPicture: () => Promise<boolean>;
+  togglePictureInPicture: () => Promise<boolean>;
+  onPictureInPictureChange: (callback: (isInPictureInPicture: boolean) => void) => () => void;
 }
 
 type PlayerError = {
@@ -50,6 +56,37 @@ type PlayerError = {
 const wantsPlayback = (session: SessionState): boolean => (
   session.playback === 'playing' || session.playback === 'buffering'
 );
+
+type WebKitPictureInPictureVideoElement = HTMLVideoElement & {
+  webkitSupportsPresentationMode?: (mode: string) => boolean;
+  webkitSetPresentationMode?: (mode: string) => void;
+  webkitPresentationMode?: string;
+};
+
+const canUseStandardPictureInPicture = (video: HTMLVideoElement): boolean => (
+  typeof document !== 'undefined' &&
+  document.pictureInPictureEnabled &&
+  typeof video.requestPictureInPicture === 'function' &&
+  !video.disablePictureInPicture
+);
+
+const canUseWebKitPictureInPicture = (
+  video: WebKitPictureInPictureVideoElement
+): boolean => (
+  typeof video.webkitSetPresentationMode === 'function' &&
+  typeof video.webkitSupportsPresentationMode === 'function' &&
+  video.webkitSupportsPresentationMode('picture-in-picture')
+);
+
+const isVideoInPictureInPicture = (
+  video: WebKitPictureInPictureVideoElement
+): boolean => {
+  const isStandardPictureInPicture =
+    typeof document !== 'undefined' &&
+    document.pictureInPictureElement === video;
+  const isWebKitPictureInPicture = video.webkitPresentationMode === 'picture-in-picture';
+  return isStandardPictureInPicture || isWebKitPictureInPicture;
+};
 
 const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
   poster,
@@ -70,7 +107,83 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<PlayerError | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isPictureInPicture, setIsPictureInPicture] = useState(false);
+  const pictureInPictureListenersRef = useRef(new Set<(isInPictureInPicture: boolean) => void>());
   const playbackWantsPlaying = wantsPlayback(session);
+
+  useEffect(() => {
+    pictureInPictureListenersRef.current.forEach((listener) => {
+      listener(isPictureInPicture);
+    });
+  }, [isPictureInPicture]);
+
+  const isPictureInPictureSupported = useCallback((): boolean => {
+    const video = videoRef.current as WebKitPictureInPictureVideoElement | null;
+    if (!video) {
+      return false;
+    }
+
+    return canUseStandardPictureInPicture(video) || canUseWebKitPictureInPicture(video);
+  }, []);
+
+  const enterPictureInPicture = useCallback(async (): Promise<boolean> => {
+    const video = videoRef.current as WebKitPictureInPictureVideoElement | null;
+    if (!video) {
+      return false;
+    }
+
+    try {
+      if (canUseStandardPictureInPicture(video)) {
+        await video.requestPictureInPicture();
+        return true;
+      }
+
+      if (canUseWebKitPictureInPicture(video)) {
+        video.webkitSetPresentationMode?.('picture-in-picture');
+        return true;
+      }
+    } catch {
+      return false;
+    }
+
+    return false;
+  }, []);
+
+  const exitPictureInPicture = useCallback(async (): Promise<boolean> => {
+    const video = videoRef.current as WebKitPictureInPictureVideoElement | null;
+    if (!video) {
+      return false;
+    }
+
+    try {
+      if (typeof document !== 'undefined' && document.pictureInPictureElement === video) {
+        await document.exitPictureInPicture();
+        return true;
+      }
+
+      if (video.webkitPresentationMode === 'picture-in-picture' && video.webkitSetPresentationMode) {
+        video.webkitSetPresentationMode('inline');
+        return true;
+      }
+    } catch {
+      return false;
+    }
+
+    return false;
+  }, []);
+
+  const togglePictureInPicture = useCallback(async (): Promise<boolean> => {
+    const video = videoRef.current as WebKitPictureInPictureVideoElement | null;
+    if (!video || !isPictureInPictureSupported()) {
+      return false;
+    }
+
+    if (isVideoInPictureInPicture(video)) {
+      return exitPictureInPicture();
+    }
+
+    return enterPictureInPicture();
+  }, [enterPictureInPicture, exitPictureInPicture, isPictureInPictureSupported]);
 
   useEffect(() => {
     sessionRef.current = session;
@@ -114,6 +227,18 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
     onSubtitleTracksChange: (callback) => (
       adapterRef.current?.onSubtitleTracksChange?.(callback) ?? (() => {})
     ),
+    isPictureInPictureSupported: () => isPictureInPictureSupported(),
+    isPictureInPicture: () => isPictureInPicture,
+    enterPictureInPicture: () => enterPictureInPicture(),
+    exitPictureInPicture: () => exitPictureInPicture(),
+    togglePictureInPicture: () => togglePictureInPicture(),
+    onPictureInPictureChange: (callback) => {
+      pictureInPictureListenersRef.current.add(callback);
+      callback(isPictureInPicture);
+      return () => {
+        pictureInPictureListenersRef.current.delete(callback);
+      };
+    },
   }));
 
   const mapPlaybackError = useCallback((playbackError: PlaybackError): PlayerError => {
@@ -261,6 +386,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
     lastReportedPositionMsRef.current = null;
 
     if (!src) {
+      void exitPictureInPicture();
       setError(null);
       setIsLoading(false);
       setIsPlaying(false);
@@ -303,7 +429,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
     return () => {
       cancelled = true;
     };
-  }, [autoPlay, onCanPlay, onError, src]);
+  }, [autoPlay, exitPictureInPicture, onCanPlay, onError, src]);
 
   useEffect(() => {
     const adapter = adapterRef.current;
@@ -339,6 +465,28 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
 
     adapter.pause();
   }, [playbackWantsPlaying, session.source]);
+
+  useEffect(() => {
+    const video = videoRef.current as WebKitPictureInPictureVideoElement | null;
+    if (!video) {
+      return;
+    }
+
+    const updatePictureInPictureState = () => {
+      setIsPictureInPicture(isVideoInPictureInPicture(video));
+    };
+
+    updatePictureInPictureState();
+    video.addEventListener('enterpictureinpicture', updatePictureInPictureState);
+    video.addEventListener('leavepictureinpicture', updatePictureInPictureState);
+    video.addEventListener('webkitpresentationmodechanged', updatePictureInPictureState);
+
+    return () => {
+      video.removeEventListener('enterpictureinpicture', updatePictureInPictureState);
+      video.removeEventListener('leavepictureinpicture', updatePictureInPictureState);
+      video.removeEventListener('webkitpresentationmodechanged', updatePictureInPictureState);
+    };
+  }, []);
 
   const ErrorDisplay = ({ error }: { error: PlayerError }) => {
     const Icon = error.type === 'mixed-content' ? ShieldAlert
