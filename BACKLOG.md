@@ -141,15 +141,15 @@
 
 | ID | Task | Size | Status | Depends on |
 |----|------|------|--------|------------|
-| LP-0318 | EPG grid view (TV guide style, horizontal timeline) | L | idea | — |
-| LP-0319 | XMLTV bulk EPG import + caching | M | idea | LP-0304 |
+| LP-0318 | EPG grid view (TV guide style, horizontal timeline) | L | done | — |
+| LP-0319 | XMLTV bulk EPG import + caching | M | done | LP-0304 |
 
 ### UI features
 
 | ID | Task | Size | Status | Depends on |
 |----|------|------|--------|------------|
-| LP-0320 | Settings page (theme, language, player preferences) | M | idea | — |
-| LP-0321 | Multi-audio track selection in player | S | idea | LP-0012 |
+| LP-0320 | Settings page (theme, language, player preferences) | M | done | — |
+| LP-0321 | Multi-audio track selection in player | S | done | LP-0012 |
 | LP-0322 | Subtitle track selection in player | S | idea | LP-0012 |
 | LP-0323 | Picture-in-Picture support | S | idea | — |
 
