@@ -56,6 +56,7 @@ export default defineConfig({
       },
       workbox: {
         mode: pwaWorkboxMode,
+        importScripts: ["sw-push-handlers.js"],
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff,woff2}"],
         runtimeCaching: [
           {
