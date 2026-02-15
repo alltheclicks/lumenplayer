@@ -13,6 +13,10 @@ import {
   type PushSupportStatus,
 } from '@/services/pushCompatibility';
 import {
+  syncPushSubscriptionWithBackend,
+  unsubscribePushSubscriptionFromBackend,
+} from '@/services/pushSubscriptionClient';
+import {
   applyThemePreference,
   getDefaultAppSettings,
   loadAppSettings,
@@ -75,6 +79,7 @@ const Settings = () => {
     getNotificationPermission()
   );
   const [pushOptInMessage, setPushOptInMessage] = useState<string | null>(null);
+  const [isSyncingPushSubscription, setIsSyncingPushSubscription] = useState(false);
   const [showPermissionPromptStep, setShowPermissionPromptStep] = useState(false);
   const pushMatrix = getPushCompatibilityMatrix();
   const { isInstalled, isInstallable, isOnline, promptInstall, isIOS, isAndroid } = usePWA();
@@ -170,7 +175,14 @@ const Settings = () => {
       setPushCompatibility(evaluatePushCompatibility());
 
       if (result === 'granted') {
-        setPushOptInMessage('Notifications enabled. Device subscription wiring is handled in backend task phase.');
+        setIsSyncingPushSubscription(true);
+        const syncResult = await syncPushSubscriptionWithBackend();
+        setIsSyncingPushSubscription(false);
+        if (syncResult.ok) {
+          setPushOptInMessage('Notifications enabled and device subscription synced.');
+        } else {
+          setPushOptInMessage(`Notifications enabled, but backend sync is pending: ${syncResult.reason}`);
+        }
         return;
       }
 
@@ -181,7 +193,28 @@ const Settings = () => {
 
       setPushOptInMessage('Permission prompt dismissed. You can retry anytime.');
     } catch {
+      setIsSyncingPushSubscription(false);
       setPushOptInMessage('Failed to request notification permission. Try again.');
+    }
+  };
+
+  const handleDisablePush = async () => {
+    setPushOptInMessage(null);
+    setIsSyncingPushSubscription(true);
+
+    try {
+      const result = await unsubscribePushSubscriptionFromBackend();
+      if (result.ok) {
+        setPushOptInMessage('Device unsubscribed from push notifications.');
+      } else {
+        setPushOptInMessage(result.reason ?? 'Failed to unsubscribe from push notifications.');
+      }
+    } catch {
+      setPushOptInMessage('Failed to unsubscribe from push notifications.');
+    } finally {
+      setIsSyncingPushSubscription(false);
+      setPushPermission(getNotificationPermission());
+      setPushCompatibility(evaluatePushCompatibility());
     }
   };
 
@@ -484,9 +517,14 @@ const Settings = () => {
                   )}
 
                   {pushCompatibility.status === 'supported' && pushPermission === 'granted' && (
-                    <p className="text-sm text-emerald-600 dark:text-emerald-400">
-                      Notification permission is active on this device.
-                    </p>
+                    <div className="space-y-2">
+                      <p className="text-sm text-emerald-600 dark:text-emerald-400">
+                        Notification permission is active on this device.
+                      </p>
+                      <Button variant="outline" onClick={() => void handleDisablePush()} disabled={isSyncingPushSubscription}>
+                        {isSyncingPushSubscription ? 'Updating subscription...' : 'Disable push for this device'}
+                      </Button>
+                    </div>
                   )}
 
                   {pushCompatibility.status === 'supported' && pushPermission === 'denied' && (
