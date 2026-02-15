@@ -4,6 +4,7 @@ import { useSessionContext } from '@/context/session-context';
 import { HlsPlayerAdapter } from '@/adapters/HlsPlayerAdapter';
 import type { PlaybackError } from '@lumen/types';
 import type { AudioTrackOption } from '@lumen/types';
+import type { SubtitleTrackOption } from '@lumen/types';
 import type { SessionState } from '@lumen/session-core';
 
 export interface VideoPlayerProps {
@@ -31,6 +32,12 @@ export interface VideoPlayerHandle {
   setAudioTrack: (trackId: string) => boolean;
   onAudioTracksChange: (
     callback: (tracks: AudioTrackOption[], selectedTrackId: string | null) => void
+  ) => () => void;
+  getSubtitleTracks: () => SubtitleTrackOption[];
+  getSelectedSubtitleTrackId: () => string | null;
+  setSubtitleTrack: (trackId: string | null) => boolean;
+  onSubtitleTracksChange: (
+    callback: (tracks: SubtitleTrackOption[], selectedTrackId: string | null) => void
   ) => () => void;
 }
 
@@ -96,6 +103,16 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
     setAudioTrack: (trackId: string) => adapterRef.current?.setAudioTrack?.(trackId) ?? false,
     onAudioTracksChange: (callback) => (
       adapterRef.current?.onAudioTracksChange?.(callback) ?? (() => {})
+    ),
+    getSubtitleTracks: () => adapterRef.current?.getSubtitleTracks?.() || [],
+    getSelectedSubtitleTrackId: () => (
+      adapterRef.current?.getSelectedSubtitleTrackId?.() || null
+    ),
+    setSubtitleTrack: (trackId: string | null) => (
+      adapterRef.current?.setSubtitleTrack?.(trackId) ?? false
+    ),
+    onSubtitleTracksChange: (callback) => (
+      adapterRef.current?.onSubtitleTracksChange?.(callback) ?? (() => {})
     ),
   }));
 
