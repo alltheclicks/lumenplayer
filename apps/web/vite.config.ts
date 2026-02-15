@@ -14,7 +14,17 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: "autoUpdate",
-      includeAssets: ["favicon.svg", "apple-touch-icon.png", "pwa-192x192.png", "pwa-512x512.png"],
+      includeAssets: [
+        "favicon.svg",
+        "apple-touch-icon.png",
+        "pwa-192x192.png",
+        "pwa-512x512.png",
+        "pwa-maskable-512x512.png",
+        "apple-splash-1179x2556.png",
+        "apple-splash-1290x2796.png",
+        "apple-splash-1536x2048.png",
+        "apple-splash-1668x2388.png",
+      ],
       manifest: {
         name: "IPTV Player",
         short_name: "IPTV",
@@ -37,7 +47,7 @@ export default defineConfig({
             type: "image/png",
           },
           {
-            src: "pwa-512x512.png",
+            src: "pwa-maskable-512x512.png",
             sizes: "512x512",
             type: "image/png",
             purpose: "maskable",
