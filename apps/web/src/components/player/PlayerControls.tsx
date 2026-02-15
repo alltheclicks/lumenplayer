@@ -283,12 +283,19 @@ const PlayerControls = ({
       return;
     }
 
+    const unsubscribe = playerRef.current?.onAudioTracksChange((tracks, selectedTrackId) => {
+      setAudioTracks(tracks);
+      setSelectedAudioTrackId(selectedTrackId);
+      if (tracks.length <= 1) {
+        setShowAudioTracks(false);
+      }
+    }) ?? (() => {});
+
     syncAudioTracks();
-    const timer = window.setInterval(syncAudioTracks, 1500);
     return () => {
-      window.clearInterval(timer);
+      unsubscribe();
     };
-  }, [session.source, syncAudioTracks]);
+  }, [playerRef, session.source, syncAudioTracks]);
 
   const handleMouseMove = useCallback(() => {
     resetControlsIdleTimer();

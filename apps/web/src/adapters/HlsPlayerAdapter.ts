@@ -12,6 +12,7 @@ const HLS_MIME_TYPE = 'application/vnd.apple.mpegurl';
 type StateListener = (state: PlaybackState) => void;
 type ErrorListener = (error: PlaybackError) => void;
 type TimeListener = (time: number) => void;
+type AudioTracksListener = (tracks: AudioTrackOption[], selectedTrackId: string | null) => void;
 
 interface HlsPlayerAdapterOptions {
   preferNativeHls?: boolean;
@@ -38,6 +39,7 @@ export class HlsPlayerAdapter implements PlayerAdapter {
   private readonly stateListeners = new Set<StateListener>();
   private readonly errorListeners = new Set<ErrorListener>();
   private readonly timeListeners = new Set<TimeListener>();
+  private readonly audioTracksListeners = new Set<AudioTracksListener>();
   private readonly removeVideoListeners: () => void;
 
   constructor(video: HTMLVideoElement, options: HlsPlayerAdapterOptions = {}) {
@@ -95,6 +97,7 @@ export class HlsPlayerAdapter implements PlayerAdapter {
     this.video.load();
     this.audioTracks = [];
     this.selectedAudioTrackId = null;
+    this.emitAudioTracksChange();
     this.updateState('idle');
   }
 
@@ -105,6 +108,7 @@ export class HlsPlayerAdapter implements PlayerAdapter {
     this.stateListeners.clear();
     this.errorListeners.clear();
     this.timeListeners.clear();
+    this.audioTracksListeners.clear();
   }
 
   getCurrentTime(): number {
@@ -148,6 +152,7 @@ export class HlsPlayerAdapter implements PlayerAdapter {
       }
       this.hls.audioTrack = hlsIndex;
       this.selectedAudioTrackId = trackId;
+      this.emitAudioTracksChange();
       return true;
     }
 
@@ -162,7 +167,6 @@ export class HlsPlayerAdapter implements PlayerAdapter {
         nativeAudioTracks[index].enabled = index === nativeIndex;
       }
 
-      this.selectedAudioTrackId = trackId;
       this.syncNativeAudioTracks();
       return true;
     }
@@ -183,6 +187,12 @@ export class HlsPlayerAdapter implements PlayerAdapter {
   onTimeUpdate(callback: TimeListener): () => void {
     this.timeListeners.add(callback);
     return () => this.timeListeners.delete(callback);
+  }
+
+  onAudioTracksChange(callback: AudioTracksListener): () => void {
+    this.audioTracksListeners.add(callback);
+    callback(this.audioTracks, this.selectedAudioTrackId);
+    return () => this.audioTracksListeners.delete(callback);
   }
 
   private async loadHlsSource(url: string): Promise<void> {
@@ -374,6 +384,7 @@ export class HlsPlayerAdapter implements PlayerAdapter {
     if (!this.hls) {
       this.audioTracks = [];
       this.selectedAudioTrackId = null;
+      this.emitAudioTracksChange();
       return;
     }
 
@@ -386,6 +397,7 @@ export class HlsPlayerAdapter implements PlayerAdapter {
 
     const safeSelectedIndex = selectedIndex >= 0 ? selectedIndex : 0;
     this.selectedAudioTrackId = this.audioTracks[safeSelectedIndex]?.id ?? null;
+    this.emitAudioTracksChange();
   }
 
   private syncNativeAudioTracks(): void {
@@ -393,6 +405,7 @@ export class HlsPlayerAdapter implements PlayerAdapter {
     if (!nativeAudioTracks || nativeAudioTracks.length === 0) {
       this.audioTracks = [];
       this.selectedAudioTrackId = null;
+      this.emitAudioTracksChange();
       return;
     }
 
@@ -416,6 +429,7 @@ export class HlsPlayerAdapter implements PlayerAdapter {
 
     this.audioTracks = mappedTracks;
     this.selectedAudioTrackId = selectedId ?? mappedTracks[0]?.id ?? null;
+    this.emitAudioTracksChange();
   }
 
   private getNativeAudioTracks(): NativeAudioTrackListLike | null {
@@ -434,6 +448,12 @@ export class HlsPlayerAdapter implements PlayerAdapter {
     }
 
     return numericIndex;
+  }
+
+  private emitAudioTracksChange(): void {
+    this.audioTracksListeners.forEach((listener) => {
+      listener(this.audioTracks, this.selectedAudioTrackId);
+    });
   }
 }
 

@@ -29,6 +29,9 @@ export interface VideoPlayerHandle {
   getAudioTracks: () => AudioTrackOption[];
   getSelectedAudioTrackId: () => string | null;
   setAudioTrack: (trackId: string) => boolean;
+  onAudioTracksChange: (
+    callback: (tracks: AudioTrackOption[], selectedTrackId: string | null) => void
+  ) => () => void;
 }
 
 type PlayerError = {
@@ -91,6 +94,9 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
     getAudioTracks: () => adapterRef.current?.getAudioTracks?.() || [],
     getSelectedAudioTrackId: () => adapterRef.current?.getSelectedAudioTrackId?.() || null,
     setAudioTrack: (trackId: string) => adapterRef.current?.setAudioTrack?.(trackId) ?? false,
+    onAudioTracksChange: (callback) => (
+      adapterRef.current?.onAudioTracksChange?.(callback) ?? (() => {})
+    ),
   }));
 
   const mapPlaybackError = useCallback((playbackError: PlaybackError): PlayerError => {

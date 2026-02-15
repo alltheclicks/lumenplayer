@@ -272,6 +272,9 @@ export interface PlayerAdapter {
   onStateChange(callback: (state: PlaybackState) => void): () => void;
   onError(callback: (error: PlaybackError) => void): () => void;
   onTimeUpdate(callback: (time: number) => void): () => void;
+  onAudioTracksChange?(
+    callback: (tracks: AudioTrackOption[], selectedTrackId: string | null) => void
+  ): () => void;
   getAudioTracks?(): AudioTrackOption[];
   getSelectedAudioTrackId?(): string | null;
   setAudioTrack?(trackId: string): boolean;
