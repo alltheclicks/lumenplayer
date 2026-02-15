@@ -99,6 +99,8 @@
           standbySourceUrl: null,
           standbyReady: false,
           activeSourceUrl: null,
+          muted: false,
+          volumeLevel: 1,
         };
 
         var getSlots = function () {
@@ -118,6 +120,12 @@
         var renderLayers = function () {
           slotA.dataset.active = state.activeSlot === 'a' ? 'true' : 'false';
           slotB.dataset.active = state.activeSlot === 'b' ? 'true' : 'false';
+
+          var slots = getSlots();
+          slots.active.muted = state.muted;
+          slots.active.volume = state.volumeLevel;
+          slots.standby.muted = true;
+          slots.standby.volume = state.volumeLevel;
         };
 
         var setStatus = function (label) {
@@ -136,7 +144,6 @@
             }
 
             var onCanPlay = function () {
-              videoElement.removeEventListener('canplay', onCanPlay);
               resolve();
             };
 
@@ -264,10 +271,12 @@
           if (data.type === 'set-volume') {
             var volumeTarget = getSlots().active;
             if (typeof data.level === 'number' && Number.isFinite(data.level)) {
-              volumeTarget.volume = Math.max(0, Math.min(1, data.level));
+              state.volumeLevel = Math.max(0, Math.min(1, data.level));
+              volumeTarget.volume = state.volumeLevel;
             }
             if (typeof data.muted === 'boolean') {
-              volumeTarget.muted = data.muted;
+              state.muted = data.muted;
+              volumeTarget.muted = state.muted;
             }
             return;
           }
