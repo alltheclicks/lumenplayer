@@ -47,6 +47,19 @@ export default defineConfig({
       workbox: {
         mode: pwaWorkboxMode,
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff,woff2}"],
+        runtimeCaching: [
+          {
+            urlPattern: ({ request }) => request.mode === "navigate",
+            handler: "NetworkFirst",
+            options: {
+              cacheName: "page-cache",
+              networkTimeoutSeconds: 3,
+              precacheFallback: {
+                fallbackURL: "/offline.html",
+              },
+            },
+          },
+        ],
       },
     }),
   ],
