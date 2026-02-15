@@ -150,8 +150,8 @@
 |----|------|------|--------|------------|
 | LP-0320 | Settings page (theme, language, player preferences) | M | done | — |
 | LP-0321 | Multi-audio track selection in player | S | done | LP-0012 |
-| LP-0322 | Subtitle track selection in player | S | idea | LP-0012 |
-| LP-0323 | Picture-in-Picture support | S | idea | — |
+| LP-0322 | Subtitle track selection in player | S | done | LP-0012 |
+| LP-0323 | Picture-in-Picture support | S | done | — |
 
 ---
 
@@ -159,7 +159,7 @@
 
 | ID | Task | Size | Status | Depends on |
 |----|------|------|--------|------------|
-| LP-0107 | Implement Google Cast sender flow in web app | M | idea | LP-0106 |
+| LP-0107 | Implement Google Cast sender flow in web app | M | done | LP-0106 |
 | LP-0108 | Implement Cast receiver app (HTML + dual-video player bridge) at `cast.lumenplayer.com` | M | done | LP-0106 |
 | LP-0109 | Add `switchRenderer(local <-> cast)` without session reset | M | done | LP-0107, LP-0108 |
 | LP-0110 | Add phone-as-remote UI mode when renderer is remote | S | done | LP-0109 |
@@ -180,7 +180,7 @@
 |----|------|------|--------|------------|
 | LP-0010 | PWA install UI — wire existing `usePWA` hook, add install prompt + button | S | done | — |
 | LP-0324 | PWA offline fallback page | S | done | — |
-| LP-0325 | PWA app icon + splash screen assets | S | idea | — |
+| LP-0325 | PWA app icon + splash screen assets | S | done | — |
 | LP-0011 | Code-splitting: lazy load Player page | S | idea | — |
 | LP-0330 | Web Push compatibility spike — verify iOS Home Screen PWA flow (iOS/iPadOS 16.4+), Android browser matrix, and unsupported TV browser behavior | S | idea | LP-0010 |
 | LP-0331 | Add push opt-in UX (pre-permission screen + user-gesture prompt) with explicit unsupported-device fallback copy | S | idea | LP-0330 |

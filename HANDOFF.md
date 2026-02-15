@@ -1,5 +1,30 @@
 # Handoff — Lumen Player
 
+## Session 2026-02-15 — LP-0322, LP-0323, LP-0107, LP-0325 (ordered batch)
+
+- PRs: #80 (merged), #81 (merged), #82 (merged), #83 (merged)
+- Done:
+  - LP-0322: Hardened subtitle track selection reliability (native add/remove/change track events + active subtitle label hints in controls).
+  - LP-0323: Completed Picture-in-Picture support UX polish (keyboard/remote shortcuts, renderer guards, PiP hint consistency).
+  - LP-0107: Finalized Google Cast sender flow correctness (fixed cast->session playback sync direction) and surfaced Cast errors via player toasts.
+  - LP-0325: Added production PWA icon/splash asset set (favicon, apple-touch, 192/512/maskable icons, iOS startup splash variants) and wired them in app head + manifest assets.
+  - Local test gate passed on each task PR:
+    - pnpm lint
+    - pnpm typecheck
+    - pnpm build
+  - Greptile/check comments:
+    - #80: Greptile/checks green, no actionable comments
+    - #81: addressed 2 Greptile comments in follow-up commit; final checks green
+    - #82: addressed 1 Greptile comment in follow-up commit; final checks green
+    - #83: Greptile/checks green, no actionable comments
+
+- Next:
+  - LP-0011 (Code-splitting: lazy load Player page)
+  - LP-0330 (Web Push compatibility spike)
+
+---
+
+
 ## Session 2026-02-15 — LP-0111, LP-0010, LP-0324 (ordered batch)
 
 - PRs: #76 (merged), #77 (merged), #78 (merged)
