@@ -395,8 +395,12 @@ export class HlsPlayerAdapter implements PlayerAdapter {
       isDefault: Boolean(track.default),
     }));
 
-    const safeSelectedIndex = selectedIndex >= 0 ? selectedIndex : 0;
-    this.selectedAudioTrackId = this.audioTracks[safeSelectedIndex]?.id ?? null;
+    const safeSelectedIndex = (
+      selectedIndex >= 0 && selectedIndex < this.audioTracks.length
+    ) ? selectedIndex : 0;
+    this.selectedAudioTrackId = this.audioTracks.length > 0
+      ? this.audioTracks[safeSelectedIndex]?.id ?? null
+      : null;
     this.emitAudioTracksChange();
   }
 
