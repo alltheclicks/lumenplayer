@@ -119,4 +119,25 @@ describe('V1 security/privacy baseline template', () => {
 
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
+
+  it('fails template validation when prohibitedPatterns are missing', () => {
+    const repoRoot = process.cwd();
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-0345-security-'));
+    const invalidPath = path.join(tmpDir, 'invalid-template.json');
+
+    const invalidBaseline = loadTemplate() as SecurityBaseline & {
+      clientStorage: SecurityBaseline['clientStorage'] & {
+        prohibitedPatterns?: string[];
+      };
+    };
+    invalidBaseline.clientStorage.prohibitedPatterns = [];
+
+    fs.writeFileSync(invalidPath, `${JSON.stringify(invalidBaseline, null, 2)}\n`);
+
+    const result = runValidator([invalidPath], repoRoot);
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain('clientStorage.prohibitedPatterns must be a non-empty array');
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
 });

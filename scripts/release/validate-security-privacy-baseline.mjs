@@ -53,8 +53,22 @@ if (typeof baseline.clientStorage.namespacedStorePrefix !== 'string' || baseline
   fail('clientStorage.namespacedStorePrefix is required.');
 }
 
+if (typeof baseline.clientStorage.encryptionAtRest !== 'string' || baseline.clientStorage.encryptionAtRest.trim() === '') {
+  fail('clientStorage.encryptionAtRest is required.');
+}
+
 if (!Array.isArray(baseline.clientStorage.allowedKeys) || baseline.clientStorage.allowedKeys.length === 0) {
   fail('clientStorage.allowedKeys must be a non-empty array.');
+}
+
+if (!Array.isArray(baseline.clientStorage.prohibitedPatterns) || baseline.clientStorage.prohibitedPatterns.length === 0) {
+  fail('clientStorage.prohibitedPatterns must be a non-empty array.');
+}
+
+for (const pattern of baseline.clientStorage.prohibitedPatterns) {
+  if (typeof pattern !== 'string' || pattern.trim() === '') {
+    fail('clientStorage.prohibitedPatterns must contain non-empty strings.');
+  }
 }
 
 const seenStorageKeys = new Set();
