@@ -1,5 +1,30 @@
 # Handoff — Lumen Player
 
+## Session 2026-02-16 — TST-003 (single-task PR + docs sync)
+
+- PR: #117 (merged)
+- Done:
+  - Fixed VOD startup handoff play/pause oscillation risk in `VideoPlayer`:
+    - keep pending autoplay startup guard active for recoverable (non-fatal) playback-start errors
+    - clear pending autoplay guard only on fatal playback errors
+  - Added focused autoplay-clear policy unit test:
+    - `apps/web/src/components/player/videoPlaybackSync.ts`
+    - `apps/web/src/components/player/videoPlaybackSync.test.ts`
+  - Local test gate passed:
+    - `pnpm vitest run apps/web/src/components/player/videoPlaybackSync.test.ts`
+    - `pnpm lint`
+    - `pnpm typecheck`
+    - `pnpm build`
+  - Greptile/check notes:
+    - Greptile review check-run started on #117.
+    - After 2 pings (`@greptile-apps`, `@greptileai`) final score was not returned; required PR note comment posted before merge.
+    - GitHub PR checks were green before merge (`web-quality`, `automation-scripts`).
+
+- Next:
+  - Continue with next V1 test backlog item by priority (`TST-004`).
+
+---
+
 ## Session 2026-02-16 — TST-002 (single-task PR + docs sync)
 
 - PR: #115 (merged)
