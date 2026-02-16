@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { SessionState } from '@lumen/session-core';
 import type { SessionCommands } from '@/hooks/useSessionCommands';
+import { emitWebObservabilityEvent } from '@/services/observability';
 
 const GOOGLE_CAST_SCRIPT_ID = 'lumen-google-cast-sdk';
 const GOOGLE_CAST_SCRIPT_SRC =
@@ -228,6 +229,7 @@ export const useGoogleCastSender = ({
   const [syncRetryTick, setSyncRetryTick] = useState(0);
   const lastLoadedSourceUrlRef = useRef<string | null>(null);
   const lastSyncedCastPositionMsRef = useRef<number | null>(null);
+  const lastObservedCastErrorRef = useRef<string | null>(null);
 
   useEffect(() => {
     sessionRef.current = session;
@@ -299,6 +301,16 @@ export const useGoogleCastSender = ({
           const connected = Boolean(currentSession);
           setIsConnected(connected);
           setDeviceName(currentSession?.getCastDevice()?.friendlyName ?? null);
+
+          emitWebObservabilityEvent({
+            name: 'cast.session-state',
+            severity: 'info',
+            metadata: {
+              state: event.sessionState,
+              connected,
+              deviceName: currentSession?.getCastDevice()?.friendlyName ?? null,
+            },
+          });
 
           if (event.sessionState === window.cast?.framework?.SessionState.SESSION_START_FAILED) {
             setError('Failed to start Cast session.');
@@ -500,6 +512,28 @@ export const useGoogleCastSender = ({
       commands.switchRenderer('local-web');
     }
   }, [commands, syncSessionFromCastMedia]);
+
+  useEffect(() => {
+    if (!error) {
+      lastObservedCastErrorRef.current = null;
+      return;
+    }
+
+    if (lastObservedCastErrorRef.current === error) {
+      return;
+    }
+
+    lastObservedCastErrorRef.current = error;
+    emitWebObservabilityEvent({
+      name: 'cast.error',
+      severity: 'error',
+      metadata: {
+        message: error,
+        connected: isConnected,
+        renderer: sessionRef.current.renderer,
+      },
+    });
+  }, [error, isConnected]);
 
   const toggleCasting = useCallback(async () => {
     if (isConnected) {

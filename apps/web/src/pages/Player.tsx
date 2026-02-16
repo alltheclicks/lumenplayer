@@ -45,6 +45,7 @@ import {
 } from '@/services/appSettings';
 import { xtreamCodesService } from '@/services/xtreamService';
 import { addWatchHistoryEntry } from '@/services/watchHistory';
+import { emitWebObservabilityEvent } from '@/services/observability';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -180,6 +181,9 @@ const Player = () => {
   const watchedChannelIdRef = useRef<string | null>(null);
   const watchedStartedAtRef = useRef<number | null>(null);
   const lastCastErrorRef = useRef<string | null>(null);
+  const previousRendererRef = useRef(session.renderer);
+  const lastChannelLoadErrorRef = useRef<string | null>(null);
+  const previousCastConnectedRef = useRef(castSender.isConnected);
 
   const sessionSourceMetadata = useMemo(
     () => parseSessionSourceMetadata(session.source?.metadata),
@@ -274,6 +278,16 @@ const Player = () => {
   const switchToLiveChannel = useCallback(
     (channel: PlayerChannel) => {
       const sourceUrl = channel.streamUrl ?? xtreamCodesService.getLiveStreamUrl(channel.streamId);
+      emitWebObservabilityEvent({
+        name: 'playback.source-selected',
+        severity: 'info',
+        metadata: {
+          channelId: channel.id,
+          streamId: channel.streamId,
+          source: channel.source,
+        },
+      });
+
       const source = {
         url: sourceUrl,
         type: 'hls' as const,
@@ -292,6 +306,41 @@ const Player = () => {
     },
     [commands]
   );
+
+  useEffect(() => {
+    const previousRenderer = previousRendererRef.current;
+    if (previousRenderer !== session.renderer) {
+      emitWebObservabilityEvent({
+        name: 'renderer.changed',
+        severity: 'info',
+        metadata: {
+          from: previousRenderer,
+          to: session.renderer,
+        },
+      });
+      previousRendererRef.current = session.renderer;
+    }
+  }, [session.renderer]);
+
+  useEffect(() => {
+    if (!error) {
+      lastChannelLoadErrorRef.current = null;
+      return;
+    }
+
+    if (lastChannelLoadErrorRef.current === error.message) {
+      return;
+    }
+
+    lastChannelLoadErrorRef.current = error.message;
+    emitWebObservabilityEvent({
+      name: 'catalog.error',
+      severity: 'error',
+      metadata: {
+        message: error.message,
+      },
+    });
+  }, [error]);
 
   useEffect(() => {
     const numericInput = new NumericChannelInput<PlayerChannel>({
@@ -592,6 +641,21 @@ const Player = () => {
       variant: 'destructive',
     });
   }, [castSender.error, toast]);
+
+  useEffect(() => {
+    if (previousCastConnectedRef.current === castSender.isConnected) {
+      return;
+    }
+
+    previousCastConnectedRef.current = castSender.isConnected;
+    emitWebObservabilityEvent({
+      name: castSender.isConnected ? 'cast.session.started' : 'cast.session.ended',
+      severity: 'info',
+      metadata: {
+        deviceName: castSender.deviceName,
+      },
+    });
+  }, [castSender.deviceName, castSender.isConnected]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {

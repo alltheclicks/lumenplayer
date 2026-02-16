@@ -6,6 +6,7 @@ import type { PlaybackError } from '@lumen/types';
 import type { AudioTrackOption } from '@lumen/types';
 import type { SubtitleTrackOption } from '@lumen/types';
 import type { SessionState } from '@lumen/session-core';
+import { emitWebObservabilityEvent } from '@/services/observability';
 
 export interface VideoPlayerProps {
   poster?: string;
@@ -139,6 +140,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
   const pictureInPictureListenersRef = useRef(new Set<(isInPictureInPicture: boolean) => void>());
   const airPlayAvailabilityListenersRef = useRef(new Set<(isAvailable: boolean) => void>());
   const airPlayConnectionListenersRef = useRef(new Set<(isConnected: boolean) => void>());
+  const lastStartedSourceRef = useRef<string | null>(null);
   const playbackWantsPlaying = wantsPlayback(session);
   const isLocalRenderer = session.renderer === 'local-web' || session.renderer === 'airplay';
 
@@ -378,6 +380,19 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
         setIsLoading(false);
         onCanPlay?.();
 
+        const sourceUrl = sessionRef.current.source?.url ?? null;
+        if (sourceUrl && sourceUrl !== lastStartedSourceRef.current) {
+          lastStartedSourceRef.current = sourceUrl;
+          emitWebObservabilityEvent({
+            name: 'playback.started',
+            severity: 'info',
+            metadata: {
+              renderer: sessionRef.current.renderer,
+              sourceType: sessionRef.current.source?.type ?? 'unknown',
+            },
+          });
+        }
+
         if (!wantsPlayback(currentSession)) {
           commands.play();
         }
@@ -410,6 +425,16 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
     const unsubscribeError = adapter.onError((playbackError) => {
       setError(mapPlaybackError(playbackError));
       setIsLoading(false);
+      emitWebObservabilityEvent({
+        name: 'playback.error',
+        severity: playbackError.fatal ? 'error' : 'warn',
+        metadata: {
+          code: playbackError.code,
+          fatal: playbackError.fatal,
+          message: playbackError.message,
+          renderer: sessionRef.current.renderer,
+        },
+      });
       onError?.(playbackError.message);
     });
 
@@ -481,6 +506,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
     let cancelled = false;
     setError(null);
     setIsLoading(true);
+    lastStartedSourceRef.current = null;
 
     void adapter.load({
       url: src,
@@ -502,6 +528,16 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
 
       setIsLoading(false);
       const message = loadError instanceof Error ? loadError.message : 'Failed to load stream';
+      emitWebObservabilityEvent({
+        name: 'playback.error',
+        severity: 'error',
+        metadata: {
+          code: 'LOAD_FAILED',
+          fatal: true,
+          message,
+          renderer: sessionRef.current.renderer,
+        },
+      });
       setError((prev) => prev ?? {
         type: 'unknown',
         message: 'Cannot load stream',

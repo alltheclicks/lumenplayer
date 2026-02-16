@@ -21,7 +21,8 @@
     "tasks:merge": "bash scripts/automation/merge-queue.sh",
     "tasks:docs-sync": "bash scripts/automation/docs-sync.sh",
     "release:perf-evidence:validate": "node scripts/release/validate-performance-evidence.mjs scripts/release/v1-performance-evidence.template.json",
-    "release:perf-evidence:test": "vitest run scripts/release/v1-performance-evidence.test.ts"
+    "release:perf-evidence:test": "vitest run scripts/release/v1-performance-evidence.test.ts",
+    "release:observability:test": "vitest run apps/web/src/services/observability.test.ts"
   },
   "devDependencies": {
     "@eslint/js": "^9.9.0",
