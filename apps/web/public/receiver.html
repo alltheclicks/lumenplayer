@@ -50,6 +50,12 @@
         transition: opacity 180ms ease;
       }
 
+      @media (prefers-reduced-motion: reduce) {
+        #bridge-root video {
+          transition: none;
+        }
+      }
+
       #bridge-root video[data-active="true"] {
         opacity: 1;
       }
@@ -74,8 +80,8 @@
     <cast-media-player id="default-player"></cast-media-player>
 
     <div id="bridge-root" aria-hidden="true">
-      <video id="bridge-video-a" preload="auto" playsinline muted></video>
-      <video id="bridge-video-b" preload="auto" playsinline muted></video>
+      <video id="bridge-video-a" preload="metadata" playsinline muted></video>
+      <video id="bridge-video-b" preload="metadata" playsinline muted></video>
     </div>
 
     <div id="status-chip">Bridge idle</div>
@@ -93,6 +99,17 @@
         var statusChip = document.getElementById('status-chip');
         var slotA = document.getElementById('bridge-video-a');
         var slotB = document.getElementById('bridge-video-b');
+        var CANPLAY_TIMEOUT_MS = 5000;
+        var PERF_REPORT_INTERVAL = 10;
+        var commandQueue = Promise.resolve();
+        var perfStats = {
+          commandCount: 0,
+          preloadCount: 0,
+          preloadTotalMs: 0,
+          swapCount: 0,
+          swapTotalMs: 0,
+          skippedSwapCount: 0,
+        };
 
         var state = {
           activeSlot: 'a',
@@ -101,6 +118,7 @@
           activeSourceUrl: null,
           muted: false,
           volumeLevel: 1,
+          statusLabel: '',
         };
 
         var getSlots = function () {
@@ -129,11 +147,35 @@
         };
 
         var setStatus = function (label) {
-          if (!statusChip) {
+          if (!statusChip || state.statusLabel === label) {
             return;
           }
 
+          state.statusLabel = label;
           statusChip.textContent = label;
+        };
+
+        var reportPerfStats = function () {
+          if (perfStats.commandCount === 0 || perfStats.commandCount % PERF_REPORT_INTERVAL !== 0) {
+            return;
+          }
+
+          var averagePreloadMs = perfStats.preloadCount > 0
+            ? Math.round((perfStats.preloadTotalMs / perfStats.preloadCount) * 10) / 10
+            : 0;
+          var averageSwapMs = perfStats.swapCount > 0
+            ? Math.round((perfStats.swapTotalMs / perfStats.swapCount) * 10) / 10
+            : 0;
+
+          // Lightweight profile breadcrumbs for older-device debugging.
+          console.info('[lumen-cast-perf]', {
+            commandCount: perfStats.commandCount,
+            preloadCount: perfStats.preloadCount,
+            avgPreloadMs: averagePreloadMs,
+            swapCount: perfStats.swapCount,
+            avgSwapMs: averageSwapMs,
+            skippedSwapCount: perfStats.skippedSwapCount,
+          });
         };
 
         var waitForCanPlay = function (videoElement) {
@@ -143,11 +185,24 @@
               return;
             }
 
-            var onCanPlay = function () {
+            var resolved = false;
+            var timeoutId;
+            var done = function () {
+              if (resolved) {
+                return;
+              }
+              resolved = true;
+              window.clearTimeout(timeoutId);
+              videoElement.removeEventListener('canplay', done);
+              videoElement.removeEventListener('loadedmetadata', done);
+              videoElement.removeEventListener('error', done);
               resolve();
             };
 
-            videoElement.addEventListener('canplay', onCanPlay, { once: true });
+            timeoutId = window.setTimeout(done, CANPLAY_TIMEOUT_MS);
+            videoElement.addEventListener('canplay', done, { once: true });
+            videoElement.addEventListener('loadedmetadata', done, { once: true });
+            videoElement.addEventListener('error', done, { once: true });
           });
         };
 
@@ -161,7 +216,9 @@
             videoElement.load();
           }
 
-          await waitForCanPlay(videoElement);
+          if (videoElement.readyState < HTMLMediaElement.HAVE_METADATA) {
+            await waitForCanPlay(videoElement);
+          }
 
           if (typeof payload.startTimeSeconds === 'number' && Number.isFinite(payload.startTimeSeconds)) {
             var safeStart = Math.max(0, payload.startTimeSeconds);
@@ -182,14 +239,29 @@
         };
 
         var preloadStandby = async function (payload) {
+          if (!payload || payload.url === state.standbySourceUrl && state.standbyReady) {
+            return;
+          }
+
+          var startedAt = Date.now();
           var slots = getSlots();
           await loadIntoSlot(slots.standby, payload, { play: false });
           state.standbySourceUrl = payload.url;
           state.standbyReady = true;
+          perfStats.preloadCount += 1;
+          perfStats.preloadTotalMs += Date.now() - startedAt;
           setStatus('Bridge preloaded');
         };
 
         var swapToStandby = async function (payload) {
+          if (payload && payload.url === state.activeSourceUrl) {
+            perfStats.skippedSwapCount += 1;
+            await applyPlaybackCommand(payload.play === false ? 'pause' : 'play');
+            setStatus('Bridge active');
+            return;
+          }
+
+          var startedAt = Date.now();
           var slots = getSlots();
           var canSwapPreloaded = state.standbyReady && state.standbySourceUrl === payload.url;
 
@@ -217,6 +289,8 @@
             }
           }
 
+          perfStats.swapCount += 1;
+          perfStats.swapTotalMs += Date.now() - startedAt;
           setStatus('Bridge active');
         };
 
@@ -269,15 +343,17 @@
           }
 
           if (data.type === 'set-volume') {
-            var volumeTarget = getSlots().active;
             if (typeof data.level === 'number' && Number.isFinite(data.level)) {
               state.volumeLevel = Math.max(0, Math.min(1, data.level));
-              volumeTarget.volume = state.volumeLevel;
             }
             if (typeof data.muted === 'boolean') {
               state.muted = data.muted;
-              volumeTarget.muted = state.muted;
             }
+            var activeSlots = getSlots();
+            activeSlots.active.volume = state.volumeLevel;
+            activeSlots.standby.volume = state.volumeLevel;
+            activeSlots.active.muted = state.muted;
+            activeSlots.standby.muted = true;
             return;
           }
 
@@ -287,7 +363,12 @@
         };
 
         castContext.addCustomMessageListener(BRIDGE_NAMESPACE, function (event) {
-          Promise.resolve(applyBridgeMessage(event.data)).catch(function () {
+          commandQueue = commandQueue.then(function () {
+            perfStats.commandCount += 1;
+            return applyBridgeMessage(event.data);
+          }).then(function () {
+            reportPerfStats();
+          }).catch(function () {
             setStatus('Bridge command failed');
           });
         });
@@ -296,14 +377,17 @@
           castFramework.messages.MessageType.PRELOAD,
           function (requestData) {
             if (requestData && requestData.media && typeof requestData.media.contentId === 'string') {
-              Promise.resolve(
-                preloadStandby({
+              commandQueue = commandQueue.then(function () {
+                perfStats.commandCount += 1;
+                return preloadStandby({
                   type: 'preload',
                   url: requestData.media.contentId,
                   startTimeSeconds:
                     typeof requestData.currentTime === 'number' ? requestData.currentTime : 0,
-                })
-              ).catch(function () {
+                });
+              }).then(function () {
+                reportPerfStats();
+              }).catch(function () {
                 setStatus('Bridge preload failed');
               });
             }
