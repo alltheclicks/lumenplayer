@@ -71,7 +71,9 @@ const fetchVodItems = async (categoryId: string | null): Promise<VodItem[]> => {
   }
 
   xtreamCodesService.setCredentials(credentials);
-  const streams = await xtreamCodesService.getVODStreams(categoryId ?? undefined);
+  const streams = categoryId === null
+    ? await xtreamCodesService.getAllVODStreams()
+    : await xtreamCodesService.getVODStreams(categoryId);
   return streams.map(mapVodItem);
 };
 

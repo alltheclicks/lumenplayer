@@ -12,6 +12,7 @@ import type {
 import type { HttpClient } from "./http-client";
 
 export class XtreamCodesService {
+  private static readonly VOD_CATEGORY_FETCH_CONCURRENCY = 8;
   private credentials: XtreamCredentials | null = null;
   private http: HttpClient;
 
@@ -82,6 +83,61 @@ export class XtreamCodesService {
     return this.http.get<XtreamVOD[]>(
       this.buildUrl("get_vod_streams", params),
     );
+  }
+
+  async getAllVODStreams(): Promise<XtreamVOD[]> {
+    const categories = await this.getVODCategories();
+    if (categories.length === 0) {
+      return this.getVODStreams();
+    }
+
+    let hasFailedCategoryRequest = false;
+    const categoryStreamGroups: XtreamVOD[][] = [];
+    for (
+      let categoryIndex = 0;
+      categoryIndex < categories.length;
+      categoryIndex += XtreamCodesService.VOD_CATEGORY_FETCH_CONCURRENCY
+    ) {
+      const categoryBatch = categories.slice(
+        categoryIndex,
+        categoryIndex + XtreamCodesService.VOD_CATEGORY_FETCH_CONCURRENCY,
+      );
+      const categoryBatchResults = await Promise.allSettled(
+        categoryBatch.map((category) => this.getVODStreams(category.category_id)),
+      );
+
+      for (const result of categoryBatchResults) {
+        if (result.status === "fulfilled") {
+          categoryStreamGroups.push(result.value);
+        } else {
+          hasFailedCategoryRequest = true;
+        }
+      }
+    }
+
+    const deduplicatedById = new Map<string, XtreamVOD>();
+    for (const stream of categoryStreamGroups.flat()) {
+      const streamId = String(stream.stream_id);
+      if (!deduplicatedById.has(streamId)) {
+        deduplicatedById.set(streamId, stream);
+      }
+    }
+
+    if (deduplicatedById.size === 0 || hasFailedCategoryRequest) {
+      try {
+        const fallbackAllStreams = await this.getVODStreams();
+        for (const stream of fallbackAllStreams) {
+          const streamId = String(stream.stream_id);
+          if (!deduplicatedById.has(streamId)) {
+            deduplicatedById.set(streamId, stream);
+          }
+        }
+      } catch {
+        // Fallback endpoint can fail while category streams are still usable.
+      }
+    }
+
+    return Array.from(deduplicatedById.values());
   }
 
   async getVODInfo(vodId: string | number): Promise<XtreamVODInfo> {
