@@ -1,0 +1,102 @@
+{
+  "release": "V1",
+  "templateVersion": 1,
+  "generatedAt": "",
+  "owner": "",
+  "clientStorage": {
+    "namespacedStorePrefix": "lumen-web-v1:",
+    "encryptionAtRest": "Browser-managed storage only (no app-side encryption)",
+    "allowedKeys": [
+      {
+        "key": "xtream_credentials",
+        "storageType": "versioned-localStorage",
+        "dataClass": "credential",
+        "retention": "Until explicit logout or credential replacement"
+      },
+      {
+        "key": "app_settings",
+        "storageType": "versioned-localStorage",
+        "dataClass": "preference",
+        "retention": "Until user settings update/reset"
+      },
+      {
+        "key": "theme_preference",
+        "storageType": "localStorage",
+        "dataClass": "preference",
+        "retention": "Until user changes theme"
+      },
+      {
+        "key": "watch-history",
+        "storageType": "versioned-localStorage",
+        "dataClass": "usage-history",
+        "retention": "Max 100 entries (bounded by storage adapter)"
+      },
+      {
+        "key": "push_subscriptions_v1",
+        "storageType": "versioned-localStorage",
+        "dataClass": "push-metadata",
+        "retention": "Until explicit unsubscribe/device removal"
+      },
+      {
+        "key": "push_device_id",
+        "storageType": "localStorage",
+        "dataClass": "device-identifier",
+        "retention": "Until browser storage clear"
+      },
+      {
+        "key": "xmltv_epg_cache",
+        "storageType": "versioned-localStorage",
+        "dataClass": "epg-cache",
+        "retention": "6h TTL (default) or force refresh"
+      }
+    ],
+    "prohibitedPatterns": [
+      "Persist plaintext credentials outside approved storage service",
+      "Store auth tokens in query-string snapshots",
+      "Use unbounded history retention for watch behavior data"
+    ]
+  },
+  "retentionPolicy": {
+    "reviewCadenceDays": 30,
+    "notes": "Retention policy must be re-validated before each release candidate freeze."
+  },
+  "incidentReadiness": {
+    "runbookRef": "",
+    "owner": "",
+    "responseChannel": "",
+    "notificationSlaHours": 24,
+    "notes": ""
+  },
+  "controls": [
+    {
+      "id": "storage-namespacing",
+      "description": "Client storage keys are namespaced and versioned where applicable.",
+      "status": "pending",
+      "evidence": ""
+    },
+    {
+      "id": "credentials-clear-on-logout",
+      "description": "Credential storage is removed on explicit logout path.",
+      "status": "pending",
+      "evidence": ""
+    },
+    {
+      "id": "retention-defined",
+      "description": "Retention bounds exist for each stored data class.",
+      "status": "pending",
+      "evidence": ""
+    },
+    {
+      "id": "incident-owner-assigned",
+      "description": "Incident response owner and runbook reference are defined.",
+      "status": "pending",
+      "evidence": ""
+    }
+  ],
+  "signoff": {
+    "status": "pending",
+    "approvedBy": "",
+    "approvedAt": "",
+    "notes": ""
+  }
+}

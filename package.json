@@ -22,7 +22,9 @@
     "tasks:docs-sync": "bash scripts/automation/docs-sync.sh",
     "release:perf-evidence:validate": "node scripts/release/validate-performance-evidence.mjs scripts/release/v1-performance-evidence.template.json",
     "release:perf-evidence:test": "vitest run scripts/release/v1-performance-evidence.test.ts",
-    "release:observability:test": "vitest run apps/web/src/services/observability.test.ts"
+    "release:observability:test": "vitest run apps/web/src/services/observability.test.ts",
+    "release:security-baseline:validate": "node scripts/release/validate-security-privacy-baseline.mjs scripts/release/v1-security-privacy-baseline.template.json",
+    "release:security-baseline:test": "vitest run scripts/release/v1-security-privacy-baseline.test.ts"
   },
   "devDependencies": {
     "@eslint/js": "^9.9.0",
