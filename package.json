@@ -10,6 +10,7 @@
     "perf:ttfc": "vitest run scripts/perf/time-to-first-channel.test.ts",
     "perf:rss": "vitest run scripts/perf/memory-cap.test.ts",
     "release:go-no-go:validate": "node scripts/release/validate-go-no-go.mjs scripts/release/v1-go-no-go.template.json",
+    "release:smoke-matrix:validate": "node scripts/release/validate-smoke-regression-matrix.mjs scripts/release/v1-smoke-regression-matrix.template.json",
     "clean": "turbo clean",
     "tasks:run": "bash scripts/automation/run-task.sh",
     "tasks:batch": "bash scripts/automation/batch-run.sh",
