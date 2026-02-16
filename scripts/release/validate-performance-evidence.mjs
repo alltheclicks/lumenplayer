@@ -103,15 +103,15 @@ if (!allowedSignoffStatus.has(artifact.signoff.status)) {
 }
 
 if (requireFinal) {
-  if (startup.p95 === null || startup.p99 === null) {
+  if (startup.p95 == null || startup.p99 == null) {
     fail('startup p95/p99 must be set with --require-final.');
   }
 
-  if (memory.peakRssMb === null || memory.p95RssMb === null) {
+  if (memory.peakRssMb == null || memory.p95RssMb == null) {
     fail('memory peakRssMb/p95RssMb must be set with --require-final.');
   }
 
-  if (failureRate.ratePercent === null) {
+  if (failureRate.ratePercent == null) {
     fail('failureRate.ratePercent must be set with --require-final.');
   }
 

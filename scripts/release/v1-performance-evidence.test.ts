@@ -125,4 +125,36 @@ describe('V1 performance evidence artifact', () => {
     expect(result.status).toBe(2);
     expect(result.stderr).toContain('exceeds threshold');
   });
+
+  it('fails strict validation when required metric fields are missing from artifact JSON', () => {
+    const repoRoot = process.cwd();
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-0343-perf-evidence-'));
+    const missingFieldPath = path.join(tmpDir, 'missing-field.json');
+
+    const artifactWithMissingField = loadTemplate() as PerformanceEvidenceArtifact & {
+      metrics: {
+        startup: {
+          p95?: number | null;
+        };
+      };
+    };
+
+    delete artifactWithMissingField.metrics.startup.p95;
+    artifactWithMissingField.metrics.startup.p99 = 2300;
+    artifactWithMissingField.metrics.startup.status = 'pass';
+    artifactWithMissingField.metrics.memory.peakRssMb = 180;
+    artifactWithMissingField.metrics.memory.p95RssMb = 170;
+    artifactWithMissingField.metrics.memory.status = 'pass';
+    artifactWithMissingField.metrics.failureRate.ratePercent = 0;
+    artifactWithMissingField.metrics.failureRate.status = 'pass';
+    artifactWithMissingField.signoff.status = 'pass';
+    artifactWithMissingField.signoff.approvedBy = 'qa-release-owner';
+    artifactWithMissingField.signoff.approvedAt = '2026-02-16T12:00:00.000Z';
+
+    fs.writeFileSync(missingFieldPath, `${JSON.stringify(artifactWithMissingField, null, 2)}\n`);
+
+    const result = runValidator([missingFieldPath, '--require-final'], repoRoot);
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain('must be set with --require-final');
+  });
 });
