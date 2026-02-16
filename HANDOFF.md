@@ -1,5 +1,31 @@
 # Handoff — Lumen Player
 
+## Session 2026-02-16 — TST-001 (single-task PR + docs sync)
+
+- PR: #113 (merged)
+- Done:
+  - Fixed live startup playback/session sync race in `VideoPlayer`:
+    - keep playback intent during initial source startup
+    - ignore transient adapter `paused` state while startup autoplay is pending
+    - avoid eager `play()` call while adapter state is still `loading`
+  - Added focused startup guard unit test:
+    - `apps/web/src/components/player/videoPlaybackSync.ts`
+    - `apps/web/src/components/player/videoPlaybackSync.test.ts`
+  - Local test gate passed:
+    - `pnpm vitest run apps/web/src/components/player/videoPlaybackSync.test.ts`
+    - `pnpm lint`
+    - `pnpm typecheck`
+    - `pnpm build`
+  - Greptile/check notes:
+    - Greptile review check-run started on #113.
+    - After 2 pings (`@greptile-apps`, `@greptileai`) final score was not returned; required PR note comment posted.
+    - GitHub PR checks were green before merge (`web-quality`, `automation-scripts`).
+
+- Next:
+  - Continue with next V1 test backlog item by priority (`TST-002`).
+
+---
+
 ## Session 2026-02-16 — LP-0346 (single-task PR)
 
 - PR: #111 (merged)
