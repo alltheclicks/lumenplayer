@@ -37,7 +37,7 @@ This file is the single source of truth for issues found during manual testing.
 | ID | Title | Area | Severity | Status | Reproducibility |
 |---|---|---|---|---|---|
 | TST-001 | Live channel starts with first frame only; playback does not continue reliably and audio is missing | Live TV Playback | P0 | done | frequent |
-| TST-002 | Channel switch triggers `Playback error` overlay while frame is visible in background | Live TV Playback | P0 | open | frequent |
+| TST-002 | Channel switch triggers `Playback error` overlay while frame is visible in background | Live TV Playback | P0 | done | frequent |
 | TST-003 | VOD `Play in Player` enters play/pause loop, stutter, and no audio | VOD Playback | P0 | open | frequent |
 | TST-004 | VOD catalog appears truncated (not all items visible) | VOD Listing | P2 | open | frequent |
 | TST-005 | After VOD playback entry, UX returns to channel-shell context and feels inconsistent/confusing | Navigation UX | P2 | open | frequent |
@@ -86,6 +86,8 @@ This file is the single source of truth for issues found during manual testing.
 - Retest acceptance:
   - Repeated channel switching does not leave stale blocking error overlays.
   - If source is playable, overlay must disappear and playback continues.
+- Fix PR: [#115](https://github.com/alltheclicks/lumenplayer/pull/115)
+- Retest result (2026-02-16): PASS on local flow; repeated live channel switches no longer keep stale `Playback error` overlay when stream recovers/continues playback.
 
 ### TST-003
 - Reported by: Filip (manual VOD flow)

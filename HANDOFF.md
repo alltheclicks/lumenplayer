@@ -1,5 +1,30 @@
 # Handoff — Lumen Player
 
+## Session 2026-02-16 — TST-002 (single-task PR + docs sync)
+
+- PR: #115 (merged)
+- Done:
+  - Fixed stale blocking `Playback error` overlay during live channel switching:
+    - show blocking overlay only for fatal playback errors
+    - clear stale player error when adapter returns to `playing`
+  - Added focused playback error gating unit test:
+    - `apps/web/src/components/player/videoPlaybackSync.ts`
+    - `apps/web/src/components/player/videoPlaybackSync.test.ts`
+  - Local test gate passed:
+    - `pnpm vitest run apps/web/src/components/player/videoPlaybackSync.test.ts`
+    - `pnpm lint`
+    - `pnpm typecheck`
+    - `pnpm build`
+  - Greptile/check notes:
+    - Greptile review check-run started on #115.
+    - After two pings (`@greptile-apps`, `@greptileai`), final review summary posted with confidence `4/5` (safe-to-merge, no blocking findings).
+    - GitHub PR checks were green before merge (`web-quality`, `automation-scripts`, `Greptile Review`).
+
+- Next:
+  - Continue with next V1 test backlog item by priority (`TST-003`).
+
+---
+
 ## Session 2026-02-16 — TST-001 (single-task PR + docs sync)
 
 - PR: #113 (merged)
