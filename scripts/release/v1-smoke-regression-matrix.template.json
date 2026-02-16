@@ -1,0 +1,166 @@
+{
+  "release": "V1",
+  "templateVersion": 1,
+  "generatedAt": "",
+  "runOwner": "",
+  "requiredCoverageTags": [
+    "desktop-browser",
+    "mobile-browser",
+    "cast-flow",
+    "airplay-flow",
+    "pwa-install",
+    "pwa-offline"
+  ],
+  "cases": [
+    {
+      "id": "SMK-DESKTOP-CHROME-LIVE",
+      "suite": "smoke",
+      "title": "Desktop Chrome live playback",
+      "platform": "desktop",
+      "device": "Windows/macOS desktop",
+      "browser": "Chrome latest",
+      "tags": ["desktop-browser"],
+      "releaseBlocker": true,
+      "status": "pending",
+      "evidence": ""
+    },
+    {
+      "id": "SMK-DESKTOP-SAFARI-VOD",
+      "suite": "smoke",
+      "title": "Desktop Safari VOD playback",
+      "platform": "desktop",
+      "device": "macOS desktop",
+      "browser": "Safari latest",
+      "tags": ["desktop-browser"],
+      "releaseBlocker": true,
+      "status": "pending",
+      "evidence": ""
+    },
+    {
+      "id": "SMK-MOBILE-ANDROID-LIVE",
+      "suite": "smoke",
+      "title": "Android Chrome live playback",
+      "platform": "mobile",
+      "device": "Android phone",
+      "browser": "Chrome latest",
+      "tags": ["mobile-browser"],
+      "releaseBlocker": true,
+      "status": "pending",
+      "evidence": ""
+    },
+    {
+      "id": "SMK-MOBILE-IOS-SAFARI-LIVE",
+      "suite": "smoke",
+      "title": "iOS Safari live playback",
+      "platform": "mobile",
+      "device": "iPhone",
+      "browser": "Safari latest",
+      "tags": ["mobile-browser"],
+      "releaseBlocker": true,
+      "status": "pending",
+      "evidence": ""
+    },
+    {
+      "id": "SMK-CAST-CONNECT-PLAY",
+      "suite": "smoke",
+      "title": "Cast connect and remote playback",
+      "platform": "desktop",
+      "device": "Chromecast target",
+      "browser": "Chrome latest",
+      "tags": ["cast-flow"],
+      "releaseBlocker": true,
+      "status": "pending",
+      "evidence": ""
+    },
+    {
+      "id": "SMK-AIRPLAY-CONNECT-PLAY",
+      "suite": "smoke",
+      "title": "AirPlay connect and route handoff",
+      "platform": "desktop",
+      "device": "macOS + AirPlay target",
+      "browser": "Safari latest",
+      "tags": ["airplay-flow"],
+      "releaseBlocker": true,
+      "status": "pending",
+      "evidence": ""
+    },
+    {
+      "id": "SMK-PWA-INSTALL-ANDROID",
+      "suite": "smoke",
+      "title": "Android PWA install prompt flow",
+      "platform": "mobile",
+      "device": "Android phone",
+      "browser": "Chrome latest",
+      "tags": ["pwa-install"],
+      "releaseBlocker": true,
+      "status": "pending",
+      "evidence": ""
+    },
+    {
+      "id": "SMK-PWA-OFFLINE-FALLBACK",
+      "suite": "smoke",
+      "title": "Offline navigation fallback page",
+      "platform": "mobile",
+      "device": "Android/iOS",
+      "browser": "Chrome/Safari",
+      "tags": ["pwa-offline"],
+      "releaseBlocker": true,
+      "status": "pending",
+      "evidence": ""
+    },
+    {
+      "id": "REG-CAST-RENDERER-SWITCH",
+      "suite": "regression",
+      "title": "Renderer switch local<->cast keeps timeline",
+      "platform": "desktop",
+      "device": "Chromecast target",
+      "browser": "Chrome latest",
+      "tags": ["cast-flow", "desktop-browser"],
+      "releaseBlocker": true,
+      "status": "pending",
+      "evidence": ""
+    },
+    {
+      "id": "REG-AIRPLAY-RETURN-LOCAL",
+      "suite": "regression",
+      "title": "AirPlay disconnect returns to local playback",
+      "platform": "desktop",
+      "device": "macOS + AirPlay target",
+      "browser": "Safari latest",
+      "tags": ["airplay-flow", "desktop-browser"],
+      "releaseBlocker": true,
+      "status": "pending",
+      "evidence": ""
+    },
+    {
+      "id": "REG-MOBILE-CONTROLS-STATE",
+      "suite": "regression",
+      "title": "Mobile controls preserve play/pause and seek state",
+      "platform": "mobile",
+      "device": "Android/iOS",
+      "browser": "Chrome/Safari",
+      "tags": ["mobile-browser"],
+      "releaseBlocker": false,
+      "status": "pending",
+      "evidence": ""
+    },
+    {
+      "id": "REG-PWA-PUSH-ENTRY",
+      "suite": "regression",
+      "title": "Push notification deep-link opens expected app destination",
+      "platform": "mobile",
+      "device": "Android/iOS",
+      "browser": "Chrome/Safari PWA",
+      "tags": ["pwa-install", "mobile-browser"],
+      "releaseBlocker": false,
+      "status": "pending",
+      "evidence": ""
+    }
+  ],
+  "signoff": {
+    "status": "pending",
+    "approvedBy": "",
+    "approvedAt": "",
+    "notes": ""
+  }
+}
