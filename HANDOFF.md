@@ -1,5 +1,35 @@
 # Handoff — Lumen Player
 
+## Session 2026-02-16 — LP-0327, LP-0328, LP-0329 (ordered batch)
+
+- PRs: #94 (merged), #95 (merged), #96 (merged)
+- Done:
+  - LP-0327: Added deterministic 20k/50k performance harness for time-to-first-channel with percentile interpolation and p95 `<3s` assertion (`perf:ttfc`).
+  - LP-0328: Added RSS memory-cap benchmark for the same 20k/50k pipeline with absolute + baseline-delta guard (`perf:rss`).
+  - LP-0329: Optimized Cast receiver bridge path for older devices:
+    - serialized bridge command execution to avoid preload/swap race conditions
+    - skipped redundant swap/preload work, added timeout-safe readiness flow
+    - added lightweight `[lumen-cast-perf]` profiling breadcrumbs for preload/swap command latency
+  - Local test gate passed on each task PR:
+    - `pnpm lint`
+    - `pnpm typecheck`
+    - `pnpm build`
+  - Task-specific perf checks:
+    - `pnpm perf:ttfc`
+    - `pnpm perf:rss`
+  - Greptile/check notes:
+    - #94: Greptile pass on final HEAD, no comments
+    - #95: initial Greptile infra failure (`Can't reach database server`), rerun succeeded with no comments
+    - #96: Greptile pass, no comments
+    - GitHub PR checks green before each merge
+
+- Next:
+  - LP-0340 (Define V1 go/no-go checklist)
+  - LP-0341 (Build V1 smoke/regression test matrix)
+  - LP-0342 (V1 compatibility matrix execution task)
+
+---
+
 ## Session 2026-02-15 — LP-0332, LP-0333, LP-0334 (ordered batch)
 
 - PRs: #90 (merged), #91 (merged), #92 (merged)
