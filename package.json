@@ -13,6 +13,7 @@
     "release:smoke-matrix:validate": "node scripts/release/validate-smoke-regression-matrix.mjs scripts/release/v1-smoke-regression-matrix.template.json",
     "release:smoke-matrix:test": "vitest run scripts/release/v1-smoke-regression-matrix.test.ts",
     "release:compat-matrix": "node scripts/release/compatibility-matrix-task.mjs",
+    "release:compat-matrix:test": "vitest run scripts/release/compatibility-matrix-task.test.ts",
     "clean": "turbo clean",
     "tasks:run": "bash scripts/automation/run-task.sh",
     "tasks:batch": "bash scripts/automation/batch-run.sh",

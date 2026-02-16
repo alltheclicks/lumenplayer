@@ -1,0 +1,61 @@
+{
+  "release": "V1",
+  "templateVersion": 1,
+  "generatedAt": "",
+  "targets": [
+    {
+      "id": "desktop-chrome-windows",
+      "name": "Desktop Chrome (Windows 11)",
+      "platform": "desktop",
+      "device": "Windows 11 desktop",
+      "browser": "Chrome latest",
+      "matchMode": "any",
+      "requiredTags": ["desktop-browser"]
+    },
+    {
+      "id": "desktop-safari-macos",
+      "name": "Desktop Safari (macOS)",
+      "platform": "desktop",
+      "device": "macOS desktop",
+      "browser": "Safari latest",
+      "matchMode": "any",
+      "requiredTags": ["desktop-browser"]
+    },
+    {
+      "id": "mobile-chrome-android",
+      "name": "Mobile Chrome (Android)",
+      "platform": "mobile",
+      "device": "Android phone",
+      "browser": "Chrome latest",
+      "matchMode": "any",
+      "requiredTags": ["mobile-browser", "pwa-install", "pwa-offline"]
+    },
+    {
+      "id": "mobile-safari-ios",
+      "name": "Mobile Safari (iOS)",
+      "platform": "mobile",
+      "device": "iPhone",
+      "browser": "Safari latest",
+      "matchMode": "any",
+      "requiredTags": ["mobile-browser", "pwa-install", "pwa-offline"]
+    },
+    {
+      "id": "cast-chromecast",
+      "name": "Google Cast (Chromecast)",
+      "platform": "cast",
+      "device": "Chromecast target",
+      "browser": "Chrome sender latest",
+      "matchMode": "any",
+      "requiredTags": ["cast-flow"]
+    },
+    {
+      "id": "airplay-appletv",
+      "name": "AirPlay (Apple TV)",
+      "platform": "airplay",
+      "device": "Apple TV target",
+      "browser": "Safari sender latest",
+      "matchMode": "any",
+      "requiredTags": ["airplay-flow"]
+    }
+  ]
+}
