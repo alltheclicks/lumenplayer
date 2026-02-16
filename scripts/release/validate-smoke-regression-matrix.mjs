@@ -43,14 +43,14 @@ if (!Array.isArray(matrix.cases) || matrix.cases.length === 0) {
   fail('cases must be a non-empty array.');
 }
 
-const configuredRequiredTags = Array.isArray(matrix.requiredCoverageTags) && matrix.requiredCoverageTags.length > 0
+if (Array.isArray(matrix.requiredCoverageTags) && matrix.requiredCoverageTags.length === 0) {
+  fail('requiredCoverageTags must contain at least one tag when provided.');
+}
+
+const configuredRequiredTags = Array.isArray(matrix.requiredCoverageTags)
   ? matrix.requiredCoverageTags
   : defaultRequiredTags;
 const requiredTags = new Set(configuredRequiredTags);
-
-if (requiredTags.size === 0) {
-  fail('requiredCoverageTags must contain at least one tag.');
-}
 
 for (const tag of requiredTags) {
   if (typeof tag !== 'string' || tag.trim() === '') {
@@ -137,5 +137,5 @@ if (requireFinal) {
 
 console.log(`[smoke-matrix] OK: ${filePath}`);
 console.log(`[smoke-matrix] cases: ${matrix.cases.length}`);
-console.log(`[smoke-matrix] coverage tags present: ${Array.from(requiredTags).every((tag) => seenTags.has(tag)) ? 'yes' : 'no'}`);
+console.log('[smoke-matrix] coverage tags present: yes');
 console.log(`[smoke-matrix] require-final: ${requireFinal ? 'yes' : 'no'}`);
