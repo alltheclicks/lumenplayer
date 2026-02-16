@@ -1,0 +1,47 @@
+{
+  "release": "V1",
+  "templateVersion": 1,
+  "generatedAt": "",
+  "runOwner": "",
+  "dataset": {
+    "channelCount": 20000,
+    "epgEntryCount": 50000,
+    "nowMs": 1769947200000
+  },
+  "metrics": {
+    "startup": {
+      "metric": "time-to-first-channel-ms",
+      "samples": 0,
+      "p95": null,
+      "p99": null,
+      "thresholdP95": 3000,
+      "thresholdP99": 3500,
+      "status": "pending",
+      "evidence": ""
+    },
+    "memory": {
+      "metric": "rss-mb",
+      "samples": 0,
+      "peakRssMb": null,
+      "p95RssMb": null,
+      "thresholdPeakMb": 200,
+      "status": "pending",
+      "evidence": ""
+    },
+    "failureRate": {
+      "metric": "failed-runs-percent",
+      "totalRuns": 0,
+      "failedRuns": 0,
+      "ratePercent": null,
+      "thresholdPercent": 1,
+      "status": "pending",
+      "evidence": ""
+    }
+  },
+  "signoff": {
+    "status": "pending",
+    "approvedBy": "",
+    "approvedAt": "",
+    "notes": ""
+  }
+}
