@@ -1,0 +1,152 @@
+{
+  "release": "V1",
+  "templateVersion": 1,
+  "generatedAt": "",
+  "decisionOwner": "",
+  "featureAreas": [
+    {
+      "id": "content-playback",
+      "name": "Content and Playback",
+      "passWhen": "Live TV, VOD, and Series playback paths pass smoke checks with no blocker defects.",
+      "failWhen": "Any playback entry point fails to start or recover, or a blocker defect remains open.",
+      "checks": [
+        {
+          "id": "live-player-start",
+          "description": "Live channel starts within target startup budget and basic controls work.",
+          "status": "pending",
+          "evidence": ""
+        },
+        {
+          "id": "vod-player-start",
+          "description": "VOD starts from catalog and detail page, and seek/resume work.",
+          "status": "pending",
+          "evidence": ""
+        },
+        {
+          "id": "series-episode-start",
+          "description": "Episode playback starts from series detail and metadata is correct.",
+          "status": "pending",
+          "evidence": ""
+        }
+      ]
+    },
+    {
+      "id": "cast",
+      "name": "Google Cast",
+      "passWhen": "Sender, receiver, and remote-control flow work without session reset on renderer switch.",
+      "failWhen": "Cast session cannot connect reliably, renderer switch breaks playback continuity, or remote controls are inconsistent.",
+      "checks": [
+        {
+          "id": "cast-connect-and-play",
+          "description": "Sender discovers receiver and starts remote playback.",
+          "status": "pending",
+          "evidence": ""
+        },
+        {
+          "id": "cast-renderer-switch",
+          "description": "Switching local/cast preserves timeline and playback state.",
+          "status": "pending",
+          "evidence": ""
+        },
+        {
+          "id": "cast-remote-controls",
+          "description": "Phone-as-remote controls (play/pause/seek/channel) match receiver behavior.",
+          "status": "pending",
+          "evidence": ""
+        }
+      ]
+    },
+    {
+      "id": "airplay",
+      "name": "AirPlay",
+      "passWhen": "AirPlay device discovery and route handoff are stable for supported browsers/devices.",
+      "failWhen": "AirPlay route handoff fails or local/remote state diverges after switching.",
+      "checks": [
+        {
+          "id": "airplay-picker",
+          "description": "AirPlay picker can be opened and route can be selected.",
+          "status": "pending",
+          "evidence": ""
+        },
+        {
+          "id": "airplay-renderer-sync",
+          "description": "Renderer transitions keep expected playback state.",
+          "status": "pending",
+          "evidence": ""
+        }
+      ]
+    },
+    {
+      "id": "pwa",
+      "name": "PWA Install and Offline",
+      "passWhen": "Install flow works on supported targets and offline fallback is functional.",
+      "failWhen": "Install prompts are misleading for unsupported devices, or offline navigation breaks critical flows.",
+      "checks": [
+        {
+          "id": "pwa-install",
+          "description": "Install prompt behavior is correct on Android and iOS home-screen conditions.",
+          "status": "pending",
+          "evidence": ""
+        },
+        {
+          "id": "pwa-offline-fallback",
+          "description": "Offline fallback page is served for navigation failures.",
+          "status": "pending",
+          "evidence": ""
+        }
+      ]
+    },
+    {
+      "id": "performance",
+      "name": "Performance Acceptance",
+      "passWhen": "Performance benchmarks meet startup and memory thresholds on the 20k channel dataset.",
+      "failWhen": "Any required performance threshold is violated or benchmark artifacts are missing.",
+      "checks": [
+        {
+          "id": "ttfc-p95",
+          "description": "p95 time-to-first-channel stays below 3000 ms on benchmark dataset.",
+          "status": "pending",
+          "evidence": ""
+        },
+        {
+          "id": "rss-cap",
+          "description": "Resident memory stays below 200 MB threshold under benchmark load.",
+          "status": "pending",
+          "evidence": ""
+        }
+      ]
+    },
+    {
+      "id": "release-quality",
+      "name": "Release Quality Gates",
+      "passWhen": "CI checks are green, smoke/regression matrix is complete, and no blocker defects remain.",
+      "failWhen": "Any required check is red, matrix execution is incomplete, or unresolved blocker defects exist.",
+      "checks": [
+        {
+          "id": "ci-green",
+          "description": "Required GitHub checks pass on release candidate branch.",
+          "status": "pending",
+          "evidence": ""
+        },
+        {
+          "id": "smoke-regression-complete",
+          "description": "Smoke/regression matrix run is complete with signed-off evidence.",
+          "status": "pending",
+          "evidence": ""
+        },
+        {
+          "id": "blocker-defects",
+          "description": "No open blocker defects in release scope.",
+          "status": "pending",
+          "evidence": ""
+        }
+      ]
+    }
+  ],
+  "decision": {
+    "status": "pending",
+    "approvedBy": "",
+    "approvedAt": "",
+    "notes": ""
+  }
+}
