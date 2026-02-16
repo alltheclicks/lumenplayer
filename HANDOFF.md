@@ -1,5 +1,29 @@
 # Handoff — Lumen Player
 
+## Session 2026-02-16 — LP-0340, LP-0341, LP-0342 (ordered batch)
+
+- PRs: #98 (merged), #99 (merged), #100 (merged)
+- Done:
+  - LP-0340: Added V1 go/no-go checklist template with explicit pass/fail criteria per feature area and validator (`scripts/release/v1-go-no-go.template.json`, `scripts/release/validate-go-no-go.mjs`).
+  - LP-0341: Added V1 smoke/regression matrix template and validator with required coverage checks (`scripts/release/v1-smoke-regression-matrix.template.json`, `scripts/release/validate-smoke-regression-matrix.mjs`).
+  - LP-0342: Added compatibility matrix execution task CLI (init/set/status/finalize) with run-record guardrails (`scripts/release/compatibility-matrix-task.mjs`).
+  - Local test gate passed on each task PR:
+    - `pnpm lint`
+    - `pnpm typecheck`
+    - `pnpm build`
+  - Greptile/check notes:
+    - Greptile review check-run started and completed on each PR.
+    - All valid Greptile comments were fixed and review threads resolved.
+    - Final confidence score was not posted by Greptile on #98/#99/#100 after ping attempts; each PR has explicit note comment and BACKLOG sync note.
+    - GitHub PR checks were green before each merge.
+
+- Next:
+  - LP-0343 (Performance evidence artifact)
+  - LP-0344 (Observability baseline)
+  - LP-0345 (Security/privacy baseline review)
+
+---
+
 ## Session 2026-02-16 — LP-0327, LP-0328, LP-0329 (ordered batch)
 
 - PRs: #94 (merged), #95 (merged), #96 (merged)

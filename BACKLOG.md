@@ -201,6 +201,20 @@
 
 ---
 
+## V1-Release — Quality Gates (part of V1)
+
+| ID | Task | Size | Status | Depends on |
+|----|------|------|--------|------------|
+| LP-0340 | Define V1 go/no-go checklist (release sign-off template with explicit pass/fail criteria per feature area) | S | done | — |
+| LP-0341 | Build V1 smoke/regression test matrix (desktop + mobile browsers, Cast flow, AirPlay flow, PWA install/offline) | M | done | LP-0109, LP-0111, LP-0324 |
+| LP-0342 | Add V1 compatibility matrix execution task (run and record results on target devices/browsers before release) | S | done | LP-0341 |
+| LP-0343 | Produce performance evidence artifact in `docs/perf/` (20k dataset results: p95/p99 startup, memory, failure rate) | S | idea | LP-0326, LP-0327, LP-0328 |
+| LP-0344 | Add production observability baseline for web + cast receiver (error logging, key playback/cast events, alert thresholds) | M | idea | LP-0108, LP-0109 |
+| LP-0345 | Security/privacy baseline review for credential + storage handling (client storage policy, retention, incident notes) | S | idea | LP-0209, LP-0211 |
+| LP-0346 | Final release readiness review (all V1 gates green, blocker triage complete, rollback notes prepared) | S | idea | LP-0340, LP-0342, LP-0343, LP-0344, LP-0345 |
+
+---
+
 ## Foundation / Quality
 
 | ID | Task | Size | Status | Depends on |
@@ -284,3 +298,10 @@
 
 - `LP-0014` zavrsen: dodat je root `eslint.config.mjs`, package-level lint skripte i pun workspace lint gate.
 - `LP-0209` je završen u kasnijoj sesiji kroz app-level `VersionedStorage` wiring (`apps/web` hooks/services).
+
+### Sync notes (2026-02-16)
+
+- `LP-0340` zavrsen i mergovan kroz PR #98.
+- `LP-0341` zavrsen i mergovan kroz PR #99.
+- `LP-0342` zavrsen i mergovan kroz PR #100.
+- Greptile je za #98/#99/#100 pokrenuo review check-run i validni komentari su zatvoreni, ali finalna confidence ocena nije vracena ni posle pingova; ovo je evidentirano u PR komentarima.
