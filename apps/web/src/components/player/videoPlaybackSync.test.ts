@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { SessionState } from '@lumen/session-core';
 import type { PlaybackError } from '@lumen/types';
 import {
+  shouldClearPendingAutoplayOnPlaybackError,
   sessionWantsPlayback,
   shouldShowBlockingPlaybackError,
   shouldHoldPauseSyncOnSourceStartup,
@@ -58,5 +59,21 @@ describe('videoPlaybackSync', () => {
 
     expect(shouldShowBlockingPlaybackError(fatalError)).toBe(true);
     expect(shouldShowBlockingPlaybackError(nonFatalError)).toBe(false);
+  });
+
+  it('keeps pending autoplay for non-fatal startup errors and clears it for fatal', () => {
+    const fatalError: PlaybackError = {
+      code: 'NETWORK_ERROR',
+      message: 'fatal',
+      fatal: true,
+    };
+    const nonFatalError: PlaybackError = {
+      code: 'PLAYBACK_START_FAILED',
+      message: 'recoverable',
+      fatal: false,
+    };
+
+    expect(shouldClearPendingAutoplayOnPlaybackError(fatalError)).toBe(true);
+    expect(shouldClearPendingAutoplayOnPlaybackError(nonFatalError)).toBe(false);
   });
 });

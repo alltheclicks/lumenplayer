@@ -24,3 +24,9 @@ export const shouldHoldPauseSyncOnSourceStartup = (
 export const shouldShowBlockingPlaybackError = (playbackError: PlaybackError): boolean => (
   playbackError.fatal
 );
+
+export const shouldClearPendingAutoplayOnPlaybackError = (
+  playbackError: PlaybackError
+): boolean => (
+  playbackError.fatal
+);
