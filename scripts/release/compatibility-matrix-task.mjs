@@ -51,9 +51,9 @@ const writeJson = (filePath, data) => {
   fs.writeFileSync(filePath, `${JSON.stringify(data, null, 2)}\n`, 'utf8');
 };
 
-const summarize = (run) => {
+const summarizeResults = (results) => {
   const counts = { pending: 0, pass: 0, fail: 0 };
-  for (const result of run.results) {
+  for (const result of results) {
     if (counts[result.status] === undefined) {
       fail(`run file contains invalid case status for ${result.caseId ?? 'unknown'}: ${result.status}`);
     }
@@ -67,20 +67,13 @@ const summarize = (run) => {
 const usage = () => {
   console.log('Usage: node scripts/release/compatibility-matrix-task.mjs <command> [options]');
   console.log('Commands:');
-  console.log('  init --matrix <path> [--out <path>] [--operator <name>] [--run-id <id>]');
-  console.log('  set --run <path> --case <id> --status <pending|pass|fail> [--evidence <text>] [--notes <text>] [--executor <name>]');
+  console.log('  init --matrix <path> [--targets <path>] [--out <path>] [--operator <name>] [--run-id <id>]');
+  console.log('  set --run <path> --case <id> --status <pending|pass|fail> [--target <id>] [--evidence <text>] [--notes <text>] [--executor <name>]');
   console.log('  status --run <path>');
   console.log('  finalize --run <path> --signoff <pass|fail> --approved-by <name> [--notes <text>]');
 };
 
-const initCommand = (args) => {
-  if (!args.matrix) {
-    fail('init requires --matrix <path>');
-  }
-
-  const matrixPath = path.resolve(process.cwd(), String(args.matrix));
-  const matrix = readJson(matrixPath);
-
+const validateMatrix = (matrix) => {
   if (!Array.isArray(matrix.cases) || matrix.cases.length === 0) {
     fail('matrix.cases must be a non-empty array');
   }
@@ -111,34 +104,89 @@ const initCommand = (args) => {
       fail(`matrix case ${testCase.id} is missing browser`);
     }
 
+    if (!Array.isArray(testCase.tags) || testCase.tags.length === 0) {
+      fail(`matrix case ${testCase.id} must have tags`);
+    }
+
     if (seenCaseIds.has(testCase.id)) {
       fail(`matrix contains duplicate case id: ${testCase.id}`);
     }
 
     seenCaseIds.add(testCase.id);
   }
+};
 
-  const runId = args['run-id'] ? String(args['run-id']) : `compat-${Date.now()}`;
-  const outPath = args.out
-    ? path.resolve(process.cwd(), String(args.out))
-    : path.resolve(process.cwd(), `artifacts/release/compatibility/${runId}.json`);
+const validateTargets = (targetsDoc) => {
+  if (!Array.isArray(targetsDoc.targets) || targetsDoc.targets.length === 0) {
+    fail('targets file must define a non-empty targets array');
+  }
 
-  const run = {
-    runId,
-    createdAt: nowIso(),
-    updatedAt: nowIso(),
-    operator: args.operator ? String(args.operator) : '',
-    matrixSource: path.relative(process.cwd(), matrixPath),
-    release: matrix.release ?? 'V1',
-    matrixTemplateVersion: matrix.templateVersion ?? 1,
-    status: 'in-progress',
-    results: matrix.cases.map((testCase) => ({
+  const seenTargetIds = new Set();
+  const targets = [];
+
+  for (const target of targetsDoc.targets) {
+    if (!target || typeof target !== 'object') {
+      fail('each target must be an object');
+    }
+
+    if (typeof target.id !== 'string' || target.id.trim() === '') {
+      fail('each target must have a non-empty id');
+    }
+
+    if (seenTargetIds.has(target.id)) {
+      fail(`targets contain duplicate id: ${target.id}`);
+    }
+
+    if (typeof target.name !== 'string' || target.name.trim() === '') {
+      fail(`target ${target.id} must have a non-empty name`);
+    }
+
+    if (typeof target.platform !== 'string' || target.platform.trim() === '') {
+      fail(`target ${target.id} must have a non-empty platform`);
+    }
+
+    if (typeof target.device !== 'string' || target.device.trim() === '') {
+      fail(`target ${target.id} must have a non-empty device`);
+    }
+
+    if (typeof target.browser !== 'string' || target.browser.trim() === '') {
+      fail(`target ${target.id} must have a non-empty browser`);
+    }
+
+    if (!Array.isArray(target.requiredTags) || target.requiredTags.length === 0) {
+      fail(`target ${target.id} must include at least one required tag`);
+    }
+
+    for (const tag of target.requiredTags) {
+      if (typeof tag !== 'string' || tag.trim() === '') {
+        fail(`target ${target.id} contains an invalid requiredTag value`);
+      }
+    }
+
+    seenTargetIds.add(target.id);
+    targets.push(target);
+  }
+
+  return targets;
+};
+
+const buildResults = (matrixCases, targets) => {
+  if (!targets || targets.length === 0) {
+    return matrixCases.map((testCase) => ({
       caseId: testCase.id,
       suite: testCase.suite,
       title: testCase.title,
       platform: testCase.platform,
       device: testCase.device,
       browser: testCase.browser,
+      casePlatform: testCase.platform,
+      caseDevice: testCase.device,
+      caseBrowser: testCase.browser,
+      targetId: '',
+      targetName: '',
+      targetPlatform: '',
+      targetDevice: '',
+      targetBrowser: '',
       releaseBlocker: Boolean(testCase.releaseBlocker),
       tags: Array.isArray(testCase.tags) ? testCase.tags : [],
       status: 'pending',
@@ -146,7 +194,106 @@ const initCommand = (args) => {
       notes: '',
       executedAt: '',
       executor: '',
+    }));
+  }
+
+  const results = [];
+  const seenCompositeKeys = new Set();
+
+  for (const target of targets) {
+    const matchedCases = matrixCases.filter((testCase) => (
+      Array.isArray(testCase.tags)
+      && testCase.tags.some((tag) => target.requiredTags.includes(tag))
+    ));
+
+    if (matchedCases.length === 0) {
+      fail(`target ${target.id} does not match any matrix case by requiredTags`);
+    }
+
+    for (const testCase of matchedCases) {
+      const compositeKey = `${target.id}::${testCase.id}`;
+      if (seenCompositeKeys.has(compositeKey)) {
+        continue;
+      }
+
+      seenCompositeKeys.add(compositeKey);
+      results.push({
+        caseId: testCase.id,
+        suite: testCase.suite,
+        title: testCase.title,
+        platform: target.platform,
+        device: target.device,
+        browser: target.browser,
+        casePlatform: testCase.platform,
+        caseDevice: testCase.device,
+        caseBrowser: testCase.browser,
+        targetId: target.id,
+        targetName: target.name,
+        targetPlatform: target.platform,
+        targetDevice: target.device,
+        targetBrowser: target.browser,
+        releaseBlocker: Boolean(testCase.releaseBlocker),
+        tags: Array.isArray(testCase.tags) ? testCase.tags : [],
+        status: 'pending',
+        evidence: '',
+        notes: '',
+        executedAt: '',
+        executor: '',
+      });
+    }
+  }
+
+  if (results.length === 0) {
+    fail('no compatibility execution results were generated from matrix/targets');
+  }
+
+  return results;
+};
+
+const initCommand = (args) => {
+  if (!args.matrix) {
+    fail('init requires --matrix <path>');
+  }
+
+  const matrixPath = path.resolve(process.cwd(), String(args.matrix));
+  const matrix = readJson(matrixPath);
+  validateMatrix(matrix);
+
+  let targets = [];
+  let targetsPath = '';
+
+  if (args.targets) {
+    targetsPath = path.resolve(process.cwd(), String(args.targets));
+    const targetsDoc = readJson(targetsPath);
+    targets = validateTargets(targetsDoc);
+  }
+
+  const runId = args['run-id'] ? String(args['run-id']) : `compat-${Date.now()}`;
+  const outPath = args.out
+    ? path.resolve(process.cwd(), String(args.out))
+    : path.resolve(process.cwd(), `artifacts/release/compatibility/${runId}.json`);
+
+  const results = buildResults(matrix.cases, targets);
+
+  const run = {
+    runId,
+    createdAt: nowIso(),
+    updatedAt: nowIso(),
+    operator: args.operator ? String(args.operator) : '',
+    matrixSource: path.relative(process.cwd(), matrixPath),
+    targetsSource: targetsPath ? path.relative(process.cwd(), targetsPath) : '',
+    release: matrix.release ?? 'V1',
+    matrixTemplateVersion: matrix.templateVersion ?? 1,
+    status: 'in-progress',
+    targets: targets.map((target) => ({
+      id: target.id,
+      name: target.name,
+      platform: target.platform,
+      device: target.device,
+      browser: target.browser,
+      requiredTags: target.requiredTags,
     })),
+    results,
     signoff: {
       status: 'pending',
       approvedBy: '',
@@ -158,6 +305,9 @@ const initCommand = (args) => {
   writeJson(outPath, run);
   console.log(`[compat-matrix] created run: ${outPath}`);
   console.log(`[compat-matrix] cases: ${run.results.length}`);
+  if (targets.length > 0) {
+    console.log(`[compat-matrix] targets: ${targets.length}`);
+  }
 };
 
 const setCommand = (args) => {
@@ -176,11 +326,26 @@ const setCommand = (args) => {
     fail('run file is invalid: results array is missing');
   }
 
-  const target = run.results.find((result) => result.caseId === String(args.case));
-  if (!target) {
-    fail(`case not found in run: ${String(args.case)}`);
+  const caseId = String(args.case);
+  const targetId = args.target ? String(args.target) : '';
+  const matches = run.results.filter((result) => (
+    result.caseId === caseId
+    && (targetId === '' || result.targetId === targetId)
+  ));
+
+  if (matches.length === 0) {
+    fail(`case not found in run: ${caseId}${targetId ? ` (target: ${targetId})` : ''}`);
   }
 
+  if (matches.length > 1 && targetId === '') {
+    fail(`case ${caseId} matches multiple targets; provide --target <id>`);
+  }
+
+  if (matches.length > 1) {
+    fail(`case ${caseId} still ambiguous for target ${targetId}`);
+  }
+
+  const target = matches[0];
   target.status = String(args.status);
   if (target.status === 'pending') {
     target.executedAt = '';
@@ -201,7 +366,7 @@ const setCommand = (args) => {
   }
 
   run.updatedAt = nowIso();
-  const counts = summarize(run);
+  const counts = summarizeResults(run.results);
   if (counts.pending === 0) {
     run.status = 'ready-for-signoff';
   } else {
@@ -209,7 +374,8 @@ const setCommand = (args) => {
   }
 
   writeJson(runPath, run);
-  console.log(`[compat-matrix] updated case ${target.caseId} -> ${target.status}`);
+  const targetLabel = target.targetId ? ` on ${target.targetId}` : '';
+  console.log(`[compat-matrix] updated case ${target.caseId}${targetLabel} -> ${target.status}`);
 };
 
 const statusCommand = (args) => {
@@ -223,7 +389,7 @@ const statusCommand = (args) => {
     fail('run file is invalid: results array is missing');
   }
 
-  const counts = summarize(run);
+  const counts = summarizeResults(run.results);
   const blockerFail = run.results.filter((result) => result.releaseBlocker && result.status === 'fail').length;
 
   console.log(`[compat-matrix] runId: ${run.runId}`);
@@ -231,6 +397,14 @@ const statusCommand = (args) => {
   console.log(`[compat-matrix] counts: pending=${counts.pending}, pass=${counts.pass}, fail=${counts.fail}`);
   console.log(`[compat-matrix] release-blocker failures: ${blockerFail}`);
   console.log(`[compat-matrix] signoff: ${run.signoff?.status ?? 'pending'}`);
+
+  if (Array.isArray(run.targets) && run.targets.length > 0) {
+    for (const target of run.targets) {
+      const targetResults = run.results.filter((result) => result.targetId === target.id);
+      const targetCounts = summarizeResults(targetResults);
+      console.log(`[compat-matrix] target ${target.id}: pending=${targetCounts.pending}, pass=${targetCounts.pass}, fail=${targetCounts.fail}`);
+    }
+  }
 };
 
 const finalizeCommand = (args) => {
@@ -260,7 +434,7 @@ const finalizeCommand = (args) => {
     }
   }
 
-  const counts = summarize(run);
+  const counts = summarizeResults(run.results);
   const blockerFailures = run.results.filter((result) => result.releaseBlocker && result.status === 'fail');
 
   if (counts.pending > 0) {
