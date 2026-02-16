@@ -25,7 +25,7 @@ describe("XtreamCodesService.getAllVODStreams", () => {
       { category_id: "20", category_name: "Drama", parent_id: 0 },
     ];
     const actionStreams = [createVod(2, "10"), createVod(3, "10")];
-    const dramaStreams = [createVod(4, "20")];
+    const dramaStreams = [createVod(3, "20"), createVod(4, "20")];
 
     const requestedUrls: string[] = [];
     const httpClient: HttpClient = {
