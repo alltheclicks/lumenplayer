@@ -57,8 +57,8 @@ const percentile = (values: number[], percentileRank: number): number => {
 
   const sorted = sortNumbersAscending(values);
   const clampedRank = Math.min(100, Math.max(0, percentileRank));
-  const index = Math.ceil((clampedRank / 100) * sorted.length) - 1;
-  return sorted[Math.max(0, index)];
+  const index = Math.max(0, Math.ceil((clampedRank / 100) * sorted.length - 1));
+  return sorted[index];
 };
 
 const runSingleSample = (): TimeToFirstChannelSample => {
