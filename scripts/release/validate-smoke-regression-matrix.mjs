@@ -5,14 +5,14 @@ import path from 'node:path';
 
 const allowedSuites = new Set(['smoke', 'regression']);
 const allowedStatuses = new Set(['pending', 'pass', 'fail']);
-const requiredTags = new Set([
+const defaultRequiredTags = [
   'desktop-browser',
   'mobile-browser',
   'cast-flow',
   'airplay-flow',
   'pwa-install',
   'pwa-offline',
-]);
+];
 
 const usage = () => {
   console.error('Usage: node scripts/release/validate-smoke-regression-matrix.mjs <file> [--require-final]');
@@ -41,6 +41,21 @@ try {
 
 if (!Array.isArray(matrix.cases) || matrix.cases.length === 0) {
   fail('cases must be a non-empty array.');
+}
+
+const configuredRequiredTags = Array.isArray(matrix.requiredCoverageTags) && matrix.requiredCoverageTags.length > 0
+  ? matrix.requiredCoverageTags
+  : defaultRequiredTags;
+const requiredTags = new Set(configuredRequiredTags);
+
+if (requiredTags.size === 0) {
+  fail('requiredCoverageTags must contain at least one tag.');
+}
+
+for (const tag of requiredTags) {
+  if (typeof tag !== 'string' || tag.trim() === '') {
+    fail('requiredCoverageTags must only contain non-empty strings.');
+  }
 }
 
 const seenIds = new Set();
@@ -85,6 +100,10 @@ for (const testCase of matrix.cases) {
 
   if (requireFinal && testCase.status === 'pending') {
     fail(`Case ${testCase.id} is pending while --require-final is enabled.`);
+  }
+
+  if (requireFinal && testCase.releaseBlocker && testCase.status === 'fail') {
+    fail(`Release-blocker case ${testCase.id} has status "fail" and cannot be finalized.`);
   }
 }
 
