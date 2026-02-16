@@ -84,6 +84,27 @@ export class XtreamCodesService {
     );
   }
 
+  async getAllVODStreams(): Promise<XtreamVOD[]> {
+    const [allStreams, categories] = await Promise.all([
+      this.getVODStreams(),
+      this.getVODCategories(),
+    ]);
+
+    const categoryStreamGroups = await Promise.all(
+      categories.map((category) => this.getVODStreams(category.category_id)),
+    );
+
+    const deduplicatedById = new Map<string, XtreamVOD>();
+    for (const stream of [allStreams, ...categoryStreamGroups].flat()) {
+      const streamId = String(stream.stream_id);
+      if (!deduplicatedById.has(streamId)) {
+        deduplicatedById.set(streamId, stream);
+      }
+    }
+
+    return Array.from(deduplicatedById.values());
+  }
+
   async getVODInfo(vodId: string | number): Promise<XtreamVODInfo> {
     return this.http.get<XtreamVODInfo>(
       this.buildUrl("get_vod_info", { vod_id: String(vodId) }),
