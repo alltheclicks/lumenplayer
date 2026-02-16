@@ -195,9 +195,9 @@
 | ID | Task | Size | Status | Depends on |
 |----|------|------|--------|------------|
 | LP-0326 | Create benchmark dataset generator — 20k channels + 50k EPG entries (extend @lumen/demo-data) | M | done | — |
-| LP-0327 | Performance test: time-to-first-channel < 3s with 20k channel dataset | S | idea | LP-0326, LP-0314 |
-| LP-0328 | Performance test: memory cap < 200MB RSS with 20k channel dataset | S | idea | LP-0326, LP-0314 |
-| LP-0329 | Profile + optimize Cast receiver on older devices (Samsung 2019–2020 target) | M | idea | LP-0108 |
+| LP-0327 | Performance test: time-to-first-channel < 3s with 20k channel dataset | S | done | LP-0326, LP-0314 |
+| LP-0328 | Performance test: memory cap < 200MB RSS with 20k channel dataset | S | done | LP-0326, LP-0314 |
+| LP-0329 | Profile + optimize Cast receiver on older devices (Samsung 2019–2020 target) | M | done | LP-0108 |
 
 ---
 
