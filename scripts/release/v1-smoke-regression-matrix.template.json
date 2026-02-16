@@ -155,6 +155,18 @@
       "releaseBlocker": false,
       "status": "pending",
       "evidence": ""
+    },
+    {
+      "id": "REG-PWA-OFFLINE-RECOVERY",
+      "suite": "regression",
+      "title": "PWA offline fallback returns to app after reconnect",
+      "platform": "mobile",
+      "device": "Android/iOS",
+      "browser": "Chrome/Safari PWA",
+      "tags": ["pwa-offline", "mobile-browser"],
+      "releaseBlocker": true,
+      "status": "pending",
+      "evidence": ""
     }
   ],
   "signoff": {
