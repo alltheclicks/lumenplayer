@@ -221,6 +221,7 @@ Completion notes (2026-02-16):
 - LP-0344 delivered production observability baseline (web + cast receiver event/error logging + threshold alerts) in PR #108.
 - LP-0345 delivered security/privacy baseline gate (`scripts/release/v1-security-privacy-baseline.template.json`, validator + tests) in PR #109.
 - LP-0346 delivered final release readiness review gate (`scripts/release/v1-release-readiness-review.template.json`, validator + tests) in PR #111.
+- Post-LP-0346 immediate execution focus: run the V1 real-device validation cycle (smoke/regression, compatibility matrix, perf/security evidence) before starting new feature-track tasks.
 
 ---
 

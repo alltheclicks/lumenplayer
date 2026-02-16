@@ -24,8 +24,8 @@
     - GitHub PR checks were green before merge (`web-quality`, `automation-scripts`).
 
 - Next:
-  - LP-0350 (White-label branding config)
-  - LP-0351 (Design-token layer for brand palettes/semantic colors)
+  - Execute V1 real-device validation cycle (smoke/regression + compatibility + perf + security evidence finalization).
+  - After V1 validation pass, choose next implementation track from BACKLOG Phase 1 or Phase 2 items.
 
 ---
 
@@ -63,8 +63,8 @@
     - GitHub PR checks green before each merge
 
 - Next:
-  - LP-0350 (White-label branding config)
-  - LP-0351 (Design-token layer for brand palettes/semantic colors)
+  - Execute V1 real-device validation cycle (smoke/regression + compatibility + perf + security evidence finalization).
+  - After V1 validation pass, choose next implementation track from BACKLOG Phase 1 or Phase 2 items.
 
 ---
 
