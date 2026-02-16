@@ -27,7 +27,7 @@ interface RunOptions {
 }
 
 const DEFAULT_WARMUP_RUNS = 1;
-const DEFAULT_SAMPLE_RUNS = 5;
+const DEFAULT_SAMPLE_RUNS = 20;
 const BENCHMARK_NOW_MS = Date.UTC(2026, 1, 1, 12, 0, 0);
 
 const mapBenchmarkChannel = (
@@ -57,8 +57,14 @@ const percentile = (values: number[], percentileRank: number): number => {
 
   const sorted = sortNumbersAscending(values);
   const clampedRank = Math.min(100, Math.max(0, percentileRank));
-  const index = Math.max(0, Math.ceil((clampedRank / 100) * sorted.length - 1));
-  return sorted[index];
+  const position = (clampedRank / 100) * (sorted.length - 1);
+  const lowerIndex = Math.floor(position);
+  const upperIndex = Math.ceil(position);
+  const interpolationWeight = position - lowerIndex;
+  const lowerValue = sorted[lowerIndex];
+  const upperValue = sorted[upperIndex];
+
+  return lowerValue + ((upperValue - lowerValue) * interpolationWeight);
 };
 
 const runSingleSample = (): TimeToFirstChannelSample => {
