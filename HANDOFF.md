@@ -1,5 +1,41 @@
 # Handoff — Lumen Player
 
+## Session 2026-02-16 — LP-0340, LP-0341, LP-0342 (ordered batch, follow-up hardening)
+
+- PRs: #103 (merged), #104 (merged), #105 (merged)
+- Done:
+  - LP-0340: Added typed V1 go/no-go checklist model + evaluation helpers with dedicated tests:
+    - `scripts/release/v1-go-no-go.ts`
+    - `scripts/release/v1-go-no-go.test.ts`
+  - LP-0341: Hardened V1 smoke/regression matrix coverage:
+    - added missing offline regression case in `scripts/release/v1-smoke-regression-matrix.template.json`
+    - validator now requires smoke + regression coverage for every required release tag (`scripts/release/validate-smoke-regression-matrix.mjs`)
+    - added matrix tests in `scripts/release/v1-smoke-regression-matrix.test.ts`
+  - LP-0342: Extended compatibility execution task to be target-aware:
+    - target profile template: `scripts/release/v1-compatibility-targets.template.json`
+    - `compatibility-matrix-task` now supports `--targets`, per-target run records, ambiguity-safe updates, and explicit `matchMode` semantics (`any`/`all`)
+    - added focused tests in `scripts/release/compatibility-matrix-task.test.ts`
+  - Local test gate passed on each task PR:
+    - `pnpm lint`
+    - `pnpm typecheck`
+    - `pnpm build`
+  - Task-specific checks:
+    - `pnpm vitest run scripts/release/v1-go-no-go.test.ts`
+    - `pnpm release:smoke-matrix:validate`
+    - `pnpm release:smoke-matrix:test`
+    - `pnpm release:compat-matrix:test`
+  - Greptile/check notes:
+    - #103: initial 4/5, addressed comments, final 5/5
+    - #104: final 5/5
+    - #105: remained 4/5 after multiple review rounds; merged by explicit exception because no remaining actionable correctness issues and all checks were green
+
+- Next:
+  - LP-0343 (Performance evidence artifact)
+  - LP-0344 (Observability baseline)
+  - LP-0345 (Security/privacy baseline review)
+
+---
+
 ## Session 2026-02-16 — LP-0340, LP-0341, LP-0342 (ordered batch)
 
 - PRs: #98 (merged), #99 (merged), #100 (merged)
