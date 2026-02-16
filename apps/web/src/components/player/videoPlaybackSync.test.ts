@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { SessionState } from '@lumen/session-core';
+import type { PlaybackError } from '@lumen/types';
 import {
   sessionWantsPlayback,
+  shouldShowBlockingPlaybackError,
   shouldHoldPauseSyncOnSourceStartup,
 } from './videoPlaybackSync';
 
@@ -40,5 +42,21 @@ describe('videoPlaybackSync', () => {
       shouldHoldPauseSyncOnSourceStartup(buildSession({ playback: 'paused' }), session.source?.url ?? null)
     ).toBe(false);
     expect(shouldHoldPauseSyncOnSourceStartup(buildSession({ source: null }), session.source?.url ?? null)).toBe(false);
+  });
+
+  it('shows blocking overlay only for fatal playback errors', () => {
+    const fatalError: PlaybackError = {
+      code: 'NETWORK_ERROR',
+      message: 'fatal',
+      fatal: true,
+    };
+    const nonFatalError: PlaybackError = {
+      code: 'NETWORK_ERROR',
+      message: 'recoverable',
+      fatal: false,
+    };
+
+    expect(shouldShowBlockingPlaybackError(fatalError)).toBe(true);
+    expect(shouldShowBlockingPlaybackError(nonFatalError)).toBe(false);
   });
 });

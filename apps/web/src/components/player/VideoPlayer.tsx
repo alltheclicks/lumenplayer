@@ -8,6 +8,7 @@ import type { SubtitleTrackOption } from '@lumen/types';
 import { emitWebObservabilityEvent } from '@/services/observability';
 import {
   sessionWantsPlayback,
+  shouldShowBlockingPlaybackError,
   shouldHoldPauseSyncOnSourceStartup,
 } from './videoPlaybackSync';
 
@@ -377,6 +378,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
 
       if (state === 'playing') {
         pendingAutoplaySourceUrlRef.current = null;
+        setError(null);
         setIsPlaying(true);
         setIsLoading(false);
         onCanPlay?.();
@@ -434,7 +436,9 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
 
     const unsubscribeError = adapter.onError((playbackError) => {
       pendingAutoplaySourceUrlRef.current = null;
-      setError(mapPlaybackError(playbackError));
+      if (shouldShowBlockingPlaybackError(playbackError)) {
+        setError(mapPlaybackError(playbackError));
+      }
       setIsLoading(false);
       emitWebObservabilityEvent({
         name: 'playback.error',

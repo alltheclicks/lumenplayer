@@ -1,4 +1,5 @@
 import type { SessionState } from '@lumen/session-core';
+import type { PlaybackError } from '@lumen/types';
 
 export const sessionWantsPlayback = (session: SessionState): boolean => (
   session.playback === 'playing' || session.playback === 'buffering'
@@ -19,3 +20,7 @@ export const shouldHoldPauseSyncOnSourceStartup = (
 
   return currentSourceUrl === pendingAutoplaySourceUrl && sessionWantsPlayback(session);
 };
+
+export const shouldShowBlockingPlaybackError = (playbackError: PlaybackError): boolean => (
+  playbackError.fatal
+);
