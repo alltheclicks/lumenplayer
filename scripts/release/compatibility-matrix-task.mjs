@@ -54,7 +54,9 @@ const writeJson = (filePath, data) => {
 const summarize = (run) => {
   const counts = { pending: 0, pass: 0, fail: 0 };
   for (const result of run.results) {
-    counts[result.status] += 1;
+    if (counts[result.status] !== undefined) {
+      counts[result.status] += 1;
+    }
   }
 
   return counts;
