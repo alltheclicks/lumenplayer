@@ -143,4 +143,70 @@ describe('compatibility-matrix-task', () => {
     ));
     expect(matched).toHaveLength(1);
   });
+
+  it('supports strict tag matching with target matchMode=all', () => {
+    const repoRoot = process.cwd();
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-0342-compat-'));
+    const matrixPath = path.join(tempDir, 'matrix.json');
+    const targetsPath = path.join(tempDir, 'targets.json');
+    const outPath = path.join(tempDir, 'run.json');
+
+    fs.writeFileSync(matrixPath, JSON.stringify({
+      release: 'V1',
+      templateVersion: 1,
+      cases: [
+        {
+          id: 'CASE-ONE-TAG',
+          suite: 'smoke',
+          title: 'one tag only',
+          platform: 'mobile',
+          device: 'Android',
+          browser: 'Chrome',
+          tags: ['mobile-browser'],
+          releaseBlocker: true,
+        },
+        {
+          id: 'CASE-TWO-TAGS',
+          suite: 'smoke',
+          title: 'two required tags',
+          platform: 'mobile',
+          device: 'Android',
+          browser: 'Chrome',
+          tags: ['mobile-browser', 'pwa-install'],
+          releaseBlocker: true,
+        },
+      ],
+    }, null, 2));
+
+    fs.writeFileSync(targetsPath, JSON.stringify({
+      targets: [
+        {
+          id: 'target-strict-mobile',
+          name: 'Target strict mobile',
+          platform: 'mobile',
+          device: 'Android',
+          browser: 'Chrome',
+          matchMode: 'all',
+          requiredTags: ['mobile-browser', 'pwa-install'],
+        },
+      ],
+    }, null, 2));
+
+    const init = runTask([
+      'init',
+      '--matrix', matrixPath,
+      '--targets', targetsPath,
+      '--out', outPath,
+      '--run-id', 'compat-test-run-4',
+    ], repoRoot);
+    expect(init.status).toBe(0);
+
+    const run = JSON.parse(fs.readFileSync(outPath, 'utf8')) as {
+      results: Array<{ caseId: string; targetId: string }>;
+    };
+
+    expect(run.results).toHaveLength(1);
+    expect(run.results[0]?.caseId).toBe('CASE-TWO-TAGS');
+    expect(run.results[0]?.targetId).toBe('target-strict-mobile');
+  });
 });

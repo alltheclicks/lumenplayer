@@ -5,6 +5,7 @@ import path from 'node:path';
 
 const allowedCaseStatus = new Set(['pending', 'pass', 'fail']);
 const allowedSignoffStatus = new Set(['pass', 'fail']);
+const allowedMatchModes = new Set(['any', 'all']);
 
 const fail = (message) => {
   console.error(`[compat-matrix] ERROR: ${message}`);
@@ -157,6 +158,11 @@ const validateTargets = (targetsDoc) => {
       fail(`target ${target.id} must include at least one required tag`);
     }
 
+    const matchMode = typeof target.matchMode === 'string' ? target.matchMode : 'any';
+    if (!allowedMatchModes.has(matchMode)) {
+      fail(`target ${target.id} must use matchMode \"any\" or \"all\"`);
+    }
+
     for (const tag of target.requiredTags) {
       if (typeof tag !== 'string' || tag.trim() === '') {
         fail(`target ${target.id} contains an invalid requiredTag value`);
@@ -164,7 +170,10 @@ const validateTargets = (targetsDoc) => {
     }
 
     seenTargetIds.add(target.id);
-    targets.push(target);
+    targets.push({
+      ...target,
+      matchMode,
+    });
   }
 
   return targets;
@@ -208,10 +217,15 @@ const buildResults = (matrixCases, targets) => {
       }
 
       let matchesTarget = false;
-      for (const tag of testCase.tags) {
-        if (requiredTagSet.has(tag)) {
-          matchesTarget = true;
-          break;
+      if (target.matchMode === 'all') {
+        const caseTagSet = new Set(testCase.tags);
+        matchesTarget = target.requiredTags.every((tag) => caseTagSet.has(tag));
+      } else {
+        for (const tag of testCase.tags) {
+          if (requiredTagSet.has(tag)) {
+            matchesTarget = true;
+            break;
+          }
         }
       }
 
@@ -299,6 +313,7 @@ const initCommand = (args) => {
       platform: target.platform,
       device: target.device,
       browser: target.browser,
+      matchMode: target.matchMode,
       requiredTags: target.requiredTags,
     })),
     results,
