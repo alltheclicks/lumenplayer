@@ -5,8 +5,11 @@ import { HlsPlayerAdapter } from '@/adapters/HlsPlayerAdapter';
 import type { PlaybackError } from '@lumen/types';
 import type { AudioTrackOption } from '@lumen/types';
 import type { SubtitleTrackOption } from '@lumen/types';
-import type { SessionState } from '@lumen/session-core';
 import { emitWebObservabilityEvent } from '@/services/observability';
+import {
+  sessionWantsPlayback,
+  shouldHoldPauseSyncOnSourceStartup,
+} from './videoPlaybackSync';
 
 export interface VideoPlayerProps {
   poster?: string;
@@ -59,10 +62,6 @@ type PlayerError = {
   message: string;
   details?: string;
 };
-
-const wantsPlayback = (session: SessionState): boolean => (
-  session.playback === 'playing' || session.playback === 'buffering'
-);
 
 type WebKitPictureInPictureVideoElement = HTMLVideoElement & {
   webkitSupportsPresentationMode?: (mode: string) => boolean;
@@ -141,7 +140,8 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
   const airPlayAvailabilityListenersRef = useRef(new Set<(isAvailable: boolean) => void>());
   const airPlayConnectionListenersRef = useRef(new Set<(isConnected: boolean) => void>());
   const lastStartedSourceRef = useRef<string | null>(null);
-  const playbackWantsPlaying = wantsPlayback(session);
+  const pendingAutoplaySourceUrlRef = useRef<string | null>(null);
+  const playbackWantsPlaying = sessionWantsPlayback(session);
   const isLocalRenderer = session.renderer === 'local-web' || session.renderer === 'airplay';
 
   useEffect(() => {
@@ -376,6 +376,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
       }
 
       if (state === 'playing') {
+        pendingAutoplaySourceUrlRef.current = null;
         setIsPlaying(true);
         setIsLoading(false);
         onCanPlay?.();
@@ -393,23 +394,31 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
           });
         }
 
-        if (!wantsPlayback(currentSession)) {
+        if (!sessionWantsPlayback(currentSession)) {
           commands.play();
         }
         return;
       }
 
       if (state === 'paused') {
+        if (shouldHoldPauseSyncOnSourceStartup(
+          currentSession,
+          pendingAutoplaySourceUrlRef.current
+        )) {
+          return;
+        }
+
         setIsPlaying(false);
         setIsLoading(false);
 
-        if (currentSession.source && wantsPlayback(currentSession)) {
+        if (currentSession.source && sessionWantsPlayback(currentSession)) {
           commands.pause();
         }
         return;
       }
 
       if (state === 'ended') {
+        pendingAutoplaySourceUrlRef.current = null;
         setIsPlaying(false);
         setIsLoading(false);
         onEnded?.();
@@ -417,12 +426,14 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
       }
 
       if (state === 'idle') {
+        pendingAutoplaySourceUrlRef.current = null;
         setIsPlaying(false);
         setIsLoading(false);
       }
     });
 
     const unsubscribeError = adapter.onError((playbackError) => {
+      pendingAutoplaySourceUrlRef.current = null;
       setError(mapPlaybackError(playbackError));
       setIsLoading(false);
       emitWebObservabilityEvent({
@@ -496,6 +507,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
 
     if (!src || !isLocalRenderer) {
       void exitPictureInPicture();
+      pendingAutoplaySourceUrlRef.current = null;
       setError(null);
       setIsLoading(false);
       setIsPlaying(false);
@@ -507,6 +519,9 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
     setError(null);
     setIsLoading(true);
     lastStartedSourceRef.current = null;
+    pendingAutoplaySourceUrlRef.current = autoPlay && sessionWantsPlayback(sessionRef.current)
+      ? src
+      : null;
 
     void adapter.load({
       url: src,
@@ -518,7 +533,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
 
       setIsLoading(false);
       onCanPlay?.();
-      if (autoPlay && wantsPlayback(sessionRef.current)) {
+      if (autoPlay && sessionWantsPlayback(sessionRef.current)) {
         adapter.play();
       }
     }).catch((loadError: unknown) => {
@@ -527,6 +542,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
       }
 
       setIsLoading(false);
+      pendingAutoplaySourceUrlRef.current = null;
       const message = loadError instanceof Error ? loadError.message : 'Failed to load stream';
       emitWebObservabilityEvent({
         name: 'playback.error',
@@ -579,6 +595,9 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
     }
 
     if (playbackWantsPlaying) {
+      if (adapter.getState() === 'loading') {
+        return;
+      }
       adapter.play();
       return;
     }
