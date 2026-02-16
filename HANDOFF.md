@@ -19,8 +19,8 @@
     - `pnpm release:readiness:validate`
     - `pnpm release:readiness:test`
   - Greptile/check notes:
-    - Greptile review check-run started on #111, but final confidence score was not returned after 2 pings.
-    - Required PR note comment was posted documenting missing final score.
+    - Greptile review check-run started on #111; final response was delayed and pinged 2x per process.
+    - Required PR note comment was posted after ping window, then Greptile returned final confidence score `5/5`.
     - GitHub PR checks were green before merge (`web-quality`, `automation-scripts`).
 
 - Next:

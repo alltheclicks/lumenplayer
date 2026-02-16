@@ -316,4 +316,4 @@ Completion notes (2026-02-16):
 - `LP-0346` zavrsen i mergovan kroz PR #111.
 - Greptile je za #98/#99/#100 pokrenuo review check-run i validni komentari su zatvoreni, ali finalna confidence ocena nije vracena ni posle pingova; ovo je evidentirano u PR komentarima.
 - Za #111 svi obavezni lokalni checkovi su prosli (`pnpm lint`, `pnpm typecheck`, `pnpm build`) kao i task-specific checkovi (`pnpm release:readiness:validate`, `pnpm release:readiness:test`).
-- Greptile je na #111 pokrenuo review check-run, ali finalna confidence ocena nije vracena ni posle 2 pinga; ostavljen je obavezni PR komentar.
+- Greptile je na #111 kasnio sa finalnim odgovorom; nakon 2 pinga i obaveznog PR komentara naknadno je vracena finalna confidence ocena `5/5`.
