@@ -15,7 +15,6 @@ export interface GoNoGoFeatureAreaDefinition {
 }
 
 export interface GoNoGoCriterionResult {
-  criterionId: string;
   status: GoNoGoStatus;
   evidence: string;
   notes: string;
@@ -212,7 +211,6 @@ export const createV1GoNoGoChecklistTemplate = (
     label: area.label,
     criteria: area.criteria.map((criterion) => ({
       ...criterion,
-      criterionId: criterion.id,
       status: 'pending',
       evidence: '',
       notes: '',

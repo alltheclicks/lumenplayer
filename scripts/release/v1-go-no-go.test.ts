@@ -34,9 +34,11 @@ describe('V1 go/no-go checklist definition', () => {
 
   it('resolves to go only when all required criteria are pass or waived', () => {
     const checklist = createV1GoNoGoChecklistTemplate();
+    let index = 0;
     for (const area of checklist.areas) {
       for (const criterion of area.criteria) {
-        criterion.status = 'pass';
+        criterion.status = index % 2 === 0 ? 'pass' : 'waived';
+        index += 1;
       }
     }
 
