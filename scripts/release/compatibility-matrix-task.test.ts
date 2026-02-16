@@ -87,4 +87,60 @@ describe('compatibility-matrix-task', () => {
     expect(updated?.evidence).toBe('manual-run-1');
     expect(updated?.executor).toBe('ci-test');
   });
+
+  it('does not duplicate case-target rows when multiple tags match the same target', () => {
+    const repoRoot = process.cwd();
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-0342-compat-'));
+    const matrixPath = path.join(tempDir, 'matrix.json');
+    const targetsPath = path.join(tempDir, 'targets.json');
+    const outPath = path.join(tempDir, 'run.json');
+
+    fs.writeFileSync(matrixPath, JSON.stringify({
+      release: 'V1',
+      templateVersion: 1,
+      cases: [
+        {
+          id: 'CASE-MULTI-TAG',
+          suite: 'smoke',
+          title: 'case with two matching tags',
+          platform: 'mobile',
+          device: 'Android',
+          browser: 'Chrome',
+          tags: ['mobile-browser', 'pwa-install'],
+          releaseBlocker: true,
+        },
+      ],
+    }, null, 2));
+
+    fs.writeFileSync(targetsPath, JSON.stringify({
+      targets: [
+        {
+          id: 'target-mobile',
+          name: 'Target mobile',
+          platform: 'mobile',
+          device: 'Android',
+          browser: 'Chrome',
+          requiredTags: ['mobile-browser', 'pwa-install'],
+        },
+      ],
+    }, null, 2));
+
+    const init = runTask([
+      'init',
+      '--matrix', matrixPath,
+      '--targets', targetsPath,
+      '--out', outPath,
+      '--run-id', 'compat-test-run-3',
+    ], repoRoot);
+    expect(init.status).toBe(0);
+
+    const run = JSON.parse(fs.readFileSync(outPath, 'utf8')) as {
+      results: Array<{ caseId: string; targetId: string }>;
+    };
+
+    const matched = run.results.filter((result) => (
+      result.caseId === 'CASE-MULTI-TAG' && result.targetId === 'target-mobile'
+    ));
+    expect(matched).toHaveLength(1);
+  });
 });

@@ -198,25 +198,33 @@ const buildResults = (matrixCases, targets) => {
   }
 
   const results = [];
-  const seenCompositeKeys = new Set();
 
   for (const target of targets) {
-    const matchedCases = matrixCases.filter((testCase) => (
-      Array.isArray(testCase.tags)
-      && testCase.tags.some((tag) => target.requiredTags.includes(tag))
-    ));
+    const requiredTagSet = new Set(target.requiredTags);
+    const matchedCases = [];
+    for (const testCase of matrixCases) {
+      if (!Array.isArray(testCase.tags)) {
+        continue;
+      }
+
+      let matchesTarget = false;
+      for (const tag of testCase.tags) {
+        if (requiredTagSet.has(tag)) {
+          matchesTarget = true;
+          break;
+        }
+      }
+
+      if (matchesTarget) {
+        matchedCases.push(testCase);
+      }
+    }
 
     if (matchedCases.length === 0) {
       fail(`target ${target.id} does not match any matrix case by requiredTags`);
     }
 
     for (const testCase of matchedCases) {
-      const compositeKey = `${target.id}::${testCase.id}`;
-      if (seenCompositeKeys.has(compositeKey)) {
-        continue;
-      }
-
-      seenCompositeKeys.add(compositeKey);
       results.push({
         caseId: testCase.id,
         suite: testCase.suite,
