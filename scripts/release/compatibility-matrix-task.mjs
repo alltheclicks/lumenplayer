@@ -25,7 +25,7 @@ const parseArgs = (args) => {
 
     const key = token.slice(2);
     const value = args[i + 1];
-    if (!value || value.startsWith('--')) {
+    if (typeof value !== 'string' || value.startsWith('--')) {
       parsed[key] = true;
       continue;
     }
@@ -89,6 +89,26 @@ const initCommand = (args) => {
   for (const testCase of matrix.cases) {
     if (typeof testCase.id !== 'string' || testCase.id.trim() === '') {
       fail('matrix case is missing a valid id');
+    }
+
+    if (typeof testCase.suite !== 'string' || testCase.suite.trim() === '') {
+      fail(`matrix case ${testCase.id} is missing suite`);
+    }
+
+    if (typeof testCase.title !== 'string' || testCase.title.trim() === '') {
+      fail(`matrix case ${testCase.id} is missing title`);
+    }
+
+    if (typeof testCase.platform !== 'string' || testCase.platform.trim() === '') {
+      fail(`matrix case ${testCase.id} is missing platform`);
+    }
+
+    if (typeof testCase.device !== 'string' || testCase.device.trim() === '') {
+      fail(`matrix case ${testCase.id} is missing device`);
+    }
+
+    if (typeof testCase.browser !== 'string' || testCase.browser.trim() === '') {
+      fail(`matrix case ${testCase.id} is missing browser`);
     }
 
     if (seenCaseIds.has(testCase.id)) {
