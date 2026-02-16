@@ -124,12 +124,16 @@ export class XtreamCodesService {
     }
 
     if (deduplicatedById.size === 0 || hasFailedCategoryRequest) {
-      const fallbackAllStreams = await this.getVODStreams();
-      for (const stream of fallbackAllStreams) {
-        const streamId = String(stream.stream_id);
-        if (!deduplicatedById.has(streamId)) {
-          deduplicatedById.set(streamId, stream);
+      try {
+        const fallbackAllStreams = await this.getVODStreams();
+        for (const stream of fallbackAllStreams) {
+          const streamId = String(stream.stream_id);
+          if (!deduplicatedById.has(streamId)) {
+            deduplicatedById.set(streamId, stream);
+          }
         }
+      } catch {
+        // Fallback endpoint can fail while category streams are still usable.
       }
     }
 
