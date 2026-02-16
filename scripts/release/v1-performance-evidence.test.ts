@@ -96,6 +96,8 @@ describe('V1 performance evidence artifact', () => {
 
     const finalResult = runValidator([finalPath, '--require-final'], repoRoot);
     expect(finalResult.status).toBe(0);
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
   it('fails strict validation when metric values exceed declared thresholds', () => {
@@ -124,6 +126,8 @@ describe('V1 performance evidence artifact', () => {
     const result = runValidator([invalidPath, '--require-final'], repoRoot);
     expect(result.status).toBe(2);
     expect(result.stderr).toContain('exceeds threshold');
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
   it('fails strict validation when required metric fields are missing from artifact JSON', () => {
@@ -156,5 +160,42 @@ describe('V1 performance evidence artifact', () => {
     const result = runValidator([missingFieldPath, '--require-final'], repoRoot);
     expect(result.status).toBe(2);
     expect(result.stderr).toContain('must be set with --require-final');
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('fails strict validation when metric values are non-numeric types', () => {
+    const repoRoot = process.cwd();
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-0343-perf-evidence-'));
+    const invalidTypePath = path.join(tmpDir, 'invalid-type.json');
+
+    const invalidTypeArtifact = loadTemplate() as PerformanceEvidenceArtifact & {
+      metrics: {
+        startup: {
+          p95: number | string | null;
+          p99: number | string | null;
+        };
+      };
+    };
+
+    invalidTypeArtifact.metrics.startup.p95 = 'fast';
+    invalidTypeArtifact.metrics.startup.p99 = 2300;
+    invalidTypeArtifact.metrics.startup.status = 'pass';
+    invalidTypeArtifact.metrics.memory.peakRssMb = 180;
+    invalidTypeArtifact.metrics.memory.p95RssMb = 170;
+    invalidTypeArtifact.metrics.memory.status = 'pass';
+    invalidTypeArtifact.metrics.failureRate.ratePercent = 0;
+    invalidTypeArtifact.metrics.failureRate.status = 'pass';
+    invalidTypeArtifact.signoff.status = 'pass';
+    invalidTypeArtifact.signoff.approvedBy = 'qa-release-owner';
+    invalidTypeArtifact.signoff.approvedAt = '2026-02-16T12:00:00.000Z';
+
+    fs.writeFileSync(invalidTypePath, `${JSON.stringify(invalidTypeArtifact, null, 2)}\n`);
+
+    const result = runValidator([invalidTypePath, '--require-final'], repoRoot);
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain('must be finite numbers');
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 });

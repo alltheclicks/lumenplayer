@@ -24,6 +24,8 @@ const fail = (message) => {
   process.exit(2);
 };
 
+const isFiniteNumber = (value) => typeof value === 'number' && Number.isFinite(value);
+
 let artifact;
 try {
   artifact = JSON.parse(fs.readFileSync(filePath, 'utf8'));
@@ -113,6 +115,18 @@ if (requireFinal) {
 
   if (failureRate.ratePercent == null) {
     fail('failureRate.ratePercent must be set with --require-final.');
+  }
+
+  if (!isFiniteNumber(startup.p95) || !isFiniteNumber(startup.p99)) {
+    fail('startup p95/p99 must be finite numbers.');
+  }
+
+  if (!isFiniteNumber(memory.peakRssMb) || !isFiniteNumber(memory.p95RssMb)) {
+    fail('memory peakRssMb/p95RssMb must be finite numbers.');
+  }
+
+  if (!isFiniteNumber(failureRate.ratePercent)) {
+    fail('failureRate.ratePercent must be a finite number.');
   }
 
   if (startup.status === 'pending' || memory.status === 'pending' || failureRate.status === 'pending') {
