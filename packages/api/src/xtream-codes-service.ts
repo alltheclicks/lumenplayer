@@ -12,6 +12,7 @@ import type {
 import type { HttpClient } from "./http-client";
 
 export class XtreamCodesService {
+  private static readonly VOD_CATEGORY_FETCH_CONCURRENCY = 8;
   private credentials: XtreamCredentials | null = null;
   private http: HttpClient;
 
@@ -90,9 +91,26 @@ export class XtreamCodesService {
       this.getVODCategories(),
     ]);
 
-    const categoryStreamGroups = await Promise.all(
-      categories.map((category) => this.getVODStreams(category.category_id)),
-    );
+    const categoryStreamGroups: XtreamVOD[][] = [];
+    for (
+      let categoryIndex = 0;
+      categoryIndex < categories.length;
+      categoryIndex += XtreamCodesService.VOD_CATEGORY_FETCH_CONCURRENCY
+    ) {
+      const categoryBatch = categories.slice(
+        categoryIndex,
+        categoryIndex + XtreamCodesService.VOD_CATEGORY_FETCH_CONCURRENCY,
+      );
+      const categoryBatchResults = await Promise.allSettled(
+        categoryBatch.map((category) => this.getVODStreams(category.category_id)),
+      );
+
+      for (const result of categoryBatchResults) {
+        if (result.status === "fulfilled") {
+          categoryStreamGroups.push(result.value);
+        }
+      }
+    }
 
     const deduplicatedById = new Map<string, XtreamVOD>();
     for (const stream of [allStreams, ...categoryStreamGroups].flat()) {
