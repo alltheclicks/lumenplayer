@@ -19,12 +19,11 @@ const createVod = (streamId: number, categoryId: string): XtreamVOD => ({
 });
 
 describe("XtreamCodesService.getAllVODStreams", () => {
-  it("merges unfiltered and per-category streams without duplicates", async () => {
+  it("merges per-category streams without duplicates", async () => {
     const categories: XtreamCategory[] = [
       { category_id: "10", category_name: "Action", parent_id: 0 },
       { category_id: "20", category_name: "Drama", parent_id: 0 },
     ];
-    const allStreams = [createVod(1, "0"), createVod(2, "10")];
     const actionStreams = [createVod(2, "10"), createVod(3, "10")];
     const dramaStreams = [createVod(4, "20")];
 
@@ -38,9 +37,6 @@ describe("XtreamCodesService.getAllVODStreams", () => {
 
         if (action === "get_vod_categories") {
           return categories as T;
-        }
-        if (action === "get_vod_streams" && categoryId === null) {
-          return allStreams as T;
         }
         if (action === "get_vod_streams" && categoryId === "10") {
           return actionStreams as T;
@@ -63,8 +59,8 @@ describe("XtreamCodesService.getAllVODStreams", () => {
 
     const result = await service.getAllVODStreams();
 
-    expect(result.map((stream) => stream.stream_id)).toEqual([1, 2, 3, 4]);
-    expect(requestedUrls).toHaveLength(4);
+    expect(result.map((stream) => stream.stream_id)).toEqual([2, 3, 4]);
+    expect(requestedUrls).toHaveLength(3);
   });
 
   it("returns partial catalog when one category request fails", async () => {
@@ -115,7 +111,7 @@ describe("XtreamCodesService.getAllVODStreams", () => {
 
     const result = await service.getAllVODStreams();
 
-    expect(result.map((stream) => stream.stream_id)).toEqual([1, 2, 3]);
+    expect(result.map((stream) => stream.stream_id).sort()).toEqual([1, 2, 3]);
     expect(requestedUrls).toHaveLength(5);
   });
 });

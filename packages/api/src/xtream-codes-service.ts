@@ -86,11 +86,12 @@ export class XtreamCodesService {
   }
 
   async getAllVODStreams(): Promise<XtreamVOD[]> {
-    const [allStreams, categories] = await Promise.all([
-      this.getVODStreams(),
-      this.getVODCategories(),
-    ]);
+    const categories = await this.getVODCategories();
+    if (categories.length === 0) {
+      return this.getVODStreams();
+    }
 
+    let hasFailedCategoryRequest = false;
     const categoryStreamGroups: XtreamVOD[][] = [];
     for (
       let categoryIndex = 0;
@@ -108,15 +109,27 @@ export class XtreamCodesService {
       for (const result of categoryBatchResults) {
         if (result.status === "fulfilled") {
           categoryStreamGroups.push(result.value);
+        } else {
+          hasFailedCategoryRequest = true;
         }
       }
     }
 
     const deduplicatedById = new Map<string, XtreamVOD>();
-    for (const stream of [allStreams, ...categoryStreamGroups].flat()) {
+    for (const stream of categoryStreamGroups.flat()) {
       const streamId = String(stream.stream_id);
       if (!deduplicatedById.has(streamId)) {
         deduplicatedById.set(streamId, stream);
+      }
+    }
+
+    if (deduplicatedById.size === 0 || hasFailedCategoryRequest) {
+      const fallbackAllStreams = await this.getVODStreams();
+      for (const stream of fallbackAllStreams) {
+        const streamId = String(stream.stream_id);
+        if (!deduplicatedById.has(streamId)) {
+          deduplicatedById.set(streamId, stream);
+        }
       }
     }
 
