@@ -1,5 +1,45 @@
 # Handoff — Lumen Player
 
+## Session 2026-02-16 — LP-0343, LP-0344, LP-0345 (ordered batch)
+
+- PRs: #107 (merged), #108 (merged), #109 (merged)
+- Done:
+  - LP-0343: Added V1 performance evidence artifact gate:
+    - `scripts/release/v1-performance-evidence.template.json`
+    - `scripts/release/validate-performance-evidence.mjs`
+    - `scripts/release/v1-performance-evidence.test.ts`
+  - LP-0344: Added production observability baseline for web + cast receiver:
+    - new web observability service + threshold alert rules (`apps/web/src/services/observability.ts`)
+    - focused observability tests (`apps/web/src/services/observability.test.ts`)
+    - instrumentation across playback/cast paths in `Player.tsx`, `VideoPlayer.tsx`, `useGoogleCastSender.ts`
+    - cast receiver event/error + threshold breadcrumbs in `apps/web/public/receiver.html`
+  - LP-0345: Added V1 security/privacy baseline review gate:
+    - `scripts/release/v1-security-privacy-baseline.template.json`
+    - `scripts/release/validate-security-privacy-baseline.mjs`
+    - `scripts/release/v1-security-privacy-baseline.test.ts`
+  - Local test gate passed on each task PR:
+    - `pnpm lint`
+    - `pnpm typecheck`
+    - `pnpm build`
+  - Task-specific checks:
+    - `pnpm release:perf-evidence:validate`
+    - `pnpm release:perf-evidence:test`
+    - `pnpm release:observability:test`
+    - `pnpm release:security-baseline:validate`
+    - `pnpm release:security-baseline:test`
+  - Greptile/check notes:
+    - #107: final confidence `5/5` after iterative validator hardening
+    - #108: Greptile start delay handled via ping loop; final confidence `5/5`
+    - #109: delayed final response after two pings; intermediate `4/5` feedback fixed in follow-up commit; final confidence `5/5`
+    - GitHub PR checks green before each merge
+
+- Next:
+  - LP-0346 (Final release readiness review)
+  - LP-0350 (White-label branding config)
+  - LP-0351 (Design-token layer for brand palettes/semantic colors)
+
+---
+
 ## Session 2026-02-16 — LP-0340, LP-0341, LP-0342 (ordered batch, follow-up hardening)
 
 - PRs: #103 (merged), #104 (merged), #105 (merged)
