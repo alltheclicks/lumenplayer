@@ -182,7 +182,11 @@ const setCommand = (args) => {
   }
 
   target.status = String(args.status);
-  target.executedAt = nowIso();
+  if (target.status === 'pending') {
+    target.executedAt = '';
+  } else {
+    target.executedAt = nowIso();
+  }
 
   if (args.evidence) {
     target.evidence = String(args.evidence);
@@ -215,6 +219,10 @@ const statusCommand = (args) => {
 
   const runPath = path.resolve(process.cwd(), String(args.run));
   const run = readJson(runPath);
+  if (!Array.isArray(run.results)) {
+    fail('run file is invalid: results array is missing');
+  }
+
   const counts = summarize(run);
   const blockerFail = run.results.filter((result) => result.releaseBlocker && result.status === 'fail').length;
 
@@ -240,6 +248,10 @@ const finalizeCommand = (args) => {
 
   if (!Array.isArray(run.results) || run.results.length === 0) {
     fail('run file is invalid: results array is missing/empty');
+  }
+
+  if (run.status === 'completed') {
+    fail('run is already finalized');
   }
 
   for (const result of run.results) {
