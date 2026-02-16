@@ -11,6 +11,7 @@
     "perf:rss": "vitest run scripts/perf/memory-cap.test.ts",
     "release:go-no-go:validate": "node scripts/release/validate-go-no-go.mjs scripts/release/v1-go-no-go.template.json",
     "release:smoke-matrix:validate": "node scripts/release/validate-smoke-regression-matrix.mjs scripts/release/v1-smoke-regression-matrix.template.json",
+    "release:smoke-matrix:test": "vitest run scripts/release/v1-smoke-regression-matrix.test.ts",
     "release:compat-matrix": "node scripts/release/compatibility-matrix-task.mjs",
     "clean": "turbo clean",
     "tasks:run": "bash scripts/automation/run-task.sh",

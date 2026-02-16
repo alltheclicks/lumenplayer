@@ -60,6 +60,7 @@ for (const tag of requiredTags) {
 
 const seenIds = new Set();
 const seenTags = new Set();
+const suiteCoverageByTag = new Map();
 
 for (const testCase of matrix.cases) {
   if (typeof testCase.id !== 'string' || testCase.id.trim() === '') {
@@ -88,6 +89,10 @@ for (const testCase of matrix.cases) {
       fail(`Case ${testCase.id} includes an invalid tag value.`);
     }
     seenTags.add(tag);
+
+    const coverage = suiteCoverageByTag.get(tag) ?? { smoke: 0, regression: 0 };
+    coverage[testCase.suite] += 1;
+    suiteCoverageByTag.set(tag, coverage);
   }
 
   if (!allowedStatuses.has(testCase.status)) {
@@ -110,6 +115,15 @@ for (const testCase of matrix.cases) {
 for (const requiredTag of requiredTags) {
   if (!seenTags.has(requiredTag)) {
     fail(`Missing required coverage tag: ${requiredTag}`);
+  }
+
+  const coverage = suiteCoverageByTag.get(requiredTag);
+  if (!coverage || coverage.smoke === 0) {
+    fail(`Required coverage tag "${requiredTag}" is missing smoke suite coverage.`);
+  }
+
+  if (!coverage || coverage.regression === 0) {
+    fail(`Required coverage tag "${requiredTag}" is missing regression suite coverage.`);
   }
 }
 
