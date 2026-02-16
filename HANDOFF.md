@@ -1,5 +1,34 @@
 # Handoff — Lumen Player
 
+## Session 2026-02-16 — LP-0346 (single-task PR)
+
+- PR: #111 (merged)
+- Done:
+  - Added V1 final release readiness review gate:
+    - `scripts/release/v1-release-readiness-review.template.json`
+    - `scripts/release/validate-release-readiness.mjs`
+    - `scripts/release/v1-release-readiness-review.test.ts`
+  - Added package scripts:
+    - `release:readiness:validate`
+    - `release:readiness:test`
+  - Local test gate passed:
+    - `pnpm lint`
+    - `pnpm typecheck`
+    - `pnpm build`
+  - Task-specific checks:
+    - `pnpm release:readiness:validate`
+    - `pnpm release:readiness:test`
+  - Greptile/check notes:
+    - Greptile review check-run started on #111, but final confidence score was not returned after 2 pings.
+    - Required PR note comment was posted documenting missing final score.
+    - GitHub PR checks were green before merge (`web-quality`, `automation-scripts`).
+
+- Next:
+  - LP-0350 (White-label branding config)
+  - LP-0351 (Design-token layer for brand palettes/semantic colors)
+
+---
+
 ## Session 2026-02-16 — LP-0343, LP-0344, LP-0345 (ordered batch)
 
 - PRs: #107 (merged), #108 (merged), #109 (merged)
@@ -34,7 +63,6 @@
     - GitHub PR checks green before each merge
 
 - Next:
-  - LP-0346 (Final release readiness review)
   - LP-0350 (White-label branding config)
   - LP-0351 (Design-token layer for brand palettes/semantic colors)
 

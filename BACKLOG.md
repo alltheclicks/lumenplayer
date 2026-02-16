@@ -211,7 +211,7 @@
 | LP-0343 | Produce performance evidence artifact in `docs/perf/` (20k dataset results: p95/p99 startup, memory, failure rate) | S | done | LP-0326, LP-0327, LP-0328 |
 | LP-0344 | Add production observability baseline for web + cast receiver (error logging, key playback/cast events, alert thresholds) | M | done | LP-0108, LP-0109 |
 | LP-0345 | Security/privacy baseline review for credential + storage handling (client storage policy, retention, incident notes) | S | done | LP-0209, LP-0211 |
-| LP-0346 | Final release readiness review (all V1 gates green, blocker triage complete, rollback notes prepared) | S | idea | LP-0340, LP-0342, LP-0343, LP-0344, LP-0345 |
+| LP-0346 | Final release readiness review (all V1 gates green, blocker triage complete, rollback notes prepared) | S | done | LP-0340, LP-0342, LP-0343, LP-0344, LP-0345 |
 
 Completion notes (2026-02-16):
 - LP-0340 delivered typed checklist model + tests (`scripts/release/v1-go-no-go.ts`, `scripts/release/v1-go-no-go.test.ts`) in PR #103.
@@ -220,6 +220,7 @@ Completion notes (2026-02-16):
 - LP-0343 delivered performance evidence artifact gate (`scripts/release/v1-performance-evidence.template.json`, validator + tests) in PR #107.
 - LP-0344 delivered production observability baseline (web + cast receiver event/error logging + threshold alerts) in PR #108.
 - LP-0345 delivered security/privacy baseline gate (`scripts/release/v1-security-privacy-baseline.template.json`, validator + tests) in PR #109.
+- LP-0346 delivered final release readiness review gate (`scripts/release/v1-release-readiness-review.template.json`, validator + tests) in PR #111.
 
 ---
 
@@ -312,4 +313,7 @@ Completion notes (2026-02-16):
 - `LP-0340` zavrsen i mergovan kroz PR #98.
 - `LP-0341` zavrsen i mergovan kroz PR #99.
 - `LP-0342` zavrsen i mergovan kroz PR #100.
+- `LP-0346` zavrsen i mergovan kroz PR #111.
 - Greptile je za #98/#99/#100 pokrenuo review check-run i validni komentari su zatvoreni, ali finalna confidence ocena nije vracena ni posle pingova; ovo je evidentirano u PR komentarima.
+- Za #111 svi obavezni lokalni checkovi su prosli (`pnpm lint`, `pnpm typecheck`, `pnpm build`) kao i task-specific checkovi (`pnpm release:readiness:validate`, `pnpm release:readiness:test`).
+- Greptile je na #111 pokrenuo review check-run, ali finalna confidence ocena nije vracena ni posle 2 pinga; ostavljen je obavezni PR komentar.
