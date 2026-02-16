@@ -208,15 +208,18 @@
 | LP-0340 | Define V1 go/no-go checklist (release sign-off template with explicit pass/fail criteria per feature area) | S | done | — |
 | LP-0341 | Build V1 smoke/regression test matrix (desktop + mobile browsers, Cast flow, AirPlay flow, PWA install/offline) | M | done | LP-0109, LP-0111, LP-0324 |
 | LP-0342 | Add V1 compatibility matrix execution task (run and record results on target devices/browsers before release) | S | done | LP-0341 |
-| LP-0343 | Produce performance evidence artifact in `docs/perf/` (20k dataset results: p95/p99 startup, memory, failure rate) | S | idea | LP-0326, LP-0327, LP-0328 |
-| LP-0344 | Add production observability baseline for web + cast receiver (error logging, key playback/cast events, alert thresholds) | M | idea | LP-0108, LP-0109 |
-| LP-0345 | Security/privacy baseline review for credential + storage handling (client storage policy, retention, incident notes) | S | idea | LP-0209, LP-0211 |
+| LP-0343 | Produce performance evidence artifact in `docs/perf/` (20k dataset results: p95/p99 startup, memory, failure rate) | S | done | LP-0326, LP-0327, LP-0328 |
+| LP-0344 | Add production observability baseline for web + cast receiver (error logging, key playback/cast events, alert thresholds) | M | done | LP-0108, LP-0109 |
+| LP-0345 | Security/privacy baseline review for credential + storage handling (client storage policy, retention, incident notes) | S | done | LP-0209, LP-0211 |
 | LP-0346 | Final release readiness review (all V1 gates green, blocker triage complete, rollback notes prepared) | S | idea | LP-0340, LP-0342, LP-0343, LP-0344, LP-0345 |
 
 Completion notes (2026-02-16):
 - LP-0340 delivered typed checklist model + tests (`scripts/release/v1-go-no-go.ts`, `scripts/release/v1-go-no-go.test.ts`) in PR #103.
 - LP-0341 delivered stricter smoke/regression coverage enforcement + matrix tests in PR #104.
 - LP-0342 delivered target-aware compatibility execution (`--targets`, per-target status, `matchMode any/all`, tests) in PR #105.
+- LP-0343 delivered performance evidence artifact gate (`scripts/release/v1-performance-evidence.template.json`, validator + tests) in PR #107.
+- LP-0344 delivered production observability baseline (web + cast receiver event/error logging + threshold alerts) in PR #108.
+- LP-0345 delivered security/privacy baseline gate (`scripts/release/v1-security-privacy-baseline.template.json`, validator + tests) in PR #109.
 
 ---
 
