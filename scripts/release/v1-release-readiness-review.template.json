@@ -1,0 +1,79 @@
+{
+  "release": "V1",
+  "templateVersion": 1,
+  "generatedAt": "",
+  "reviewOwner": "",
+  "gates": [
+    {
+      "id": "go-no-go-checklist",
+      "name": "V1 go/no-go checklist",
+      "status": "pending",
+      "evidenceRef": "scripts/release/v1-go-no-go.template.json",
+      "checkedAt": "",
+      "notes": ""
+    },
+    {
+      "id": "compatibility-matrix",
+      "name": "V1 compatibility matrix execution",
+      "status": "pending",
+      "evidenceRef": "artifacts/release/compatibility/<run-id>.json",
+      "checkedAt": "",
+      "notes": ""
+    },
+    {
+      "id": "performance-evidence",
+      "name": "V1 performance evidence artifact",
+      "status": "pending",
+      "evidenceRef": "scripts/release/v1-performance-evidence.template.json",
+      "checkedAt": "",
+      "notes": ""
+    },
+    {
+      "id": "observability-baseline",
+      "name": "V1 production observability baseline",
+      "status": "pending",
+      "evidenceRef": "apps/web/src/services/observability.test.ts",
+      "checkedAt": "",
+      "notes": ""
+    },
+    {
+      "id": "security-privacy-baseline",
+      "name": "V1 security/privacy baseline review",
+      "status": "pending",
+      "evidenceRef": "scripts/release/v1-security-privacy-baseline.template.json",
+      "checkedAt": "",
+      "notes": ""
+    }
+  ],
+  "blockerTriage": {
+    "totalOpen": 0,
+    "triagedAt": "",
+    "owner": "",
+    "items": []
+  },
+  "rollback": {
+    "owner": "",
+    "notificationChannel": "",
+    "maxDecisionMinutes": 30,
+    "triggers": [
+      "Any release-blocker regression in playback, cast handoff, or data integrity."
+    ],
+    "steps": [
+      "Stop rollout and switch release recommendation to no-go.",
+      "Re-deploy last known good build.",
+      "Re-run smoke matrix on rollback build and record evidence."
+    ],
+    "verificationChecks": [
+      "Playback smoke passes on desktop/mobile targets.",
+      "Cast/AirPlay renderer switch checks pass.",
+      "Observability alerts return to baseline levels."
+    ],
+    "notes": ""
+  },
+  "signoff": {
+    "status": "pending",
+    "approvedBy": "",
+    "approvedAt": "",
+    "notes": ""
+  }
+}
