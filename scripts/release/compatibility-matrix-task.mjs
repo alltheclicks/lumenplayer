@@ -83,6 +83,19 @@ const initCommand = (args) => {
     fail('matrix.cases must be a non-empty array');
   }
 
+  const seenCaseIds = new Set();
+  for (const testCase of matrix.cases) {
+    if (typeof testCase.id !== 'string' || testCase.id.trim() === '') {
+      fail('matrix case is missing a valid id');
+    }
+
+    if (seenCaseIds.has(testCase.id)) {
+      fail(`matrix contains duplicate case id: ${testCase.id}`);
+    }
+
+    seenCaseIds.add(testCase.id);
+  }
+
   const runId = args['run-id'] ? String(args['run-id']) : `compat-${Date.now()}`;
   const outPath = args.out
     ? path.resolve(process.cwd(), String(args.out))
@@ -165,6 +178,8 @@ const setCommand = (args) => {
   const counts = summarize(run);
   if (counts.pending === 0) {
     run.status = 'ready-for-signoff';
+  } else {
+    run.status = 'in-progress';
   }
 
   writeJson(runPath, run);
