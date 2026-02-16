@@ -38,7 +38,7 @@ This file is the single source of truth for issues found during manual testing.
 |---|---|---|---|---|---|
 | TST-001 | Live channel starts with first frame only; playback does not continue reliably and audio is missing | Live TV Playback | P0 | done | frequent |
 | TST-002 | Channel switch triggers `Playback error` overlay while frame is visible in background | Live TV Playback | P0 | done | frequent |
-| TST-003 | VOD `Play in Player` enters play/pause loop, stutter, and no audio | VOD Playback | P0 | open | frequent |
+| TST-003 | VOD `Play in Player` enters play/pause loop, stutter, and no audio | VOD Playback | P0 | done | frequent |
 | TST-004 | VOD catalog appears truncated (not all items visible) | VOD Listing | P2 | open | frequent |
 | TST-005 | After VOD playback entry, UX returns to channel-shell context and feels inconsistent/confusing | Navigation UX | P2 | open | frequent |
 
@@ -106,6 +106,9 @@ This file is the single source of truth for issues found during manual testing.
 - Retest acceptance:
   - VOD starts once without command oscillation.
   - Playback smooth and audio present.
+- Fix PR: [#117](https://github.com/alltheclicks/lumenplayer/pull/117)
+- Retest result (2026-02-16): PASS on local flow; VOD handoff no longer drops into startup play/pause oscillation and playback starts stably.
+- Greptile note: final score was not returned after 2 pings (`@greptile-apps`, `@greptileai`); PR comment documented this before merge.
 
 ### TST-004
 - Reported by: Filip (manual VOD browsing)
