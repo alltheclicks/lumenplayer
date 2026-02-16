@@ -1,5 +1,33 @@
 # Handoff — Lumen Player
 
+## Session 2026-02-16 — TST-004 (single-task PR + docs sync)
+
+- PR: #119 (merged)
+- Done:
+  - Fixed VOD `All` catalog truncation in Xtream fetch path:
+    - added `getAllVODStreams()` aggregation across VOD categories with controlled batch concurrency
+    - added resilient partial-result behavior (`Promise.allSettled` on category fetches + safe fallback handling)
+    - deduplicated merged results by `stream_id`
+  - Updated VOD catalog hook to use aggregated source for `All` selection:
+    - `apps/web/src/hooks/useVodCatalog.ts`
+  - Added focused service tests:
+    - `packages/api/src/xtream-codes-service.ts`
+    - `packages/api/src/xtream-codes-service.test.ts`
+  - Local test gate passed:
+    - `pnpm vitest run packages/api/src/xtream-codes-service.test.ts`
+    - `pnpm lint`
+    - `pnpm typecheck`
+    - `pnpm build`
+  - Greptile/check notes:
+    - Greptile review check-run started and completed on latest PR head.
+    - Final Greptile confidence score: `5/5`.
+    - GitHub PR checks were green before merge (`web-quality`, `automation-scripts`, `Greptile Review`).
+
+- Next:
+  - Continue with next V1 test backlog item by priority (`TST-005`).
+
+---
+
 ## Session 2026-02-16 — TST-003 (single-task PR + docs sync)
 
 - PR: #117 (merged)

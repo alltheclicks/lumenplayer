@@ -39,7 +39,7 @@ This file is the single source of truth for issues found during manual testing.
 | TST-001 | Live channel starts with first frame only; playback does not continue reliably and audio is missing | Live TV Playback | P0 | done | frequent |
 | TST-002 | Channel switch triggers `Playback error` overlay while frame is visible in background | Live TV Playback | P0 | done | frequent |
 | TST-003 | VOD `Play in Player` enters play/pause loop, stutter, and no audio | VOD Playback | P0 | done | frequent |
-| TST-004 | VOD catalog appears truncated (not all items visible) | VOD Listing | P2 | open | frequent |
+| TST-004 | VOD catalog appears truncated (not all items visible) | VOD Listing | P2 | done | frequent |
 | TST-005 | After VOD playback entry, UX returns to channel-shell context and feels inconsistent/confusing | Navigation UX | P2 | open | frequent |
 
 ---
@@ -126,6 +126,8 @@ This file is the single source of truth for issues found during manual testing.
   - Verify viewport virtualization/scroll container calculations.
 - Retest acceptance:
   - Catalog continues loading until full dataset available (or explicit backend limit message).
+- Fix PR: [#119](https://github.com/alltheclicks/lumenplayer/pull/119)
+- Retest result (2026-02-16): PASS on local flow; `All` VOD catalog no longer truncates on single unfiltered API slice and continues to render full aggregated set across categories.
 
 ### TST-005
 - Reported by: Filip (manual UX observation)
