@@ -213,6 +213,11 @@
 | LP-0345 | Security/privacy baseline review for credential + storage handling (client storage policy, retention, incident notes) | S | idea | LP-0209, LP-0211 |
 | LP-0346 | Final release readiness review (all V1 gates green, blocker triage complete, rollback notes prepared) | S | idea | LP-0340, LP-0342, LP-0343, LP-0344, LP-0345 |
 
+Completion notes (2026-02-16):
+- LP-0340 delivered typed checklist model + tests (`scripts/release/v1-go-no-go.ts`, `scripts/release/v1-go-no-go.test.ts`) in PR #103.
+- LP-0341 delivered stricter smoke/regression coverage enforcement + matrix tests in PR #104.
+- LP-0342 delivered target-aware compatibility execution (`--targets`, per-target status, `matchMode any/all`, tests) in PR #105.
+
 ---
 
 ## Foundation / Quality
