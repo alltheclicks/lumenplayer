@@ -101,6 +101,27 @@
         var slotB = document.getElementById('bridge-video-b');
         var CANPLAY_TIMEOUT_MS = 5000;
         var PERF_REPORT_INTERVAL = 10;
+        var OBSERVABILITY_PREFIX = '[lumen-cast-observe]';
+        var OBSERVABILITY_THRESHOLD_RULES = [
+          {
+            id: 'receiver-command-failure-burst',
+            eventName: 'bridge.command.failed',
+            minimumSeverity: 'error',
+            maxEvents: 3,
+            windowMs: 5 * 60 * 1000,
+            cooldownMs: 2 * 60 * 1000,
+            alertEventName: 'alert.bridge-command-failure-burst',
+          },
+          {
+            id: 'receiver-playback-error-burst',
+            eventName: 'receiver.playback.error',
+            minimumSeverity: 'warn',
+            maxEvents: 4,
+            windowMs: 5 * 60 * 1000,
+            cooldownMs: 2 * 60 * 1000,
+            alertEventName: 'alert.receiver-playback-error-burst',
+          },
+        ];
         var commandQueue = Promise.resolve();
         var perfStats = {
           commandCount: 0,
@@ -109,6 +130,19 @@
           swapCount: 0,
           swapTotalMs: 0,
           skippedSwapCount: 0,
+        };
+        var observabilityStateByRuleId = OBSERVABILITY_THRESHOLD_RULES.reduce(function (acc, rule) {
+          acc[rule.id] = {
+            timestamps: [],
+            lastAlertAt: 0,
+          };
+          return acc;
+        }, {});
+
+        var severityRank = {
+          info: 1,
+          warn: 2,
+          error: 3,
         };
 
         var state = {
@@ -153,6 +187,64 @@
 
           state.statusLabel = label;
           statusChip.textContent = label;
+        };
+
+        var emitObservabilityEvent = function (eventName, severity, metadata) {
+          var nowMs = Date.now();
+          var payload = Object.assign(
+            {
+              event: eventName,
+              severity: severity,
+              timestamp: new Date(nowMs).toISOString(),
+            },
+            metadata || {}
+          );
+
+          if (severity === 'error') {
+            console.error(OBSERVABILITY_PREFIX, payload);
+          } else if (severity === 'warn') {
+            console.warn(OBSERVABILITY_PREFIX, payload);
+          } else {
+            console.info(OBSERVABILITY_PREFIX, payload);
+          }
+
+          OBSERVABILITY_THRESHOLD_RULES.forEach(function (rule) {
+            if (rule.eventName !== eventName) {
+              return;
+            }
+
+            if (severityRank[severity] < severityRank[rule.minimumSeverity]) {
+              return;
+            }
+
+            var thresholdState = observabilityStateByRuleId[rule.id];
+            if (!thresholdState) {
+              return;
+            }
+
+            thresholdState.timestamps = thresholdState.timestamps.filter(function (timestampMs) {
+              return nowMs - timestampMs <= rule.windowMs;
+            });
+            thresholdState.timestamps.push(nowMs);
+
+            var crossedThreshold = thresholdState.timestamps.length >= rule.maxEvents;
+            var cooldownElapsed = nowMs - thresholdState.lastAlertAt >= rule.cooldownMs;
+            if (!crossedThreshold || !cooldownElapsed) {
+              return;
+            }
+
+            thresholdState.lastAlertAt = nowMs;
+            console.error(OBSERVABILITY_PREFIX, {
+              event: rule.alertEventName,
+              severity: 'error',
+              timestamp: new Date(nowMs).toISOString(),
+              thresholdId: rule.id,
+              sourceEventName: rule.eventName,
+              eventsInWindow: thresholdState.timestamps.length,
+              maxEvents: rule.maxEvents,
+              windowMs: rule.windowMs,
+            });
+          });
         };
 
         var reportPerfStats = function () {
@@ -232,6 +324,9 @@
               await videoElement.play();
             } catch (_playbackError) {
               // Browser-level autoplay limitations are ignored on Cast devices.
+              emitObservabilityEvent('receiver.playback.error', 'warn', {
+                phase: 'load-into-slot-play',
+              });
             }
           } else {
             videoElement.pause();
@@ -286,6 +381,9 @@
               await newActive.play();
             } catch (_playbackError) {
               // Ignore device playback race; sender retries commands.
+              emitObservabilityEvent('receiver.playback.error', 'warn', {
+                phase: 'swap-to-standby-play',
+              });
             }
           }
 
@@ -301,6 +399,9 @@
               await active.play();
             } catch (_playbackError) {
               // Cast devices should allow playback; keep flow resilient.
+              emitObservabilityEvent('receiver.playback.error', 'warn', {
+                phase: 'playback-command-play',
+              });
             }
             return;
           }
@@ -323,6 +424,10 @@
           if (!data || typeof data !== 'object') {
             return;
           }
+
+          emitObservabilityEvent('bridge.command.received', 'info', {
+            type: typeof data.type === 'string' ? data.type : 'unknown',
+          });
 
           if (data.type === 'preload') {
             await preloadStandby(data);
@@ -369,6 +474,9 @@
           }).then(function () {
             reportPerfStats();
           }).catch(function () {
+            emitObservabilityEvent('bridge.command.failed', 'error', {
+              namespace: BRIDGE_NAMESPACE,
+            });
             setStatus('Bridge command failed');
           });
         });
@@ -388,6 +496,9 @@
               }).then(function () {
                 reportPerfStats();
               }).catch(function () {
+                emitObservabilityEvent('bridge.command.failed', 'error', {
+                  commandType: 'preload',
+                });
                 setStatus('Bridge preload failed');
               });
             }
@@ -397,6 +508,7 @@
         );
 
         playerManager.addEventListener(castFramework.events.EventType.READY, function () {
+          emitObservabilityEvent('receiver.ready', 'info');
           setStatus('Bridge ready');
         });
 
