@@ -64,6 +64,9 @@ type SessionSourceMetadata = {
   vodId?: string;
   catchUpProgramId?: string;
   seriesId?: string;
+  seasonNumber?: number;
+  episodeId?: string;
+  backPath?: string;
 };
 
 const parseSessionSourceMetadata = (
@@ -89,6 +92,17 @@ const parseSessionSourceMetadata = (
     vodId: typeof metadata.vodId === 'string' ? metadata.vodId : undefined,
     catchUpProgramId: typeof metadata.catchUpProgramId === 'string' ? metadata.catchUpProgramId : undefined,
     seriesId: typeof metadata.seriesId === 'string' ? metadata.seriesId : undefined,
+    seasonNumber: typeof metadata.seasonNumber === 'number'
+      ? metadata.seasonNumber
+      : typeof metadata.seasonNumber === 'string' && !Number.isNaN(Number(metadata.seasonNumber))
+        ? Number(metadata.seasonNumber)
+        : undefined,
+    episodeId: typeof metadata.episodeId === 'string'
+      ? metadata.episodeId
+      : typeof metadata.episodeId === 'number' && Number.isFinite(metadata.episodeId)
+        ? String(metadata.episodeId)
+        : undefined,
+    backPath: typeof metadata.backPath === 'string' ? metadata.backPath : undefined,
   };
 };
 

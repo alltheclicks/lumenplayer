@@ -31,10 +31,53 @@ describe('getPlayerOnDemandContext', () => {
     });
   });
 
+  it('keeps series playback season/episode context in fallback back path', () => {
+    expect(
+      getPlayerOnDemandContext({
+        mode: 'series-episode',
+        seriesId: '15',
+        seasonNumber: 2,
+        episodeId: '15-s2e6',
+      })
+    ).toEqual({
+      title: 'Episode Playback',
+      backPath: '/series/15?season=2&episode=15-s2e6',
+      backLabel: 'Back to Series',
+    });
+  });
+
   it('falls back to series catalog path when series id is missing', () => {
     expect(getPlayerOnDemandContext({ mode: 'series-episode' })).toEqual({
       title: 'Episode Playback',
       backPath: '/series',
+      backLabel: 'Back to Series',
+    });
+  });
+
+  it('prefers explicit app back path when provided', () => {
+    expect(
+      getPlayerOnDemandContext({
+        mode: 'vod',
+        vodId: '42',
+        backPath: '/vod/42?ref=watching',
+      })
+    ).toEqual({
+      title: 'VOD Playback',
+      backPath: '/vod/42?ref=watching',
+      backLabel: 'Back to VOD',
+    });
+  });
+
+  it('ignores unsafe explicit back paths and keeps deterministic fallback', () => {
+    expect(
+      getPlayerOnDemandContext({
+        mode: 'series-episode',
+        seriesId: '15',
+        backPath: 'https://example.com/phishing',
+      })
+    ).toEqual({
+      title: 'Episode Playback',
+      backPath: '/series/15',
       backLabel: 'Back to Series',
     });
   });

@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Helmet } from 'react-helmet-async';
 import { ArrowLeft, Clock3, Film, Star, UserRound } from 'lucide-react';
@@ -114,9 +114,18 @@ const fetchVodDetail = async (vodId: string): Promise<VodDetailData> => {
 
 const VodDetail = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { commands } = useSessionContext();
   const params = useParams<{ vodId: string }>();
   const vodId = params.vodId;
+  const onDemandBackPath = useMemo(() => {
+    const pathWithQuery = `${location.pathname}${location.search}${location.hash}`;
+    if (pathWithQuery.startsWith('/vod')) {
+      return pathWithQuery;
+    }
+
+    return vodId ? `/vod/${vodId}` : '/vod';
+  }, [location.hash, location.pathname, location.search, vodId]);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['vod-detail', vodId],
@@ -140,6 +149,7 @@ const VodDetail = () => {
           mode: 'vod',
           vodId: vodId ?? '',
           streamId: data.streamId,
+          backPath: onDemandBackPath,
         },
       },
       0
