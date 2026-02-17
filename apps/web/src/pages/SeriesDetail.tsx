@@ -263,6 +263,7 @@ const SeriesDetail = () => {
     const nextParams = new URLSearchParams(location.search);
     nextParams.set('season', String(episode.seasonNumber));
     nextParams.set('episode', episode.id);
+    setSearchParams(nextParams, { replace: true });
     const query = nextParams.toString();
     const backPath = query.length > 0
       ? `${location.pathname}?${query}`
