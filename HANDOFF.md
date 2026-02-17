@@ -1,5 +1,41 @@
 # Handoff — Lumen Player
 
+## Session 2026-02-17 — TST-008, TST-009 (ordered batch)
+
+- PRs: #133 (merged), #134 (merged)
+- Done:
+  - TST-008:
+    - added shared EPG mapper/normalization pipeline for Xtream short-EPG payloads (`apps/web/src/services/epgProgramMapper.ts`)
+    - normalized malformed provider text (base64 payload values, HTML entities, common mojibake repair) before program rendering
+    - wired player-inline EPG and EPG route fallback path to the same mapper (`apps/web/src/pages/Player.tsx`, `apps/web/src/pages/EpgGuide.tsx`)
+    - applied same text normalization in XMLTV parsing path (`apps/web/src/services/xmltvEpg.ts`)
+    - added focused mapper tests (`apps/web/src/services/epgProgramMapper.test.ts`)
+  - TST-009:
+    - added resilient shared short-EPG request layer (`apps/web/src/services/channelEpg.ts`) with:
+      - in-memory TTL cache
+      - in-flight request deduplication
+      - paced request gate to reduce burst pressure
+      - 429 retry/backoff handling
+      - stale-cache fallback when provider remains rate-limited
+    - switched both player-inline and EPG route short-EPG calls to the shared resilient layer (`apps/web/src/pages/Player.tsx`, `apps/web/src/pages/EpgGuide.tsx`)
+    - added focused resilience tests (`apps/web/src/services/channelEpg.test.ts`)
+  - Local test gate passed on each task PR:
+    - `pnpm lint`
+    - `pnpm typecheck`
+    - `pnpm build`
+  - Task-specific checks:
+    - `pnpm exec vitest run apps/web/src/services/epgProgramMapper.test.ts` (TST-008)
+    - `pnpm exec vitest run apps/web/src/services/channelEpg.test.ts apps/web/src/services/epgProgramMapper.test.ts` (TST-009)
+  - Greptile/check notes:
+    - #133: Greptile review started, but final confidence score was not returned on latest head after 2 pings (`@greptile-apps`, `@greptileai`); fallback PR note comment was posted before merge.
+    - #134: Greptile review started, but final confidence score was not returned on latest head after 2 pings (`@greptile-apps`, `@greptileai`); fallback PR note comment was posted before merge.
+    - GitHub PR checks were green before merge (`web-quality`, `automation-scripts`; Greptile check-run remained pending without final score).
+
+- Next:
+  - Update `docs/V1-TEST-ERROR-BACKLOG.md` statuses for TST-006/TST-007/TST-008/TST-009 from `open` to merged/retest state in next docs pass.
+
+---
+
 ## Session 2026-02-17 — TST-006, TST-007 (ordered batch)
 
 - PRs: #130 (merged), #131 (merged)

@@ -237,8 +237,9 @@ Completion notes (2026-02-16):
 | LP-0355 | Navigation discoverability parity after login (explicit Movies/Series/Catch-up entry points in shell, desktop+mobile) with acceptance checklist linked to `TST-006` | M | done | LP-0351, LP-0354 |
 | LP-0356 | Player surface parity pass (control-bar structure, current-program block, CTA grouping, loading/error/idle states) against reference UX | M | idea | LP-0354 |
 | LP-0357 | VOD/Series UI parity pass (catalog density, card rhythm, detail layout, predictable back context) with desktop+mobile screenshot diff evidence | M | idea | LP-0352, LP-0354 |
-| LP-0358 | EPG readability + presentation parity pass (decode/normalize malformed strings, align program rendering in player + EPG page) tied to `TST-008` closure | M | idea | LP-0354 |
+| LP-0358 | EPG readability + presentation parity pass (decode/normalize malformed strings, align program rendering in player + EPG page) tied to `TST-008` closure | M | done | LP-0354 |
 | LP-0359 | Add explicit live channel startup mode setting (`autoplay on select` vs `select then play`) and enforce deterministic behavior in player flow (linked to `TST-007`) | S | done | LP-0351 |
+| LP-0360 | Add short-EPG request resilience for active browsing (in-flight dedupe, cache, pacing, 429 retry/backoff, stale-cache fallback) tied to `TST-009` | M | done | LP-0351, LP-0358 |
 
 Completion notes (2026-02-17):
 - LP-0350 delivered dark-first token baseline + first-paint shell bootstrap in PR #124; Greptile final confidence score `5/5`.
@@ -249,6 +250,8 @@ Completion notes (2026-02-17):
 - LP-0353 Greptile review started, but final confidence score was not returned on latest head after 2 pings (`@greptileai`, `@greptile-apps`); fallback PR note was posted before merge.
 - LP-0355 delivered explicit Movies/Series/Catch-up discoverability actions in player shell contexts (desktop + mobile) in PR #130; Greptile final confidence score `5/5`.
 - LP-0359 delivered explicit live-channel startup mode setting and deterministic startup behavior in PR #131; Greptile review started but final confidence score was not returned on latest head after 2 pings (`@greptile-apps`, `@greptileai`); fallback PR note was posted before merge.
+- LP-0358 delivered shared EPG text normalization across player-inline, EPG route fallback, and XMLTV parsing in PR #133; Greptile review started but final confidence score was not returned on latest head after 2 pings (`@greptile-apps`, `@greptileai`); fallback PR note was posted before merge.
+- LP-0360 delivered short-EPG rate-limit resilience (cache + in-flight dedupe + pacing + 429 retry/backoff + stale fallback) in PR #134; Greptile review started but final confidence score was not returned on latest head after 2 pings (`@greptile-apps`, `@greptileai`); fallback PR note was posted before merge.
 
 ---
 
