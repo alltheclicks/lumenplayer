@@ -15,6 +15,8 @@ import {
   Film,
   Clapperboard,
   CalendarDays,
+  Clock,
+  Home,
   Play,
   Pause,
   PictureInPicture2,
@@ -35,7 +37,7 @@ import { useFavorites } from '@/hooks/useFavorites';
 import { useSessionContext } from '@/context/session-context';
 import { useGoogleCastSender } from '@/hooks/useGoogleCastSender';
 import { NumericChannelInput, WebKeyCodes } from '@lumen/input';
-import { filterChannels, getCurrentProgram, getProgramProgress } from '@lumen/core';
+import { filterChannels, formatTime, getCurrentProgram, getProgramProgress } from '@lumen/core';
 import type { PlayerChannel } from '@lumen/types';
 import {
   loadXtreamCredentials,
@@ -840,6 +842,56 @@ const Player = () => {
 
   const currentProgram = currentChannelWithEPG ? getCurrentProgram(currentChannelWithEPG as any) : undefined;
   const progress = currentProgram ? getProgramProgress(currentProgram) : 0;
+  const upcomingPrograms = useMemo(
+    () => {
+      if (!currentChannelWithEPG) {
+        return [];
+      }
+
+      const now = new Date();
+      return currentChannelWithEPG.epg
+        .filter((program) => program.startTime > now)
+        .slice(0, 6);
+    },
+    [currentChannelWithEPG]
+  );
+  const catchUpPrograms = useMemo(
+    () => {
+      if (!currentChannelWithEPG || !currentChannelWithEPG.hasCatchUp) {
+        return [];
+      }
+
+      const now = new Date();
+      return currentChannelWithEPG.epg
+        .filter((program) => program.endTime < now && program.hasCatchUp)
+        .slice(-8)
+        .reverse();
+    },
+    [currentChannelWithEPG]
+  );
+  const desktopCategoryItems = useMemo(
+    () => [
+      {
+        id: null as string | null,
+        label: 'Svi kanali',
+        icon: Tv2,
+        count: channels.length,
+      },
+      {
+        id: 'favorites',
+        label: 'Omiljeni',
+        icon: Star,
+        count: favorites.length,
+      },
+      ...categories.map((category) => ({
+        id: category.id,
+        label: category.name,
+        icon: Tv2,
+        count: channels.filter((channel) => channel.categoryId === category.id).length,
+      })),
+    ],
+    [categories, channels, favorites.length]
+  );
   const onDemandTitle = onDemandContext?.title ?? 'VOD Playback';
   const onDemandBackPath = onDemandContext?.backPath ?? '/vod';
   const onDemandBackLabel = onDemandContext?.backLabel ?? 'Back to VOD';
@@ -901,105 +953,169 @@ const Player = () => {
       <div className="flex-1 bg-background flex">
         {/* Sidebar for desktop */}
         {!isOnDemandSource ? (
-          <aside className="hidden lg:flex w-80 flex-col border-r border-border bg-card">
-            <div className="p-4 border-b border-border">
-              <div className="flex items-center justify-between mb-4">
-                <h1 className="text-xl font-bold">Channels</h1>
-                <div className="flex items-center gap-1">
-                  {castSender.isAvailable && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      disabled={castSender.isConnecting}
-                      onClick={() => {
-                        void castSender.toggleCasting();
-                      }}
-                      title={castSender.isConnected ? 'Disconnect Cast' : 'Connect Cast'}
+          <div className="hidden lg:flex h-screen">
+            <aside className="w-[180px] bg-card/50 border-r border-border flex flex-col">
+              <div className="p-4 flex justify-center border-b border-border">
+                <button
+                  type="button"
+                  className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center hover:scale-105 transition-transform"
+                  onClick={() => navigate('/player')}
+                  aria-label="Player"
+                >
+                  <Play className="w-5 h-5 text-primary-foreground fill-current" />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto py-3 px-2 space-y-1">
+                {desktopCategoryItems.map((item) => {
+                  const isActive = selectedCategory === item.id;
+                  const Icon = item.icon;
+                  return (
+                    <button
+                      key={item.id ?? 'all'}
+                      type="button"
+                      onClick={() => setSelectedCategory(item.id)}
+                      className={`relative w-full h-12 rounded-xl flex items-center justify-start gap-2 px-3 transition-all ${
+                        isActive
+                          ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/25'
+                          : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
+                      }`}
                     >
-                      <Cast className={`w-4 h-4 ${castSender.isConnected ? 'text-primary' : ''}`} />
-                    </Button>
-                  )}
-                  {isAirPlaySupported && session.renderer !== 'cast' && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      disabled={!isAirPlayAvailable}
-                      onClick={openAirPlayPicker}
-                      title={isAirPlayConnected ? 'AirPlay connected' : 'Open AirPlay picker'}
-                    >
-                      <Airplay className={`w-4 h-4 ${isAirPlayConnected ? 'text-primary' : ''}`} />
-                    </Button>
-                  )}
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setShowLogoutDialog(true)}
+                      <Icon className="w-4 h-4 shrink-0" />
+                      <span className="text-xs font-medium truncate flex-1 text-left">{item.label}</span>
+                      {item.count > 0 && (
+                        <span className={`min-w-[22px] h-[22px] rounded-full text-[11px] font-medium flex items-center justify-center px-1.5 ${
+                          isActive ? 'bg-background text-foreground' : 'bg-primary/20 text-primary'
+                        }`}>
+                          {item.count}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="p-2 border-t border-border/50">
+                <div className="mb-1 px-2">
+                  <span className="text-[9px] uppercase tracking-wider text-muted-foreground/70 font-semibold">
+                    VOD
+                  </span>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => navigate('/vod')}
+                    className="starlight-border starlight-border-amber w-full h-10 rounded-xl flex items-center justify-start gap-2 px-3 transition-all bg-gradient-to-br from-amber-500/20 to-yellow-600/20 border border-amber-500/30 text-amber-400 hover:from-amber-500/30 hover:to-yellow-600/30 hover:border-amber-500/50"
                   >
-                    <LogOut className="w-4 h-4" />
-                  </Button>
+                    <Film className="w-4 h-4 shrink-0" />
+                    <span className="text-xs font-semibold">Filmovi</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => navigate('/series')}
+                    className="starlight-border starlight-border-purple w-full h-10 rounded-xl flex items-center justify-start gap-2 px-3 transition-all bg-gradient-to-br from-purple-500/20 to-pink-500/20 border border-purple-500/30 text-purple-400 hover:from-purple-500/30 hover:to-pink-500/30 hover:border-purple-500/50"
+                  >
+                    <Clapperboard className="w-4 h-4 shrink-0" />
+                    <span className="text-xs font-semibold">Serije</span>
+                  </button>
                 </div>
               </div>
 
-              <div className="mb-4">
-                <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  Browse
-                </p>
-                <MediaEntryGrid onSelect={(path) => navigate(path)} />
+              <div className="p-2 border-t border-border">
+                <div className="bg-secondary/50 rounded-xl p-2 space-y-1.5">
+                  <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                    <Smartphone className="w-3 h-3" />
+                    <span>{favorites.length} omiljenih</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                    <Tv2 className="w-3 h-3" />
+                    <span>{filteredChannels.length} kanala</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-[10px] text-primary">
+                    <Cast className="w-3 h-3" />
+                    <span className="font-medium">{session.renderer}</span>
+                  </div>
+                </div>
               </div>
 
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search channels..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9"
-                />
-              </div>
-            </div>
-
-            {/* Categories */}
-            <div className="p-2 border-b border-border overflow-x-auto">
-              <div className="flex gap-1 min-w-max">
+              <div className="p-3 border-t border-border flex items-center justify-center gap-2">
                 <Button
-                  variant={selectedCategory === null ? 'default' : 'ghost'}
-                  size="sm"
-                  onClick={() => setSelectedCategory(null)}
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => navigate('/vod')}
+                  title="Početna"
                 >
-                  All
+                  <Home className="w-5 h-5" />
                 </Button>
                 <Button
-                  variant={selectedCategory === 'favorites' ? 'default' : 'ghost'}
-                  size="sm"
-                  onClick={() => setSelectedCategory('favorites')}
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setShowLogoutDialog(true)}
+                  title="Logout"
                 >
-                  <Star className="w-4 h-4 mr-1" />
-                  Favorites
+                  <LogOut className="w-5 h-5" />
                 </Button>
-                {categories.map(cat => (
-                  <Button
-                    key={cat.id}
-                    variant={selectedCategory === cat.id ? 'default' : 'ghost'}
-                    size="sm"
-                    onClick={() => setSelectedCategory(cat.id)}
-                  >
-                    {cat.name}
-                  </Button>
-                ))}
               </div>
-            </div>
+            </aside>
 
-            {/* Channel list */}
-            <ChannelList
-              className="flex-1"
-              channels={filteredChannels}
-              currentChannelId={currentChannel?.id}
-              variant="desktop"
-              onSelectChannel={switchToLiveChannel}
-              isFavorite={isFavorite}
-              onToggleFavorite={toggleFavorite}
-            />
-          </aside>
+            <aside className="w-72 xl:w-80 2xl:w-96 bg-card border-r border-border flex flex-col overflow-hidden shrink-0">
+              <div className="p-4 border-b border-border">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="font-bold text-lg text-foreground">
+                    narodna<span className="text-primary">.tv</span>
+                  </span>
+                  <div className="flex items-center gap-1">
+                    {castSender.isAvailable && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        disabled={castSender.isConnecting}
+                        onClick={() => {
+                          void castSender.toggleCasting();
+                        }}
+                        title={castSender.isConnected ? 'Disconnect Cast' : 'Connect Cast'}
+                      >
+                        <Cast className={`w-4 h-4 ${castSender.isConnected ? 'text-primary' : ''}`} />
+                      </Button>
+                    )}
+                    {isAirPlaySupported && session.renderer !== 'cast' && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        disabled={!isAirPlayAvailable}
+                        onClick={openAirPlayPicker}
+                        title={isAirPlayConnected ? 'AirPlay connected' : 'Open AirPlay picker'}
+                      >
+                        <Airplay className={`w-4 h-4 ${isAirPlayConnected ? 'text-primary' : ''}`} />
+                      </Button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Pretraži kanale..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-9 bg-secondary/50 border-border rounded-xl"
+                  />
+                </div>
+              </div>
+
+              <ChannelList
+                className="flex-1"
+                channels={filteredChannels}
+                currentChannelId={currentChannel?.id}
+                variant="desktop"
+                onSelectChannel={switchToLiveChannel}
+                isFavorite={isFavorite}
+                onToggleFavorite={toggleFavorite}
+              />
+            </aside>
+          </div>
         ) : (
           <aside className="hidden lg:flex w-80 flex-col border-r border-border bg-card">
             <div className="p-4 border-b border-border">
@@ -1283,6 +1399,121 @@ const Player = () => {
               </div>
             )}
           </div>
+
+          {!isOnDemandSource && (
+            <div className="hidden lg:flex flex-1 bg-card/50 border-t border-border overflow-hidden">
+              <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                <div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <Clock className="w-4 h-4 text-primary" />
+                    <span className="text-sm font-medium text-muted-foreground">Sada na programu</span>
+                  </div>
+                  {currentProgram ? (
+                    <div className="w-full text-left bg-primary/10 border border-primary/30 rounded-xl p-4">
+                      <div className="flex items-center justify-between mb-2 gap-3">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <span className="badge-live">UŽIVO</span>
+                          <h4 className="font-semibold text-foreground text-lg truncate">{currentProgram.title}</h4>
+                        </div>
+                        <span className="text-sm text-muted-foreground whitespace-nowrap">
+                          {formatTime(currentProgram.startTime)} - {formatTime(currentProgram.endTime)}
+                        </span>
+                      </div>
+                      <div className="h-2 bg-secondary/50 rounded-full overflow-hidden">
+                        <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${progress}%` }} />
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">Nema aktivnog programa.</p>
+                  )}
+                </div>
+
+                {upcomingPrograms.length > 0 && (
+                  <div>
+                    <div className="flex items-center gap-2 mb-3">
+                      <CalendarDays className="w-4 h-4 text-muted-foreground" />
+                      <span className="text-sm font-medium text-foreground">Sledi</span>
+                    </div>
+                    <div className="space-y-1.5">
+                      {upcomingPrograms.map((program) => (
+                        <div
+                          key={program.id}
+                          className="flex items-center gap-4 p-3 rounded-xl bg-secondary/30"
+                        >
+                          <span className="text-sm text-muted-foreground w-16 shrink-0 tabular-nums">
+                            {formatTime(program.startTime)}
+                          </span>
+                          <span className="flex-1 font-medium text-foreground truncate">{program.title}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {formatTime(program.endTime)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {catchUpPrograms.length > 0 && (
+                  <div>
+                    <div className="flex items-center gap-2 mb-3">
+                      <div className="w-6 h-6 rounded-full bg-emerald-500/20 flex items-center justify-center">
+                        <Play className="w-3 h-3 text-emerald-500" />
+                      </div>
+                      <span className="text-sm font-medium bg-gradient-to-r from-emerald-400 via-primary to-emerald-400 bg-[length:200%_100%] animate-shimmer bg-clip-text text-transparent">
+                        TV Unazad
+                      </span>
+                    </div>
+                    <div className="space-y-1.5">
+                      {catchUpPrograms.map((program) => (
+                        <button
+                          key={program.id}
+                          type="button"
+                          onClick={() => {
+                            if (!currentChannelWithEPG) {
+                              return;
+                            }
+
+                            const startTimestamp = Math.floor(program.startTime.getTime() / 1000);
+                            const duration = Math.floor(
+                              (program.endTime.getTime() - program.startTime.getTime()) / 1000
+                            );
+                            const source = {
+                              url: xtreamCodesService.getCatchUpUrl(
+                                currentChannelWithEPG.streamId,
+                                startTimestamp,
+                                duration
+                              ),
+                              type: 'hls' as const,
+                              title: `${currentChannelWithEPG.name} - ${program.title}`,
+                              channelId: currentChannelWithEPG.id,
+                              metadata: {
+                                channelId: currentChannelWithEPG.id,
+                                streamId: currentChannelWithEPG.streamId,
+                                mode: 'catchup',
+                                catchUpProgramId: program.id,
+                              },
+                            };
+
+                            commands.setSource(source, 0);
+                            commands.play();
+                          }}
+                          className="w-full flex items-center gap-4 p-3 rounded-xl text-left bg-emerald-500/5 border border-emerald-500/20 hover:bg-emerald-500/15"
+                        >
+                          <span className="text-sm text-muted-foreground w-16 shrink-0 tabular-nums">
+                            {formatTime(program.startTime)}
+                          </span>
+                          <span className="flex-1 font-medium text-foreground truncate">{program.title}</span>
+                          <span className="text-[10px] font-semibold text-emerald-500 bg-emerald-500/20 px-2 py-1 rounded-full">
+                            CATCH-UP
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Mobile channel selector */}
           {!isOnDemandSource ? (
