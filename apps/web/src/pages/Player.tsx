@@ -34,7 +34,7 @@ import { useSessionContext } from '@/context/session-context';
 import { useGoogleCastSender } from '@/hooks/useGoogleCastSender';
 import { NumericChannelInput, WebKeyCodes } from '@lumen/input';
 import { filterChannels, getCurrentProgram, getProgramProgress } from '@lumen/core';
-import type { PlayerChannel, Program, XtreamEPGItem } from '@lumen/types';
+import type { PlayerChannel } from '@lumen/types';
 import {
   loadXtreamCredentials,
   clearXtreamCredentials,
@@ -60,6 +60,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { getPlayerOnDemandContext } from '@/pages/playerOnDemandContext';
 import { shouldAutoplaySource } from '@/pages/liveChannelStartupMode';
+import { mapXtreamEpgItemToProgram } from '@/services/epgProgramMapper';
 
 type SessionSourceMetadata = {
   channelId?: string;
@@ -197,37 +198,6 @@ const MediaEntryGrid = ({
     })}
   </div>
 );
-
-const parseEpgTimestamp = (timestamp: string, fallback: string): Date => {
-  const numericTimestamp = Number(timestamp);
-  if (Number.isFinite(numericTimestamp) && numericTimestamp > 0) {
-    return new Date(numericTimestamp * 1000);
-  }
-
-  const normalizedDate = fallback.replace(' ', 'T');
-  const parsedTimestamp = Date.parse(normalizedDate);
-  if (!Number.isNaN(parsedTimestamp)) {
-    return new Date(parsedTimestamp);
-  }
-
-  return new Date();
-};
-
-const mapXtreamEpgItemToProgram = (item: XtreamEPGItem, index: number): Program => {
-  const startTime = parseEpgTimestamp(item.start_timestamp, item.start);
-  const endTime = parseEpgTimestamp(item.stop_timestamp, item.end);
-  const now = Date.now();
-
-  return {
-    id: item.id || item.epg_id || `${item.channel_id}-${index}`,
-    title: item.title || 'Untitled Program',
-    description: item.description || '',
-    startTime,
-    endTime,
-    category: 'show',
-    hasCatchUp: item.has_archive === 1 || startTime.getTime() < now,
-  };
-};
 
 const Player = () => {
   const navigate = useNavigate();
