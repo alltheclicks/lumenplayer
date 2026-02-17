@@ -85,6 +85,15 @@
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
+    --success: 142 76% 36%;
+    --success-foreground: 0 0% 100%;
+
+    --live: 0 84% 60%;
+    --live-foreground: 0 0% 100%;
+
+    --catchup: 217 91% 60%;
+    --catchup-foreground: 0 0% 100%;
+
     --border: 0 0% 18%;
     --input: 0 0% 18%;
     --ring: 217 91% 60%;
