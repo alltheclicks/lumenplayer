@@ -231,13 +231,16 @@ Completion notes (2026-02-16):
 |----|------|------|--------|------------|
 | LP-0350 | Restore dark-first visual token baseline to match `player-standalone` parity (`:root` theme tokens, first-paint shell mood) | S | done | LP-0346 |
 | LP-0351 | Introduce persistent player shell layout across `/player`, `/vod`, `/series`, `/epg`, `/settings` so desktop/mobile navigation context remains stable | L | done | LP-0346 |
-| LP-0352 | Align VOD/Series flow to in-shell playback context (no channel-shell context loss; deterministic back behavior to previous media context) | M | idea | LP-0351 |
-| LP-0353 | Tune channel list UI parity with virtualization retained (row density, selected state, scroll rhythm, favorites affordance) | S | idea | LP-0351 |
+| LP-0352 | Align VOD/Series flow to in-shell playback context (no channel-shell context loss; deterministic back behavior to previous media context) | M | done | LP-0351 |
+| LP-0353 | Tune channel list UI parity with virtualization retained (row density, selected state, scroll rhythm, favorites affordance) | S | done | LP-0351 |
 
 Completion notes (2026-02-17):
 - LP-0350 delivered dark-first token baseline + first-paint shell bootstrap in PR #124; Greptile final confidence score `5/5`.
 - LP-0351 delivered persistent AppShell route layout + unified desktop/mobile nav shell in PR #125.
 - LP-0351 Greptile check-run started, but final confidence score was not returned after 2 pings (`@greptile-apps`, `@greptileai`); fallback note was posted on PR #125.
+- LP-0352 delivered deterministic in-shell on-demand return context (`backPath` metadata + season/episode URL sync) in PR #127; Greptile final confidence score `5/5`.
+- LP-0353 delivered channel list parity tuning with virtualization retained (denser rows, stronger selected state, auto-scroll rhythm, direct favorites toggle) in PR #128.
+- LP-0353 Greptile review started, but final confidence score was not returned on latest head after 2 pings (`@greptileai`, `@greptile-apps`); fallback PR note was posted before merge.
 
 ---
 
