@@ -1,5 +1,40 @@
 # Handoff — Lumen Player
 
+## Session 2026-02-17 — LP-0361, LP-0362, LP-0363, LP-0364 (ordered batch)
+
+- PRs: #142 (merged), #143 (merged), #144 (merged), #145 (merged)
+- Done:
+  - LP-0361:
+    - added canonical Balkan Stream parity acceptance spec (`docs/DESIGN-PARITY-BALKAN-STREAM.md`)
+    - froze desktop/mobile reference baseline + manifest hashes (`docs/design-parity/balkan-stream/reference-manifest.json`, `docs/design-parity/balkan-stream/reference/*.png`)
+  - LP-0362:
+    - aligned global token system to Balkan baseline in `apps/web/src/index.css` (`--sidebar-*`, semantic live/catchup/success tokens, starlight/shimmer utilities)
+    - removed non-reference global shell mood paint from `body` and preserved compatibility aliases for follow-up tasks
+  - LP-0363:
+    - removed divergent non-player shell chrome (desktop icon rail + branded header) in `apps/web/src/components/layout/AppShell.tsx`
+    - kept minimal non-player shell with Balkan-style mobile bottom nav pattern
+  - LP-0364:
+    - rebuilt `/player` desktop into explicit 3-pane structure in `apps/web/src/pages/Player.tsx`:
+      - category rail
+      - channel panel
+      - media + EPG panel ("Sada na programu", "Sledi", "TV Unazad")
+  - Local test gate passed on each task PR:
+    - `pnpm lint`
+    - `pnpm typecheck`
+    - `pnpm build`
+  - Visual parity checks run each task against `docs/DESIGN-PARITY-BALKAN-STREAM.md` using Playwright captures from source and lumen snapshots.
+  - Greptile/check notes:
+    - #142: Greptile review started and returned final confidence score `5/5`.
+    - #143: Greptile review started, but final confidence score was not returned on latest head after 2 pings (`@greptile-apps`, `@greptileai`); fallback PR note comment was posted before merge.
+    - #144: Greptile review started and returned final confidence score `5/5`.
+    - #145: Greptile review started and returned final confidence score `5/5`.
+    - GitHub PR checks were green before merge (`web-quality`, `automation-scripts`; #143 merged via explicit 2-ping fallback path).
+
+- Next:
+  - Continue Balkan parity track in strict order with LP-0365, then LP-0366.
+
+---
+
 ## Session 2026-02-17 — LP-0354, LP-0356, LP-0357, LP-0003 (ordered batch)
 
 - PRs: #136 (merged), #137 (merged), #138 (merged), #139 (merged)
