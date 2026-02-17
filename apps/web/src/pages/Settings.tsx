@@ -291,8 +291,30 @@ const Settings = () => {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="liveChannelStartMode">Live channel startup mode</Label>
+                    <select
+                      id="liveChannelStartMode"
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      value={settings.player.liveChannelStartMode}
+                      onChange={(event) => setSettings((prev) => ({
+                        ...prev,
+                        player: {
+                          ...prev.player,
+                          liveChannelStartMode: event.target.value as AppSettings['player']['liveChannelStartMode'],
+                        },
+                      }))}
+                    >
+                      <option value="autoplay">Autoplay on channel select</option>
+                      <option value="manual">Select channel, then press Play</option>
+                    </select>
+                    <p className="text-xs text-muted-foreground">
+                      Defines whether selecting a live channel starts playback immediately.
+                    </p>
+                  </div>
+
                   <label className="flex items-center justify-between gap-3 text-sm">
-                    <span>Autoplay on source change</span>
+                    <span>Autoplay on source change (VOD/Series/Catch-up)</span>
                     <input
                       type="checkbox"
                       className="h-4 w-4"

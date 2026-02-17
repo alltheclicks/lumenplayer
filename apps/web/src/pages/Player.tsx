@@ -59,6 +59,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { getPlayerOnDemandContext } from '@/pages/playerOnDemandContext';
+import { shouldAutoplaySource } from '@/pages/liveChannelStartupMode';
 
 type SessionSourceMetadata = {
   channelId?: string;
@@ -248,6 +249,7 @@ const Player = () => {
   const [numericZapBuffer, setNumericZapBuffer] = useState<string | null>(null);
   const [numericZapMatchName, setNumericZapMatchName] = useState<string | null>(null);
   const [appSettings, setAppSettings] = useState<AppSettings>(getDefaultAppSettings());
+  const [isSettingsHydrated, setIsSettingsHydrated] = useState(false);
   const [isPictureInPictureSupported, setIsPictureInPictureSupported] = useState(false);
   const [isPictureInPicture, setIsPictureInPicture] = useState(false);
   const [isAirPlaySupported, setIsAirPlaySupported] = useState(false);
@@ -271,6 +273,8 @@ const Player = () => {
   );
   const isOnDemandSource = onDemandContext !== null;
   const usesLocalRenderer = session.renderer === 'local-web' || session.renderer === 'airplay';
+  const shouldAutoplayLiveOnSelect = shouldAutoplaySource('live', appSettings);
+  const shouldAutoplayCurrentSource = shouldAutoplaySource(sessionSourceMetadata.mode, appSettings);
 
   const currentChannel = useMemo(() => {
     if (channels.length === 0) {
@@ -381,9 +385,12 @@ const Player = () => {
       };
 
       commands.setSource(source, 0);
-      commands.play();
+
+      if (shouldAutoplayLiveOnSelect) {
+        commands.play();
+      }
     },
-    [commands]
+    [commands, shouldAutoplayLiveOnSelect]
   );
 
   useEffect(() => {
@@ -479,9 +486,15 @@ const Player = () => {
     let isCancelled = false;
 
     const hydrateSettings = async () => {
-      const loadedSettings = await loadAppSettings();
-      if (!isCancelled) {
-        setAppSettings(loadedSettings);
+      try {
+        const loadedSettings = await loadAppSettings();
+        if (!isCancelled) {
+          setAppSettings(loadedSettings);
+        }
+      } finally {
+        if (!isCancelled) {
+          setIsSettingsHydrated(true);
+        }
       }
     };
 
@@ -494,10 +507,14 @@ const Player = () => {
 
   // Set first channel when loaded
   useEffect(() => {
+    if (!isSettingsHydrated) {
+      return;
+    }
+
     if (channels.length > 0 && !currentChannel && !session.source) {
       switchToLiveChannel(channels[0]);
     }
-  }, [channels, currentChannel, session.source, switchToLiveChannel]);
+  }, [channels, currentChannel, isSettingsHydrated, session.source, switchToLiveChannel]);
 
   const currentChannelId = currentChannel?.id;
 
@@ -1049,7 +1066,7 @@ const Player = () => {
             {session.source && usesLocalRenderer && (
               <VideoPlayer
                 ref={playerRef}
-                autoPlay={appSettings.player.autoplay}
+                autoPlay={shouldAutoplayCurrentSource}
                 preferNativeHls={appSettings.player.preferNativeHls}
               />
             )}
