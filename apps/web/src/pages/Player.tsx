@@ -897,6 +897,7 @@ const Player = () => {
               variant="desktop"
               onSelectChannel={switchToLiveChannel}
               isFavorite={isFavorite}
+              onToggleFavorite={toggleFavorite}
             />
           </aside>
         ) : (
@@ -1239,6 +1240,7 @@ const Player = () => {
                         setSidebarOpen(false);
                       }}
                       isFavorite={isFavorite}
+                      onToggleFavorite={toggleFavorite}
                     />
                   </div>
                 </SheetContent>

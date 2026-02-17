@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Star } from 'lucide-react';
 import type { PlayerChannel } from '@lumen/types';
@@ -14,11 +14,12 @@ interface ChannelListProps {
   className?: string;
   onSelectChannel: (channel: PlayerChannel) => void;
   isFavorite: (channelId: string) => boolean;
+  onToggleFavorite?: (channelId: string) => void;
 }
 
 const rowHeightByVariant: Record<ChannelListVariant, number> = {
-  desktop: 56,
-  mobile: 72,
+  desktop: 52,
+  mobile: 64,
 };
 
 const ChannelList = ({
@@ -28,16 +29,50 @@ const ChannelList = ({
   className,
   onSelectChannel,
   isFavorite,
+  onToggleFavorite,
 }: ChannelListProps) => {
   const viewportRef = useRef<HTMLDivElement>(null);
+  const previousActiveChannelIdRef = useRef<string | undefined>(undefined);
   const rowHeight = rowHeightByVariant[variant];
 
   const rowVirtualizer = useVirtualizer({
     count: channels.length,
     getScrollElement: () => viewportRef.current,
     estimateSize: () => rowHeight,
-    overscan: 8,
+    overscan: variant === 'desktop' ? 10 : 8,
   });
+
+  useEffect(() => {
+    if (!currentChannelId || previousActiveChannelIdRef.current === currentChannelId) {
+      return;
+    }
+
+    const activeChannelIndex = channels.findIndex((channel) => channel.id === currentChannelId);
+    if (activeChannelIndex < 0) {
+      return;
+    }
+
+    previousActiveChannelIdRef.current = currentChannelId;
+    const viewport = viewportRef.current;
+    if (!viewport) {
+      return;
+    }
+
+    const activeTop = activeChannelIndex * rowHeight;
+    const activeBottom = activeTop + rowHeight;
+    const visibleTop = viewport.scrollTop;
+    const visibleBottom = visibleTop + viewport.clientHeight;
+
+    if (activeTop < visibleTop) {
+      viewport.scrollTo({ top: Math.max(0, activeTop - rowHeight), behavior: 'smooth' });
+      return;
+    }
+
+    if (activeBottom > visibleBottom) {
+      const targetTop = activeBottom - viewport.clientHeight + rowHeight;
+      viewport.scrollTo({ top: targetTop, behavior: 'smooth' });
+    }
+  }, [channels, currentChannelId, rowHeight]);
 
   const virtualRows = rowVirtualizer.getVirtualItems();
 
@@ -64,19 +99,29 @@ const ChannelList = ({
                   transform: `translateY(${virtualRow.start}px)`,
                 }}
               >
-                <button
-                  onClick={() => onSelectChannel(channel)}
-                  className={`w-full h-full flex items-center gap-3 rounded-lg transition-colors ${
-                    variant === 'desktop' ? 'p-2' : 'p-3'
+                <div
+                  className={`flex h-full items-center gap-2 rounded-lg border transition-colors ${
+                    variant === 'desktop' ? 'px-2 py-1.5' : 'px-2.5 py-2'
                   } ${
                     isActive
-                      ? 'bg-primary/20 border border-primary/50'
-                      : 'hover:bg-secondary'
+                      ? 'border-primary/55 bg-primary/15 shadow-[inset_0_0_0_1px_hsl(var(--primary)/0.35)]'
+                      : 'border-transparent hover:border-border/70 hover:bg-secondary/80'
                   }`}
                 >
+                  <span
+                    className={`h-7 w-1 rounded-full transition-colors ${
+                      isActive ? 'bg-primary' : 'bg-border/30'
+                    }`}
+                    aria-hidden
+                  />
+                  <button
+                    type="button"
+                    onClick={() => onSelectChannel(channel)}
+                    className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                  >
                   <div
                     className={`rounded-lg bg-background/50 flex items-center justify-center ${
-                      variant === 'desktop' ? 'w-10 h-10' : 'w-12 h-12'
+                      variant === 'desktop' ? 'w-9 h-9' : 'w-10 h-10'
                     }`}
                   >
                     <ChannelLogo
@@ -85,26 +130,43 @@ const ChannelList = ({
                       size={variant === 'desktop' ? 'md' : 'lg'}
                     />
                   </div>
-                  <div className="flex-1 text-left min-w-0">
-                    <p className={`font-medium truncate ${variant === 'desktop' ? 'text-sm' : ''}`}>
-                      {channel.name}
-                    </p>
-                    <p
-                      className={`text-muted-foreground truncate ${
-                        variant === 'desktop' ? 'text-xs' : 'text-sm'
-                      }`}
-                    >
-                      {channel.categoryName}
-                    </p>
-                  </div>
-                  {favorite && (
+                    <div className="min-w-0 flex-1 text-left">
+                      <div className="flex items-center gap-2">
+                        <p className={`font-medium truncate ${variant === 'desktop' ? 'text-sm leading-tight' : ''}`}>
+                          {channel.name}
+                        </p>
+                        <span className="hidden rounded bg-muted px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground sm:inline-block">
+                          {channel.number}
+                        </span>
+                      </div>
+                      <p
+                        className={`text-muted-foreground truncate ${
+                          variant === 'desktop' ? 'text-[11px]' : 'text-xs'
+                        }`}
+                      >
+                        {channel.categoryName}
+                      </p>
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onToggleFavorite?.(channel.id)}
+                    className={`rounded-md p-1.5 transition-colors ${
+                      favorite
+                        ? 'text-primary hover:bg-primary/15'
+                        : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
+                    }`}
+                    aria-label={favorite ? `Remove ${channel.name} from favorites` : `Add ${channel.name} to favorites`}
+                    aria-pressed={favorite}
+                    disabled={!onToggleFavorite}
+                  >
                     <Star
-                      className={`text-primary fill-primary flex-shrink-0 ${
-                        variant === 'desktop' ? 'w-4 h-4' : 'w-5 h-5'
+                      className={`flex-shrink-0 ${variant === 'desktop' ? 'w-4 h-4' : 'w-[18px] h-[18px]'} ${
+                        favorite ? 'fill-primary' : ''
                       }`}
                     />
-                  )}
-                </button>
+                  </button>
+                </div>
               </div>
             );
           })}
