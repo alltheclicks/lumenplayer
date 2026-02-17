@@ -44,9 +44,6 @@
   }
 
   .light {
-    --font-sans: "Space Grotesk", "Avenir Next", "Segoe UI", sans-serif;
-    --font-display: "Sora", "Space Grotesk", "Segoe UI", sans-serif;
-
     --background: 0 0% 98%;
     --foreground: 222 47% 11%;
 

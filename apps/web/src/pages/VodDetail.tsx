@@ -42,6 +42,10 @@ const inferVodSourceType = (
   return 'mp4';
 };
 
+const sanitizeCssUrl = (url: string): string => {
+  return url.replace(/["'()\\]/g, (char) => encodeURIComponent(char));
+};
+
 const fetchVodDetail = async (vodId: string): Promise<VodDetailData> => {
   const credentials = await loadXtreamCredentials();
 
@@ -190,7 +194,9 @@ const VodDetail = () => {
         <div
           className="h-52 w-full bg-cover bg-center md:h-72"
           style={{
-            backgroundImage: data?.backdrop ? `linear-gradient(to bottom, transparent, hsl(var(--background))), url(${data.backdrop})` : 'none',
+            backgroundImage: data?.backdrop
+              ? `linear-gradient(to bottom, transparent, hsl(var(--background))), url("${sanitizeCssUrl(data.backdrop)}")`
+              : 'none',
           }}
         />
 

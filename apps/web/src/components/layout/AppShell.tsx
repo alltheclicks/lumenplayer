@@ -103,7 +103,7 @@ const AppShell = () => {
       </div>
 
       {/* Mobile bottom nav bar — hidden on /player where Player.tsx owns the mobile layout */}
-      <nav className={`fixed bottom-0 inset-x-0 z-40 flex border-t border-[hsl(var(--shell-border))] bg-[hsl(var(--surface-1))/0.96] backdrop-blur lg:hidden pb-[env(safe-area-inset-bottom)] ${isPlayerRoute ? 'hidden' : ''}`}>
+      <nav className={`fixed bottom-0 inset-x-0 z-40 flex border-t border-[hsl(var(--shell-border))] bg-[hsl(var(--surface-1)/0.96)] backdrop-blur lg:hidden pb-[env(safe-area-inset-bottom)] ${isPlayerRoute ? 'hidden' : ''}`}>
         {NAV_ITEMS.map((item) => {
           const active = isActiveRoute(item.path, pathname);
           return (
