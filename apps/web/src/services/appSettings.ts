@@ -69,6 +69,7 @@ export const applyThemePreference = (theme: ThemePreference): void => {
   const root = document.documentElement;
   const useDark = theme === 'dark' || (theme === 'system' && prefersDarkTheme());
   root.classList.toggle('dark', useDark);
+  root.classList.toggle('light', !useDark);
 };
 
 export const initializeThemePreference = (): void => {

@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#3B82F6" />
+    <meta name="theme-color" content="#0a0a0a" />
     <meta name="description" content="Watch live TV channels" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/manifest.webmanifest" />
@@ -29,6 +29,23 @@
       media="(device-width: 834px) and (device-height: 1194px) and (-webkit-device-pixel-ratio: 2)"
     />
     <title>IPTV Player</title>
+    <style>
+      html, body {
+        background: #0a0a0a;
+        color: #fafafa;
+      }
+    </style>
+    <script>
+      (() => {
+        const key = 'theme_preference';
+        const rawTheme = window.localStorage.getItem(key);
+        const theme = rawTheme === 'light' || rawTheme === 'system' ? rawTheme : 'dark';
+        const prefersDark = window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? true;
+        const useDark = theme === 'dark' || (theme === 'system' && prefersDark);
+        document.documentElement.classList.toggle('dark', useDark);
+        document.documentElement.classList.toggle('light', !useDark);
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
