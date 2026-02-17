@@ -1,5 +1,31 @@
 # Handoff — Lumen Player
 
+## Session 2026-02-17 — LP-0350, LP-0351 (ordered batch)
+
+- PRs: #124 (merged), #125 (merged)
+- Done:
+  - LP-0350:
+    - restored dark-first visual token baseline in `apps/web/src/index.css`
+    - added explicit `.light` overrides and synchronized theme class toggling in `apps/web/src/services/appSettings.ts`
+    - added first-paint theme bootstrap in `apps/web/index.html` to avoid initial shell mood mismatch
+  - LP-0351:
+    - added persistent shell route wrapper in `apps/web/src/App.tsx`
+    - added shared layout nav shell (`apps/web/src/components/layout/AppShell.tsx`) for desktop sidebar + mobile bottom nav
+    - removed redundant page-level back/nav controls and shell wrappers in routed pages (`Player`, `VOD`, `Series`, `EPG`, `Settings`)
+  - Local test gate passed on each task PR:
+    - `pnpm lint`
+    - `pnpm typecheck`
+    - `pnpm build`
+  - Greptile/check notes:
+    - #124: Greptile review started and returned final confidence score `5/5`.
+    - #125: Greptile review check-run started, but final confidence score was not returned after 2 pings (`@greptile-apps`, `@greptileai`); fallback PR note comment was posted before merge.
+    - GitHub PR checks were green before merge (`web-quality`, `automation-scripts`; Greptile remained pending on #125).
+
+- Next:
+  - Continue with next V1-UI item by order (`LP-0352`), then `LP-0353`.
+
+---
+
 ## Session 2026-02-17 — TST-005 (single-task PR + docs sync)
 
 - PR: #121 (merged)
