@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Helmet } from 'react-helmet-async';
-import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Clock, Loader2, RefreshCw, Search, Tv } from 'lucide-react';
+
+import { Clock, Loader2, RefreshCw, Search, Tv } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useXtreamChannels } from '@/hooks/useXtreamChannels';
@@ -126,7 +126,6 @@ const clipProgramToWindow = (program: Program, windowStart: Date, windowEnd: Dat
 };
 
 const EpgGuide = () => {
-  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { channels, categories, isLoading, error } = useXtreamChannels();
 
@@ -216,13 +215,9 @@ const EpgGuide = () => {
         <title>EPG Guide - IPTV Player</title>
       </Helmet>
 
-      <div className="min-h-screen bg-background p-4 md:p-6">
+      <div className="bg-background p-4 md:p-6">
         <div className="mx-auto max-w-[1400px] space-y-4">
           <div className="flex flex-wrap items-center gap-3">
-            <Button variant="ghost" className="gap-2" onClick={() => navigate('/player')}>
-              <ArrowLeft className="h-4 w-4" />
-              Back to Player
-            </Button>
             <h1 className="text-2xl font-bold tracking-tight">EPG Grid</h1>
             <span className="text-sm text-muted-foreground">
               TV guide view ({TIMELINE_MINUTES_BEFORE / 60}h back / {TIMELINE_MINUTES_AFTER / 60}h ahead)

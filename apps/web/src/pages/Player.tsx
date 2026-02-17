@@ -21,8 +21,6 @@ import {
   SkipBack,
   SkipForward,
   Smartphone,
-  CalendarDays,
-  Settings2,
 } from 'lucide-react';
 import VideoPlayer, { type VideoPlayerHandle } from '@/components/player/VideoPlayer';
 import PlayerControls from '@/components/player/PlayerControls';
@@ -764,7 +762,7 @@ const Player = () => {
   // Loading state
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="flex-1 bg-background flex items-center justify-center">
         <div className="text-center">
           <Loader2 className="w-12 h-12 animate-spin text-primary mx-auto mb-4" />
           <p className="text-muted-foreground">Loading channels...</p>
@@ -776,7 +774,7 @@ const Player = () => {
   // Error state
   if (error) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+      <div className="flex-1 bg-background flex items-center justify-center p-4">
         <div className="text-center max-w-md">
           <AlertCircle className="w-12 h-12 text-destructive mx-auto mb-4" />
           <h2 className="text-xl font-semibold mb-2">Failed to load channels</h2>
@@ -793,7 +791,7 @@ const Player = () => {
         <title>{pageTitle}</title>
       </Helmet>
 
-      <div className="min-h-screen bg-background flex">
+      <div className="flex-1 bg-background flex">
         {/* Sidebar for desktop */}
         {!isOnDemandSource ? (
           <aside className="hidden lg:flex w-80 flex-col border-r border-border bg-card">
@@ -801,18 +799,6 @@ const Player = () => {
               <div className="flex items-center justify-between mb-4">
                 <h1 className="text-xl font-bold">Channels</h1>
                 <div className="flex items-center gap-1">
-                  <Button variant="ghost" size="sm" onClick={() => navigate('/vod')}>
-                    VOD
-                  </Button>
-                  <Button variant="ghost" size="sm" onClick={() => navigate('/series')}>
-                    Series
-                  </Button>
-                  <Button variant="ghost" size="sm" onClick={() => navigate('/epg')}>
-                    EPG
-                  </Button>
-                  <Button variant="ghost" size="sm" onClick={() => navigate('/settings')}>
-                    Settings
-                  </Button>
                   {castSender.isAvailable && (
                     <Button
                       variant="ghost"
@@ -905,9 +891,6 @@ const Player = () => {
               <div className="mb-3 flex items-center justify-between gap-2">
                 <h1 className="text-xl font-bold">{onDemandTitle}</h1>
                 <div className="flex items-center gap-1">
-                  <Button variant="ghost" size="sm" onClick={() => navigate('/settings')}>
-                    Settings
-                  </Button>
                   {castSender.isAvailable && (
                     <Button
                       variant="ghost"
@@ -949,20 +932,6 @@ const Player = () => {
             <div className="space-y-2 p-4">
               <Button className="w-full justify-start" onClick={() => navigate(onDemandBackPath)}>
                 {onDemandBackLabel}
-              </Button>
-              <Button
-                variant="outline"
-                className="w-full justify-start"
-                onClick={() => navigate('/vod')}
-              >
-                VOD Catalog
-              </Button>
-              <Button
-                variant="outline"
-                className="w-full justify-start"
-                onClick={() => navigate('/series')}
-              >
-                Series Catalog
               </Button>
             </div>
           </aside>
@@ -1166,27 +1135,9 @@ const Player = () => {
             )}
           </div>
 
-          {/* Mobile shell */}
+          {/* Mobile channel selector */}
           {!isOnDemandSource ? (
-            <div className="lg:hidden border-t border-border p-4">
-              <div className="mb-3 grid grid-cols-4 gap-2">
-                <Button variant="outline" size="sm" onClick={() => navigate('/vod')}>
-                  <Film className="mr-1 h-4 w-4" />
-                  VOD
-                </Button>
-                <Button variant="outline" size="sm" onClick={() => navigate('/series')}>
-                  <Play className="mr-1 h-4 w-4" />
-                  Series
-                </Button>
-                <Button variant="outline" size="sm" onClick={() => navigate('/epg')}>
-                  <CalendarDays className="mr-1 h-4 w-4" />
-                  EPG
-                </Button>
-                <Button variant="outline" size="sm" onClick={() => navigate('/settings')}>
-                  <Settings2 className="mr-1 h-4 w-4" />
-                  Settings
-                </Button>
-              </div>
+            <div className="lg:hidden p-4 border-t border-border">
               {castSender.isAvailable && (
                 <Button
                   variant={castSender.isConnected ? 'default' : 'outline'}
@@ -1280,24 +1231,6 @@ const Player = () => {
               </Sheet>
 
               <Button
-                variant="outline"
-                size="sm"
-                className="w-full mt-2"
-                onClick={() => navigate('/vod')}
-              >
-                VOD Catalog
-              </Button>
-
-              <Button
-                variant="outline"
-                size="sm"
-                className="w-full mt-2"
-                onClick={() => navigate('/series')}
-              >
-                Series Catalog
-              </Button>
-
-              <Button
                 variant="ghost"
                 size="sm"
                 className="w-full mt-2"
@@ -1313,15 +1246,6 @@ const Player = () => {
               <div className="space-y-2">
                 <Button className="w-full" onClick={() => navigate(onDemandBackPath)}>
                   {onDemandBackLabel}
-                </Button>
-                <Button variant="outline" className="w-full" onClick={() => navigate('/vod')}>
-                  VOD Catalog
-                </Button>
-                <Button variant="outline" className="w-full" onClick={() => navigate('/series')}>
-                  Series Catalog
-                </Button>
-                <Button variant="outline" className="w-full" onClick={() => navigate('/settings')}>
-                  Settings
                 </Button>
                 <Button
                   variant="ghost"

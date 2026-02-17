@@ -271,7 +271,7 @@ const SeriesDetail = () => {
         <title>{data ? `${data.title} - Series` : 'Series Detail - IPTV Player'}</title>
       </Helmet>
 
-      <div className="min-h-screen bg-background">
+      <div className="bg-background">
         <div
           className="h-52 w-full bg-cover bg-center md:h-64"
           style={{

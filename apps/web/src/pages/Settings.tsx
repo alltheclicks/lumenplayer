@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Helmet } from 'react-helmet-async';
-import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Download, Loader2, Save, Settings2, Smartphone, Wifi, WifiOff } from 'lucide-react';
+import { Download, Loader2, Save, Settings2, Smartphone, Wifi, WifiOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -68,7 +67,6 @@ const getUnsupportedPushCopy = (compatibility: PushCompatibilityResult): string 
 };
 
 const Settings = () => {
-  const navigate = useNavigate();
   const [settings, setSettings] = useState<AppSettings>(getDefaultAppSettings());
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -224,15 +222,9 @@ const Settings = () => {
         <title>Settings - IPTV Player</title>
       </Helmet>
 
-      <div className="min-h-screen bg-background p-4 md:p-6">
+      <div className="bg-background p-4 md:p-6">
         <div className="mx-auto max-w-3xl space-y-5">
-          <div className="flex flex-wrap items-center gap-3">
-            <Button variant="ghost" className="gap-2" onClick={() => navigate('/player')}>
-              <ArrowLeft className="h-4 w-4" />
-              Back to Player
-            </Button>
-            <h1 className="text-2xl font-bold tracking-tight">Settings</h1>
-          </div>
+          <h1 className="text-2xl font-bold tracking-tight">Settings</h1>
 
           {isLoading ? (
             <div className="flex items-center gap-2 text-muted-foreground">
