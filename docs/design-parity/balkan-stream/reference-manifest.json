@@ -3,6 +3,7 @@
   "version": 1,
   "source": {
     "repo_path": "/Users/filip/Documents/narodna.tv/balkan-stream",
+    "repo_url": "https://github.com/alltheclicks/narodna.tv",
     "commit": "e7013011d81b384b3a1cd658e77d9a4ffb8f7c64"
   },
   "captured_at_utc": "2026-02-17T17:15:09Z",
@@ -11,7 +12,7 @@
     "/player": "/player",
     "/vod": "/movies",
     "/series": "/series",
-    "epg_in_player": "/player"
+    "/player#epg": "/player"
   },
   "viewports": {
     "desktop": {
@@ -27,12 +28,12 @@
     {
       "id": "login_desktop",
       "file": "docs/design-parity/balkan-stream/reference/login-desktop.png",
-      "sha256": "36bd03c9ab74ffc7f0b9ac9d108c4d005d560f2ed425b3938906ad0baf699c65"
+      "sha256": "5e43c81ea5172893bb24b69f54f9673a83f5f244218ca0691b51c10f561898e3"
     },
     {
       "id": "login_mobile",
       "file": "docs/design-parity/balkan-stream/reference/login-mobile.png",
-      "sha256": "43a08b04152593e39d87d451fdebbd15b40755712e60c157a742276699d9cee3"
+      "sha256": "e41da03fdc6f5c3785e562a86b4062d8e63536a5553e8e840be6b2f45d1cc4c9"
     },
     {
       "id": "player_desktop",

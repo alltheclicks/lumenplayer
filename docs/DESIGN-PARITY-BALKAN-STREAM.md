@@ -2,7 +2,7 @@
 
 > Date: 2026-02-17  
 > Status: Mandatory for V1 release acceptance  
-> Design source-of-truth: `/Users/filip/Documents/narodna.tv/balkan-stream` (not `player-standalone`)
+> Design source-of-truth: Balkan Stream app ([alltheclicks/narodna.tv](https://github.com/alltheclicks/narodna.tv)) checked out locally at `/Users/filip/Documents/narodna.tv/balkan-stream` (not `player-standalone`)
 
 ## 1. Scope
 
@@ -51,6 +51,7 @@ Reference baseline is locked to:
 - Capture timestamp (UTC): `2026-02-17T17:15:09Z`
 - Manifest: `docs/design-parity/balkan-stream/reference-manifest.json`
 - Screenshots: `docs/design-parity/balkan-stream/reference/*.png`
+- Privacy note: login screenshots intentionally use sanitized server label (`demo.invalid`).
 
 If reference is intentionally updated later, LP task must explicitly state a new commit SHA and replace manifest hashes.
 
