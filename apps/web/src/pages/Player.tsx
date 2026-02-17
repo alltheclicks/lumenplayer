@@ -57,11 +57,13 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
+import { getPlayerOnDemandContext } from '@/pages/playerOnDemandContext';
 
 type SessionSourceMetadata = {
   channelId?: string;
   streamId?: number;
   mode?: 'live' | 'catchup' | 'vod' | 'series-episode';
+  vodId?: string;
   catchUpProgramId?: string;
   seriesId?: string;
 };
@@ -86,6 +88,7 @@ const parseSessionSourceMetadata = (
       metadata.mode === 'series-episode'
       ? metadata.mode
       : undefined,
+    vodId: typeof metadata.vodId === 'string' ? metadata.vodId : undefined,
     catchUpProgramId: typeof metadata.catchUpProgramId === 'string' ? metadata.catchUpProgramId : undefined,
     seriesId: typeof metadata.seriesId === 'string' ? metadata.seriesId : undefined,
   };
@@ -189,8 +192,11 @@ const Player = () => {
     () => parseSessionSourceMetadata(session.source?.metadata),
     [session.source?.metadata]
   );
-  const isOnDemandSource = sessionSourceMetadata.mode === 'vod' ||
-    sessionSourceMetadata.mode === 'series-episode';
+  const onDemandContext = useMemo(
+    () => getPlayerOnDemandContext(sessionSourceMetadata),
+    [sessionSourceMetadata]
+  );
+  const isOnDemandSource = onDemandContext !== null;
   const usesLocalRenderer = session.renderer === 'local-web' || session.renderer === 'airplay';
 
   const currentChannel = useMemo(() => {
@@ -746,15 +752,14 @@ const Player = () => {
 
   const currentProgram = currentChannelWithEPG ? getCurrentProgram(currentChannelWithEPG as any) : undefined;
   const progress = currentProgram ? getProgramProgress(currentProgram) : 0;
-  const onDemandTitle = sessionSourceMetadata.mode === 'series-episode'
-    ? 'Episode Playback'
-    : 'VOD Playback';
-  const onDemandBackPath = sessionSourceMetadata.mode === 'series-episode' && sessionSourceMetadata.seriesId
-    ? `/series/${sessionSourceMetadata.seriesId}`
-    : '/vod';
-  const onDemandBackLabel = sessionSourceMetadata.mode === 'series-episode'
-    ? 'Back to Series'
-    : 'Back to VOD';
+  const onDemandTitle = onDemandContext?.title ?? 'VOD Playback';
+  const onDemandBackPath = onDemandContext?.backPath ?? '/vod';
+  const onDemandBackLabel = onDemandContext?.backLabel ?? 'Back to VOD';
+  const pageTitle = isOnDemandSource
+    ? `${session.source?.title ?? onDemandTitle} - IPTV Player`
+    : currentChannel
+      ? `${currentChannel.name} - IPTV Player`
+      : 'IPTV Player';
 
   // Loading state
   if (isLoading) {
@@ -785,114 +790,183 @@ const Player = () => {
   return (
     <>
       <Helmet>
-        <title>{currentChannel ? `${currentChannel.name} - IPTV Player` : 'IPTV Player'}</title>
+        <title>{pageTitle}</title>
       </Helmet>
 
       <div className="min-h-screen bg-background flex">
         {/* Sidebar for desktop */}
-        <aside className="hidden lg:flex w-80 flex-col border-r border-border bg-card">
-          <div className="p-4 border-b border-border">
-            <div className="flex items-center justify-between mb-4">
-              <h1 className="text-xl font-bold">Channels</h1>
-              <div className="flex items-center gap-1">
-                <Button variant="ghost" size="sm" onClick={() => navigate('/vod')}>
-                  VOD
-                </Button>
-                <Button variant="ghost" size="sm" onClick={() => navigate('/series')}>
-                  Series
-                </Button>
-                <Button variant="ghost" size="sm" onClick={() => navigate('/epg')}>
-                  EPG
-                </Button>
-                <Button variant="ghost" size="sm" onClick={() => navigate('/settings')}>
-                  Settings
-                </Button>
-                {castSender.isAvailable && (
+        {!isOnDemandSource ? (
+          <aside className="hidden lg:flex w-80 flex-col border-r border-border bg-card">
+            <div className="p-4 border-b border-border">
+              <div className="flex items-center justify-between mb-4">
+                <h1 className="text-xl font-bold">Channels</h1>
+                <div className="flex items-center gap-1">
+                  <Button variant="ghost" size="sm" onClick={() => navigate('/vod')}>
+                    VOD
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={() => navigate('/series')}>
+                    Series
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={() => navigate('/epg')}>
+                    EPG
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={() => navigate('/settings')}>
+                    Settings
+                  </Button>
+                  {castSender.isAvailable && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      disabled={castSender.isConnecting}
+                      onClick={() => {
+                        void castSender.toggleCasting();
+                      }}
+                      title={castSender.isConnected ? 'Disconnect Cast' : 'Connect Cast'}
+                    >
+                      <Cast className={`w-4 h-4 ${castSender.isConnected ? 'text-primary' : ''}`} />
+                    </Button>
+                  )}
+                  {isAirPlaySupported && session.renderer !== 'cast' && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      disabled={!isAirPlayAvailable}
+                      onClick={openAirPlayPicker}
+                      title={isAirPlayConnected ? 'AirPlay connected' : 'Open AirPlay picker'}
+                    >
+                      <Airplay className={`w-4 h-4 ${isAirPlayConnected ? 'text-primary' : ''}`} />
+                    </Button>
+                  )}
                   <Button
                     variant="ghost"
                     size="icon"
-                    disabled={castSender.isConnecting}
-                    onClick={() => {
-                      void castSender.toggleCasting();
-                    }}
-                    title={castSender.isConnected ? 'Disconnect Cast' : 'Connect Cast'}
+                    onClick={() => setShowLogoutDialog(true)}
                   >
-                    <Cast className={`w-4 h-4 ${castSender.isConnected ? 'text-primary' : ''}`} />
+                    <LogOut className="w-4 h-4" />
                   </Button>
-                )}
-                {isAirPlaySupported && session.renderer !== 'cast' && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    disabled={!isAirPlayAvailable}
-                    onClick={openAirPlayPicker}
-                    title={isAirPlayConnected ? 'AirPlay connected' : 'Open AirPlay picker'}
-                  >
-                    <Airplay className={`w-4 h-4 ${isAirPlayConnected ? 'text-primary' : ''}`} />
-                  </Button>
-                )}
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setShowLogoutDialog(true)}
-                >
-                  <LogOut className="w-4 h-4" />
-                </Button>
+                </div>
+              </div>
+
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search channels..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-9"
+                />
               </div>
             </div>
 
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                placeholder="Search channels..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9"
-              />
-            </div>
-          </div>
-
-          {/* Categories */}
-          <div className="p-2 border-b border-border overflow-x-auto">
-            <div className="flex gap-1 min-w-max">
-              <Button
-                variant={selectedCategory === null ? 'default' : 'ghost'}
-                size="sm"
-                onClick={() => setSelectedCategory(null)}
-              >
-                All
-              </Button>
-              <Button
-                variant={selectedCategory === 'favorites' ? 'default' : 'ghost'}
-                size="sm"
-                onClick={() => setSelectedCategory('favorites')}
-              >
-                <Star className="w-4 h-4 mr-1" />
-                Favorites
-              </Button>
-              {categories.map(cat => (
+            {/* Categories */}
+            <div className="p-2 border-b border-border overflow-x-auto">
+              <div className="flex gap-1 min-w-max">
                 <Button
-                  key={cat.id}
-                  variant={selectedCategory === cat.id ? 'default' : 'ghost'}
+                  variant={selectedCategory === null ? 'default' : 'ghost'}
                   size="sm"
-                  onClick={() => setSelectedCategory(cat.id)}
+                  onClick={() => setSelectedCategory(null)}
                 >
-                  {cat.name}
+                  All
                 </Button>
-              ))}
+                <Button
+                  variant={selectedCategory === 'favorites' ? 'default' : 'ghost'}
+                  size="sm"
+                  onClick={() => setSelectedCategory('favorites')}
+                >
+                  <Star className="w-4 h-4 mr-1" />
+                  Favorites
+                </Button>
+                {categories.map(cat => (
+                  <Button
+                    key={cat.id}
+                    variant={selectedCategory === cat.id ? 'default' : 'ghost'}
+                    size="sm"
+                    onClick={() => setSelectedCategory(cat.id)}
+                  >
+                    {cat.name}
+                  </Button>
+                ))}
+              </div>
             </div>
-          </div>
 
-          {/* Channel list */}
-          <ChannelList
-            className="flex-1"
-            channels={filteredChannels}
-            currentChannelId={currentChannel?.id}
-            variant="desktop"
-            onSelectChannel={switchToLiveChannel}
-            isFavorite={isFavorite}
-          />
-        </aside>
+            {/* Channel list */}
+            <ChannelList
+              className="flex-1"
+              channels={filteredChannels}
+              currentChannelId={currentChannel?.id}
+              variant="desktop"
+              onSelectChannel={switchToLiveChannel}
+              isFavorite={isFavorite}
+            />
+          </aside>
+        ) : (
+          <aside className="hidden lg:flex w-80 flex-col border-r border-border bg-card">
+            <div className="p-4 border-b border-border">
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <h1 className="text-xl font-bold">{onDemandTitle}</h1>
+                <div className="flex items-center gap-1">
+                  <Button variant="ghost" size="sm" onClick={() => navigate('/settings')}>
+                    Settings
+                  </Button>
+                  {castSender.isAvailable && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      disabled={castSender.isConnecting}
+                      onClick={() => {
+                        void castSender.toggleCasting();
+                      }}
+                      title={castSender.isConnected ? 'Disconnect Cast' : 'Connect Cast'}
+                    >
+                      <Cast className={`w-4 h-4 ${castSender.isConnected ? 'text-primary' : ''}`} />
+                    </Button>
+                  )}
+                  {isAirPlaySupported && session.renderer !== 'cast' && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      disabled={!isAirPlayAvailable}
+                      onClick={openAirPlayPicker}
+                      title={isAirPlayConnected ? 'AirPlay connected' : 'Open AirPlay picker'}
+                    >
+                      <Airplay className={`w-4 h-4 ${isAirPlayConnected ? 'text-primary' : ''}`} />
+                    </Button>
+                  )}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setShowLogoutDialog(true)}
+                  >
+                    <LogOut className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+              <p className="line-clamp-2 text-sm text-muted-foreground">
+                {session.source?.title || 'On-demand playback'}
+              </p>
+            </div>
+
+            <div className="space-y-2 p-4">
+              <Button className="w-full justify-start" onClick={() => navigate(onDemandBackPath)}>
+                {onDemandBackLabel}
+              </Button>
+              <Button
+                variant="outline"
+                className="w-full justify-start"
+                onClick={() => navigate('/vod')}
+              >
+                VOD Catalog
+              </Button>
+              <Button
+                variant="outline"
+                className="w-full justify-start"
+                onClick={() => navigate('/series')}
+              >
+                Series Catalog
+              </Button>
+            </div>
+          </aside>
+        )}
 
         {/* Main content */}
         <main className="flex-1 flex flex-col">
@@ -1092,146 +1166,175 @@ const Player = () => {
             )}
           </div>
 
-          {/* Mobile channel selector */}
-          <div className="lg:hidden p-4 border-t border-border">
-            <div className="mb-3 grid grid-cols-4 gap-2">
-              <Button variant="outline" size="sm" onClick={() => navigate('/vod')}>
-                <Film className="mr-1 h-4 w-4" />
-                VOD
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => navigate('/series')}>
-                <Play className="mr-1 h-4 w-4" />
-                Series
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => navigate('/epg')}>
-                <CalendarDays className="mr-1 h-4 w-4" />
-                EPG
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => navigate('/settings')}>
-                <Settings2 className="mr-1 h-4 w-4" />
-                Settings
-              </Button>
-            </div>
-            {castSender.isAvailable && (
-              <Button
-                variant={castSender.isConnected ? 'default' : 'outline'}
-                size="sm"
-                className="mb-2 w-full"
-                disabled={castSender.isConnecting}
-                onClick={() => {
-                  void castSender.toggleCasting();
-                }}
-              >
-                <Cast className="mr-2 h-4 w-4" />
-                {castSender.isConnected ? 'Disconnect Cast' : 'Connect Cast'}
-              </Button>
-            )}
-            {isAirPlaySupported && session.renderer !== 'cast' && (
-              <Button
-                variant={isAirPlayConnected ? 'default' : 'outline'}
-                size="sm"
-                className="mb-2 w-full"
-                disabled={!isAirPlayAvailable}
-                onClick={openAirPlayPicker}
-              >
-                <Airplay className="mr-2 h-4 w-4" />
-                {isAirPlayConnected ? 'AirPlay Active' : 'Connect AirPlay'}
-              </Button>
-            )}
-            <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
-              <SheetTrigger asChild>
-                <Button variant="outline" className="w-full gap-2">
-                  <Menu className="w-4 h-4" />
-                  {currentChannel?.name || 'Select Channel'}
+          {/* Mobile shell */}
+          {!isOnDemandSource ? (
+            <div className="lg:hidden border-t border-border p-4">
+              <div className="mb-3 grid grid-cols-4 gap-2">
+                <Button variant="outline" size="sm" onClick={() => navigate('/vod')}>
+                  <Film className="mr-1 h-4 w-4" />
+                  VOD
                 </Button>
-              </SheetTrigger>
-              <SheetContent side="bottom" className="h-[80vh]">
-                <SheetHeader>
-                  <SheetTitle>Channels</SheetTitle>
-                </SheetHeader>
+                <Button variant="outline" size="sm" onClick={() => navigate('/series')}>
+                  <Play className="mr-1 h-4 w-4" />
+                  Series
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => navigate('/epg')}>
+                  <CalendarDays className="mr-1 h-4 w-4" />
+                  EPG
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => navigate('/settings')}>
+                  <Settings2 className="mr-1 h-4 w-4" />
+                  Settings
+                </Button>
+              </div>
+              {castSender.isAvailable && (
+                <Button
+                  variant={castSender.isConnected ? 'default' : 'outline'}
+                  size="sm"
+                  className="mb-2 w-full"
+                  disabled={castSender.isConnecting}
+                  onClick={() => {
+                    void castSender.toggleCasting();
+                  }}
+                >
+                  <Cast className="mr-2 h-4 w-4" />
+                  {castSender.isConnected ? 'Disconnect Cast' : 'Connect Cast'}
+                </Button>
+              )}
+              {isAirPlaySupported && session.renderer !== 'cast' && (
+                <Button
+                  variant={isAirPlayConnected ? 'default' : 'outline'}
+                  size="sm"
+                  className="mb-2 w-full"
+                  disabled={!isAirPlayAvailable}
+                  onClick={openAirPlayPicker}
+                >
+                  <Airplay className="mr-2 h-4 w-4" />
+                  {isAirPlayConnected ? 'AirPlay Active' : 'Connect AirPlay'}
+                </Button>
+              )}
+              <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
+                <SheetTrigger asChild>
+                  <Button variant="outline" className="w-full gap-2">
+                    <Menu className="w-4 h-4" />
+                    {currentChannel?.name || 'Select Channel'}
+                  </Button>
+                </SheetTrigger>
+                <SheetContent side="bottom" className="h-[80vh]">
+                  <SheetHeader>
+                    <SheetTitle>Channels</SheetTitle>
+                  </SheetHeader>
 
-                <div className="mt-4 space-y-4">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input
-                      placeholder="Search channels..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="pl-9"
+                  <div className="mt-4 space-y-4">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Search channels..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="pl-9"
+                      />
+                    </div>
+
+                    <div className="flex gap-1 overflow-x-auto pb-2">
+                      <Button
+                        variant={selectedCategory === null ? 'default' : 'ghost'}
+                        size="sm"
+                        onClick={() => setSelectedCategory(null)}
+                      >
+                        All
+                      </Button>
+                      <Button
+                        variant={selectedCategory === 'favorites' ? 'default' : 'ghost'}
+                        size="sm"
+                        onClick={() => setSelectedCategory('favorites')}
+                      >
+                        <Star className="w-4 h-4 mr-1" />
+                        Favorites
+                      </Button>
+                      {categories.map(cat => (
+                        <Button
+                          key={cat.id}
+                          variant={selectedCategory === cat.id ? 'default' : 'ghost'}
+                          size="sm"
+                          onClick={() => setSelectedCategory(cat.id)}
+                        >
+                          {cat.name}
+                        </Button>
+                      ))}
+                    </div>
+
+                    <ChannelList
+                      className="h-[calc(80vh-200px)]"
+                      channels={filteredChannels}
+                      currentChannelId={currentChannel?.id}
+                      variant="mobile"
+                      onSelectChannel={(channel) => {
+                        switchToLiveChannel(channel);
+                        setSidebarOpen(false);
+                      }}
+                      isFavorite={isFavorite}
                     />
                   </div>
+                </SheetContent>
+              </Sheet>
 
-                  <div className="flex gap-1 overflow-x-auto pb-2">
-                    <Button
-                      variant={selectedCategory === null ? 'default' : 'ghost'}
-                      size="sm"
-                      onClick={() => setSelectedCategory(null)}
-                    >
-                      All
-                    </Button>
-                    <Button
-                      variant={selectedCategory === 'favorites' ? 'default' : 'ghost'}
-                      size="sm"
-                      onClick={() => setSelectedCategory('favorites')}
-                    >
-                      <Star className="w-4 h-4 mr-1" />
-                      Favorites
-                    </Button>
-                    {categories.map(cat => (
-                      <Button
-                        key={cat.id}
-                        variant={selectedCategory === cat.id ? 'default' : 'ghost'}
-                        size="sm"
-                        onClick={() => setSelectedCategory(cat.id)}
-                      >
-                        {cat.name}
-                      </Button>
-                    ))}
-                  </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full mt-2"
+                onClick={() => navigate('/vod')}
+              >
+                VOD Catalog
+              </Button>
 
-                  <ChannelList
-                    className="h-[calc(80vh-200px)]"
-                    channels={filteredChannels}
-                    currentChannelId={currentChannel?.id}
-                    variant="mobile"
-                    onSelectChannel={(channel) => {
-                      switchToLiveChannel(channel);
-                      setSidebarOpen(false);
-                    }}
-                    isFavorite={isFavorite}
-                  />
-                </div>
-              </SheetContent>
-            </Sheet>
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full mt-2"
+                onClick={() => navigate('/series')}
+              >
+                Series Catalog
+              </Button>
 
-            <Button
-              variant="outline"
-              size="sm"
-              className="w-full mt-2"
-              onClick={() => navigate('/vod')}
-            >
-              VOD Catalog
-            </Button>
-
-            <Button
-              variant="outline"
-              size="sm"
-              className="w-full mt-2"
-              onClick={() => navigate('/series')}
-            >
-              Series Catalog
-            </Button>
-
-            <Button
-              variant="ghost"
-              size="sm"
-              className="w-full mt-2"
-              onClick={() => setShowLogoutDialog(true)}
-            >
-              <LogOut className="w-4 h-4 mr-2" />
-              Logout
-            </Button>
-          </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full mt-2"
+                onClick={() => setShowLogoutDialog(true)}
+              >
+                <LogOut className="w-4 h-4 mr-2" />
+                Logout
+              </Button>
+            </div>
+          ) : (
+            <div className="lg:hidden border-t border-border p-4">
+              <p className="mb-3 text-sm font-medium text-foreground">{onDemandTitle}</p>
+              <div className="space-y-2">
+                <Button className="w-full" onClick={() => navigate(onDemandBackPath)}>
+                  {onDemandBackLabel}
+                </Button>
+                <Button variant="outline" className="w-full" onClick={() => navigate('/vod')}>
+                  VOD Catalog
+                </Button>
+                <Button variant="outline" className="w-full" onClick={() => navigate('/series')}>
+                  Series Catalog
+                </Button>
+                <Button variant="outline" className="w-full" onClick={() => navigate('/settings')}>
+                  Settings
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full"
+                  onClick={() => setShowLogoutDialog(true)}
+                >
+                  <LogOut className="w-4 h-4 mr-2" />
+                  Logout
+                </Button>
+              </div>
+            </div>
+          )}
         </main>
       </div>
 
