@@ -3,9 +3,9 @@ import { Tv, Film, Clapperboard, CalendarDays, Settings2 } from 'lucide-react';
 
 const NAV_ITEMS = [
   { path: '/player', label: 'Live', icon: Tv },
-  { path: '/vod', label: 'VOD', icon: Film },
+  { path: '/vod', label: 'Movies', icon: Film },
   { path: '/series', label: 'Series', icon: Clapperboard },
-  { path: '/epg', label: 'EPG', icon: CalendarDays },
+  { path: '/epg', label: 'Catch-up', icon: CalendarDays },
   { path: '/settings', label: 'Settings', icon: Settings2 },
 ] as const;
 
