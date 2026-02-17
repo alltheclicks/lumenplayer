@@ -233,10 +233,10 @@ Completion notes (2026-02-16):
 | LP-0351 | Introduce persistent player shell layout across `/player`, `/vod`, `/series`, `/epg`, `/settings` so desktop/mobile navigation context remains stable | L | done | LP-0346 |
 | LP-0352 | Align VOD/Series flow to in-shell playback context (no channel-shell context loss; deterministic back behavior to previous media context) | M | done | LP-0351 |
 | LP-0353 | Tune channel list UI parity with virtualization retained (row density, selected state, scroll rhythm, favorites affordance) | S | done | LP-0351 |
-| LP-0354 | Visual baseline parity pass vs `player-standalone` reference (tokens, typography scale, spacing rhythm, sidebar/header hierarchy) with desktop+mobile before/after evidence | M | idea | LP-0353 |
+| LP-0354 | Visual baseline parity pass vs `player-standalone` reference (tokens, typography scale, spacing rhythm, sidebar/header hierarchy) with desktop+mobile before/after evidence | M | done | LP-0353 |
 | LP-0355 | Navigation discoverability parity after login (explicit Movies/Series/Catch-up entry points in shell, desktop+mobile) with acceptance checklist linked to `TST-006` | M | done | LP-0351, LP-0354 |
-| LP-0356 | Player surface parity pass (control-bar structure, current-program block, CTA grouping, loading/error/idle states) against reference UX | M | idea | LP-0354 |
-| LP-0357 | VOD/Series UI parity pass (catalog density, card rhythm, detail layout, predictable back context) with desktop+mobile screenshot diff evidence | M | idea | LP-0352, LP-0354 |
+| LP-0356 | Player surface parity pass (control-bar structure, current-program block, CTA grouping, loading/error/idle states) against reference UX | M | done | LP-0354 |
+| LP-0357 | VOD/Series UI parity pass (catalog density, card rhythm, detail layout, predictable back context) with desktop+mobile screenshot diff evidence | M | done | LP-0352, LP-0354 |
 | LP-0358 | EPG readability + presentation parity pass (decode/normalize malformed strings, align program rendering in player + EPG page) tied to `TST-008` closure | M | done | LP-0354 |
 | LP-0359 | Add explicit live channel startup mode setting (`autoplay on select` vs `select then play`) and enforce deterministic behavior in player flow (linked to `TST-007`) | S | done | LP-0351 |
 | LP-0360 | Add short-EPG request resilience for active browsing (in-flight dedupe, cache, pacing, 429 retry/backoff, stale-cache fallback) tied to `TST-009` | M | done | LP-0351, LP-0358 |
@@ -248,7 +248,12 @@ Completion notes (2026-02-17):
 - LP-0352 delivered deterministic in-shell on-demand return context (`backPath` metadata + season/episode URL sync) in PR #127; Greptile final confidence score `5/5`.
 - LP-0353 delivered channel list parity tuning with virtualization retained (denser rows, stronger selected state, auto-scroll rhythm, direct favorites toggle) in PR #128.
 - LP-0353 Greptile review started, but final confidence score was not returned on latest head after 2 pings (`@greptileai`, `@greptile-apps`); fallback PR note was posted before merge.
+- LP-0354 delivered visual baseline parity updates for shell typography/spacing hierarchy and nav structure in PR #136.
+- LP-0354 Greptile review started, but final confidence score was not returned on latest head after 2 pings (`@greptile-apps`, `@greptileai`); fallback PR note was posted before merge.
 - LP-0355 delivered explicit Movies/Series/Catch-up discoverability actions in player shell contexts (desktop + mobile) in PR #130; Greptile final confidence score `5/5`.
+- LP-0356 delivered player surface parity pass (grouped control-bar clusters + loading/error/idle CTA surfaces) in PR #137; Greptile final confidence score `5/5`.
+- LP-0357 delivered VOD/Series parity pass (denser catalogs, detail surface tuning, deterministic back context via `back` query path) in PR #138.
+- LP-0357 Greptile review started, but final confidence score was not returned on latest head after 2 pings (`@greptile-apps`, `@greptileai`); fallback PR note was posted before merge.
 - LP-0359 delivered explicit live-channel startup mode setting and deterministic startup behavior in PR #131; Greptile review started but final confidence score was not returned on latest head after 2 pings (`@greptile-apps`, `@greptileai`); fallback PR note was posted before merge.
 - LP-0358 delivered shared EPG text normalization across player-inline, EPG route fallback, and XMLTV parsing in PR #133; Greptile review started but final confidence score was not returned on latest head after 2 pings (`@greptile-apps`, `@greptileai`); fallback PR note was posted before merge.
 - LP-0360 delivered short-EPG rate-limit resilience (cache + in-flight dedupe + pacing + 429 retry/backoff + stale fallback) in PR #134; Greptile review started but final confidence score was not returned on latest head after 2 pings (`@greptile-apps`, `@greptileai`); fallback PR note was posted before merge.
@@ -260,7 +265,7 @@ Completion notes (2026-02-17):
 | ID | Task | Size | Status | Depends on |
 |----|------|------|--------|------------|
 | LP-0001 | Monorepo scaffolding (Turborepo + pnpm + packages) | M | done | — |
-| LP-0003 | Add unit tests for `@lumen/core` (epg, time, channels) | S | idea | — |
+| LP-0003 | Add unit tests for `@lumen/core` (epg, time, channels) | S | done | — |
 | LP-0004 | Add unit tests for `@lumen/player-core` (SeekEngine, IdleTimer) | S | idea | — |
 | LP-0005 | Add unit tests for `@lumen/input` (NumericChannelInput) | S | idea | — |
 | LP-0006 | Add unit tests for `@lumen/storage` (favorites, credentials, watch-history) | S | idea | — |
@@ -268,6 +273,9 @@ Completion notes (2026-02-17):
 | LP-0015 | CI pipeline: typecheck + lint + build | S | done | — |
 | LP-0211 | FIX: `VersionedStorage.clear()` must clear only namespaced keys (not entire storage) | S | done | — |
 | LP-0013 | Replace demo-data import guard so it doesn't enter production bundle | S | idea | — |
+
+Completion notes (2026-02-17):
+- LP-0003 delivered focused unit coverage for `@lumen/core` channel/EPG/time helpers in PR #139; Greptile final confidence score `5/5`.
 
 ---
 
