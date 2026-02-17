@@ -1,5 +1,38 @@
 # Handoff — Lumen Player
 
+## Session 2026-02-17 — LP-0354, LP-0356, LP-0357, LP-0003 (ordered batch)
+
+- PRs: #136 (merged), #137 (merged), #138 (merged), #139 (merged)
+- Done:
+  - LP-0354:
+    - refreshed global visual baseline tokens and shell surface styling (`apps/web/src/index.css`)
+    - upgraded AppShell sidebar/header hierarchy + mobile nav treatment (`apps/web/src/components/layout/AppShell.tsx`)
+  - LP-0356:
+    - grouped inline player control-bar actions into transport/utility/action clusters (`apps/web/src/components/player/PlayerControls.tsx`)
+    - added reusable player state surface component for loading/error/idle with explicit CTAs (`apps/web/src/pages/Player.tsx`)
+  - LP-0357:
+    - tuned VOD/Series catalog density and card rhythm (`apps/web/src/pages/VodCategories.tsx`, `apps/web/src/pages/SeriesCategories.tsx`)
+    - added deterministic catalog return context via safe `back` query path in detail pages (`apps/web/src/pages/VodDetail.tsx`, `apps/web/src/pages/SeriesDetail.tsx`)
+  - LP-0003:
+    - added focused `@lumen/core` unit coverage for channel helpers, EPG helpers, and time helpers (`packages/core/src/core.test.ts`)
+  - Local test gate passed on each task PR:
+    - `pnpm lint`
+    - `pnpm typecheck`
+    - `pnpm build`
+  - Task-specific checks:
+    - `pnpm exec vitest run packages/core/src/core.test.ts` (LP-0003)
+  - Greptile/check notes:
+    - #136: Greptile review started, but final confidence score was not returned on latest head after 2 pings (`@greptile-apps`, `@greptileai`); fallback PR note comment was posted before merge.
+    - #137: Greptile review started and returned final confidence score `5/5`.
+    - #138: Greptile review started, but final confidence score was not returned on latest head after 2 pings (`@greptile-apps`, `@greptileai`); fallback PR note comment was posted before merge.
+    - #139: Greptile review started and returned final confidence score `5/5`.
+    - GitHub PR checks were green before merge (`web-quality`, `automation-scripts`; Greptile pending-only tasks were merged with fallback PR note after 2 pings).
+
+- Next:
+  - Continue with next open backlog item by order (`LP-0004`).
+
+---
+
 ## Session 2026-02-17 — TST-008, TST-009 (ordered batch)
 
 - PRs: #133 (merged), #134 (merged)
