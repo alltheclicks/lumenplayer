@@ -4,6 +4,9 @@
 
 @layer base {
   :root {
+    --font-sans: "Space Grotesk", "Avenir Next", "Segoe UI", sans-serif;
+    --font-display: "Sora", "Space Grotesk", "Segoe UI", sans-serif;
+
     --background: 0 0% 4%;
     --foreground: 0 0% 98%;
 
@@ -33,9 +36,17 @@
     --ring: 217 91% 60%;
 
     --radius: 0.75rem;
+    --surface-0: 0 0% 5%;
+    --surface-1: 0 0% 8%;
+    --surface-2: 0 0% 11%;
+    --shell-border: 0 0% 17%;
+    --shell-shadow: 221 67% 4%;
   }
 
   .light {
+    --font-sans: "Space Grotesk", "Avenir Next", "Segoe UI", sans-serif;
+    --font-display: "Sora", "Space Grotesk", "Segoe UI", sans-serif;
+
     --background: 0 0% 98%;
     --foreground: 222 47% 11%;
 
@@ -63,6 +74,11 @@
     --border: 214 32% 91%;
     --input: 214 32% 91%;
     --ring: 217 91% 60%;
+    --surface-0: 210 20% 97%;
+    --surface-1: 0 0% 100%;
+    --surface-2: 210 33% 99%;
+    --shell-border: 214 32% 88%;
+    --shell-shadow: 222 47% 11%;
   }
 }
 
@@ -73,10 +89,25 @@
 
   body {
     @apply bg-background text-foreground antialiased;
+    font-family: var(--font-sans);
+    letter-spacing: 0.008em;
+    background-image:
+      radial-gradient(120% 120% at 0% 0%, hsl(var(--primary) / 0.14), transparent 58%),
+      linear-gradient(160deg, hsl(var(--surface-0)) 0%, hsl(var(--background)) 70%);
+    background-attachment: fixed;
+  }
+
+  h1, h2, h3 {
+    font-family: var(--font-display);
+    letter-spacing: -0.02em;
   }
 
   html {
     scroll-behavior: smooth;
+  }
+
+  #root {
+    min-height: 100vh;
   }
 }
 
@@ -88,6 +119,11 @@
 
   .badge-catchup {
     @apply bg-primary text-primary-foreground px-2 py-0.5 text-xs font-semibold rounded uppercase;
+  }
+
+  .shell-surface {
+    background-color: hsl(var(--surface-1) / 0.88);
+    box-shadow: 0 12px 30px -20px hsl(var(--shell-shadow) / 0.7);
   }
 }
 
