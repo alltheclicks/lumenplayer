@@ -798,87 +798,136 @@ const PlayerControls = ({
           </div>
         )}
 
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="icon" className="hover:bg-secondary/50" onClick={togglePlay}>
-              {isPlaying ? <Pause className="w-6 h-6" /> : <Play className="w-6 h-6" />}
-            </Button>
-            <Button variant="ghost" size="icon" className="hover:bg-secondary/50" onClick={toggleMute}>
-              {isMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
-            </Button>
-            {catchUpProgram ? (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="ml-2 gap-1 text-xs"
-                onClick={goToLive}
-              >
-                <Play className="w-3 h-3" />
-                Live
-              </Button>
-            ) : currentProgram && (
-              <span className="text-sm text-muted-foreground ml-4">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-1 rounded-xl border border-border/40 bg-background/20 p-1 backdrop-blur-sm">
+              {catchUpProgram ? (
+                <>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-9 w-9 hover:bg-secondary/50"
+                    onPointerDown={(event) => handleSeekButtonPointerDown(event, 'backward', 10)}
+                    onPointerUp={handleSeekButtonPointerUp}
+                    onPointerCancel={handleSeekButtonPointerCancel}
+                    onPointerLeave={handleSeekButtonPointerCancel}
+                    onContextMenu={preventSeekContextMenu}
+                  >
+                    <SkipBack className="h-4 w-4" />
+                  </Button>
+                  <Button variant="ghost" size="icon" className="h-9 w-9 hover:bg-secondary/50" onClick={togglePlay}>
+                    {isPlaying ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-9 w-9 hover:bg-secondary/50"
+                    onPointerDown={(event) => handleSeekButtonPointerDown(event, 'forward', 10)}
+                    onPointerUp={handleSeekButtonPointerUp}
+                    onPointerCancel={handleSeekButtonPointerCancel}
+                    onPointerLeave={handleSeekButtonPointerCancel}
+                    onContextMenu={preventSeekContextMenu}
+                  >
+                    <SkipForward className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="ml-1 h-9 gap-1 px-3 text-xs"
+                    onClick={goToLive}
+                  >
+                    <Radio className="h-3 w-3" />
+                    Live
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button variant="ghost" size="icon" className="h-9 w-9 hover:bg-secondary/50" onClick={onPrevChannel}>
+                    <ChevronLeft className="h-5 w-5" />
+                  </Button>
+                  <Button variant="ghost" size="icon" className="h-9 w-9 hover:bg-secondary/50" onClick={togglePlay}>
+                    {isPlaying ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
+                  </Button>
+                  <Button variant="ghost" size="icon" className="h-9 w-9 hover:bg-secondary/50" onClick={onNextChannel}>
+                    <ChevronRight className="h-5 w-5" />
+                  </Button>
+                </>
+              )}
+            </div>
+            {currentProgram && !catchUpProgram && (
+              <span className="text-sm text-muted-foreground">
                 {formatTime(currentProgram.startTime)} - {formatTime(currentProgram.endTime)}
               </span>
             )}
           </div>
-          <div className="flex items-center gap-1">
-            <Button variant="ghost" size="icon" className="hover:bg-secondary/50" onClick={onToggleFavorite}>
-              <Heart className={`w-5 h-5 ${isFavorite ? 'fill-primary text-primary' : ''}`} />
-            </Button>
-            {hasMultipleAudioTracks && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className={`hover:bg-secondary/50 ${showAudioTracks ? 'text-primary' : ''}`}
-                onClick={() => {
-                  setShowSubtitleTracks(false);
-                  setShowAudioTracks((prev) => !prev);
-                }}
-              >
-                <Languages className="w-5 h-5" />
+
+          <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+            <div className="flex items-center gap-1 rounded-xl border border-border/40 bg-background/20 p-1 backdrop-blur-sm">
+              <Button variant="ghost" size="icon" className="h-9 w-9 hover:bg-secondary/50" onClick={toggleMute}>
+                {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
               </Button>
-            )}
-            {hasSubtitleTracks && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className={`hover:bg-secondary/50 ${showSubtitleTracks ? 'text-primary' : ''}`}
-                title={`Subtitles: ${selectedSubtitleTrackLabel}`}
-                onClick={() => {
-                  setShowAudioTracks(false);
-                  setShowSubtitleTracks((prev) => !prev);
-                }}
-              >
-                <Captions className="w-5 h-5" />
+            </div>
+
+            <div className="flex items-center gap-1 rounded-xl border border-border/40 bg-background/20 p-1 backdrop-blur-sm">
+              <Button variant="ghost" size="icon" className="h-9 w-9 hover:bg-secondary/50" onClick={onToggleFavorite}>
+                <Heart className={`h-4 w-4 ${isFavorite ? 'fill-primary text-primary' : ''}`} />
               </Button>
-            )}
-            {isPictureInPictureSupported && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className={`hover:bg-secondary/50 ${isPictureInPicture ? 'text-primary' : ''}`}
-                title="Picture in Picture (P / Blue key)"
-                onClick={handleTogglePictureInPicture}
-              >
-                <PictureInPicture2 className="w-5 h-5" />
+              {channel.hasCatchUp && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className={`h-9 w-9 hover:bg-secondary/50 ${catchUpProgram ? 'text-primary' : ''}`}
+                  onClick={() => {
+                    setShowAudioTracks(false);
+                    setShowSubtitleTracks(false);
+                    setShowCatchUp(true);
+                  }}
+                >
+                  <Clock className="h-4 w-4" />
+                </Button>
+              )}
+              {hasMultipleAudioTracks && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className={`h-9 w-9 hover:bg-secondary/50 ${showAudioTracks ? 'text-primary' : ''}`}
+                  onClick={() => {
+                    setShowSubtitleTracks(false);
+                    setShowAudioTracks((prev) => !prev);
+                  }}
+                >
+                  <Languages className="h-4 w-4" />
+                </Button>
+              )}
+              {hasSubtitleTracks && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className={`h-9 w-9 hover:bg-secondary/50 ${showSubtitleTracks ? 'text-primary' : ''}`}
+                  title={`Subtitles: ${selectedSubtitleTrackLabel}`}
+                  onClick={() => {
+                    setShowAudioTracks(false);
+                    setShowSubtitleTracks((prev) => !prev);
+                  }}
+                >
+                  <Captions className="h-4 w-4" />
+                </Button>
+              )}
+              {isPictureInPictureSupported && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className={`h-9 w-9 hover:bg-secondary/50 ${isPictureInPicture ? 'text-primary' : ''}`}
+                  title="Picture in Picture (P / Blue key)"
+                  onClick={handleTogglePictureInPicture}
+                >
+                  <PictureInPicture2 className="h-4 w-4" />
+                </Button>
+              )}
+              <Button variant="ghost" size="icon" className="h-9 w-9 hover:bg-secondary/50" onClick={onToggleFullscreen}>
+                <Maximize className="h-4 w-4" />
               </Button>
-            )}
-            <Button
-              variant="ghost"
-              size="icon"
-              className="hover:bg-secondary/50"
-              onClick={() => {
-                setShowAudioTracks(false);
-                setShowSubtitleTracks(false);
-                setShowCatchUp(true);
-              }}
-            >
-              <Clock className="w-5 h-5" />
-            </Button>
-            <Button variant="ghost" size="icon" className="hover:bg-secondary/50" onClick={onToggleFullscreen}>
-              <Maximize className="w-5 h-5" />
-            </Button>
+            </div>
           </div>
         </div>
       </div>

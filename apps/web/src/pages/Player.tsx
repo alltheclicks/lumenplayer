@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
@@ -23,6 +23,8 @@ import {
   SkipBack,
   SkipForward,
   Smartphone,
+  RefreshCw,
+  Tv2,
   type LucideIcon,
 } from 'lucide-react';
 import VideoPlayer, { type VideoPlayerHandle } from '@/components/player/VideoPlayer';
@@ -199,12 +201,39 @@ const MediaEntryGrid = ({
   </div>
 );
 
+const PlayerSurfaceState = ({
+  icon: Icon,
+  title,
+  description,
+  actions,
+}: {
+  icon: LucideIcon;
+  title: string;
+  description: string;
+  actions?: ReactNode;
+}) => (
+  <div className="mx-auto w-full max-w-md rounded-2xl border border-border/70 bg-card/80 p-6 text-center shadow-xl backdrop-blur-sm">
+    <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/15 text-primary">
+      <Icon className="h-7 w-7" />
+    </div>
+    <h2 className="text-xl font-semibold">{title}</h2>
+    <p className="mt-2 text-sm text-muted-foreground">{description}</p>
+    {actions && <div className="mt-5 flex flex-wrap items-center justify-center gap-2">{actions}</div>}
+  </div>
+);
+
 const Player = () => {
   const navigate = useNavigate();
   const playerRef = useRef<VideoPlayerHandle>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const { channels, categories, isLoading, error } = useXtreamChannels();
+  const {
+    channels,
+    categories,
+    isLoading,
+    error,
+    refetch: refetchChannels,
+  } = useXtreamChannels();
   const { favorites, toggleFavorite, isFavorite } = useFavorites();
   const { session, commands } = useSessionContext();
   const { toast } = useToast();
@@ -823,11 +852,15 @@ const Player = () => {
   // Loading state
   if (isLoading) {
     return (
-      <div className="flex-1 bg-background flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="w-12 h-12 animate-spin text-primary mx-auto mb-4" />
-          <p className="text-muted-foreground">Loading channels...</p>
-        </div>
+      <div className="flex flex-1 items-center justify-center p-4">
+        <PlayerSurfaceState
+          icon={Loader2}
+          title="Loading channels"
+          description="Preparing the live catalog and restoring your playback shell."
+          actions={(
+            <Loader2 className="h-4 w-4 animate-spin text-primary" />
+          )}
+        />
       </div>
     );
   }
@@ -835,13 +868,26 @@ const Player = () => {
   // Error state
   if (error) {
     return (
-      <div className="flex-1 bg-background flex items-center justify-center p-4">
-        <div className="text-center max-w-md">
-          <AlertCircle className="w-12 h-12 text-destructive mx-auto mb-4" />
-          <h2 className="text-xl font-semibold mb-2">Failed to load channels</h2>
-          <p className="text-muted-foreground mb-4">{error.message}</p>
-          <Button onClick={() => navigate('/login')}>Back to Login</Button>
-        </div>
+      <div className="flex flex-1 items-center justify-center p-4">
+        <PlayerSurfaceState
+          icon={AlertCircle}
+          title="Failed to load channels"
+          description={error.message}
+          actions={(
+            <>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  void refetchChannels();
+                }}
+              >
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Retry
+              </Button>
+              <Button onClick={() => navigate('/login')}>Back to Login</Button>
+            </>
+          )}
+        />
       </div>
     );
   }
@@ -1204,8 +1250,36 @@ const Player = () => {
             )}
 
             {!currentChannel && !session.source && (
-              <div className="absolute inset-0 flex items-center justify-center">
-                <p className="text-muted-foreground">Select a channel to start watching</p>
+              <div className="absolute inset-0 z-20 flex items-center justify-center p-4">
+                <PlayerSurfaceState
+                  icon={Tv2}
+                  title="No active channel"
+                  description="Select a channel to start playback, or start with the first available stream."
+                  actions={(
+                    <>
+                      <Button
+                        onClick={() => {
+                          if (filteredChannels.length === 0) {
+                            return;
+                          }
+                          switchToLiveChannel(filteredChannels[0]);
+                        }}
+                        disabled={filteredChannels.length === 0}
+                      >
+                        Start First Channel
+                      </Button>
+                      {!isOnDemandSource && (
+                        <Button
+                          variant="outline"
+                          className="lg:hidden"
+                          onClick={() => setSidebarOpen(true)}
+                        >
+                          Open Channel List
+                        </Button>
+                      )}
+                    </>
+                  )}
+                />
               </div>
             )}
           </div>
