@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Helmet } from 'react-helmet-async';
 import { ArrowLeft, Clock3, Film, Star, UserRound } from 'lucide-react';
@@ -115,9 +115,18 @@ const fetchVodDetail = async (vodId: string): Promise<VodDetailData> => {
 const VodDetail = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
   const { commands } = useSessionContext();
   const params = useParams<{ vodId: string }>();
   const vodId = params.vodId;
+  const catalogBackPath = useMemo(() => {
+    const requestedBackPath = (searchParams.get('back') ?? '').trim();
+    if (requestedBackPath.startsWith('/vod')) {
+      return requestedBackPath;
+    }
+
+    return '/vod';
+  }, [searchParams]);
   const onDemandBackPath = useMemo(() => {
     const pathWithQuery = `${location.pathname}${location.search}${location.hash}`;
     if (pathWithQuery.startsWith('/vod')) {
@@ -179,16 +188,16 @@ const VodDetail = () => {
 
       <div className="bg-background">
         <div
-          className="h-52 w-full bg-cover bg-center md:h-64"
+          className="h-52 w-full bg-cover bg-center md:h-72"
           style={{
             backgroundImage: data?.backdrop ? `linear-gradient(to bottom, transparent, hsl(var(--background))), url(${data.backdrop})` : 'none',
           }}
         />
 
-        <div className="mx-auto -mt-16 max-w-5xl px-4 pb-8 md:px-6">
-          <Button variant="ghost" className="mb-4 gap-2" onClick={() => navigate('/vod')}>
+        <div className="mx-auto -mt-20 max-w-6xl px-4 pb-8 md:px-6">
+          <Button variant="ghost" className="mb-4 gap-2" onClick={() => navigate(catalogBackPath)}>
             <ArrowLeft className="h-4 w-4" />
-            Back to VOD
+            Back to Catalog
           </Button>
 
           {isLoading && (
@@ -203,7 +212,7 @@ const VodDetail = () => {
 
           {!isLoading && !error && data && (
             <div className="grid gap-6 md:grid-cols-[280px_1fr]">
-              <Card className="overflow-hidden">
+              <Card className="overflow-hidden border-border/70 bg-card/80">
                 <CardContent className="p-0">
                   <div className="aspect-[2/3] bg-muted">
                     {data.poster ? (
@@ -227,7 +236,7 @@ const VodDetail = () => {
 
                 <div className="grid gap-3 sm:grid-cols-2">
                   {metadata.map((item) => (
-                    <Card key={item.label}>
+                    <Card key={item.label} className="border-border/70 bg-card/70">
                       <CardContent className="flex items-center gap-3 p-4">
                         <item.icon className="h-4 w-4 text-muted-foreground" />
                         <div>
@@ -240,7 +249,7 @@ const VodDetail = () => {
                 </div>
 
                 {data.cast && (
-                  <Card>
+                  <Card className="border-border/70 bg-card/70">
                     <CardContent className="p-4">
                       <p className="text-xs uppercase tracking-wide text-muted-foreground">Cast</p>
                       <p className="mt-1 text-sm">{data.cast}</p>
@@ -250,6 +259,9 @@ const VodDetail = () => {
 
                 <div className="flex flex-wrap gap-2">
                   <Button onClick={handlePlayVod}>Play in Player</Button>
+                  <Button variant="outline" onClick={() => navigate(catalogBackPath)}>
+                    Back to Catalog
+                  </Button>
                   {data.tmdbId && (
                     <Button
                       variant="outline"

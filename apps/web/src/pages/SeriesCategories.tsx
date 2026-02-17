@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import { Clapperboard, Loader2, Search, Star } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -11,9 +11,19 @@ const ALL_CATEGORY = '__all__';
 const PAGE_SIZE = 60;
 
 const SeriesCategories = () => {
-  const [selectedCategory, setSelectedCategory] = useState<string | undefined>(undefined);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialCategory = (searchParams.get('category') ?? '').trim();
+  const initialSearch = searchParams.get('search') ?? '';
+  const initialVisibleRaw = Number(searchParams.get('visible') ?? PAGE_SIZE);
+  const initialVisibleCount = Number.isFinite(initialVisibleRaw)
+    ? Math.max(PAGE_SIZE, Math.trunc(initialVisibleRaw))
+    : PAGE_SIZE;
+
+  const [selectedCategory, setSelectedCategory] = useState<string | undefined>(
+    initialCategory.length > 0 ? initialCategory : undefined
+  );
+  const [searchQuery, setSearchQuery] = useState(initialSearch);
+  const [visibleCount, setVisibleCount] = useState(initialVisibleCount);
   const { data, isLoading, error } = useSeriesCatalog(selectedCategory);
 
   const categories = useMemo(() => data?.categories ?? [], [data?.categories]);
@@ -35,6 +45,36 @@ const SeriesCategories = () => {
     [filteredItems, visibleCount],
   );
   const hasMoreItems = visibleCount < filteredItems.length;
+  const catalogBackPath = useMemo(() => {
+    const params = new URLSearchParams();
+    if (selectedCategory && selectedCategory !== ALL_CATEGORY) {
+      params.set('category', selectedCategory);
+    }
+    const trimmedSearch = searchQuery.trim();
+    if (trimmedSearch.length > 0) {
+      params.set('search', trimmedSearch);
+    }
+    if (visibleCount > PAGE_SIZE) {
+      params.set('visible', String(visibleCount));
+    }
+    const query = params.toString();
+    return query.length > 0 ? `/series?${query}` : '/series';
+  }, [searchQuery, selectedCategory, visibleCount]);
+
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (selectedCategory && selectedCategory !== ALL_CATEGORY) {
+      params.set('category', selectedCategory);
+    }
+    const trimmedSearch = searchQuery.trim();
+    if (trimmedSearch.length > 0) {
+      params.set('search', trimmedSearch);
+    }
+    if (visibleCount > PAGE_SIZE) {
+      params.set('visible', String(visibleCount));
+    }
+    setSearchParams(params, { replace: true });
+  }, [searchQuery, selectedCategory, setSearchParams, visibleCount]);
 
   return (
     <>
@@ -44,7 +84,12 @@ const SeriesCategories = () => {
 
       <div className="bg-background p-4 md:p-6">
         <div className="mx-auto max-w-7xl space-y-5">
-          <h1 className="text-2xl font-bold tracking-tight">Series Catalog</h1>
+          <div className="space-y-2">
+            <h1 className="text-3xl font-semibold tracking-tight">Series Catalog</h1>
+            <p className="text-sm text-muted-foreground">
+              Denser season-ready layout with stable return context from detail pages.
+            </p>
+          </div>
 
           <div className="relative max-w-md">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -97,36 +142,41 @@ const SeriesCategories = () => {
 
           {!isLoading && !error && selectedCategory !== undefined && (
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+              <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+                <span>{filteredItems.length} series</span>
+                <span>Showing {visibleItems.length}</span>
+              </div>
+
+              <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-8">
                 {visibleItems.map((item) => (
-                  <Link key={item.id} to={`/series/${item.id}`}>
+                  <Link key={item.id} to={`/series/${item.id}?back=${encodeURIComponent(catalogBackPath)}`}>
                     <Card
-                      className="group h-full overflow-hidden border-border/70 transition-all hover:-translate-y-0.5 hover:border-primary/40"
+                      className="group h-full overflow-hidden border-border/70 bg-card/70 transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-lg"
                     >
                       <CardContent className="p-0">
-                        <div className="aspect-[2/3] bg-muted">
+                        <div className="relative aspect-[2/3] bg-muted">
                           {item.cover ? (
                             <img
                               src={item.cover}
                               alt={item.name}
                               loading="lazy"
-                              className="h-full w-full object-cover"
+                              className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
                             />
                           ) : (
                             <div className="flex h-full w-full items-center justify-center">
                               <Clapperboard className="h-8 w-8 text-muted-foreground" />
                             </div>
                           )}
+                          {item.rating && (
+                            <span className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-full bg-black/70 px-2 py-1 text-[10px] font-medium text-white backdrop-blur-sm">
+                              <Star className="h-2.5 w-2.5" />
+                              {item.rating}
+                            </span>
+                          )}
                         </div>
-                        <div className="space-y-1 p-3">
-                          <p className="line-clamp-2 text-sm font-medium">{item.name}</p>
+                        <div className="space-y-1 p-2.5">
+                          <p className="line-clamp-2 text-xs font-medium leading-snug sm:text-sm">{item.name}</p>
                           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                            {item.rating && (
-                              <span className="flex items-center gap-1">
-                                <Star className="h-3 w-3" />
-                                {item.rating}
-                              </span>
-                            )}
                             {item.releaseDate && <span>{item.releaseDate}</span>}
                           </div>
                         </div>
