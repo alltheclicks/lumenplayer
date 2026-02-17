@@ -13,7 +13,8 @@ import {
   loadXMLTVEPGMap,
   resolveXMLTVProgramsForChannel,
 } from '@/services/xmltvEpg';
-import type { PlayerChannel, Program, XtreamEPGItem } from '@lumen/types';
+import { mapXtreamEpgItemToProgram } from '@/services/epgProgramMapper';
+import type { PlayerChannel, Program } from '@lumen/types';
 
 const ALL_CATEGORY = '__all__';
 const TIMELINE_MINUTES_BEFORE = 60;
@@ -21,37 +22,6 @@ const TIMELINE_MINUTES_AFTER = 300;
 const PIXELS_PER_MINUTE = 2;
 const LEFT_COLUMN_WIDTH = 260;
 const DEFAULT_VISIBLE_CHANNELS = 24;
-
-const parseEpgTimestamp = (timestamp: string, fallback: string): Date => {
-  const numericTimestamp = Number(timestamp);
-  if (Number.isFinite(numericTimestamp) && numericTimestamp > 0) {
-    return new Date(numericTimestamp * 1000);
-  }
-
-  const normalizedDate = fallback.replace(' ', 'T');
-  const parsedTimestamp = Date.parse(normalizedDate);
-  if (!Number.isNaN(parsedTimestamp)) {
-    return new Date(parsedTimestamp);
-  }
-
-  return new Date();
-};
-
-const mapXtreamEpgItemToProgram = (item: XtreamEPGItem, index: number): Program => {
-  const startTime = parseEpgTimestamp(item.start_timestamp, item.start);
-  const endTime = parseEpgTimestamp(item.stop_timestamp, item.end);
-  const now = Date.now();
-
-  return {
-    id: item.id || item.epg_id || `${item.channel_id}-${index}`,
-    title: item.title || 'Untitled Program',
-    description: item.description || '',
-    startTime,
-    endTime,
-    category: 'show',
-    hasCatchUp: item.has_archive === 1 || startTime.getTime() < now,
-  };
-};
 
 const roundToHalfHour = (date: Date): Date => {
   const rounded = new Date(date);

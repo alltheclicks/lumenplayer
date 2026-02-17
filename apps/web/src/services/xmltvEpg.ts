@@ -2,6 +2,7 @@ import type { PlayerChannel, Program } from '@lumen/types';
 import { getAppStorage } from '@/services/storage';
 import { loadXtreamCredentials } from '@/services/xtreamCredentials';
 import { xtreamCodesService } from '@/services/xtreamService';
+import { normalizeEpgText } from '@/services/epgProgramMapper';
 
 const XMLTV_CACHE_KEY = 'xmltv_epg_cache';
 const DEFAULT_XMLTV_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
@@ -95,8 +96,8 @@ const parseXMLTV = (xml: string): XMLTVProgramMap => {
     const descriptionNode = programmeNode.querySelector('desc');
     const categoryNode = programmeNode.querySelector('category');
 
-    const title = titleNode?.textContent?.trim() || 'Untitled Program';
-    const description = descriptionNode?.textContent?.trim() || '';
+    const title = normalizeEpgText(titleNode?.textContent, 'Untitled Program');
+    const description = normalizeEpgText(descriptionNode?.textContent, '');
     const category = categoryNode?.textContent?.trim() || 'show';
     const startTimeMs = startTime.getTime();
     const endTimeMs = endTime.getTime();
