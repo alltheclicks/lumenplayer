@@ -5,12 +5,14 @@ const THEME_STORAGE_KEY = 'theme_preference';
 
 export type ThemePreference = 'dark' | 'light' | 'system';
 export type LanguagePreference = 'en' | 'sr';
+export type LiveChannelStartMode = 'autoplay' | 'manual';
 
 export interface AppSettings {
   theme: ThemePreference;
   language: LanguagePreference;
   player: {
     autoplay: boolean;
+    liveChannelStartMode: LiveChannelStartMode;
     defaultVolume: number;
     preferNativeHls: boolean;
   };
@@ -21,6 +23,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   language: 'en',
   player: {
     autoplay: true,
+    liveChannelStartMode: 'autoplay',
     defaultVolume: 80,
     preferNativeHls: false,
   },
@@ -36,6 +39,10 @@ const normalizeLanguage = (value: unknown): LanguagePreference => (
   value === 'sr' ? 'sr' : 'en'
 );
 
+const normalizeLiveChannelStartMode = (value: unknown): LiveChannelStartMode => (
+  value === 'manual' ? 'manual' : 'autoplay'
+);
+
 const normalizeSettings = (value: unknown): AppSettings => {
   if (!value || typeof value !== 'object') {
     return DEFAULT_SETTINGS;
@@ -47,6 +54,7 @@ const normalizeSettings = (value: unknown): AppSettings => {
     language: normalizeLanguage(raw.language),
     player: {
       autoplay: raw.player?.autoplay ?? DEFAULT_SETTINGS.player.autoplay,
+      liveChannelStartMode: normalizeLiveChannelStartMode(raw.player?.liveChannelStartMode),
       defaultVolume: clampVolume(raw.player?.defaultVolume ?? DEFAULT_SETTINGS.player.defaultVolume),
       preferNativeHls: raw.player?.preferNativeHls ?? DEFAULT_SETTINGS.player.preferNativeHls,
     },
