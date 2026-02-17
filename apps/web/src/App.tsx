@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { HelmetProvider } from 'react-helmet-async';
 import { Toaster } from '@/components/ui/toaster';
 import { SessionProvider } from '@/context/SessionProvider';
+import AppShell from '@/components/layout/AppShell';
 
 import Login from '@/pages/Login';
 import M3UImport from '@/pages/M3UImport';
@@ -26,7 +27,7 @@ const queryClient = new QueryClient({
 });
 
 const PlayerRouteFallback = () => (
-  <div className="min-h-screen bg-background p-4 md:p-6">
+  <div className="bg-background p-4 md:p-6">
     <div className="mx-auto max-w-3xl text-sm text-muted-foreground">Loading player...</div>
   </div>
 );
@@ -41,20 +42,22 @@ function App() {
               <Route path="/" element={<Navigate to="/login" replace />} />
               <Route path="/login" element={<Login />} />
               <Route path="/import/m3u" element={<M3UImport />} />
-              <Route path="/vod" element={<VodCategories />} />
-              <Route path="/vod/:vodId" element={<VodDetail />} />
-              <Route path="/series" element={<SeriesCategories />} />
-              <Route path="/series/:seriesId" element={<SeriesDetail />} />
-              <Route
-                path="/player"
-                element={(
-                  <Suspense fallback={<PlayerRouteFallback />}>
-                    <Player />
-                  </Suspense>
-                )}
-              />
-              <Route path="/epg" element={<EpgGuide />} />
-              <Route path="/settings" element={<Settings />} />
+              <Route element={<AppShell />}>
+                <Route path="/vod" element={<VodCategories />} />
+                <Route path="/vod/:vodId" element={<VodDetail />} />
+                <Route path="/series" element={<SeriesCategories />} />
+                <Route path="/series/:seriesId" element={<SeriesDetail />} />
+                <Route
+                  path="/player"
+                  element={(
+                    <Suspense fallback={<PlayerRouteFallback />}>
+                      <Player />
+                    </Suspense>
+                  )}
+                />
+                <Route path="/epg" element={<EpgGuide />} />
+                <Route path="/settings" element={<Settings />} />
+              </Route>
               <Route path="*" element={<Navigate to="/login" replace />} />
             </Routes>
             <Toaster />
