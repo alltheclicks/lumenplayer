@@ -1,5 +1,31 @@
 # Handoff — Lumen Player
 
+## Session 2026-02-17 — LP-0352, LP-0353 (ordered batch)
+
+- PRs: #127 (merged), #128 (merged)
+- Done:
+  - LP-0352:
+    - added explicit on-demand `backPath` metadata from VOD/Series playback actions (`apps/web/src/pages/VodDetail.tsx`, `apps/web/src/pages/SeriesDetail.tsx`)
+    - extended on-demand context resolver with safe explicit-path handling and season/episode-aware fallback paths (`apps/web/src/pages/playerOnDemandContext.ts`)
+    - kept series playback context deterministic by syncing season/episode query params before handoff to `/player`
+  - LP-0353:
+    - tuned virtualized channel row density and selected-state styling in `apps/web/src/components/player/ChannelList.tsx`
+    - added active-channel auto-scroll rhythm without removing virtualization
+    - added direct favorites affordance/toggle per row (desktop + mobile `ChannelList` wiring in `apps/web/src/pages/Player.tsx`)
+  - Local test gate passed on each task PR:
+    - `pnpm lint`
+    - `pnpm typecheck`
+    - `pnpm build`
+  - Greptile/check notes:
+    - #127: Greptile review started and returned final confidence score `5/5`.
+    - #128: Greptile review started, but final confidence score was not returned on latest head after 2 pings (`@greptileai`, `@greptile-apps`); fallback PR note comment was posted before merge.
+    - GitHub PR checks were green before merge (`web-quality`, `automation-scripts`; Greptile check-run eventually completed without final score for #128).
+
+- Next:
+  - Pick next prioritized item from `BACKLOG.md` outside completed V1-UI hardening block.
+
+---
+
 ## Session 2026-02-17 — LP-0350, LP-0351 (ordered batch)
 
 - PRs: #124 (merged), #125 (merged)
