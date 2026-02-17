@@ -286,7 +286,7 @@ Completion notes (2026-02-17):
 
 Completion notes (2026-02-17):
 - LP-0361 delivered canonical Balkan Stream parity spec + frozen baseline screenshots/manifest in PR #142; Greptile final confidence score `5/5`.
-- LP-0362 delivered global token/utilities parity pass in PR #143; Greptile review started but final confidence score was not returned on latest head after 2 pings (`@greptile-apps`, `@greptileai`); fallback PR note was posted before merge.
+- LP-0362 delivered global token/utilities parity pass in PR #143; after 2 pings (`@greptile-apps`, `@greptileai`) fallback PR note was posted before merge, then Greptile returned delayed final confidence score `4/5` on latest head (non-blocking remarks: missing Tailwind token mappings for new semantic tokens and partial utility layer organization outside `@layer`).
 - LP-0363 delivered non-player shell chrome reshape (removed divergent icon rail/header, aligned mobile bottom nav treatment) in PR #144; Greptile final confidence score `5/5`.
 - LP-0364 delivered `/player` desktop 3-pane rebuild (category rail + channel panel + media/EPG surface) in PR #145; Greptile final confidence score `5/5`.
 

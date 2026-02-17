@@ -25,10 +25,10 @@
   - Visual parity checks run each task against `docs/DESIGN-PARITY-BALKAN-STREAM.md` using Playwright captures from source and lumen snapshots.
   - Greptile/check notes:
     - #142: Greptile review started and returned final confidence score `5/5`.
-    - #143: Greptile review started, but final confidence score was not returned on latest head after 2 pings (`@greptile-apps`, `@greptileai`); fallback PR note comment was posted before merge.
+    - #143: after 2 pings (`@greptile-apps`, `@greptileai`) fallback PR note comment was posted before merge; Greptile then returned delayed final confidence score `4/5` for latest head with non-blocking remarks (Tailwind token mapping coverage and utility layer organization scope).
     - #144: Greptile review started and returned final confidence score `5/5`.
     - #145: Greptile review started and returned final confidence score `5/5`.
-    - GitHub PR checks were green before merge (`web-quality`, `automation-scripts`; #143 merged via explicit 2-ping fallback path).
+    - GitHub PR checks were green before merge (`web-quality`, `automation-scripts`); #143 used explicit 2-ping fallback path due delayed Greptile finalization.
 
 - Next:
   - Continue Balkan parity track in strict order with LP-0365, then LP-0366.
