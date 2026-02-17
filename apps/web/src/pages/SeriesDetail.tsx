@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useMemo } from 'react';
+import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Helmet } from 'react-helmet-async';
 import { ArrowLeft, Calendar, Clapperboard, Film, Star, UserRound } from 'lucide-react';
@@ -84,6 +84,15 @@ const inferSourceType = (streamUrl: string, extension?: string): OnDemandSourceT
   }
 
   return 'mp4';
+};
+
+const parsePositiveInteger = (value: string | null): number | null => {
+  if (!value || Number.isNaN(Number(value))) {
+    return null;
+  }
+
+  const normalized = Math.trunc(Number(value));
+  return normalized > 0 ? normalized : null;
 };
 
 const fetchSeriesDetail = async (seriesId: string): Promise<SeriesDetailData> => {
@@ -211,6 +220,8 @@ const fetchSeriesDetail = async (seriesId: string): Promise<SeriesDetailData> =>
 
 const SeriesDetail = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { commands } = useSessionContext();
   const params = useParams<{ seriesId: string }>();
   const seriesId = params.seriesId;
@@ -222,7 +233,8 @@ const SeriesDetail = () => {
     staleTime: 5 * 60 * 1000,
   });
 
-  const [selectedSeason, setSelectedSeason] = useState<number | null>(null);
+  const contextSeason = parsePositiveInteger(searchParams.get('season'));
+  const contextEpisodeId = (searchParams.get('episode') ?? '').trim() || null;
 
   const metadata = useMemo(() => {
     if (!data) {
@@ -238,13 +250,23 @@ const SeriesDetail = () => {
   }, [data]);
 
   const seasonOptions = data?.seasons ?? [];
-  const effectiveSeason = selectedSeason ?? seasonOptions[0]?.seasonNumber ?? null;
-  const activeSeason = seasonOptions.find((season) => season.seasonNumber === effectiveSeason) ?? null;
+  const activeSeason = seasonOptions.find((season) => season.seasonNumber === contextSeason)
+    ?? seasonOptions[0]
+    ?? null;
+  const effectiveSeason = activeSeason?.seasonNumber ?? null;
 
   const handlePlayEpisode = (episode: SeriesEpisodeItem) => {
     if (!data || !episode.streamUrl) {
       return;
     }
+
+    const nextParams = new URLSearchParams(location.search);
+    nextParams.set('season', String(episode.seasonNumber));
+    nextParams.set('episode', episode.id);
+    const query = nextParams.toString();
+    const backPath = query.length > 0
+      ? `${location.pathname}?${query}`
+      : location.pathname;
 
     commands.setSource(
       {
@@ -257,6 +279,7 @@ const SeriesDetail = () => {
           seasonNumber: episode.seasonNumber,
           episodeId: episode.id,
           episodeNumber: episode.episodeNumber,
+          backPath,
         },
       },
       0
@@ -353,7 +376,12 @@ const SeriesDetail = () => {
                             key={season.seasonNumber}
                             size="sm"
                             variant={effectiveSeason === season.seasonNumber ? 'default' : 'outline'}
-                            onClick={() => setSelectedSeason(season.seasonNumber)}
+                            onClick={() => {
+                              const nextParams = new URLSearchParams(searchParams);
+                              nextParams.set('season', String(season.seasonNumber));
+                              nextParams.delete('episode');
+                              setSearchParams(nextParams, { replace: true });
+                            }}
                           >
                             Season {season.seasonNumber}
                           </Button>
@@ -361,36 +389,43 @@ const SeriesDetail = () => {
                       </div>
 
                       <div className="space-y-2">
-                        {activeSeason?.episodes.map((episode) => (
-                          <div
-                            key={episode.id}
-                            className="rounded-lg border border-border/70 bg-card/60 p-3"
-                          >
-                            <div className="flex flex-wrap items-start justify-between gap-2">
-                              <div>
-                                <p className="text-sm font-medium">
-                                  E{episode.episodeNumber > 0 ? episode.episodeNumber : '-'} • {episode.title}
-                                </p>
-                                <p className="text-xs text-muted-foreground">
-                                  {episode.duration || episode.containerExtension.toUpperCase()}
-                                </p>
+                        {activeSeason?.episodes.map((episode) => {
+                          const isContextEpisode = contextEpisodeId !== null && contextEpisodeId === episode.id;
+                          return (
+                            <div
+                              key={episode.id}
+                              className={`rounded-lg border p-3 ${
+                                isContextEpisode
+                                  ? 'border-primary/60 bg-primary/10'
+                                  : 'border-border/70 bg-card/60'
+                              }`}
+                            >
+                              <div className="flex flex-wrap items-start justify-between gap-2">
+                                <div>
+                                  <p className="text-sm font-medium">
+                                    E{episode.episodeNumber > 0 ? episode.episodeNumber : '-'} • {episode.title}
+                                  </p>
+                                  <p className="text-xs text-muted-foreground">
+                                    {episode.duration || episode.containerExtension.toUpperCase()}
+                                  </p>
+                                </div>
+                                <Button
+                                  size="sm"
+                                  onClick={() => handlePlayEpisode(episode)}
+                                  disabled={!episode.streamUrl}
+                                >
+                                  Play Episode
+                                </Button>
                               </div>
-                              <Button
-                                size="sm"
-                                onClick={() => handlePlayEpisode(episode)}
-                                disabled={!episode.streamUrl}
-                              >
-                                Play Episode
-                              </Button>
+                              {episode.releaseDate && (
+                                <p className="mt-1 text-xs text-muted-foreground">{episode.releaseDate}</p>
+                              )}
+                              {episode.plot && (
+                                <p className="mt-2 line-clamp-3 text-xs text-muted-foreground">{episode.plot}</p>
+                              )}
                             </div>
-                            {episode.releaseDate && (
-                              <p className="mt-1 text-xs text-muted-foreground">{episode.releaseDate}</p>
-                            )}
-                            {episode.plot && (
-                              <p className="mt-2 line-clamp-3 text-xs text-muted-foreground">{episode.plot}</p>
-                            )}
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     </CardContent>
                   </Card>
