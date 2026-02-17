@@ -1,5 +1,35 @@
 # Handoff — Lumen Player
 
+## Session 2026-02-17 — TST-006, TST-007 (ordered batch)
+
+- PRs: #130 (merged), #131 (merged)
+- Done:
+  - TST-006:
+    - restored explicit post-login discoverability for Movies/Series/Catch-up in `/player` shell contexts (desktop + mobile) via shared quick-entry actions in `apps/web/src/pages/Player.tsx`
+    - aligned shell navigation labels for clarity (`VOD` -> `Movies`, `EPG` -> `Catch-up`) in `apps/web/src/components/layout/AppShell.tsx`
+  - TST-007:
+    - introduced persisted explicit live channel startup mode (`autoplay` vs `manual`) in `apps/web/src/services/appSettings.ts`
+    - added settings UI control for live channel startup behavior in `apps/web/src/pages/Settings.tsx`
+    - enforced deterministic live startup behavior across channel selection paths (list, numeric zap, next/prev, initial bootstrap) in `apps/web/src/pages/Player.tsx`
+    - added focused autoplay-mode test coverage:
+      - `apps/web/src/pages/liveChannelStartupMode.ts`
+      - `apps/web/src/pages/liveChannelStartupMode.test.ts`
+  - Local test gate passed on each task PR:
+    - `pnpm lint`
+    - `pnpm typecheck`
+    - `pnpm build`
+  - Task-specific checks:
+    - `pnpm exec vitest run apps/web/src/pages/liveChannelStartupMode.test.ts` (TST-007)
+  - Greptile/check notes:
+    - #130: Greptile review started and returned final confidence score `5/5`.
+    - #131: Greptile review started, but final confidence score was not returned on latest head after 2 pings (`@greptile-apps`, `@greptileai`); fallback PR note comment was posted before merge.
+    - GitHub PR checks were green before merge (`web-quality`, `automation-scripts`; Greptile check-run remained pending without final score on #131).
+
+- Next:
+  - Continue with next open V1 test backlog item by priority (`TST-008` before `TST-009` if sticking to strict order).
+
+---
+
 ## Session 2026-02-17 — LP-0352, LP-0353 (ordered batch)
 
 - PRs: #127 (merged), #128 (merged)
