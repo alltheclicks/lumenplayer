@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import { Film, Loader2, Search, Star } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -11,9 +11,19 @@ const ALL_CATEGORY = '__all__';
 const PAGE_SIZE = 60;
 
 const VodCategories = () => {
-  const [selectedCategory, setSelectedCategory] = useState<string | undefined>(undefined);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialCategory = (searchParams.get('category') ?? '').trim();
+  const initialSearch = searchParams.get('search') ?? '';
+  const initialVisibleRaw = Number(searchParams.get('visible') ?? PAGE_SIZE);
+  const initialVisibleCount = Number.isFinite(initialVisibleRaw)
+    ? Math.max(PAGE_SIZE, Math.trunc(initialVisibleRaw))
+    : PAGE_SIZE;
+
+  const [selectedCategory, setSelectedCategory] = useState<string | undefined>(
+    initialCategory.length > 0 ? initialCategory : undefined
+  );
+  const [searchQuery, setSearchQuery] = useState(initialSearch);
+  const [visibleCount, setVisibleCount] = useState(initialVisibleCount);
   const { data, isLoading, error } = useVodCatalog(selectedCategory);
 
   const categories = useMemo(() => data?.categories ?? [], [data?.categories]);
@@ -35,6 +45,36 @@ const VodCategories = () => {
     [filteredItems, visibleCount],
   );
   const hasMoreItems = visibleCount < filteredItems.length;
+  const catalogBackPath = useMemo(() => {
+    const params = new URLSearchParams();
+    if (selectedCategory && selectedCategory !== ALL_CATEGORY) {
+      params.set('category', selectedCategory);
+    }
+    const trimmedSearch = searchQuery.trim();
+    if (trimmedSearch.length > 0) {
+      params.set('search', trimmedSearch);
+    }
+    if (visibleCount > PAGE_SIZE) {
+      params.set('visible', String(visibleCount));
+    }
+    const query = params.toString();
+    return query.length > 0 ? `/vod?${query}` : '/vod';
+  }, [searchQuery, selectedCategory, visibleCount]);
+
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (selectedCategory && selectedCategory !== ALL_CATEGORY) {
+      params.set('category', selectedCategory);
+    }
+    const trimmedSearch = searchQuery.trim();
+    if (trimmedSearch.length > 0) {
+      params.set('search', trimmedSearch);
+    }
+    if (visibleCount > PAGE_SIZE) {
+      params.set('visible', String(visibleCount));
+    }
+    setSearchParams(params, { replace: true });
+  }, [searchQuery, selectedCategory, setSearchParams, visibleCount]);
 
   return (
     <>
@@ -44,7 +84,12 @@ const VodCategories = () => {
 
       <div className="bg-background p-4 md:p-6">
         <div className="mx-auto max-w-7xl space-y-5">
-          <h1 className="text-2xl font-bold tracking-tight">VOD Catalog</h1>
+          <div className="space-y-2">
+            <h1 className="text-3xl font-semibold tracking-tight">VOD Catalog</h1>
+            <p className="text-sm text-muted-foreground">
+              Dense poster grid with persistent filters for faster browse-return flow.
+            </p>
+          </div>
 
           <div className="relative max-w-md">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -97,33 +142,38 @@ const VodCategories = () => {
 
           {!isLoading && !error && selectedCategory !== undefined && (
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+              <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+                <span>{filteredItems.length} titles</span>
+                <span>Showing {visibleItems.length}</span>
+              </div>
+
+              <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-8">
                 {visibleItems.map((item) => (
-                  <Link key={item.id} to={`/vod/${item.id}`}>
-                    <Card className="group h-full overflow-hidden border-border/70 transition-all hover:-translate-y-0.5 hover:border-primary/40">
+                  <Link key={item.id} to={`/vod/${item.id}?back=${encodeURIComponent(catalogBackPath)}`}>
+                    <Card className="group h-full overflow-hidden border-border/70 bg-card/70 transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-lg">
                       <CardContent className="p-0">
-                        <div className="aspect-[2/3] bg-muted">
+                        <div className="relative aspect-[2/3] bg-muted">
                           {item.poster ? (
                             <img
                               src={item.poster}
                               alt={item.name}
                               loading="lazy"
-                              className="h-full w-full object-cover"
+                              className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
                             />
                           ) : (
                             <div className="flex h-full w-full items-center justify-center">
                               <Film className="h-8 w-8 text-muted-foreground" />
                             </div>
                           )}
-                        </div>
-                        <div className="space-y-1 p-3">
-                          <p className="line-clamp-2 text-sm font-medium">{item.name}</p>
                           {item.rating && (
-                            <p className="flex items-center gap-1 text-xs text-muted-foreground">
-                              <Star className="h-3 w-3" />
+                            <span className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-full bg-black/70 px-2 py-1 text-[10px] font-medium text-white backdrop-blur-sm">
+                              <Star className="h-2.5 w-2.5" />
                               {item.rating}
-                            </p>
+                            </span>
                           )}
+                        </div>
+                        <div className="space-y-1 p-2.5">
+                          <p className="line-clamp-2 text-xs font-medium leading-snug sm:text-sm">{item.name}</p>
                         </div>
                       </CardContent>
                     </Card>

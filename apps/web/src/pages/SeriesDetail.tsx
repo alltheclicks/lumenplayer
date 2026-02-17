@@ -225,6 +225,14 @@ const SeriesDetail = () => {
   const { commands } = useSessionContext();
   const params = useParams<{ seriesId: string }>();
   const seriesId = params.seriesId;
+  const catalogBackPath = useMemo(() => {
+    const requestedBackPath = (searchParams.get('back') ?? '').trim();
+    if (requestedBackPath.startsWith('/series')) {
+      return requestedBackPath;
+    }
+
+    return '/series';
+  }, [searchParams]);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['series-detail', seriesId],
@@ -297,7 +305,7 @@ const SeriesDetail = () => {
 
       <div className="bg-background">
         <div
-          className="h-52 w-full bg-cover bg-center md:h-64"
+          className="h-52 w-full bg-cover bg-center md:h-72"
           style={{
             backgroundImage: data?.backdrop
               ? `linear-gradient(to bottom, transparent, hsl(var(--background))), url("${sanitizeCssUrl(data.backdrop)}")`
@@ -305,10 +313,10 @@ const SeriesDetail = () => {
           }}
         />
 
-        <div className="mx-auto -mt-16 max-w-6xl px-4 pb-8 md:px-6">
-          <Button variant="ghost" className="mb-4 gap-2" onClick={() => navigate('/series')}>
+        <div className="mx-auto -mt-20 max-w-6xl px-4 pb-8 md:px-6">
+          <Button variant="ghost" className="mb-4 gap-2" onClick={() => navigate(catalogBackPath)}>
             <ArrowLeft className="h-4 w-4" />
-            Back to Series
+            Back to Catalog
           </Button>
 
           {isLoading && (
@@ -323,7 +331,7 @@ const SeriesDetail = () => {
 
           {!isLoading && !error && data && (
             <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
-              <Card className="overflow-hidden">
+              <Card className="overflow-hidden border-border/70 bg-card/80">
                 <CardContent className="p-0">
                   <div className="aspect-[2/3] bg-muted">
                     {data.cover ? (
@@ -347,7 +355,7 @@ const SeriesDetail = () => {
 
                 <div className="grid gap-3 sm:grid-cols-2">
                   {metadata.map((item) => (
-                    <Card key={item.label}>
+                    <Card key={item.label} className="border-border/70 bg-card/70">
                       <CardContent className="flex items-center gap-3 p-4">
                         <item.icon className="h-4 w-4 text-muted-foreground" />
                         <div>
@@ -360,7 +368,7 @@ const SeriesDetail = () => {
                 </div>
 
                 {data.cast && (
-                  <Card>
+                  <Card className="border-border/70 bg-card/70">
                     <CardContent className="p-4">
                       <p className="text-xs uppercase tracking-wide text-muted-foreground">Cast</p>
                       <p className="mt-1 text-sm">{data.cast}</p>
@@ -369,7 +377,7 @@ const SeriesDetail = () => {
                 )}
 
                 {seasonOptions.length > 0 && (
-                  <Card>
+                  <Card className="border-border/70 bg-card/70">
                     <CardContent className="space-y-4 p-4">
                       <div className="flex flex-wrap items-center gap-2">
                         {seasonOptions.map((season) => (
@@ -433,6 +441,9 @@ const SeriesDetail = () => {
                 )}
 
                 <div className="flex flex-wrap gap-2">
+                  <Button variant="outline" onClick={() => navigate(catalogBackPath)}>
+                    Back to Catalog
+                  </Button>
                   {data.tmdbId && (
                     <Button
                       variant="outline"
