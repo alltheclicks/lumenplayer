@@ -13,6 +13,8 @@ import {
   Loader2,
   AlertCircle,
   Film,
+  Clapperboard,
+  CalendarDays,
   Play,
   Pause,
   PictureInPicture2,
@@ -21,6 +23,7 @@ import {
   SkipBack,
   SkipForward,
   Smartphone,
+  type LucideIcon,
 } from 'lucide-react';
 import VideoPlayer, { type VideoPlayerHandle } from '@/components/player/VideoPlayer';
 import PlayerControls from '@/components/player/PlayerControls';
@@ -135,6 +138,64 @@ const getDigitFromWebKeyCode = (keyCode: number): number | null => {
 };
 
 const PICTURE_IN_PICTURE_KEY_CODE = 80; // Keyboard "P"
+
+type MediaEntryLink = {
+  path: '/vod' | '/series' | '/epg';
+  label: string;
+  hint: string;
+  icon: LucideIcon;
+};
+
+const MEDIA_ENTRY_LINKS: MediaEntryLink[] = [
+  {
+    path: '/vod',
+    label: 'Movies',
+    hint: 'VOD catalog',
+    icon: Film,
+  },
+  {
+    path: '/series',
+    label: 'Series',
+    hint: 'Browse episodes',
+    icon: Clapperboard,
+  },
+  {
+    path: '/epg',
+    label: 'Catch-up',
+    hint: 'Program guide',
+    icon: CalendarDays,
+  },
+];
+
+const MediaEntryGrid = ({
+  onSelect,
+}: {
+  onSelect: (path: MediaEntryLink['path']) => void;
+}) => (
+  <div className="grid grid-cols-3 gap-2">
+    {MEDIA_ENTRY_LINKS.map((item) => {
+      const Icon = item.icon;
+
+      return (
+        <Button
+          key={item.path}
+          variant="outline"
+          size="sm"
+          className="h-auto min-h-14 flex-col items-start gap-1 px-2 py-2 text-left"
+          onClick={() => onSelect(item.path)}
+        >
+          <span className="flex items-center gap-1 text-[11px] font-semibold leading-none">
+            <Icon className="h-3.5 w-3.5" />
+            {item.label}
+          </span>
+          <span className="line-clamp-1 text-[10px] text-muted-foreground">
+            {item.hint}
+          </span>
+        </Button>
+      );
+    })}
+  </div>
+);
 
 const parseEpgTimestamp = (timestamp: string, fallback: string): Date => {
   const numericTimestamp = Number(timestamp);
@@ -847,6 +908,13 @@ const Player = () => {
                 </div>
               </div>
 
+              <div className="mb-4">
+                <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Browse
+                </p>
+                <MediaEntryGrid onSelect={(path) => navigate(path)} />
+              </div>
+
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
@@ -945,6 +1013,12 @@ const Player = () => {
             </div>
 
             <div className="space-y-2 p-4">
+              <div>
+                <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Browse
+                </p>
+                <MediaEntryGrid onSelect={(path) => navigate(path)} />
+              </div>
               <Button className="w-full justify-start" onClick={() => navigate(onDemandBackPath)}>
                 {onDemandBackLabel}
               </Button>
@@ -1179,6 +1253,12 @@ const Player = () => {
                   {isAirPlayConnected ? 'AirPlay Active' : 'Connect AirPlay'}
                 </Button>
               )}
+              <div className="mb-2">
+                <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Browse
+                </p>
+                <MediaEntryGrid onSelect={(path) => navigate(path)} />
+              </div>
               <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
                 <SheetTrigger asChild>
                   <Button variant="outline" className="w-full gap-2">
@@ -1260,6 +1340,12 @@ const Player = () => {
             <div className="lg:hidden border-t border-border p-4">
               <p className="mb-3 text-sm font-medium text-foreground">{onDemandTitle}</p>
               <div className="space-y-2">
+                <div>
+                  <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    Browse
+                  </p>
+                  <MediaEntryGrid onSelect={(path) => navigate(path)} />
+                </div>
                 <Button className="w-full" onClick={() => navigate(onDemandBackPath)}>
                   {onDemandBackLabel}
                 </Button>
