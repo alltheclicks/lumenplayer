@@ -33,6 +33,7 @@ const ChannelList = ({
 }: ChannelListProps) => {
   const viewportRef = useRef<HTMLDivElement>(null);
   const previousActiveChannelIdRef = useRef<string | undefined>(undefined);
+  const scrollToActiveIndexRef = useRef<(index: number) => void>(() => undefined);
   const rowHeight = rowHeightByVariant[variant];
 
   const rowVirtualizer = useVirtualizer({
@@ -41,6 +42,10 @@ const ChannelList = ({
     estimateSize: () => rowHeight,
     overscan: variant === 'desktop' ? 10 : 8,
   });
+
+  scrollToActiveIndexRef.current = (index: number) => {
+    rowVirtualizer.scrollToIndex(index, { align: 'auto' });
+  };
 
   useEffect(() => {
     if (!currentChannelId || previousActiveChannelIdRef.current === currentChannelId) {
@@ -53,8 +58,8 @@ const ChannelList = ({
     }
 
     previousActiveChannelIdRef.current = currentChannelId;
-    rowVirtualizer.scrollToIndex(activeChannelIndex, { align: 'auto' });
-  }, [channels, currentChannelId, rowVirtualizer]);
+    scrollToActiveIndexRef.current(activeChannelIndex);
+  }, [channels, currentChannelId]);
 
   const virtualRows = rowVirtualizer.getVirtualItems();
 
