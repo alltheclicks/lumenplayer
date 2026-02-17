@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
-import { ArrowLeft, Film, Loader2, Search, Star } from 'lucide-react';
+import { Film, Loader2, Search, Star } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -11,7 +11,6 @@ const ALL_CATEGORY = '__all__';
 const PAGE_SIZE = 60;
 
 const VodCategories = () => {
-  const navigate = useNavigate();
   const [selectedCategory, setSelectedCategory] = useState<string | undefined>(undefined);
   const [searchQuery, setSearchQuery] = useState('');
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
@@ -43,15 +42,9 @@ const VodCategories = () => {
         <title>VOD Categories - IPTV Player</title>
       </Helmet>
 
-      <div className="min-h-screen bg-background p-4 md:p-6">
+      <div className="bg-background p-4 md:p-6">
         <div className="mx-auto max-w-7xl space-y-5">
-          <div className="flex flex-wrap items-center gap-3">
-            <Button variant="ghost" className="gap-2" onClick={() => navigate('/player')}>
-              <ArrowLeft className="h-4 w-4" />
-              Back to Player
-            </Button>
-            <h1 className="text-2xl font-bold tracking-tight">VOD Catalog</h1>
-          </div>
+          <h1 className="text-2xl font-bold tracking-tight">VOD Catalog</h1>
 
           <div className="relative max-w-md">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
