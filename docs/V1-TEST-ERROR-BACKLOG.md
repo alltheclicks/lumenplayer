@@ -40,7 +40,7 @@ This file is the single source of truth for issues found during manual testing.
 | TST-002 | Channel switch triggers `Playback error` overlay while frame is visible in background | Live TV Playback | P0 | done | frequent |
 | TST-003 | VOD `Play in Player` enters play/pause loop, stutter, and no audio | VOD Playback | P0 | done | frequent |
 | TST-004 | VOD catalog appears truncated (not all items visible) | VOD Listing | P2 | done | frequent |
-| TST-005 | After VOD playback entry, UX returns to channel-shell context and feels inconsistent/confusing | Navigation UX | P2 | open | frequent |
+| TST-005 | After VOD playback entry, UX returns to channel-shell context and feels inconsistent/confusing | Navigation UX | P2 | done | frequent |
 
 ---
 
@@ -144,6 +144,8 @@ This file is the single source of truth for issues found during manual testing.
   - Ensure return action consistently restores prior context.
 - Retest acceptance:
   - User can always understand current content context and navigate back predictably.
+- Fix PR: [#121](https://github.com/alltheclicks/lumenplayer/pull/121)
+- Retest result (2026-02-17): PASS via focused code-level verification (unit test for context-aware on-demand back-path resolution + green `pnpm lint`, `pnpm typecheck`, `pnpm build`); player now renders on-demand shell context during VOD/episode playback with predictable return actions.
 
 ---
 

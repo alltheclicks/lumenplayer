@@ -1,5 +1,31 @@
 # Handoff — Lumen Player
 
+## Session 2026-02-17 — TST-005 (single-task PR + docs sync)
+
+- PR: #121 (merged)
+- Done:
+  - Fixed mixed channel-shell UX while on-demand content is playing:
+    - added context-aware on-demand navigation resolver for VOD vs Series episode playback
+    - updated `Player` desktop/mobile shell rendering to switch between live channel-shell and on-demand shell
+    - stabilized on-demand return routes to detail-aware paths when IDs are present (`/vod/:vodId`, `/series/:seriesId`) with safe catalog fallbacks
+  - Added focused on-demand context unit test:
+    - `apps/web/src/pages/playerOnDemandContext.ts`
+    - `apps/web/src/pages/playerOnDemandContext.test.ts`
+  - Local test gate passed:
+    - `pnpm exec vitest run apps/web/src/pages/playerOnDemandContext.test.ts apps/web/src/components/player/videoPlaybackSync.test.ts`
+    - `pnpm lint`
+    - `pnpm typecheck`
+    - `pnpm build`
+  - Greptile/check notes:
+    - Greptile review check-run started and completed on latest PR head.
+    - Final Greptile confidence score: `5/5`.
+    - GitHub PR checks were green before merge (`web-quality`, `automation-scripts`, `Greptile Review`).
+
+- Next:
+  - No remaining `open`/`triaged` `TST-*` items in `docs/V1-TEST-ERROR-BACKLOG.md`.
+
+---
+
 ## Session 2026-02-16 — TST-004 (single-task PR + docs sync)
 
 - PR: #119 (merged)
