@@ -13,7 +13,7 @@ import {
   loadXMLTVEPGMap,
   resolveXMLTVProgramsForChannel,
 } from '@/services/xmltvEpg';
-import { mapXtreamEpgItemToProgram } from '@/services/epgProgramMapper';
+import { fetchChannelShortEpgPrograms } from '@/services/channelEpg';
 import type { PlayerChannel, Program } from '@lumen/types';
 
 const ALL_CATEGORY = '__all__';
@@ -64,8 +64,7 @@ const fetchChannelEpg = async (channel: PlayerChannel): Promise<Program[]> => {
   }
 
   xtreamCodesService.setCredentials(credentials);
-  const epg = await xtreamCodesService.getEPG(String(channel.streamId));
-  return epg.map(mapXtreamEpgItemToProgram);
+  return fetchChannelShortEpgPrograms(channel.streamId);
 };
 
 const clipProgramToWindow = (program: Program, windowStart: Date, windowEnd: Date): {

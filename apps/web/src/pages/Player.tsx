@@ -60,7 +60,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { getPlayerOnDemandContext } from '@/pages/playerOnDemandContext';
 import { shouldAutoplaySource } from '@/pages/liveChannelStartupMode';
-import { mapXtreamEpgItemToProgram } from '@/services/epgProgramMapper';
+import { fetchChannelShortEpgPrograms } from '@/services/channelEpg';
 
 type SessionSourceMetadata = {
   channelId?: string;
@@ -303,8 +303,7 @@ const Player = () => {
       }
 
       xtreamCodesService.setCredentials(credentials);
-      const epg = await xtreamCodesService.getEPG(String(currentChannel.streamId));
-      return epg.map(mapXtreamEpgItemToProgram);
+      return fetchChannelShortEpgPrograms(currentChannel.streamId);
     },
     enabled: Boolean(currentChannel) && !isOnDemandSource,
     staleTime: 2 * 60 * 1000,
