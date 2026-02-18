@@ -1,5 +1,48 @@
 # Handoff — Lumen Player
 
+## Session 2026-02-18 — LP-0367, LP-0368, LP-0369, LP-0370 (ordered batch)
+
+- PRs: #150 (merged), #151 (merged), #152 (merged), #153 (merged)
+- Done:
+  - LP-0367:
+    - aligned player video surface/control overlay parity in `apps/web/src/components/player/VideoPlayer.tsx` and `apps/web/src/components/player/PlayerControls.tsx`
+    - localized/loading-error-idle presentation and catch-up/control copy rhythm to Balkan Stream parity in `apps/web/src/pages/Player.tsx`
+  - LP-0368:
+    - aligned EPG presentation parity in `apps/web/src/pages/Player.tsx` for "Sada na programu", "Sledi", "TV Unazad"
+    - implemented grouped catch-up date sections + accordion rhythm + CTA treatment matching reference behavior
+  - LP-0369:
+    - aligned mobile player parity in `apps/web/src/pages/Player.tsx`:
+      - quick actions row
+      - mobile header/actions zone
+      - integrated category discoverability + search + channel list rhythm (without sheet trigger)
+  - LP-0370:
+    - aligned login parity in `apps/web/src/pages/Login.tsx`:
+      - Serbian copy + spacing/iconography hierarchy
+      - server status strip parity treatment
+      - password visibility UX parity
+      - toast-based auth feedback flow
+    - localized server display fallback labels in `apps/web/src/config/xtream.ts`
+  - Local test gate passed on each task PR:
+    - `pnpm lint`
+    - `pnpm typecheck`
+    - `pnpm build`
+  - Visual parity checks run for each task against `docs/DESIGN-PARITY-BALKAN-STREAM.md` (source-of-truth: `/Users/filip/Documents/narodna.tv/balkan-stream`) with Playwright captures in:
+    - `output/playwright/lp-0367/`
+    - `output/playwright/lp-0368/`
+    - `output/playwright/lp-0369/`
+    - `output/playwright/lp-0370/`
+  - Greptile/check notes:
+    - #150: Greptile review start was confirmed via check-run, but final confidence score was not returned on latest head after 2 pings (`@greptile-apps`, `@greptileai`); fallback PR note was posted before merge.
+    - #151: Greptile review start was confirmed via check-run, but final confidence score was not returned on latest head after 2 pings (`@greptile-apps`, `@greptileai`); fallback PR note was posted before merge.
+    - #152: Greptile review start was confirmed via check-run, but final confidence score was not returned on latest head after 2 pings (`@greptile-apps`, `@greptileai`); fallback PR note was posted before merge.
+    - #153: Greptile review start was confirmed via check-run, but final confidence score was not returned on latest head after 2 pings (`@greptile-apps`, `@greptileai`); fallback PR note was posted before merge.
+    - GitHub PR checks were green before merge (`web-quality`, `automation-scripts`).
+
+- Next:
+  - Continue Balkan parity track in strict order with LP-0371, then LP-0372.
+
+---
+
 ## Session 2026-02-18 — LP-0365, LP-0366 (ordered batch)
 
 - PRs: #147 (merged), #148 (merged)
