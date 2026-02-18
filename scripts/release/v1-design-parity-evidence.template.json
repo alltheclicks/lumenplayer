@@ -1,0 +1,134 @@
+{
+  "release": "V1",
+  "templateVersion": 1,
+  "generatedAt": "",
+  "reviewOwner": "",
+  "sourceOfTruth": {
+    "repoPath": "/Users/filip/Documents/narodna.tv/balkan-stream",
+    "referenceManifest": "docs/design-parity/balkan-stream/reference-manifest.json",
+    "referenceCommit": "e7013011d81b384b3a1cd658e77d9a4ffb8f7c64"
+  },
+  "screens": [
+    {
+      "id": "login",
+      "name": "Login",
+      "route": "/login",
+      "desktop": {
+        "referenceRef": "docs/design-parity/balkan-stream/reference/login-desktop.png",
+        "lumenRef": "output/playwright/lp-0373/lumen-login-desktop.png",
+        "status": "pending",
+        "notes": ""
+      },
+      "mobile": {
+        "referenceRef": "docs/design-parity/balkan-stream/reference/login-mobile.png",
+        "lumenRef": "output/playwright/lp-0373/lumen-login-mobile.png",
+        "status": "pending",
+        "notes": ""
+      },
+      "parityReview": {
+        "status": "pending",
+        "reviewedBy": "",
+        "reviewedAt": "",
+        "notes": ""
+      }
+    },
+    {
+      "id": "player",
+      "name": "Player",
+      "route": "/player",
+      "desktop": {
+        "referenceRef": "docs/design-parity/balkan-stream/reference/player-desktop.png",
+        "lumenRef": "output/playwright/lp-0373/lumen-player-desktop.png",
+        "status": "pending",
+        "notes": ""
+      },
+      "mobile": {
+        "referenceRef": "docs/design-parity/balkan-stream/reference/player-mobile.png",
+        "lumenRef": "output/playwright/lp-0373/lumen-player-mobile.png",
+        "status": "pending",
+        "notes": ""
+      },
+      "parityReview": {
+        "status": "pending",
+        "reviewedBy": "",
+        "reviewedAt": "",
+        "notes": ""
+      }
+    },
+    {
+      "id": "movies",
+      "name": "Movies",
+      "route": "/vod",
+      "desktop": {
+        "referenceRef": "docs/design-parity/balkan-stream/reference/movies-desktop.png",
+        "lumenRef": "output/playwright/lp-0373/lumen-movies-desktop.png",
+        "status": "pending",
+        "notes": ""
+      },
+      "mobile": {
+        "referenceRef": "docs/design-parity/balkan-stream/reference/movies-mobile.png",
+        "lumenRef": "output/playwright/lp-0373/lumen-movies-mobile.png",
+        "status": "pending",
+        "notes": ""
+      },
+      "parityReview": {
+        "status": "pending",
+        "reviewedBy": "",
+        "reviewedAt": "",
+        "notes": ""
+      }
+    },
+    {
+      "id": "series",
+      "name": "Series",
+      "route": "/series",
+      "desktop": {
+        "referenceRef": "docs/design-parity/balkan-stream/reference/series-desktop.png",
+        "lumenRef": "output/playwright/lp-0373/lumen-series-desktop.png",
+        "status": "pending",
+        "notes": ""
+      },
+      "mobile": {
+        "referenceRef": "docs/design-parity/balkan-stream/reference/series-mobile.png",
+        "lumenRef": "output/playwright/lp-0373/lumen-series-mobile.png",
+        "status": "pending",
+        "notes": ""
+      },
+      "parityReview": {
+        "status": "pending",
+        "reviewedBy": "",
+        "reviewedAt": "",
+        "notes": ""
+      }
+    },
+    {
+      "id": "epg",
+      "name": "EPG",
+      "route": "/player",
+      "desktop": {
+        "referenceRef": "docs/design-parity/balkan-stream/reference/epg-desktop.png",
+        "lumenRef": "output/playwright/lp-0373/lumen-epg-desktop.png",
+        "status": "pending",
+        "notes": ""
+      },
+      "mobile": {
+        "referenceRef": "docs/design-parity/balkan-stream/reference/epg-mobile.png",
+        "lumenRef": "output/playwright/lp-0373/lumen-epg-mobile.png",
+        "status": "pending",
+        "notes": ""
+      },
+      "parityReview": {
+        "status": "pending",
+        "reviewedBy": "",
+        "reviewedAt": "",
+        "notes": ""
+      }
+    }
+  ],
+  "signoff": {
+    "status": "pending",
+    "approvedBy": "",
+    "approvedAt": "",
+    "notes": ""
+  }
+}
