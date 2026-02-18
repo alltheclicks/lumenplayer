@@ -99,10 +99,10 @@ const formatFullDate = (date: Date): string => {
   const yesterday = new Date(today);
   yesterday.setDate(yesterday.getDate() - 1);
 
-  if (date.toDateString() === today.toDateString()) return 'Today';
-  if (date.toDateString() === yesterday.toDateString()) return 'Yesterday';
+  if (date.toDateString() === today.toDateString()) return 'Danas';
+  if (date.toDateString() === yesterday.toDateString()) return 'Juče';
 
-  return date.toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long' });
+  return date.toLocaleDateString('sr-RS', { weekday: 'long', day: 'numeric', month: 'long' });
 };
 
 
@@ -188,10 +188,10 @@ const PlayerControls = ({
   const hasSubtitleTracks = subtitleTracks.length > 0;
   const selectedSubtitleTrackLabel = useMemo(() => {
     if (selectedSubtitleTrackId === null) {
-      return 'Off';
+      return 'Isključeno';
     }
 
-    return subtitleTracks.find((track) => track.id === selectedSubtitleTrackId)?.label ?? 'Unknown';
+    return subtitleTracks.find((track) => track.id === selectedSubtitleTrackId)?.label ?? 'Nepoznato';
   }, [selectedSubtitleTrackId, subtitleTracks]);
 
   useEffect(() => {
@@ -686,7 +686,7 @@ const PlayerControls = ({
       onClick={(event) => event.stopPropagation()}
     >
       <p className="px-2 pb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-        Audio Tracks
+        Audio trake
       </p>
       <div className="max-h-56 space-y-1 overflow-y-auto">
         {audioTracks.map((track) => (
@@ -701,8 +701,8 @@ const PlayerControls = ({
           >
             <span className="block truncate font-medium">{track.label}</span>
             <span className="block text-xs text-muted-foreground">
-              {track.language || 'Unknown language'}
-              {track.isDefault ? ' • default' : ''}
+              {track.language || 'Nepoznat jezik'}
+              {track.isDefault ? ' • podrazumevano' : ''}
             </span>
           </button>
         ))}
@@ -716,7 +716,7 @@ const PlayerControls = ({
       onClick={(event) => event.stopPropagation()}
     >
       <p className="px-2 pb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-        Subtitles
+        Titlovi
       </p>
       <div className="max-h-56 space-y-1 overflow-y-auto">
         <button
@@ -727,8 +727,8 @@ const PlayerControls = ({
           }`}
           onClick={() => handleSelectSubtitleTrack(null)}
         >
-          <span className="block truncate font-medium">Off</span>
-          <span className="block text-xs text-muted-foreground">Disable subtitles</span>
+          <span className="block truncate font-medium">Isključeno</span>
+          <span className="block text-xs text-muted-foreground">Isključi titlove</span>
         </button>
         {subtitleTracks.map((track) => (
           <button
@@ -742,8 +742,8 @@ const PlayerControls = ({
           >
             <span className="block truncate font-medium">{track.label}</span>
             <span className="block text-xs text-muted-foreground">
-              {track.language || 'Unknown language'}
-              {track.isDefault ? ' • default' : ''}
+              {track.language || 'Nepoznat jezik'}
+              {track.isDefault ? ' • podrazumevano' : ''}
             </span>
           </button>
         ))}
@@ -763,7 +763,7 @@ const PlayerControls = ({
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
               <span className={`badge-live ${catchUpProgram ? 'bg-orange-500' : ''}`}>
-                {catchUpProgram ? 'CATCH-UP' : 'LIVE'}
+                {catchUpProgram ? 'UNAZAD' : 'UŽIVO'}
               </span>
             </div>
             <h3 className="text-lg sm:text-xl font-semibold text-foreground">{channel.name}</h3>
@@ -837,7 +837,7 @@ const PlayerControls = ({
                     onClick={goToLive}
                   >
                     <Radio className="h-3 w-3" />
-                    Live
+                    Uživo
                   </Button>
                 </>
               ) : (
@@ -904,7 +904,7 @@ const PlayerControls = ({
                   variant="ghost"
                   size="icon"
                   className={`h-9 w-9 hover:bg-secondary/50 ${showSubtitleTracks ? 'text-primary' : ''}`}
-                  title={`Subtitles: ${selectedSubtitleTrackLabel}`}
+                  title={`Titlovi: ${selectedSubtitleTrackLabel}`}
                   onClick={() => {
                     setShowAudioTracks(false);
                     setShowSubtitleTracks((prev) => !prev);
@@ -918,7 +918,7 @@ const PlayerControls = ({
                   variant="ghost"
                   size="icon"
                   className={`h-9 w-9 hover:bg-secondary/50 ${isPictureInPicture ? 'text-primary' : ''}`}
-                  title="Picture in Picture (P / Blue key)"
+                  title="Slika u slici (P / plavo dugme)"
                   onClick={handleTogglePictureInPicture}
                 >
                   <PictureInPicture2 className="h-4 w-4" />
@@ -951,7 +951,7 @@ const PlayerControls = ({
             <div className="flex items-center justify-between p-4 border-b border-border/50">
               <div className="flex items-center gap-2">
                 <RotateCcw className="w-5 h-5 text-primary" />
-                <h3 className="text-lg font-semibold">Catch-up TV</h3>
+                <h3 className="text-lg font-semibold">Gledanje unazad</h3>
               </div>
               <Button
                 variant="ghost"
@@ -971,7 +971,7 @@ const PlayerControls = ({
                   onClick={goToLive}
                 >
                   <Radio className="w-4 h-4" />
-                  Back to Live
+                  Vrati se na uživo
                 </Button>
               </div>
             )}
@@ -981,7 +981,7 @@ const PlayerControls = ({
                 {sortedDates.length === 0 ? (
                   <div className="text-center text-muted-foreground py-8">
                     <Clock className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                    <p>No recordings available</p>
+                    <p>Nema dostupnih snimaka</p>
                   </div>
                 ) : (
                   sortedDates.map(dateKey => {
@@ -1004,7 +1004,7 @@ const PlayerControls = ({
                             </div>
                             <div className="flex items-center gap-2">
                               <span className="text-xs text-muted-foreground">
-                                {programs.length} programs
+                                {programs.length} emisija
                               </span>
                               <ChevronDown className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
                             </div>
@@ -1027,6 +1027,11 @@ const PlayerControls = ({
                                   </div>
                                   <div className="flex-1 min-w-0">
                                     <p className="font-medium text-sm truncate">{program.title}</p>
+                                    {program.description && (
+                                      <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">
+                                        {program.description}
+                                      </p>
+                                    )}
                                   </div>
                                   <Play className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />
                                 </div>
@@ -1056,7 +1061,7 @@ const PlayerControls = ({
             <div>
               <div className="flex items-center gap-2 mb-1">
                 <span className={`badge-live ${catchUpProgram ? 'bg-orange-500' : ''}`}>
-                  {catchUpProgram ? 'CATCH-UP' : 'LIVE'}
+                  {catchUpProgram ? 'UNAZAD' : 'UŽIVO'}
                 </span>
               </div>
               <h2 className="text-base sm:text-xl font-semibold text-foreground">{channel.name}</h2>
@@ -1353,7 +1358,7 @@ const PlayerControls = ({
                   }}
                 >
                   <Radio className="w-3 h-3" />
-                  <span className="text-xs">Live</span>
+                  <span className="text-xs">Uživo</span>
                 </Button>
               )}
 
@@ -1410,7 +1415,7 @@ const PlayerControls = ({
                   variant="ghost"
                   size="icon"
                   className={`w-9 h-9 sm:w-10 sm:h-10 hover:bg-secondary/50 ${showSubtitleTracks ? 'text-primary' : ''}`}
-                  title={`Subtitles: ${selectedSubtitleTrackLabel}`}
+                  title={`Titlovi: ${selectedSubtitleTrackLabel}`}
                   onClick={(e) => {
                     e.stopPropagation();
                     setShowAudioTracks(false);
@@ -1425,7 +1430,7 @@ const PlayerControls = ({
                   variant="ghost"
                   size="icon"
                   className={`w-9 h-9 sm:w-10 sm:h-10 hover:bg-secondary/50 ${isPictureInPicture ? 'text-primary' : ''}`}
-                  title="Picture in Picture (P / Blue key)"
+                  title="Slika u slici (P / plavo dugme)"
                   onClick={(e) => {
                     e.stopPropagation();
                     handleTogglePictureInPicture();

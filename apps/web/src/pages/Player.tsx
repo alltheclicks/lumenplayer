@@ -953,8 +953,8 @@ const Player = () => {
       <div className="flex flex-1 items-center justify-center p-4">
         <PlayerSurfaceState
           icon={Loader2}
-          title="Loading channels"
-          description="Preparing the live catalog and restoring your playback shell."
+          title="Učitavanje kanala"
+          description="Pripremamo katalog uživo i obnavljamo player okruženje."
           actions={(
             <Loader2 className="h-4 w-4 animate-spin text-primary" />
           )}
@@ -969,7 +969,7 @@ const Player = () => {
       <div className="flex flex-1 items-center justify-center p-4">
         <PlayerSurfaceState
           icon={AlertCircle}
-          title="Failed to load channels"
+          title="Neuspešno učitavanje kanala"
           description={error.message}
           actions={(
             <>
@@ -980,9 +980,9 @@ const Player = () => {
                 }}
               >
                 <RefreshCw className="mr-2 h-4 w-4" />
-                Retry
+                Pokušaj ponovo
               </Button>
-              <Button onClick={() => navigate('/login')}>Back to Login</Button>
+              <Button onClick={() => navigate('/login')}>Nazad na prijavu</Button>
             </>
           )}
         />
@@ -1241,7 +1241,7 @@ const Player = () => {
                     {numericZapMatchName}
                   </div>
                 ) : (
-                  <div className="text-xs text-destructive mt-1">No channel</div>
+                  <div className="text-xs text-destructive mt-1">Nema kanala</div>
                 )}
               </div>
             )}
@@ -1421,8 +1421,8 @@ const Player = () => {
               <div className="absolute inset-0 z-20 flex items-center justify-center p-4">
                 <PlayerSurfaceState
                   icon={Tv2}
-                  title="No active channel"
-                  description="Select a channel to start playback, or start with the first available stream."
+                  title="Nema aktivnog kanala"
+                  description="Izaberite kanal za početak reprodukcije ili pokrenite prvi dostupan stream."
                   actions={(
                     <>
                       <Button
@@ -1434,7 +1434,7 @@ const Player = () => {
                         }}
                         disabled={filteredChannels.length === 0}
                       >
-                        Start First Channel
+                        Pokreni prvi kanal
                       </Button>
                       {!isOnDemandSource && (
                         <Button
@@ -1442,7 +1442,7 @@ const Player = () => {
                           className="lg:hidden"
                           onClick={() => setSidebarOpen(true)}
                         >
-                          Open Channel List
+                          Otvori listu kanala
                         </Button>
                       )}
                     </>
