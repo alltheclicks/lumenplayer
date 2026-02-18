@@ -92,6 +92,7 @@ describe('V1 final release readiness review template', () => {
     const required = [
       'go-no-go-checklist',
       'compatibility-matrix',
+      'design-parity-evidence',
       'performance-evidence',
       'observability-baseline',
       'security-privacy-baseline',

@@ -21,6 +21,14 @@
       "notes": ""
     },
     {
+      "id": "design-parity-evidence",
+      "name": "V1 UI design parity evidence review",
+      "status": "pending",
+      "evidenceRef": "scripts/release/v1-design-parity-evidence.template.json",
+      "checkedAt": "",
+      "notes": ""
+    },
+    {
       "id": "performance-evidence",
       "name": "V1 performance evidence artifact",
       "status": "pending",

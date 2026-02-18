@@ -8,6 +8,7 @@ const allowedBlockerStatus = new Set(['open', 'mitigated', 'closed']);
 const requiredGateIds = new Set([
   'go-no-go-checklist',
   'compatibility-matrix',
+  'design-parity-evidence',
   'performance-evidence',
   'observability-baseline',
   'security-privacy-baseline',
