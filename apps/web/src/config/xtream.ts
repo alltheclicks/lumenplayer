@@ -6,11 +6,11 @@ export const isServerConfigured = (): boolean => {
 };
 
 export const getServerDisplayName = (): string => {
-  if (!isServerConfigured()) return "Not configured";
+  if (!isServerConfigured()) return "Nije konfigurisan";
   try {
     const url = new URL(XTREAM_SERVER_URL);
     return url.hostname;
   } catch {
-    return "Configured";
+    return "Konfigurisan";
   }
 };
