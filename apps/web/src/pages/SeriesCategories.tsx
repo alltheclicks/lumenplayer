@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useSeriesCatalog } from '@/hooks/useSeriesCatalog';
 import { buildCatalogParams } from '@/pages/catalogQueryParams';
+import { formatSeriesCountLabel } from '@/pages/seriesCountLabel';
 
 const ALL_CATEGORY = '__all__';
 const PAGE_SIZE = 60;
@@ -227,7 +228,7 @@ const SeriesCategories = () => {
               <div className="flex items-end justify-between gap-3">
                 <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">{activeCategoryLabel}</h1>
                 <span className="text-sm text-muted-foreground">
-                  {filteredItems.length} {filteredItems.length === 1 ? 'serija' : 'serija'}
+                  {filteredItems.length} {formatSeriesCountLabel(filteredItems.length)}
                 </span>
               </div>
 
@@ -287,7 +288,7 @@ const SeriesCategories = () => {
                           <div className="inline-flex items-center gap-1 text-[12px] text-muted-foreground">
                             <CalendarDays className="h-3 w-3" />
                             <span>{resolveYearRange(item.yearRange, item.releaseDate)}</span>
-                            {item.episodeCount && (
+                            {typeof item.episodeCount === 'number' && item.episodeCount > 0 && (
                               <>
                                 <span>·</span>
                                 <span>{item.episodeCount} ep.</span>
