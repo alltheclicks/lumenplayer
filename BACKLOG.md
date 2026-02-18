@@ -280,9 +280,9 @@ Completion notes (2026-02-17, 2026-02-18):
 | LP-0368 | EPG presentation parity pass in player: "Sada na programu", "Sledi", "TV Unazad" section styling/accordion rhythm/CTA treatment aligned to Balkan Stream | M | done | LP-0364 |
 | LP-0369 | Mobile player parity pass: quick actions, sheet behavior, sticky/nav zones, and responsive spacing aligned with Balkan Stream mobile UX | M | done | LP-0367 |
 | LP-0370 | Login screen parity pass: copy, spacing, iconography, server status strip, password visibility UX, and alert/toast presentation aligned to Balkan Stream | S | done | LP-0362 |
-| LP-0371 | Movies page parity pass (`/vod`): sticky header, category pills, card grid rhythm, navigation treatment, and mobile bottom navigation aligned to Balkan Stream Movies | M | planned | LP-0363 |
-| LP-0372 | Series page parity pass (`/series`): parity equivalent of Movies page for Series list/detail entry flow and responsive layout | M | planned | LP-0363 |
-| LP-0373 | Design quality gate before V1 sign-off: produce desktop+mobile before/after parity evidence for login/player/movies/series/epg and block V1 completion unless parity review is accepted | S | planned | LP-0365, LP-0366, LP-0367, LP-0368, LP-0369, LP-0370, LP-0371, LP-0372 |
+| LP-0371 | Movies page parity pass (`/vod`): sticky header, category pills, card grid rhythm, navigation treatment, and mobile bottom navigation aligned to Balkan Stream Movies | M | done | LP-0363 |
+| LP-0372 | Series page parity pass (`/series`): parity equivalent of Movies page for Series list/detail entry flow and responsive layout | M | done | LP-0363 |
+| LP-0373 | Design quality gate before V1 sign-off: produce desktop+mobile before/after parity evidence for login/player/movies/series/epg and block V1 completion unless parity review is accepted | S | done | LP-0365, LP-0366, LP-0367, LP-0368, LP-0369, LP-0370, LP-0371, LP-0372 |
 
 Completion notes (2026-02-17):
 - LP-0361 delivered canonical Balkan Stream parity spec + frozen baseline screenshots/manifest in PR #142; Greptile final confidence score `5/5`.
@@ -295,6 +295,9 @@ Completion notes (2026-02-17):
 - LP-0368 delivered player EPG presentation parity pass ("Sada na programu", "Sledi", "TV Unazad") in PR #151; Greptile review started but final confidence score was not returned on latest head after 2 pings (`@greptile-apps`, `@greptileai`); fallback PR note was posted before merge.
 - LP-0369 delivered mobile player parity pass (quick actions, mobile header/zones, integrated channel discoverability rhythm) in PR #152; Greptile review started but final confidence score was not returned on latest head after 2 pings (`@greptile-apps`, `@greptileai`); fallback PR note was posted before merge.
 - LP-0370 delivered login parity pass (copy/iconography/server strip/password visibility/toast flow) in PR #153; Greptile review started but final confidence score was not returned on latest head after 2 pings (`@greptile-apps`, `@greptileai`); fallback PR note was posted before merge.
+- LP-0371 delivered `/vod` parity pass (sticky header/filter pills, Serbian movie catalog/card rhythm, route-owned mobile nav treatment) in PR #156; Greptile review started but final confidence score was not returned on latest head after 2 pings (`@greptile-apps`, `@greptileai`); fallback PR note was posted before merge.
+- LP-0372 delivered `/series` parity pass (sticky header/filter pills, Serbian series catalog/card rhythm, route-owned mobile nav treatment) in PR #157; Greptile review started but final confidence score was not returned on latest head after 2 pings (`@greptile-apps`, `@greptileai`); fallback PR note was posted before merge.
+- LP-0373 delivered V1 design parity quality gate in PR #158 via `scripts/release/v1-design-parity-evidence.template.json`, `scripts/release/validate-design-parity-evidence.mjs`, and release-readiness required-gate wiring; Greptile review started but final confidence score was not returned on latest head after 2 pings (`@greptile-apps`, `@greptileai`); fallback PR note was posted before merge.
 
 ---
 
