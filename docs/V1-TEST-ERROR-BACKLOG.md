@@ -41,6 +41,10 @@ This file is the single source of truth for issues found during manual testing.
 | TST-003 | VOD `Play in Player` enters play/pause loop, stutter, and no audio | VOD Playback | P0 | done | frequent |
 | TST-004 | VOD catalog appears truncated (not all items visible) | VOD Listing | P2 | done | frequent |
 | TST-005 | After VOD playback entry, UX returns to channel-shell context and feels inconsistent/confusing | Navigation UX | P2 | done | frequent |
+| TST-006 | Post-login player shell lacked clear Movies/Series/Catch-up discoverability in primary navigation context | Navigation UX | P1 | done | frequent |
+| TST-007 | Live channel startup mode was not explicit/deterministic (`autoplay on select` vs `select then play`) | Live TV Playback | P1 | done | frequent |
+| TST-008 | EPG text/metadata showed malformed/random strings instead of readable program fields | EPG Rendering | P1 | done | frequent |
+| TST-009 | Active browsing/channel switching flow intermittently triggered `429 Too Many Requests` | API/Rate Limit Resilience | P1 | done | intermittent |
 
 ---
 
@@ -146,6 +150,80 @@ This file is the single source of truth for issues found during manual testing.
   - User can always understand current content context and navigate back predictably.
 - Fix PR: [#121](https://github.com/alltheclicks/lumenplayer/pull/121)
 - Retest result (2026-02-17): PASS via focused code-level verification (unit test for context-aware on-demand back-path resolution + green `pnpm lint`, `pnpm typecheck`, `pnpm build`); player now renders on-demand shell context during VOD/episode playback with predictable return actions.
+
+### TST-006
+- Reported by: Filip (manual UX test)
+- Environment: login -> `/player` shell
+- Steps:
+  1. Login with valid Xtream username/password.
+  2. Land on player shell with left channel list/bouquets.
+  3. Attempt to quickly navigate to Movies/Series/Catch-up.
+- Expected: explicit, predictable Movies/Series/Catch-up entry points in shell on desktop and mobile.
+- Actual: media discoverability was reduced/unclear in primary shell context.
+- Initial hypothesis:
+  - Shell nav hierarchy/regional visibility rules hid/de-prioritized media sections.
+- Suggested fix scope:
+  - Restore explicit discoverability actions in player shell and align labels for clarity.
+- Retest acceptance:
+  - After login, user can immediately reach Movies/Series/Catch-up from shell without hunting.
+- Fix PR: [#130](https://github.com/alltheclicks/lumenplayer/pull/130)
+- Retest result (2026-02-17): PASS on local flow; discoverability actions restored in player shell contexts (desktop + mobile), labels aligned for clearer media entry.
+
+### TST-007
+- Reported by: Filip (manual live playback test)
+- Environment: `/player` live channel selection
+- Steps:
+  1. Select live channel from list.
+  2. Verify startup behavior.
+  3. Check if user can choose startup interaction mode.
+- Expected: explicit setting for startup mode (`autoplay on select` vs `select then play`) and deterministic behavior.
+- Actual: startup expectation and behavior were not explicit/consistent.
+- Initial hypothesis:
+  - Startup guards and settings mapping were not aligned with expected interaction model.
+- Suggested fix scope:
+  - Add persisted live startup mode setting and enforce behavior across all selection paths.
+- Retest acceptance:
+  - Startup mode selectable in settings and applied consistently for list/zap/next-prev/initial bootstrap.
+- Fix PR: [#131](https://github.com/alltheclicks/lumenplayer/pull/131)
+- Retest result (2026-02-17): PASS on local flow; explicit startup mode added and deterministic behavior enforced across live selection paths.
+
+### TST-008
+- Reported by: Filip (manual EPG inspection)
+- Environment: player inline EPG + `/epg` route
+- Steps:
+  1. Inspect current program/EPG text below player.
+  2. Open EPG page and inspect rows.
+  3. Observe malformed/random strings.
+- Expected: human-readable EPG title/description/time fields across all EPG surfaces.
+- Actual: malformed/random-like strings appeared in EPG text.
+- Initial hypothesis:
+  - Missing shared decoding/normalization for provider payload variants.
+- Suggested fix scope:
+  - Introduce shared EPG mapper normalization and wire all EPG surfaces to it.
+- Retest acceptance:
+  - EPG text is readable and consistent in player inline + EPG route (and XMLTV path where applicable).
+- Fix PR: [#133](https://github.com/alltheclicks/lumenplayer/pull/133)
+- Retest result (2026-02-17): PASS on local flow; shared EPG normalization pipeline now used across player inline, EPG route fallback, and XMLTV parsing path.
+- Greptile note: final score not returned after 2 pings (`@greptile-apps`, `@greptileai`); fallback PR comment posted before merge.
+
+### TST-009
+- Reported by: Filip (manual active browsing test)
+- Environment: frequent channel switching / active player browsing
+- Steps:
+  1. Browse and switch channels repeatedly.
+  2. Observe short-EPG/network request behavior.
+  3. Intermittently hit `429 Too Many Requests`.
+- Expected: client request behavior should remain provider-safe, with graceful backoff/fallback under rate-limit pressure.
+- Actual: intermittent `429` responses during active usage.
+- Initial hypothesis:
+  - Burst duplicate requests without sufficient dedupe/pacing/backoff.
+- Suggested fix scope:
+  - Add short-EPG in-flight dedupe, cache, pacing, 429 retry/backoff, and stale fallback.
+- Retest acceptance:
+  - Normal active session no longer triggers persistent 429 interruptions; degraded conditions recover gracefully.
+- Fix PR: [#134](https://github.com/alltheclicks/lumenplayer/pull/134)
+- Retest result (2026-02-17): PASS on local flow; resilient short-EPG request layer introduced with dedupe/cache/pacing/retry-backoff/stale fallback and wired into both player and EPG page.
+- Greptile note: final score not returned after 2 pings (`@greptile-apps`, `@greptileai`); fallback PR comment posted before merge.
 
 ---
 

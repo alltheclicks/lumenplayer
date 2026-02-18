@@ -169,10 +169,8 @@ describe('@lumen/core time', () => {
   });
 
   it('formats time using 24-hour hh:mm format', () => {
-    const date = new Date('2026-02-17T07:05:00.000Z');
-    expect(formatTime(date)).toBe(
-      date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })
-    );
+    const date = new Date(2026, 1, 17, 7, 5, 0, 0);
+    expect(formatTime(date)).toBe('07:05');
   });
 
   it('formats date as Today and Yesterday for relative days', () => {
@@ -185,14 +183,8 @@ describe('@lumen/core time', () => {
   });
 
   it('formats older dates with short weekday/month format', () => {
-    const date = new Date('2026-02-12T12:00:00.000Z');
-    expect(formatDate(date)).toBe(
-      date.toLocaleDateString('en-US', {
-        weekday: 'short',
-        day: 'numeric',
-        month: 'short',
-      })
-    );
+    const date = new Date(2026, 1, 12, 12, 0, 0, 0);
+    expect(formatDate(date)).toBe('Thu, Feb 12');
   });
 
   it('formats durations for minute and hour ranges', () => {

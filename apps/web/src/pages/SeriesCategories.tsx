@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { useSeriesCatalog } from '@/hooks/useSeriesCatalog';
+import { buildCatalogParams } from '@/pages/catalogQueryParams';
 
 const ALL_CATEGORY = '__all__';
 const PAGE_SIZE = 60;
@@ -45,36 +46,24 @@ const SeriesCategories = () => {
     [filteredItems, visibleCount],
   );
   const hasMoreItems = visibleCount < filteredItems.length;
+  const catalogParams = useMemo(
+    () => buildCatalogParams({
+      category: selectedCategory,
+      search: searchQuery,
+      visibleCount,
+      allCategory: ALL_CATEGORY,
+      pageSize: PAGE_SIZE,
+    }),
+    [searchQuery, selectedCategory, visibleCount],
+  );
   const catalogBackPath = useMemo(() => {
-    const params = new URLSearchParams();
-    if (selectedCategory && selectedCategory !== ALL_CATEGORY) {
-      params.set('category', selectedCategory);
-    }
-    const trimmedSearch = searchQuery.trim();
-    if (trimmedSearch.length > 0) {
-      params.set('search', trimmedSearch);
-    }
-    if (visibleCount > PAGE_SIZE) {
-      params.set('visible', String(visibleCount));
-    }
-    const query = params.toString();
+    const query = catalogParams.toString();
     return query.length > 0 ? `/series?${query}` : '/series';
-  }, [searchQuery, selectedCategory, visibleCount]);
+  }, [catalogParams]);
 
   useEffect(() => {
-    const params = new URLSearchParams();
-    if (selectedCategory && selectedCategory !== ALL_CATEGORY) {
-      params.set('category', selectedCategory);
-    }
-    const trimmedSearch = searchQuery.trim();
-    if (trimmedSearch.length > 0) {
-      params.set('search', trimmedSearch);
-    }
-    if (visibleCount > PAGE_SIZE) {
-      params.set('visible', String(visibleCount));
-    }
-    setSearchParams(params, { replace: true });
-  }, [searchQuery, selectedCategory, setSearchParams, visibleCount]);
+    setSearchParams(catalogParams, { replace: true });
+  }, [catalogParams, setSearchParams]);
 
   return (
     <>
@@ -87,7 +76,7 @@ const SeriesCategories = () => {
           <div className="space-y-2">
             <h1 className="text-3xl font-semibold tracking-tight">Series Catalog</h1>
             <p className="text-sm text-muted-foreground">
-              Denser season-ready layout with stable return context from detail pages.
+              Browse series, seasons, and episodes.
             </p>
           </div>
 
