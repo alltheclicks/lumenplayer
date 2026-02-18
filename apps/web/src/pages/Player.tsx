@@ -5,6 +5,7 @@ import { Helmet } from 'react-helmet-async';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import {
   Search,
   Menu,
@@ -17,6 +18,7 @@ import {
   Calendar,
   CalendarDays,
   Clock,
+  ChevronDown,
   Home,
   Play,
   Pause,
@@ -159,6 +161,38 @@ const formatXtreamExpDate = (expDateUnix: string): string => {
   }).format(new Date(numericValue * 1000));
 };
 
+const groupCatchUpProgramsByDate = (programs: PlayerChannel['epg']) => {
+  const grouped = new Map<string, PlayerChannel['epg']>();
+  const now = new Date();
+
+  programs
+    .filter((program) => program.endTime < now && program.hasCatchUp)
+    .forEach((program) => {
+      const dateKey = program.startTime.toDateString();
+      if (!grouped.has(dateKey)) {
+        grouped.set(dateKey, []);
+      }
+      grouped.get(dateKey)?.push(program);
+    });
+
+  grouped.forEach((items, key) => {
+    grouped.set(key, items.sort((a, b) => b.startTime.getTime() - a.startTime.getTime()));
+  });
+
+  return grouped;
+};
+
+const formatCatchUpDateLabel = (date: Date): string => {
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+
+  if (date.toDateString() === today.toDateString()) return 'Danas';
+  if (date.toDateString() === yesterday.toDateString()) return 'Juče';
+
+  return date.toLocaleDateString('sr-RS', { weekday: 'long', day: 'numeric', month: 'long' });
+};
+
 const PICTURE_IN_PICTURE_KEY_CODE = 80; // Keyboard "P"
 
 type MediaEntryLink = {
@@ -280,6 +314,7 @@ const Player = () => {
   const previousRendererRef = useRef(session.renderer);
   const lastChannelLoadErrorRef = useRef<string | null>(null);
   const previousCastConnectedRef = useRef(castSender.isConnected);
+  const tvUnazadSectionRef = useRef<HTMLDivElement>(null);
 
   const sessionSourceMetadata = useMemo(
     () => parseSessionSourceMetadata(session.source?.metadata),
@@ -652,6 +687,36 @@ const Player = () => {
     switchToLiveChannel(channels[prevIndex]);
   }, [currentChannel, channels, switchToLiveChannel]);
 
+  const playCatchUpProgram = useCallback((program: PlayerChannel['epg'][number]) => {
+    if (!currentChannelWithEPG) {
+      return;
+    }
+
+    const startTimestamp = Math.floor(program.startTime.getTime() / 1000);
+    const duration = Math.floor(
+      (program.endTime.getTime() - program.startTime.getTime()) / 1000
+    );
+    const source = {
+      url: xtreamCodesService.getCatchUpUrl(
+        currentChannelWithEPG.streamId,
+        startTimestamp,
+        duration
+      ),
+      type: 'hls' as const,
+      title: `${currentChannelWithEPG.name} - ${program.title}`,
+      channelId: currentChannelWithEPG.id,
+      metadata: {
+        channelId: currentChannelWithEPG.id,
+        streamId: currentChannelWithEPG.streamId,
+        mode: 'catchup' as const,
+        catchUpProgramId: program.id,
+      },
+    };
+
+    commands.setSource(source, 0);
+    commands.play();
+  }, [commands, currentChannelWithEPG]);
+
   const togglePlayback = useCallback(() => {
     if (!session.source) {
       return;
@@ -897,20 +962,17 @@ const Player = () => {
     },
     [currentChannelWithEPG]
   );
-  const catchUpPrograms = useMemo(
-    () => {
-      if (!currentChannelWithEPG || !currentChannelWithEPG.hasCatchUp) {
-        return [];
-      }
-
-      const now = new Date();
-      return currentChannelWithEPG.epg
-        .filter((program) => program.endTime < now && program.hasCatchUp)
-        .slice(-8)
-        .reverse();
-    },
-    [currentChannelWithEPG]
+  const catchUpProgramsByDate = useMemo(
+    () => groupCatchUpProgramsByDate(currentChannelWithEPG?.epg ?? []),
+    [currentChannelWithEPG?.epg]
   );
+  const catchUpProgramDays = useMemo(
+    () => Array.from(catchUpProgramsByDate.keys()).sort((a, b) => new Date(b).getTime() - new Date(a).getTime()),
+    [catchUpProgramsByDate]
+  );
+  const activeCatchUpProgramId = sessionSourceMetadata.mode === 'catchup'
+    ? sessionSourceMetadata.catchUpProgramId
+    : undefined;
   const desktopCategoryItems = useMemo(
     () => [
       {
@@ -1483,14 +1545,14 @@ const Player = () => {
                 {upcomingPrograms.length > 0 && (
                   <div>
                     <div className="flex items-center gap-2 mb-3">
-                      <CalendarDays className="w-4 h-4 text-muted-foreground" />
-                      <span className="text-sm font-medium text-foreground">Sledi</span>
+                      <Clock className="w-4 h-4 text-muted-foreground" />
+                      <span className="text-sm font-medium text-foreground">Sledi na programu</span>
                     </div>
                     <div className="space-y-1.5">
-                      {upcomingPrograms.map((program) => (
+                      {upcomingPrograms.slice(0, 2).map((program) => (
                         <div
                           key={program.id}
-                          className="flex items-center gap-4 p-3 rounded-xl bg-secondary/30"
+                          className="flex items-center gap-4 p-3 rounded-xl bg-secondary/30 hover:bg-secondary/50 transition-all"
                         >
                           <span className="text-sm text-muted-foreground w-16 shrink-0 tabular-nums">
                             {formatTime(program.startTime)}
@@ -1501,12 +1563,38 @@ const Player = () => {
                           </span>
                         </div>
                       ))}
+                      {upcomingPrograms.length > 2 && (
+                        <Collapsible>
+                          <CollapsibleTrigger className="w-full flex items-center justify-center gap-2 p-2 rounded-xl bg-secondary/20 hover:bg-secondary/40 transition-all group">
+                            <span className="text-xs text-muted-foreground">
+                              Još {upcomingPrograms.length - 2} emisija
+                            </span>
+                            <ChevronDown className="w-3 h-3 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
+                          </CollapsibleTrigger>
+                          <CollapsibleContent className="space-y-1.5 mt-1.5">
+                            {upcomingPrograms.slice(2).map((program) => (
+                              <div
+                                key={program.id}
+                                className="flex items-center gap-4 p-3 rounded-xl bg-secondary/30 hover:bg-secondary/50 transition-all"
+                              >
+                                <span className="text-sm text-muted-foreground w-16 shrink-0 tabular-nums">
+                                  {formatTime(program.startTime)}
+                                </span>
+                                <span className="flex-1 font-medium text-foreground truncate">{program.title}</span>
+                                <span className="text-xs text-muted-foreground">
+                                  {formatTime(program.endTime)}
+                                </span>
+                              </div>
+                            ))}
+                          </CollapsibleContent>
+                        </Collapsible>
+                      )}
                     </div>
                   </div>
                 )}
 
-                {catchUpPrograms.length > 0 && (
-                  <div>
+                {catchUpProgramDays.length > 0 && (
+                  <div ref={tvUnazadSectionRef}>
                     <div className="flex items-center gap-2 mb-3">
                       <div className="w-6 h-6 rounded-full bg-emerald-500/20 flex items-center justify-center">
                         <Play className="w-3 h-3 text-emerald-500" />
@@ -1514,56 +1602,132 @@ const Player = () => {
                       <span className="text-sm font-medium bg-gradient-to-r from-emerald-400 via-primary to-emerald-400 bg-[length:200%_100%] animate-shimmer bg-clip-text text-transparent">
                         TV Unazad
                       </span>
+                      <span className="text-xs text-muted-foreground">(klikni za gledanje)</span>
                     </div>
-                    <div className="space-y-1.5">
-                      {catchUpPrograms.map((program) => (
-                        <button
-                          key={program.id}
-                          type="button"
-                          onClick={() => {
-                            if (!currentChannelWithEPG) {
-                              return;
-                            }
+                    <div className="space-y-2">
+                      {(() => {
+                        const todayKey = new Date().toDateString();
+                        const todayPrograms = catchUpProgramsByDate.get(todayKey) ?? [];
+                        const pastDayKeys = catchUpProgramDays.filter((dayKey) => dayKey !== todayKey);
 
-                            const startTimestamp = Math.floor(program.startTime.getTime() / 1000);
-                            const duration = Math.floor(
-                              (program.endTime.getTime() - program.startTime.getTime()) / 1000
-                            );
-                            const source = {
-                              url: xtreamCodesService.getCatchUpUrl(
-                                currentChannelWithEPG.streamId,
-                                startTimestamp,
-                                duration
-                              ),
-                              type: 'hls' as const,
-                              title: `${currentChannelWithEPG.name} - ${program.title}`,
-                              channelId: currentChannelWithEPG.id,
-                              metadata: {
-                                channelId: currentChannelWithEPG.id,
-                                streamId: currentChannelWithEPG.streamId,
-                                mode: 'catchup',
-                                catchUpProgramId: program.id,
-                              },
-                            };
+                        return (
+                          <>
+                            {todayPrograms.length > 0 && (
+                              <div className="space-y-1.5">
+                                <div className="flex items-center gap-2 px-2 py-1">
+                                  <Calendar className="w-4 h-4 text-primary" />
+                                  <span className="text-sm font-semibold text-primary">Danas</span>
+                                </div>
+                                {todayPrograms.map((program) => {
+                                  const isActiveCatchUp = activeCatchUpProgramId === program.id;
 
-                            commands.setSource(source, 0);
-                            commands.play();
-                          }}
-                          className="w-full flex items-center gap-4 p-3 rounded-xl text-left bg-emerald-500/5 border border-emerald-500/20 hover:bg-emerald-500/15"
-                        >
-                          <span className="text-sm text-muted-foreground w-16 shrink-0 tabular-nums">
-                            {formatTime(program.startTime)}
-                          </span>
-                          <span className="flex-1 font-medium text-foreground truncate">{program.title}</span>
-                          <span className="text-[10px] font-semibold text-emerald-500 bg-emerald-500/20 px-2 py-1 rounded-full">
-                            CATCH-UP
-                          </span>
-                        </button>
-                      ))}
+                                  return (
+                                    <button
+                                      key={program.id}
+                                      type="button"
+                                      onClick={() => playCatchUpProgram(program)}
+                                      className={`w-full flex items-center gap-4 p-3 rounded-xl transition-all group text-left ${
+                                        isActiveCatchUp
+                                          ? 'bg-emerald-500/20 border-2 border-emerald-500/50'
+                                          : 'bg-emerald-500/5 hover:bg-emerald-500/15 border border-emerald-500/20'
+                                      }`}
+                                    >
+                                      <span className="text-sm text-muted-foreground w-16 shrink-0 tabular-nums">
+                                        {formatTime(program.startTime)}
+                                      </span>
+                                      <span className="flex-1 font-medium text-foreground truncate">{program.title}</span>
+                                      <div className="flex items-center gap-2">
+                                        {isActiveCatchUp ? (
+                                          <span className="text-[10px] font-semibold text-primary bg-primary/20 px-2 py-1 rounded-full">
+                                            PUŠTENO
+                                          </span>
+                                        ) : (
+                                          <span className="text-[10px] font-semibold text-emerald-500 bg-emerald-500/20 px-2 py-1 rounded-full">
+                                            CATCH-UP
+                                          </span>
+                                        )}
+                                        <Play className="w-4 h-4 text-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                      </div>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            )}
+
+                            {pastDayKeys.map((dayKey) => {
+                              const programs = catchUpProgramsByDate.get(dayKey) ?? [];
+
+                              return (
+                                <Collapsible key={dayKey}>
+                                  <CollapsibleTrigger className="w-full flex items-center justify-between p-3 rounded-xl bg-secondary/30 hover:bg-secondary/50 transition-all group">
+                                    <div className="flex items-center gap-3">
+                                      <Calendar className="w-4 h-4 text-muted-foreground" />
+                                      <span className="font-medium text-foreground">
+                                        {formatCatchUpDateLabel(new Date(dayKey))}
+                                      </span>
+                                      <span className="text-xs text-muted-foreground">({programs.length} emisija)</span>
+                                    </div>
+                                    <ChevronDown className="w-4 h-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
+                                  </CollapsibleTrigger>
+                                  <CollapsibleContent className="space-y-1.5 mt-1.5 pl-2">
+                                    {programs.map((program) => {
+                                      const isActiveCatchUp = activeCatchUpProgramId === program.id;
+
+                                      return (
+                                        <button
+                                          key={program.id}
+                                          type="button"
+                                          onClick={() => playCatchUpProgram(program)}
+                                          className={`w-full flex items-center gap-4 p-3 rounded-xl transition-all group text-left ${
+                                            isActiveCatchUp
+                                              ? 'bg-emerald-500/20 border-2 border-emerald-500/50'
+                                              : 'bg-emerald-500/5 hover:bg-emerald-500/15 border border-emerald-500/20'
+                                          }`}
+                                        >
+                                          <span className="text-sm text-muted-foreground w-16 shrink-0 tabular-nums">
+                                            {formatTime(program.startTime)}
+                                          </span>
+                                          <span className="flex-1 font-medium text-foreground truncate">{program.title}</span>
+                                          <div className="flex items-center gap-2">
+                                            {isActiveCatchUp ? (
+                                              <span className="text-[10px] font-semibold text-primary bg-primary/20 px-2 py-1 rounded-full">
+                                                PUŠTENO
+                                              </span>
+                                            ) : (
+                                              <span className="text-[10px] font-semibold text-emerald-500 bg-emerald-500/20 px-2 py-1 rounded-full">
+                                                CATCH-UP
+                                              </span>
+                                            )}
+                                            <Play className="w-4 h-4 text-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                          </div>
+                                        </button>
+                                      );
+                                    })}
+                                  </CollapsibleContent>
+                                </Collapsible>
+                              );
+                            })}
+                          </>
+                        );
+                      })()}
                     </div>
                   </div>
                 )}
               </div>
+              {catchUpProgramDays.length > 0 && (
+                <button
+                  type="button"
+                  className="flex-shrink-0 w-full p-3 bg-gradient-to-t from-card via-card to-transparent border-t border-border/50 hover:bg-secondary/30 transition-colors cursor-pointer"
+                  onClick={() => tvUnazadSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                >
+                  <div className="flex items-center justify-center gap-2">
+                    <ChevronDown className="w-4 h-4 animate-bounce text-muted-foreground" />
+                    <span className="text-xs bg-gradient-to-r from-muted-foreground via-foreground to-muted-foreground bg-[length:200%_100%] animate-shimmer bg-clip-text text-transparent">
+                      Skroluj za TV Unazad
+                    </span>
+                  </div>
+                </button>
+              )}
             </div>
           )}
 
