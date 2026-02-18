@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { Star } from 'lucide-react';
+import { Heart } from 'lucide-react';
+import { getCurrentProgram } from '@lumen/core';
 import type { PlayerChannel } from '@lumen/types';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { ChannelLogo } from '@/components/player/ChannelLogo';
@@ -18,8 +19,8 @@ interface ChannelListProps {
 }
 
 const rowHeightByVariant: Record<ChannelListVariant, number> = {
-  desktop: 52,
-  mobile: 64,
+  desktop: 74,
+  mobile: 78,
 };
 
 const ChannelList = ({
@@ -79,16 +80,17 @@ const ChannelList = ({
   return (
     <ScrollArea className={className} viewportRef={viewportRef}>
       {channels.length === 0 ? (
-        <div className="p-4 text-sm text-muted-foreground">No channels found.</div>
+        <div className="p-4 text-sm text-muted-foreground">Nema pronađenih kanala.</div>
       ) : (
         <div
-          className={variant === 'desktop' ? 'p-2' : 'pr-4'}
+          className={variant === 'desktop' ? 'p-2' : 'px-2'}
           style={{ height: `${rowVirtualizer.getTotalSize()}px`, position: 'relative' }}
         >
           {virtualRows.map((virtualRow) => {
             const channel = channels[virtualRow.index];
             const isActive = currentChannelId === channel.id;
             const favorite = isFavorite(channel.id);
+            const currentProgram = getCurrentProgram(channel as any);
 
             return (
               <div
@@ -100,72 +102,73 @@ const ChannelList = ({
                 }}
               >
                 <div
-                  className={`flex h-full items-center gap-2 rounded-lg border transition-colors ${
-                    variant === 'desktop' ? 'px-2 py-1.5' : 'px-2.5 py-2'
-                  } ${
-                    isActive
-                      ? 'border-primary/55 bg-primary/15 shadow-[inset_0_0_0_1px_hsl(var(--primary)/0.35)]'
-                      : 'border-transparent hover:border-border/70 hover:bg-secondary/80'
+                  className={`h-full ${
+                    variant === 'desktop' ? 'px-0 py-0.5' : 'px-0 py-1'
                   }`}
                 >
-                  <span
-                    className={`h-7 w-1 rounded-full transition-colors ${
-                      isActive ? 'bg-primary' : 'bg-border/30'
-                    }`}
-                    aria-hidden
-                  />
-                  <button
-                    type="button"
-                    onClick={() => onSelectChannel(channel)}
-                    className="flex min-w-0 flex-1 items-center gap-3 text-left"
-                  >
                   <div
-                    className={`rounded-lg bg-background/50 flex items-center justify-center ${
-                      variant === 'desktop' ? 'w-9 h-9' : 'w-10 h-10'
+                    className={`relative flex h-full items-center gap-3 rounded-xl transition-all ${
+                      variant === 'desktop' ? 'px-3 py-2' : 'px-3 py-2.5'
+                    } ${
+                      isActive
+                        ? 'bg-primary/15 ring-2 ring-primary ring-inset shadow-[0_0_0_1px_hsl(var(--primary)/0.25)]'
+                        : 'hover:bg-secondary/60'
                     }`}
                   >
-                    <ChannelLogo
-                      logo={channel.logo}
-                      name={channel.name}
-                      size={variant === 'desktop' ? 'md' : 'lg'}
-                    />
-                  </div>
-                    <div className="min-w-0 flex-1 text-left">
-                      <div className="flex items-center gap-2">
-                        <p className={`font-medium truncate ${variant === 'desktop' ? 'text-sm leading-tight' : ''}`}>
-                          {channel.name}
-                        </p>
-                        <span className="hidden rounded bg-muted px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground sm:inline-block">
-                          {channel.number}
-                        </span>
-                      </div>
-                      <p
-                        className={`text-muted-foreground truncate ${
-                          variant === 'desktop' ? 'text-[11px]' : 'text-xs'
+                    <span className="w-6 flex-shrink-0 text-xs tabular-nums text-muted-foreground">
+                      {channel.number}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => onSelectChannel(channel)}
+                      className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                    >
+                      <div
+                        className={`flex-shrink-0 rounded-lg bg-background/50 flex items-center justify-center ${
+                          variant === 'desktop' ? 'w-9 h-9' : 'w-10 h-10'
                         }`}
                       >
-                        {channel.categoryName}
-                      </p>
-                    </div>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => onToggleFavorite?.(channel.id)}
-                    className={`rounded-md p-1.5 transition-colors ${
-                      favorite
-                        ? 'text-primary hover:bg-primary/15'
-                        : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
-                    }`}
-                    aria-label={favorite ? `Remove ${channel.name} from favorites` : `Add ${channel.name} to favorites`}
-                    aria-pressed={favorite}
-                    disabled={!onToggleFavorite}
-                  >
-                    <Star
-                      className={`flex-shrink-0 ${variant === 'desktop' ? 'w-4 h-4' : 'w-[18px] h-[18px]'} ${
-                        favorite ? 'fill-primary' : ''
+                        <ChannelLogo
+                          logo={channel.logo}
+                          name={channel.name}
+                          size={variant === 'desktop' ? 'md' : 'lg'}
+                        />
+                      </div>
+                      <div className="min-w-0 flex-1 text-left">
+                        <p className={`font-medium truncate ${variant === 'desktop' ? 'text-[1rem] leading-tight' : 'text-sm'}`}>
+                          {channel.name}
+                        </p>
+                        <p
+                          className={`text-muted-foreground truncate ${
+                            variant === 'desktop' ? 'text-xs' : 'text-[11px]'
+                          }`}
+                        >
+                          {currentProgram?.title ?? channel.categoryName}
+                        </p>
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onToggleFavorite?.(channel.id)}
+                      className={`p-1.5 rounded-lg transition-colors flex-shrink-0 ${
+                        favorite
+                          ? 'text-primary hover:bg-primary/15'
+                          : 'text-muted-foreground/50 hover:bg-secondary/80 hover:text-foreground'
                       }`}
-                    />
-                  </button>
+                      aria-label={favorite ? `Ukloni ${channel.name} iz omiljenih` : `Dodaj ${channel.name} u omiljene`}
+                      aria-pressed={favorite}
+                      disabled={!onToggleFavorite}
+                    >
+                      <Heart
+                        className={`flex-shrink-0 ${variant === 'desktop' ? 'w-5 h-5' : 'w-[18px] h-[18px]'} ${
+                          favorite ? 'fill-primary' : ''
+                        }`}
+                      />
+                    </button>
+                    {isActive && (
+                      <span className="pointer-events-none absolute inset-y-2 left-0 w-[2px] rounded bg-primary" aria-hidden />
+                    )}
+                  </div>
                 </div>
               </div>
             );
