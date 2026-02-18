@@ -1,5 +1,49 @@
 # Handoff — Lumen Player
 
+## Session 2026-02-18 — LP-0371, LP-0372, LP-0373 (ordered batch)
+
+- PRs: #156 (merged), #157 (merged), #158 (merged)
+- Done:
+  - LP-0371:
+    - aligned `/vod` to Balkan Stream parity in `apps/web/src/pages/VodCategories.tsx` (sticky header, category pills, card metadata rhythm, route-owned mobile nav)
+    - aligned fallback VOD catalog parity data in `apps/web/src/hooks/useVodCatalog.ts`
+  - LP-0372:
+    - aligned `/series` to Balkan Stream parity in `apps/web/src/pages/SeriesCategories.tsx` (sticky header, category pills, dense series cards, route-owned mobile nav)
+    - aligned fallback Series catalog parity data in `apps/web/src/hooks/useSeriesCatalog.ts`
+    - prevented duplicate app-shell mobile nav on `/series` in `apps/web/src/components/layout/AppShell.tsx`
+  - LP-0373:
+    - added V1 design parity evidence artifact template + validator:
+      - `scripts/release/v1-design-parity-evidence.template.json`
+      - `scripts/release/validate-design-parity-evidence.mjs`
+      - `scripts/release/v1-design-parity-evidence.test.ts`
+    - wired `design-parity-evidence` into required release-readiness gate in:
+      - `scripts/release/validate-release-readiness.mjs`
+      - `scripts/release/v1-release-readiness-review.template.json`
+      - `scripts/release/v1-release-readiness-review.test.ts`
+    - added package scripts:
+      - `release:design-parity:validate`
+      - `release:design-parity:test`
+  - Local test gate passed on each task PR:
+    - `pnpm lint`
+    - `pnpm typecheck`
+    - `pnpm build`
+  - Task-specific gate checks passed:
+    - `pnpm release:design-parity:validate`
+    - `pnpm release:design-parity:test`
+    - `pnpm release:readiness:test`
+  - Visual parity checks:
+    - LP-0371 captures: `output/playwright/lp-0371/`
+    - LP-0372 captures: `output/playwright/lp-0372/`
+    - LP-0373 evidence sweep captures: `output/playwright/lp-0373/`
+    - Reference baseline: `docs/design-parity/balkan-stream/reference/*.png`
+  - Greptile/check notes:
+    - #156: Greptile review start confirmed via check-run, but final confidence score was not returned on latest head after 2 pings (`@greptile-apps`, `@greptileai`); fallback PR note was posted before merge.
+    - #157: Greptile review start confirmed via check-run, but final confidence score was not returned on latest head after 2 pings (`@greptile-apps`, `@greptileai`); fallback PR note was posted before merge.
+    - #158: Greptile review start confirmed via check-run, but final confidence score was not returned on latest head after 2 pings (`@greptile-apps`, `@greptileai`); fallback PR note was posted before merge.
+    - GitHub PR checks were green before merge (`web-quality`, `automation-scripts`).
+
+---
+
 ## Session 2026-02-18 — LP-0367, LP-0368, LP-0369, LP-0370 (ordered batch)
 
 - PRs: #150 (merged), #151 (merged), #152 (merged), #153 (merged)
