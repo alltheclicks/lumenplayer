@@ -159,9 +159,17 @@ const formatXtreamExpDate = (expDateUnix: string): string => {
   }).format(new Date(numericValue * 1000));
 };
 
-const groupCatchUpProgramsByDate = (programs: PlayerChannel['epg']) => {
+const groupCatchUpProgramsByDate = (
+  programs: PlayerChannel['epg'],
+  channelHasCatchUp: boolean,
+  referenceNow: Date,
+) => {
+  if (!channelHasCatchUp) {
+    return new Map<string, PlayerChannel['epg']>();
+  }
+
   const grouped = new Map<string, PlayerChannel['epg']>();
-  const now = new Date();
+  const now = referenceNow;
 
   programs
     .filter((program) => program.endTime < now && program.hasCatchUp)
@@ -959,13 +967,30 @@ const Player = () => {
     },
     [currentChannelWithEPG]
   );
-  const catchUpProgramsByDate = useMemo(
-    () => groupCatchUpProgramsByDate(currentChannelWithEPG?.epg ?? []),
-    [currentChannelWithEPG?.epg]
-  );
+  const catchUpGrouping = useMemo(() => {
+    const referenceNow = new Date();
+    return {
+      byDate: groupCatchUpProgramsByDate(
+        currentChannelWithEPG?.epg ?? [],
+        currentChannelWithEPG?.hasCatchUp ?? false,
+        referenceNow,
+      ),
+      todayKey: referenceNow.toDateString(),
+    };
+  }, [currentChannelWithEPG?.epg, currentChannelWithEPG?.hasCatchUp]);
+  const catchUpProgramsByDate = catchUpGrouping.byDate;
+  const catchUpTodayKey = catchUpGrouping.todayKey;
   const catchUpProgramDays = useMemo(
     () => Array.from(catchUpProgramsByDate.keys()).sort((a, b) => new Date(b).getTime() - new Date(a).getTime()),
     [catchUpProgramsByDate]
+  );
+  const todayCatchUpPrograms = useMemo(
+    () => catchUpProgramsByDate.get(catchUpTodayKey) ?? [],
+    [catchUpProgramsByDate, catchUpTodayKey]
+  );
+  const pastCatchUpDayKeys = useMemo(
+    () => catchUpProgramDays.filter((dayKey) => dayKey !== catchUpTodayKey),
+    [catchUpProgramDays, catchUpTodayKey]
   );
   const activeCatchUpProgramId = sessionSourceMetadata.mode === 'catchup'
     ? sessionSourceMetadata.catchUpProgramId
@@ -1649,20 +1674,66 @@ const Player = () => {
                       <span className="text-xs text-muted-foreground">(klikni za gledanje)</span>
                     </div>
                     <div className="space-y-2">
-                      {(() => {
-                        const todayKey = new Date().toDateString();
-                        const todayPrograms = catchUpProgramsByDate.get(todayKey) ?? [];
-                        const pastDayKeys = catchUpProgramDays.filter((dayKey) => dayKey !== todayKey);
+                      <>
+                        {todayCatchUpPrograms.length > 0 && (
+                          <div className="space-y-1.5">
+                            <div className="flex items-center gap-2 px-2 py-1">
+                              <Calendar className="w-4 h-4 text-primary" />
+                              <span className="text-sm font-semibold text-primary">Danas</span>
+                            </div>
+                            {todayCatchUpPrograms.map((program) => {
+                              const isActiveCatchUp = activeCatchUpProgramId === program.id;
 
-                        return (
-                          <>
-                            {todayPrograms.length > 0 && (
-                              <div className="space-y-1.5">
-                                <div className="flex items-center gap-2 px-2 py-1">
-                                  <Calendar className="w-4 h-4 text-primary" />
-                                  <span className="text-sm font-semibold text-primary">Danas</span>
+                              return (
+                                <button
+                                  key={program.id}
+                                  type="button"
+                                  onClick={() => playCatchUpProgram(program)}
+                                  className={`w-full flex items-center gap-4 p-3 rounded-xl transition-all group text-left border-2 ${
+                                    isActiveCatchUp
+                                      ? 'bg-emerald-500/20 border-emerald-500/50'
+                                      : 'bg-emerald-500/5 hover:bg-emerald-500/15 border-emerald-500/20'
+                                  }`}
+                                >
+                                  <span className="text-sm text-muted-foreground w-16 shrink-0 tabular-nums">
+                                    {formatTime(program.startTime)}
+                                  </span>
+                                  <span className="flex-1 font-medium text-foreground truncate">{program.title}</span>
+                                  <div className="flex items-center gap-2">
+                                    {isActiveCatchUp ? (
+                                      <span className="text-[10px] font-semibold text-primary bg-primary/20 px-2 py-1 rounded-full">
+                                        PUŠTENO
+                                      </span>
+                                    ) : (
+                                      <span className="text-[10px] font-semibold text-emerald-500 bg-emerald-500/20 px-2 py-1 rounded-full">
+                                        CATCH-UP
+                                      </span>
+                                    )}
+                                    <Play className="w-4 h-4 text-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                  </div>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+
+                        {pastCatchUpDayKeys.map((dayKey) => {
+                          const programs = catchUpProgramsByDate.get(dayKey) ?? [];
+
+                          return (
+                            <Collapsible key={dayKey}>
+                              <CollapsibleTrigger className="w-full flex items-center justify-between p-3 rounded-xl bg-secondary/30 hover:bg-secondary/50 transition-all group">
+                                <div className="flex items-center gap-3">
+                                  <Calendar className="w-4 h-4 text-muted-foreground" />
+                                  <span className="font-medium text-foreground">
+                                    {formatCatchUpDateLabel(new Date(dayKey))}
+                                  </span>
+                                  <span className="text-xs text-muted-foreground">({programs.length} emisija)</span>
                                 </div>
-                                {todayPrograms.map((program) => {
+                                <ChevronDown className="w-4 h-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
+                              </CollapsibleTrigger>
+                              <CollapsibleContent className="space-y-1.5 mt-1.5 pl-2">
+                                {programs.map((program) => {
                                   const isActiveCatchUp = activeCatchUpProgramId === program.id;
 
                                   return (
@@ -1670,10 +1741,10 @@ const Player = () => {
                                       key={program.id}
                                       type="button"
                                       onClick={() => playCatchUpProgram(program)}
-                                      className={`w-full flex items-center gap-4 p-3 rounded-xl transition-all group text-left ${
+                                      className={`w-full flex items-center gap-4 p-3 rounded-xl transition-all group text-left border-2 ${
                                         isActiveCatchUp
-                                          ? 'bg-emerald-500/20 border-2 border-emerald-500/50'
-                                          : 'bg-emerald-500/5 hover:bg-emerald-500/15 border border-emerald-500/20'
+                                          ? 'bg-emerald-500/20 border-emerald-500/50'
+                                          : 'bg-emerald-500/5 hover:bg-emerald-500/15 border-emerald-500/20'
                                       }`}
                                     >
                                       <span className="text-sm text-muted-foreground w-16 shrink-0 tabular-nums">
@@ -1695,65 +1766,11 @@ const Player = () => {
                                     </button>
                                   );
                                 })}
-                              </div>
-                            )}
-
-                            {pastDayKeys.map((dayKey) => {
-                              const programs = catchUpProgramsByDate.get(dayKey) ?? [];
-
-                              return (
-                                <Collapsible key={dayKey}>
-                                  <CollapsibleTrigger className="w-full flex items-center justify-between p-3 rounded-xl bg-secondary/30 hover:bg-secondary/50 transition-all group">
-                                    <div className="flex items-center gap-3">
-                                      <Calendar className="w-4 h-4 text-muted-foreground" />
-                                      <span className="font-medium text-foreground">
-                                        {formatCatchUpDateLabel(new Date(dayKey))}
-                                      </span>
-                                      <span className="text-xs text-muted-foreground">({programs.length} emisija)</span>
-                                    </div>
-                                    <ChevronDown className="w-4 h-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
-                                  </CollapsibleTrigger>
-                                  <CollapsibleContent className="space-y-1.5 mt-1.5 pl-2">
-                                    {programs.map((program) => {
-                                      const isActiveCatchUp = activeCatchUpProgramId === program.id;
-
-                                      return (
-                                        <button
-                                          key={program.id}
-                                          type="button"
-                                          onClick={() => playCatchUpProgram(program)}
-                                          className={`w-full flex items-center gap-4 p-3 rounded-xl transition-all group text-left ${
-                                            isActiveCatchUp
-                                              ? 'bg-emerald-500/20 border-2 border-emerald-500/50'
-                                              : 'bg-emerald-500/5 hover:bg-emerald-500/15 border border-emerald-500/20'
-                                          }`}
-                                        >
-                                          <span className="text-sm text-muted-foreground w-16 shrink-0 tabular-nums">
-                                            {formatTime(program.startTime)}
-                                          </span>
-                                          <span className="flex-1 font-medium text-foreground truncate">{program.title}</span>
-                                          <div className="flex items-center gap-2">
-                                            {isActiveCatchUp ? (
-                                              <span className="text-[10px] font-semibold text-primary bg-primary/20 px-2 py-1 rounded-full">
-                                                PUŠTENO
-                                              </span>
-                                            ) : (
-                                              <span className="text-[10px] font-semibold text-emerald-500 bg-emerald-500/20 px-2 py-1 rounded-full">
-                                                CATCH-UP
-                                              </span>
-                                            )}
-                                            <Play className="w-4 h-4 text-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity" />
-                                          </div>
-                                        </button>
-                                      );
-                                    })}
-                                  </CollapsibleContent>
-                                </Collapsible>
-                              );
-                            })}
-                          </>
-                        );
-                      })()}
+                              </CollapsibleContent>
+                            </Collapsible>
+                          );
+                        })}
+                      </>
                     </div>
                   </div>
                 )}
