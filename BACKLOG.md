@@ -241,7 +241,7 @@ Completion notes (2026-02-16):
 | LP-0359 | Add explicit live channel startup mode setting (`autoplay on select` vs `select then play`) and enforce deterministic behavior in player flow (linked to `TST-007`) | S | done | LP-0351 |
 | LP-0360 | Add short-EPG request resilience for active browsing (in-flight dedupe, cache, pacing, 429 retry/backoff, stale-cache fallback) tied to `TST-009` | M | done | LP-0351, LP-0358 |
 
-Completion notes (2026-02-17):
+Completion notes (2026-02-17, 2026-02-18):
 - LP-0350 delivered dark-first token baseline + first-paint shell bootstrap in PR #124; Greptile final confidence score `5/5`.
 - LP-0351 delivered persistent AppShell route layout + unified desktop/mobile nav shell in PR #125.
 - LP-0351 Greptile check-run started, but final confidence score was not returned after 2 pings (`@greptile-apps`, `@greptileai`); fallback note was posted on PR #125.
@@ -276,10 +276,10 @@ Completion notes (2026-02-17):
 | LP-0364 | Rebuild `/player` desktop layout to Balkan Stream 3-pane structure (left category rail, middle channel panel, right media+EPG surface) with matching spacing, sizing, and hierarchy | L | done | LP-0362 |
 | LP-0365 | Category rail parity pass in player (active/inactive states, counters, VOD CTA styling, account/info block, bottom actions) to match Balkan Stream behavior and visuals | M | done | LP-0364 |
 | LP-0366 | Channel list visual parity pass (`ChannelList`): row density, typography, selected row treatment, favorites affordance, logo slot rhythm aligned with Balkan Stream | M | done | LP-0364 |
-| LP-0367 | Video surface + control overlay parity pass (`VideoPlayer` + `PlayerControls`): overlay gradients, control clusters, info stack, fullscreen behavior, and error/loading/idle presentation | L | planned | LP-0364 |
-| LP-0368 | EPG presentation parity pass in player: "Sada na programu", "Sledi", "TV Unazad" section styling/accordion rhythm/CTA treatment aligned to Balkan Stream | M | planned | LP-0364 |
-| LP-0369 | Mobile player parity pass: quick actions, sheet behavior, sticky/nav zones, and responsive spacing aligned with Balkan Stream mobile UX | M | planned | LP-0367 |
-| LP-0370 | Login screen parity pass: copy, spacing, iconography, server status strip, password visibility UX, and alert/toast presentation aligned to Balkan Stream | S | planned | LP-0362 |
+| LP-0367 | Video surface + control overlay parity pass (`VideoPlayer` + `PlayerControls`): overlay gradients, control clusters, info stack, fullscreen behavior, and error/loading/idle presentation | L | done | LP-0364 |
+| LP-0368 | EPG presentation parity pass in player: "Sada na programu", "Sledi", "TV Unazad" section styling/accordion rhythm/CTA treatment aligned to Balkan Stream | M | done | LP-0364 |
+| LP-0369 | Mobile player parity pass: quick actions, sheet behavior, sticky/nav zones, and responsive spacing aligned with Balkan Stream mobile UX | M | done | LP-0367 |
+| LP-0370 | Login screen parity pass: copy, spacing, iconography, server status strip, password visibility UX, and alert/toast presentation aligned to Balkan Stream | S | done | LP-0362 |
 | LP-0371 | Movies page parity pass (`/vod`): sticky header, category pills, card grid rhythm, navigation treatment, and mobile bottom navigation aligned to Balkan Stream Movies | M | planned | LP-0363 |
 | LP-0372 | Series page parity pass (`/series`): parity equivalent of Movies page for Series list/detail entry flow and responsive layout | M | planned | LP-0363 |
 | LP-0373 | Design quality gate before V1 sign-off: produce desktop+mobile before/after parity evidence for login/player/movies/series/epg and block V1 completion unless parity review is accepted | S | planned | LP-0365, LP-0366, LP-0367, LP-0368, LP-0369, LP-0370, LP-0371, LP-0372 |
@@ -291,6 +291,10 @@ Completion notes (2026-02-17):
 - LP-0364 delivered `/player` desktop 3-pane rebuild (category rail + channel panel + media/EPG surface) in PR #145; Greptile final confidence score `5/5`.
 - LP-0365 delivered player category rail parity pass (active/inactive states, counters, VOD CTA cards, account/info parity block, bottom actions) in PR #147; Greptile review started but final confidence score was not returned on latest head after 2 pings (`@greptile-apps`, `@greptileai`); fallback PR note was posted before merge.
 - LP-0366 delivered `ChannelList` visual parity pass (row rhythm, typography, active row treatment, heart favorites affordance, logo slot cadence) in PR #148; Greptile review started but final confidence score was not returned on latest head after 2 pings (`@greptile-apps`, `@greptileai`); fallback PR note was posted before merge.
+- LP-0367 delivered video surface/control overlay parity pass in PR #150; Greptile review started but final confidence score was not returned on latest head after 2 pings (`@greptile-apps`, `@greptileai`); fallback PR note was posted before merge.
+- LP-0368 delivered player EPG presentation parity pass ("Sada na programu", "Sledi", "TV Unazad") in PR #151; Greptile review started but final confidence score was not returned on latest head after 2 pings (`@greptile-apps`, `@greptileai`); fallback PR note was posted before merge.
+- LP-0369 delivered mobile player parity pass (quick actions, mobile header/zones, integrated channel discoverability rhythm) in PR #152; Greptile review started but final confidence score was not returned on latest head after 2 pings (`@greptile-apps`, `@greptileai`); fallback PR note was posted before merge.
+- LP-0370 delivered login parity pass (copy/iconography/server strip/password visibility/toast flow) in PR #153; Greptile review started but final confidence score was not returned on latest head after 2 pings (`@greptile-apps`, `@greptileai`); fallback PR note was posted before merge.
 
 ---
 
