@@ -333,30 +333,30 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
     if (playbackError.code === 'MIXED_CONTENT') {
       return {
         type: 'mixed-content',
-        message: 'Cannot load stream',
-        details: 'HTTPS page cannot access HTTP stream. Use HTTPS stream source or open app via HTTP.',
+        message: 'Nije moguće učitati stream',
+        details: 'HTTPS stranica ne može pristupiti HTTP streamu. Koristite HTTPS verziju IPTV servera ili pristupite aplikaciji preko HTTP-a.',
       };
     }
 
     if (playbackError.code === 'NETWORK_ERROR') {
       return {
         type: 'network',
-        message: 'Network error',
-        details: 'Check your internet connection and stream availability.',
+        message: 'Greška u mreži',
+        details: 'Proverite internet konekciju i dostupnost servera.',
       };
     }
 
     if (playbackError.code === 'MEDIA_ERROR' || playbackError.code === 'HLS_NOT_SUPPORTED') {
       return {
         type: 'format',
-        message: 'Stream format not supported',
+        message: 'Format streama nije podržan',
         details: playbackError.message,
       };
     }
 
     return {
       type: 'unknown',
-      message: 'Playback error',
+      message: 'Greška pri reprodukciji',
       details: playbackError.message,
     };
   }, []);
@@ -550,7 +550,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
 
       setIsLoading(false);
       pendingAutoplaySourceUrlRef.current = null;
-      const message = loadError instanceof Error ? loadError.message : 'Failed to load stream';
+      const message = loadError instanceof Error ? loadError.message : 'Neuspešno učitavanje streama';
       emitWebObservabilityEvent({
         name: 'playback.error',
         severity: 'error',
@@ -563,7 +563,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
       });
       setError((prev) => prev ?? {
         type: 'unknown',
-        message: 'Cannot load stream',
+        message: 'Nije moguće učitati stream',
         details: message,
       });
       onError?.(message);
