@@ -20,7 +20,7 @@ const isActiveRoute = (itemPath: string, currentPath: string): boolean => {
 const AppShell = () => {
   const { pathname } = useLocation();
   const isPlayerRoute = pathname === '/player' || pathname.startsWith('/player/');
-  const hasRouteOwnedMobileNav = pathname === '/vod';
+  const hasRouteOwnedMobileNav = pathname === '/vod' || pathname === '/series';
 
   return (
     <div className="min-h-screen bg-background">
