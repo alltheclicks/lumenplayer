@@ -1,5 +1,38 @@
 # Handoff — Lumen Player
 
+## Session 2026-02-18 — LP-0365, LP-0366 (ordered batch)
+
+- PRs: #147 (merged), #148 (merged)
+- Done:
+  - LP-0365:
+    - aligned `/player` desktop category rail parity surface in `apps/web/src/pages/Player.tsx`:
+      - active/inactive category state treatment + counter badges
+      - VOD CTA card styling/rhythm (`Filmovi`, `Serije`)
+      - Xtream account/info block parity behavior (shown only when provider user info exists)
+      - bottom action stack parity (`Početna`, `Logout`)
+  - LP-0366:
+    - aligned `ChannelList` row parity in `apps/web/src/components/player/ChannelList.tsx`:
+      - denser number/logo/name/program row rhythm
+      - selected row treatment (`bg-primary/15` + ring emphasis)
+      - favorites affordance switched to heart parity style
+      - subtitle line now prefers current program title (fallback category)
+  - Local test gate passed on each task PR:
+    - `pnpm lint`
+    - `pnpm typecheck`
+    - `pnpm build`
+  - Visual parity checks run for each task against `docs/DESIGN-PARITY-BALKAN-STREAM.md` (`player-desktop` + `player-mobile`) with Playwright captures in:
+    - `output/playwright/lp-0365/`
+    - `output/playwright/lp-0366/`
+  - Greptile/check notes:
+    - #147: Greptile review start was confirmed via check-run, but final confidence score was not returned on latest head after 2 pings (`@greptile-apps`, `@greptileai`); fallback PR note was posted before merge.
+    - #148: Greptile review start was confirmed via check-run, but final confidence score was not returned on latest head after 2 pings (`@greptile-apps`, `@greptileai`); fallback PR note was posted before merge.
+    - GitHub PR checks were green before merge (`web-quality`, `automation-scripts`).
+
+- Next:
+  - Continue Balkan parity track in strict order with LP-0367, then LP-0368.
+
+---
+
 ## Session 2026-02-17 — LP-0361, LP-0362, LP-0363, LP-0364 (ordered batch)
 
 - PRs: #142 (merged), #143 (merged), #144 (merged), #145 (merged)
