@@ -14,6 +14,7 @@ import {
   AlertCircle,
   Film,
   Clapperboard,
+  Calendar,
   CalendarDays,
   Clock,
   Home,
@@ -27,6 +28,8 @@ import {
   Smartphone,
   RefreshCw,
   Tv2,
+  User,
+  Wifi,
   type LucideIcon,
 } from 'lucide-react';
 import VideoPlayer, { type VideoPlayerHandle } from '@/components/player/VideoPlayer';
@@ -38,7 +41,7 @@ import { useSessionContext } from '@/context/session-context';
 import { useGoogleCastSender } from '@/hooks/useGoogleCastSender';
 import { NumericChannelInput, WebKeyCodes } from '@lumen/input';
 import { filterChannels, formatTime, getCurrentProgram, getProgramProgress } from '@lumen/core';
-import type { PlayerChannel } from '@lumen/types';
+import type { PlayerChannel, XtreamUserInfo } from '@lumen/types';
 import {
   loadXtreamCredentials,
   clearXtreamCredentials,
@@ -141,6 +144,19 @@ const getDigitFromWebKeyCode = (keyCode: number): number | null => {
   if (keyCode === WebKeyCodes[8]) return 8;
   if (keyCode === WebKeyCodes[9]) return 9;
   return null;
+};
+
+const formatXtreamExpDate = (expDateUnix: string): string => {
+  const numericValue = Number(expDateUnix);
+  if (!Number.isFinite(numericValue) || numericValue <= 0) {
+    return 'N/A';
+  }
+
+  return new Intl.DateTimeFormat('sr-RS', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }).format(new Date(numericValue * 1000));
 };
 
 const PICTURE_IN_PICTURE_KEY_CODE = 80; // Keyboard "P"
@@ -256,6 +272,7 @@ const Player = () => {
   const [isAirPlaySupported, setIsAirPlaySupported] = useState(false);
   const [isAirPlayAvailable, setIsAirPlayAvailable] = useState(false);
   const [isAirPlayConnected, setIsAirPlayConnected] = useState(false);
+  const [xtreamUserInfo, setXtreamUserInfo] = useState<XtreamUserInfo | null>(null);
   const numericInputRef = useRef<NumericChannelInput<PlayerChannel> | null>(null);
   const watchedChannelIdRef = useRef<string | null>(null);
   const watchedStartedAtRef = useRef<number | null>(null);
@@ -472,6 +489,31 @@ const Player = () => {
       const credentials = await loadXtreamCredentials();
       if (!credentials && !isCancelled) {
         navigate('/login');
+        return;
+      }
+
+      if (!credentials || isCancelled) {
+        return;
+      }
+
+      if (
+        credentials.username === 'demo' ||
+        credentials.server.includes('your-server.com')
+      ) {
+        setXtreamUserInfo(null);
+        return;
+      }
+
+      try {
+        xtreamCodesService.setCredentials(credentials);
+        const authResponse = await xtreamCodesService.authenticate();
+        if (!isCancelled) {
+          setXtreamUserInfo(authResponse.user_info ?? null);
+        }
+      } catch {
+        if (!isCancelled) {
+          setXtreamUserInfo(null);
+        }
       }
     };
 
@@ -892,6 +934,10 @@ const Player = () => {
     ],
     [categories, channels, favorites.length]
   );
+  const xtreamSubscriptionLabel = xtreamUserInfo
+    ? `${xtreamUserInfo.active_cons}/${xtreamUserInfo.max_connections}`
+    : null;
+  const xtreamExpLabel = xtreamUserInfo ? formatXtreamExpDate(xtreamUserInfo.exp_date) : null;
   const onDemandTitle = onDemandContext?.title ?? 'VOD Playback';
   const onDemandBackPath = onDemandContext?.backPath ?? '/vod';
   const onDemandBackLabel = onDemandContext?.backLabel ?? 'Back to VOD';
@@ -954,7 +1000,7 @@ const Player = () => {
         {/* Sidebar for desktop */}
         {!isOnDemandSource ? (
           <div className="hidden lg:flex h-screen">
-            <aside className="w-[180px] bg-card/50 border-r border-border flex flex-col">
+            <aside className="w-[180px] bg-card/50 border-r border-border flex flex-col h-screen">
               <div className="p-4 flex justify-center border-b border-border">
                 <button
                   type="button"
@@ -966,46 +1012,48 @@ const Player = () => {
                 </button>
               </div>
 
-              <div className="flex-1 overflow-y-auto py-3 px-2 space-y-1">
-                {desktopCategoryItems.map((item) => {
-                  const isActive = selectedCategory === item.id;
-                  const Icon = item.icon;
-                  return (
-                    <button
-                      key={item.id ?? 'all'}
-                      type="button"
-                      onClick={() => setSelectedCategory(item.id)}
-                      className={`relative w-full h-12 rounded-xl flex items-center justify-start gap-2 px-3 transition-all ${
-                        isActive
-                          ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/25'
-                          : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
-                      }`}
-                    >
-                      <Icon className="w-4 h-4 shrink-0" />
-                      <span className="text-xs font-medium truncate flex-1 text-left">{item.label}</span>
-                      {item.count > 0 && (
-                        <span className={`min-w-[22px] h-[22px] rounded-full text-[11px] font-medium flex items-center justify-center px-1.5 ${
-                          isActive ? 'bg-background text-foreground' : 'bg-primary/20 text-primary'
-                        }`}>
-                          {item.count}
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
+              <div className="flex-1 overflow-y-auto">
+                <div className="py-4 flex flex-col items-center gap-1">
+                  {desktopCategoryItems.map((item) => {
+                    const isActive = selectedCategory === item.id;
+                    const Icon = item.icon;
+                    return (
+                      <button
+                        key={item.id ?? 'all'}
+                        type="button"
+                        onClick={() => setSelectedCategory(item.id)}
+                        className={`relative w-[160px] h-12 rounded-xl flex items-center justify-start gap-2 px-3 transition-all ${
+                          isActive
+                            ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/25'
+                            : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
+                        }`}
+                      >
+                        <Icon className="w-4 h-4 shrink-0" />
+                        <span className="text-xs font-medium truncate flex-1 text-left">{item.label}</span>
+                        {item.count > 0 && (
+                          <span className={`min-w-[22px] h-[22px] rounded-full text-[11px] font-medium flex items-center justify-center px-1.5 ${
+                            isActive ? 'bg-background text-foreground' : 'bg-primary/20 text-primary'
+                          }`}>
+                            {item.count}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
               <div className="p-2 border-t border-border/50">
                 <div className="mb-1 px-2">
-                  <span className="text-[9px] uppercase tracking-wider text-muted-foreground/70 font-semibold">
+                  <span className="text-[9px] uppercase tracking-wider text-muted-foreground/60 font-semibold">
                     VOD
                   </span>
                 </div>
-                <div className="flex flex-col gap-1.5">
+                <div className="flex flex-col items-center gap-1.5">
                   <button
                     type="button"
                     onClick={() => navigate('/vod')}
-                    className="starlight-border starlight-border-amber w-full h-10 rounded-xl flex items-center justify-start gap-2 px-3 transition-all bg-gradient-to-br from-amber-500/20 to-yellow-600/20 border border-amber-500/30 text-amber-400 hover:from-amber-500/30 hover:to-yellow-600/30 hover:border-amber-500/50"
+                    className="starlight-border starlight-border-amber w-[160px] h-10 rounded-xl flex items-center justify-start gap-2 px-3 transition-all bg-gradient-to-br from-amber-500/20 to-yellow-600/20 border border-amber-500/30 text-amber-400 hover:from-amber-500/30 hover:to-yellow-600/30 hover:border-amber-500/50 hover:scale-105"
                   >
                     <Film className="w-4 h-4 shrink-0" />
                     <span className="text-xs font-semibold">Filmovi</span>
@@ -1013,7 +1061,7 @@ const Player = () => {
                   <button
                     type="button"
                     onClick={() => navigate('/series')}
-                    className="starlight-border starlight-border-purple w-full h-10 rounded-xl flex items-center justify-start gap-2 px-3 transition-all bg-gradient-to-br from-purple-500/20 to-pink-500/20 border border-purple-500/30 text-purple-400 hover:from-purple-500/30 hover:to-pink-500/30 hover:border-purple-500/50"
+                    className="starlight-border starlight-border-purple w-[160px] h-10 rounded-xl flex items-center justify-start gap-2 px-3 transition-all bg-gradient-to-br from-purple-500/20 to-pink-500/20 border border-purple-500/30 text-purple-400 hover:from-purple-500/30 hover:to-pink-500/30 hover:border-purple-500/50 hover:scale-105"
                   >
                     <Clapperboard className="w-4 h-4 shrink-0" />
                     <span className="text-xs font-semibold">Serije</span>
@@ -1021,42 +1069,46 @@ const Player = () => {
                 </div>
               </div>
 
-              <div className="p-2 border-t border-border">
-                <div className="bg-secondary/50 rounded-xl p-2 space-y-1.5">
-                  <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
-                    <Smartphone className="w-3 h-3" />
-                    <span>{favorites.length} omiljenih</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
-                    <Tv2 className="w-3 h-3" />
-                    <span>{filteredChannels.length} kanala</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 text-[10px] text-primary">
-                    <Cast className="w-3 h-3" />
-                    <span className="font-medium">{session.renderer}</span>
+              {xtreamUserInfo && (
+                <div className="p-2 border-t border-border">
+                  <div className="bg-secondary/50 rounded-xl p-2 space-y-1.5">
+                    <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                      <User className="w-3 h-3" />
+                      <span className="truncate">{xtreamUserInfo.username}</span>
+                    </div>
+                    {xtreamSubscriptionLabel && (
+                      <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                        <Wifi className="w-3 h-3" />
+                        <span>{xtreamSubscriptionLabel}</span>
+                      </div>
+                    )}
+                    {xtreamExpLabel && (
+                      <div className="flex items-center gap-1.5 text-[10px]">
+                        <Calendar className="w-3 h-3 text-primary" />
+                        <span className="text-primary font-medium">{xtreamExpLabel}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
-              </div>
+              )}
 
-              <div className="p-3 border-t border-border flex items-center justify-center gap-2">
-                <Button
+              <div className="p-4 border-t border-border flex flex-col items-center gap-2">
+                <button
                   type="button"
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => navigate('/vod')}
+                  onClick={() => navigate('/player')}
+                  className="w-10 h-10 rounded-xl flex items-center justify-center text-muted-foreground hover:bg-secondary hover:text-foreground transition-all"
                   title="Početna"
                 >
                   <Home className="w-5 h-5" />
-                </Button>
-                <Button
+                </button>
+                <button
                   type="button"
-                  variant="ghost"
-                  size="icon"
                   onClick={() => setShowLogoutDialog(true)}
+                  className="w-10 h-10 rounded-xl flex items-center justify-center text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-all"
                   title="Logout"
                 >
                   <LogOut className="w-5 h-5" />
-                </Button>
+                </button>
               </div>
             </aside>
 
