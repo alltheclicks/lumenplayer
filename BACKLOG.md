@@ -274,8 +274,8 @@ Completion notes (2026-02-17):
 | LP-0362 | Global design token parity pass: align `apps/web/src/index.css` with Balkan Stream tokens/utilities (`--sidebar-*`, badge styles, starlight borders, gradients), remove non-reference shell mood effects | M | done | LP-0361 |
 | LP-0363 | Remove/reshape Lumen-specific shell chrome on non-player routes so routed screens visually match Balkan Stream app style (no divergent icon-rail/header look) | M | done | LP-0362 |
 | LP-0364 | Rebuild `/player` desktop layout to Balkan Stream 3-pane structure (left category rail, middle channel panel, right media+EPG surface) with matching spacing, sizing, and hierarchy | L | done | LP-0362 |
-| LP-0365 | Category rail parity pass in player (active/inactive states, counters, VOD CTA styling, account/info block, bottom actions) to match Balkan Stream behavior and visuals | M | planned | LP-0364 |
-| LP-0366 | Channel list visual parity pass (`ChannelList`): row density, typography, selected row treatment, favorites affordance, logo slot rhythm aligned with Balkan Stream | M | planned | LP-0364 |
+| LP-0365 | Category rail parity pass in player (active/inactive states, counters, VOD CTA styling, account/info block, bottom actions) to match Balkan Stream behavior and visuals | M | done | LP-0364 |
+| LP-0366 | Channel list visual parity pass (`ChannelList`): row density, typography, selected row treatment, favorites affordance, logo slot rhythm aligned with Balkan Stream | M | done | LP-0364 |
 | LP-0367 | Video surface + control overlay parity pass (`VideoPlayer` + `PlayerControls`): overlay gradients, control clusters, info stack, fullscreen behavior, and error/loading/idle presentation | L | planned | LP-0364 |
 | LP-0368 | EPG presentation parity pass in player: "Sada na programu", "Sledi", "TV Unazad" section styling/accordion rhythm/CTA treatment aligned to Balkan Stream | M | planned | LP-0364 |
 | LP-0369 | Mobile player parity pass: quick actions, sheet behavior, sticky/nav zones, and responsive spacing aligned with Balkan Stream mobile UX | M | planned | LP-0367 |
@@ -289,6 +289,8 @@ Completion notes (2026-02-17):
 - LP-0362 delivered global token/utilities parity pass in PR #143; after 2 pings (`@greptile-apps`, `@greptileai`) fallback PR note was posted before merge, then Greptile returned delayed final confidence score `4/5` on latest head (non-blocking remarks: missing Tailwind token mappings for new semantic tokens and partial utility layer organization outside `@layer`).
 - LP-0363 delivered non-player shell chrome reshape (removed divergent icon rail/header, aligned mobile bottom nav treatment) in PR #144; Greptile final confidence score `5/5`.
 - LP-0364 delivered `/player` desktop 3-pane rebuild (category rail + channel panel + media/EPG surface) in PR #145; Greptile final confidence score `5/5`.
+- LP-0365 delivered player category rail parity pass (active/inactive states, counters, VOD CTA cards, account/info parity block, bottom actions) in PR #147; Greptile review started but final confidence score was not returned on latest head after 2 pings (`@greptile-apps`, `@greptileai`); fallback PR note was posted before merge.
+- LP-0366 delivered `ChannelList` visual parity pass (row rhythm, typography, active row treatment, heart favorites affordance, logo slot cadence) in PR #148; Greptile review started but final confidence score was not returned on latest head after 2 pings (`@greptile-apps`, `@greptileai`); fallback PR note was posted before merge.
 
 ---
 
