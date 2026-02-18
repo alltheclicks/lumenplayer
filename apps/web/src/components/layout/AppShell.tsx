@@ -24,7 +24,7 @@ const AppShell = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className={isPlayerRoute ? '' : 'pb-16 md:pb-0'}>
+      <div className={isPlayerRoute || hasRouteOwnedMobileNav ? '' : 'pb-16 md:pb-0'}>
         <Outlet />
       </div>
 

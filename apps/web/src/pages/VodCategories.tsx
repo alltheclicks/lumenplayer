@@ -255,59 +255,63 @@ const VodCategories = () => {
                 </div>
               ) : (
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6">
-                  {visibleItems.map((item) => (
-                    <Link
-                      key={item.id}
-                      to={`/vod/${item.id}?back=${encodeURIComponent(catalogBackPath)}`}
-                      className="group block"
-                    >
-                      <article className="overflow-hidden rounded-xl border border-border/60 bg-card/90 transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-lg">
-                        <div className="relative aspect-[2/3] overflow-hidden">
-                          {item.poster ? (
-                            <img
-                              src={item.poster}
-                              alt={item.name}
-                              loading="lazy"
-                              className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
-                            />
-                          ) : (
-                            <div className={`flex h-full w-full items-center justify-center bg-gradient-to-br ${item.posterGradient ?? getFallbackGradient(item.id)}`}>
-                              <div className="px-4 text-center text-base font-semibold text-white/90 drop-shadow">
-                                <div className="mb-2 text-4xl">🎬</div>
-                                <div>{item.name}</div>
-                              </div>
-                            </div>
-                          )}
-                          <span className="absolute left-2 top-2 rounded-lg bg-black/55 px-2 py-1 text-[11px] font-semibold text-white">
-                            {resolveReleaseYear(item.added)}
-                          </span>
-                          {item.rating && (
-                            <span className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-lg bg-black/55 px-2 py-1 text-[11px] font-semibold text-white">
-                              <Star className="h-3 w-3 fill-current text-yellow-400" />
-                              {item.rating}
-                            </span>
-                          )}
-                        </div>
+                  {visibleItems.map((item) => {
+                    const formattedDuration = formatDuration(item.durationMinutes);
 
-                        <div className="space-y-2 border-t border-border/60 bg-card/95 p-2.5">
-                          <p className="line-clamp-2 text-[15px] font-semibold leading-5">{item.name}</p>
-                          {formatDuration(item.durationMinutes) && (
-                            <div className="inline-flex items-center gap-1 text-[12px] text-muted-foreground">
-                              <Clock3 className="h-3 w-3" />
-                              {formatDuration(item.durationMinutes)}
-                            </div>
-                          )}
-                          <div className="flex flex-wrap gap-1.5 text-[11px]">
-                            {(item.genres?.slice(0, 2) ?? [categoryNameById.get(item.categoryId) ?? 'Film']).map((genre) => (
-                              <span key={`${item.id}-${genre}`} className="rounded-full bg-secondary px-2 py-0.5 text-muted-foreground">
-                                {genre}
+                    return (
+                      <Link
+                        key={item.id}
+                        to={`/vod/${item.id}?back=${encodeURIComponent(catalogBackPath)}`}
+                        className="group block"
+                      >
+                        <article className="overflow-hidden rounded-xl border border-border/60 bg-card/90 transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-lg">
+                          <div className="relative aspect-[2/3] overflow-hidden">
+                            {item.poster ? (
+                              <img
+                                src={item.poster}
+                                alt={item.name}
+                                loading="lazy"
+                                className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+                              />
+                            ) : (
+                              <div className={`flex h-full w-full items-center justify-center bg-gradient-to-br ${item.posterGradient ?? getFallbackGradient(item.id)}`}>
+                                <div className="px-4 text-center text-base font-semibold text-white/90 drop-shadow">
+                                  <div className="mb-2 text-4xl">🎬</div>
+                                  <div>{item.name}</div>
+                                </div>
+                              </div>
+                            )}
+                            <span className="absolute left-2 top-2 rounded-lg bg-black/55 px-2 py-1 text-[11px] font-semibold text-white">
+                              {resolveReleaseYear(item.added)}
+                            </span>
+                            {item.rating && (
+                              <span className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-lg bg-black/55 px-2 py-1 text-[11px] font-semibold text-white">
+                                <Star className="h-3 w-3 fill-current text-yellow-400" />
+                                {item.rating}
                               </span>
-                            ))}
+                            )}
                           </div>
-                        </div>
-                      </article>
-                    </Link>
-                  ))}
+
+                          <div className="space-y-2 border-t border-border/60 bg-card/95 p-2.5">
+                            <p className="line-clamp-2 text-[15px] font-semibold leading-5">{item.name}</p>
+                            {formattedDuration && (
+                              <div className="inline-flex items-center gap-1 text-[12px] text-muted-foreground">
+                                <Clock3 className="h-3 w-3" />
+                                {formattedDuration}
+                              </div>
+                            )}
+                            <div className="flex flex-wrap gap-1.5 text-[11px]">
+                              {(item.genres?.slice(0, 2) ?? [categoryNameById.get(item.categoryId) ?? 'Film']).map((genre) => (
+                                <span key={`${item.id}-${genre}`} className="rounded-full bg-secondary px-2 py-0.5 text-muted-foreground">
+                                  {genre}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        </article>
+                      </Link>
+                    );
+                  })}
                 </div>
               )}
 
