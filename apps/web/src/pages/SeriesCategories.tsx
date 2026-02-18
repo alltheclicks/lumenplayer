@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useSeriesCatalog } from '@/hooks/useSeriesCatalog';
 import { buildCatalogParams } from '@/pages/catalogQueryParams';
+import { formatSeriesCountLabel } from '@/pages/seriesCountLabel';
 
 const ALL_CATEGORY = '__all__';
 const PAGE_SIZE = 60;
@@ -46,22 +47,6 @@ const getStatusBadgeClassName = (value?: string): string => {
   }
 
   return 'bg-emerald-900/80 text-emerald-100';
-};
-
-const formatSeriesCountLabel = (count: number): string => {
-  const absoluteCount = Math.abs(count);
-  const mod10 = absoluteCount % 10;
-  const mod100 = absoluteCount % 100;
-
-  if (mod10 === 1 && mod100 !== 11) {
-    return 'serija';
-  }
-
-  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) {
-    return 'serije';
-  }
-
-  return 'serija';
 };
 
 const SeriesCategories = () => {
