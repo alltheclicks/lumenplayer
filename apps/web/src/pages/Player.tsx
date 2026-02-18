@@ -4,11 +4,9 @@ import { useNavigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import {
   Search,
-  Menu,
   Star,
   LogOut,
   Loader2,
@@ -295,7 +293,6 @@ const Player = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
   const [numericZapBuffer, setNumericZapBuffer] = useState<string | null>(null);
   const [numericZapMatchName, setNumericZapMatchName] = useState<string | null>(null);
@@ -1290,6 +1287,62 @@ const Player = () => {
 
         {/* Main content */}
         <main className="flex-1 flex flex-col">
+          {!isOnDemandSource && (
+            <header className="lg:hidden flex items-center justify-between p-3 bg-card border-b border-border">
+              <button
+                type="button"
+                onClick={() => navigate('/player')}
+                className="flex items-center gap-2"
+              >
+                <div className="w-7 h-7 rounded-lg bg-primary flex items-center justify-center">
+                  <Play className="w-3 h-3 text-primary-foreground fill-current" />
+                </div>
+                <span className="font-bold text-sm text-foreground">
+                  narodna<span className="text-primary">.tv</span>
+                </span>
+              </button>
+
+              {xtreamUserInfo && (
+                <div className="flex items-center gap-2 px-2 py-1 bg-secondary/50 rounded-lg">
+                  {xtreamSubscriptionLabel && (
+                    <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                      <Wifi className="w-3 h-3" />
+                      <span>{xtreamSubscriptionLabel}</span>
+                    </div>
+                  )}
+                  {xtreamSubscriptionLabel && xtreamExpLabel && (
+                    <div className="w-px h-3 bg-border" />
+                  )}
+                  {xtreamExpLabel && (
+                    <div className="flex items-center gap-1 text-[10px] text-primary">
+                      <Calendar className="w-3 h-3" />
+                      <span className="font-medium">{xtreamExpLabel}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => navigate('/player')}
+                >
+                  <Home className="w-4 h-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                  onClick={() => setShowLogoutDialog(true)}
+                >
+                  <LogOut className="w-4 h-4" />
+                </Button>
+              </div>
+            </header>
+          )}
+
           {/* Player area */}
           <div
             ref={containerRef}
@@ -1498,15 +1551,6 @@ const Player = () => {
                       >
                         Pokreni prvi kanal
                       </Button>
-                      {!isOnDemandSource && (
-                        <Button
-                          variant="outline"
-                          className="lg:hidden"
-                          onClick={() => setSidebarOpen(true)}
-                        >
-                          Otvori listu kanala
-                        </Button>
-                      )}
                     </>
                   )}
                 />
@@ -1733,115 +1777,123 @@ const Player = () => {
 
           {/* Mobile channel selector */}
           {!isOnDemandSource ? (
-            <div className="lg:hidden p-4 border-t border-border">
-              {castSender.isAvailable && (
-                <Button
-                  variant={castSender.isConnected ? 'default' : 'outline'}
-                  size="sm"
-                  className="mb-2 w-full"
-                  disabled={castSender.isConnecting}
-                  onClick={() => {
-                    void castSender.toggleCasting();
-                  }}
-                >
-                  <Cast className="mr-2 h-4 w-4" />
-                  {castSender.isConnected ? 'Disconnect Cast' : 'Connect Cast'}
-                </Button>
-              )}
-              {isAirPlaySupported && session.renderer !== 'cast' && (
-                <Button
-                  variant={isAirPlayConnected ? 'default' : 'outline'}
-                  size="sm"
-                  className="mb-2 w-full"
-                  disabled={!isAirPlayAvailable}
-                  onClick={openAirPlayPicker}
-                >
-                  <Airplay className="mr-2 h-4 w-4" />
-                  {isAirPlayConnected ? 'AirPlay Active' : 'Connect AirPlay'}
-                </Button>
-              )}
-              <div className="mb-2">
-                <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  Browse
-                </p>
-                <MediaEntryGrid onSelect={(path) => navigate(path)} />
-              </div>
-              <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
-                <SheetTrigger asChild>
-                  <Button variant="outline" className="w-full gap-2">
-                    <Menu className="w-4 h-4" />
-                    {currentChannel?.name || 'Select Channel'}
-                  </Button>
-                </SheetTrigger>
-                <SheetContent side="bottom" className="h-[80vh]">
-                  <SheetHeader>
-                    <SheetTitle>Channels</SheetTitle>
-                  </SheetHeader>
+            <div className="lg:hidden flex flex-1 min-h-0 flex-col border-t border-border bg-card">
+              <div className="sticky top-0 z-10 bg-card border-b border-border">
+                <div className="p-2">
+                  <div className="grid grid-cols-3 gap-2">
+                    <Button
+                      variant="outline"
+                      className="justify-start h-10 border-emerald-500/35 bg-emerald-500/12 text-emerald-400 hover:bg-emerald-500/20"
+                      onClick={() => navigate('/epg')}
+                    >
+                      <Play className="mr-2 h-4 w-4" />
+                      TV Unazad
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="justify-start h-10 border-amber-500/35 bg-amber-500/12 text-amber-400 hover:bg-amber-500/20"
+                      onClick={() => navigate('/vod')}
+                    >
+                      <Film className="mr-2 h-4 w-4" />
+                      Filmovi
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="justify-start h-10 border-purple-500/35 bg-purple-500/12 text-purple-400 hover:bg-purple-500/20"
+                      onClick={() => navigate('/series')}
+                    >
+                      <Clapperboard className="mr-2 h-4 w-4" />
+                      Serije
+                    </Button>
+                  </div>
+                </div>
 
-                  <div className="mt-4 space-y-4">
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                      <Input
-                        placeholder="Search channels..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="pl-9"
-                      />
-                    </div>
-
-                    <div className="flex gap-1 overflow-x-auto pb-2">
+                <div className="relative p-2 border-t border-border">
+                  <div className="flex gap-1 overflow-x-auto pb-1">
+                    <Button
+                      variant={selectedCategory === null ? 'default' : 'secondary'}
+                      size="sm"
+                      className="shrink-0"
+                      onClick={() => setSelectedCategory(null)}
+                    >
+                      <Tv2 className="mr-1 h-4 w-4" />
+                      Svi kanali
+                    </Button>
+                    <Button
+                      variant={selectedCategory === 'favorites' ? 'default' : 'secondary'}
+                      size="sm"
+                      className="shrink-0"
+                      onClick={() => setSelectedCategory('favorites')}
+                    >
+                      <Star className="mr-1 h-4 w-4" />
+                      Omiljeni
+                    </Button>
+                    {categories.map((category) => (
                       <Button
-                        variant={selectedCategory === null ? 'default' : 'ghost'}
+                        key={category.id}
+                        variant={selectedCategory === category.id ? 'default' : 'secondary'}
                         size="sm"
-                        onClick={() => setSelectedCategory(null)}
+                        className="shrink-0"
+                        onClick={() => setSelectedCategory(category.id)}
                       >
-                        All
+                        {category.name}
                       </Button>
-                      <Button
-                        variant={selectedCategory === 'favorites' ? 'default' : 'ghost'}
-                        size="sm"
-                        onClick={() => setSelectedCategory('favorites')}
-                      >
-                        <Star className="w-4 h-4 mr-1" />
-                        Favorites
-                      </Button>
-                      {categories.map(cat => (
-                        <Button
-                          key={cat.id}
-                          variant={selectedCategory === cat.id ? 'default' : 'ghost'}
-                          size="sm"
-                          onClick={() => setSelectedCategory(cat.id)}
-                        >
-                          {cat.name}
-                        </Button>
-                      ))}
-                    </div>
+                    ))}
+                  </div>
+                  <div className="pointer-events-none absolute inset-y-2 right-0 w-8 bg-gradient-to-l from-card to-transparent" />
+                </div>
 
-                    <ChannelList
-                      className="h-[calc(80vh-200px)]"
-                      channels={filteredChannels}
-                      currentChannelId={currentChannel?.id}
-                      variant="mobile"
-                      onSelectChannel={(channel) => {
-                        switchToLiveChannel(channel);
-                        setSidebarOpen(false);
-                      }}
-                      isFavorite={isFavorite}
-                      onToggleFavorite={toggleFavorite}
+                <div className="p-2 border-t border-border">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Pretraži kanale..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="pl-9 bg-secondary border-border rounded-lg"
                     />
                   </div>
-                </SheetContent>
-              </Sheet>
+                </div>
 
-              <Button
-                variant="ghost"
-                size="sm"
-                className="w-full mt-2"
-                onClick={() => setShowLogoutDialog(true)}
-              >
-                <LogOut className="w-4 h-4 mr-2" />
-                Logout
-              </Button>
+                <div className="p-2 pt-0 space-y-2">
+                  {castSender.isAvailable && (
+                    <Button
+                      variant={castSender.isConnected ? 'default' : 'outline'}
+                      size="sm"
+                      className="w-full"
+                      disabled={castSender.isConnecting}
+                      onClick={() => {
+                        void castSender.toggleCasting();
+                      }}
+                    >
+                      <Cast className="mr-2 h-4 w-4" />
+                      {castSender.isConnected ? 'Prekini cast' : 'Poveži cast'}
+                    </Button>
+                  )}
+                  {isAirPlaySupported && session.renderer !== 'cast' && (
+                    <Button
+                      variant={isAirPlayConnected ? 'default' : 'outline'}
+                      size="sm"
+                      className="w-full"
+                      disabled={!isAirPlayAvailable}
+                      onClick={openAirPlayPicker}
+                    >
+                      <Airplay className="mr-2 h-4 w-4" />
+                      {isAirPlayConnected ? 'AirPlay aktivan' : 'Poveži AirPlay'}
+                    </Button>
+                  )}
+                </div>
+              </div>
+
+              <ChannelList
+                className="flex-1 min-h-0 px-2 pb-3 pt-2"
+                channels={filteredChannels}
+                currentChannelId={currentChannel?.id}
+                variant="mobile"
+                onSelectChannel={switchToLiveChannel}
+                isFavorite={isFavorite}
+                onToggleFavorite={toggleFavorite}
+              />
             </div>
           ) : (
             <div className="lg:hidden border-t border-border p-4">
