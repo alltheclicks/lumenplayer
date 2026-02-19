@@ -21,6 +21,13 @@ export const shouldHoldPauseSyncOnSourceStartup = (
   return currentSourceUrl === pendingAutoplaySourceUrl && sessionWantsPlayback(session);
 };
 
+export const shouldKeepPendingAutoplayOnIdle = (
+  session: SessionState,
+  pendingAutoplaySourceUrl: string | null
+): boolean => (
+  shouldHoldPauseSyncOnSourceStartup(session, pendingAutoplaySourceUrl)
+);
+
 export const shouldShowBlockingPlaybackError = (playbackError: PlaybackError): boolean => (
   playbackError.fatal
 );

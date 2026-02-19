@@ -4,6 +4,7 @@ import type { PlaybackError } from '@lumen/types';
 import {
   shouldClearPendingAutoplayOnPlaybackError,
   sessionWantsPlayback,
+  shouldKeepPendingAutoplayOnIdle,
   shouldShowBlockingPlaybackError,
   shouldHoldPauseSyncOnSourceStartup,
 } from './videoPlaybackSync';
@@ -43,6 +44,17 @@ describe('videoPlaybackSync', () => {
       shouldHoldPauseSyncOnSourceStartup(buildSession({ playback: 'paused' }), session.source?.url ?? null)
     ).toBe(false);
     expect(shouldHoldPauseSyncOnSourceStartup(buildSession({ source: null }), session.source?.url ?? null)).toBe(false);
+  });
+
+  it('keeps pending autoplay marker across transient idle state during source startup', () => {
+    const session = buildSession({ playback: 'playing' });
+    expect(shouldKeepPendingAutoplayOnIdle(session, session.source?.url ?? null)).toBe(true);
+  });
+
+  it('clears pending autoplay marker on idle once startup intent is gone', () => {
+    const playingSession = buildSession({ playback: 'playing' });
+    expect(shouldKeepPendingAutoplayOnIdle(playingSession, 'https://example.com/other.m3u8')).toBe(false);
+    expect(shouldKeepPendingAutoplayOnIdle(buildSession({ playback: 'paused' }), playingSession.source?.url ?? null)).toBe(false);
   });
 
   it('shows blocking overlay only for fatal playback errors', () => {

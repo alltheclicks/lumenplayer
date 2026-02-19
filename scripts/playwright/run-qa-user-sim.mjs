@@ -19,6 +19,7 @@ const run = spawnSync(
     '-c',
     'playwright.config.ts',
     'e2e/qa-series-live-context.spec.ts',
+    'e2e/qa-live-autoplay.spec.ts',
     '--reporter=json',
   ],
   {
@@ -49,6 +50,7 @@ const walk = (suites) => {
           status: result?.status || 'unknown',
           attachments: result?.attachments || [],
           error: result?.error?.message || '',
+          testFile: spec.file || '',
         });
       }
     }
@@ -56,14 +58,16 @@ const walk = (suites) => {
 };
 walk(parsed.suites);
 
-const primary = tests[0];
-let timeline = [];
-let blockers = [];
-if (primary) {
-  const timelineAttachment = primary.attachments.find((att) => att.name === 'qa-timeline');
+const scenarios = tests.map((testResult) => {
+  let scenarioName = testResult.title;
+  let timeline = [];
+  let blockers = [];
+
+  const timelineAttachment = testResult.attachments.find((att) => att.name === 'qa-timeline');
   if (timelineAttachment?.path && existsSync(timelineAttachment.path)) {
     try {
       const content = JSON.parse(readFileSync(timelineAttachment.path, 'utf-8'));
+      scenarioName = content.scenario || scenarioName;
       timeline = content.timeline || [];
       blockers = content.blockers || [];
     } catch {
@@ -71,35 +75,67 @@ if (primary) {
       blockers = [];
     }
   }
-}
 
-const blockedSteps = timeline.filter((item) => item.status === 'blocked').length;
+  return {
+    title: scenarioName,
+    status: testResult.status,
+    timeline,
+    blockers,
+    attachments: testResult.attachments.filter((att) => Boolean(att.path)),
+    error: testResult.error,
+    testFile: testResult.testFile,
+  };
+});
+
+const allTimelineEntries = scenarios.flatMap((scenario) => scenario.timeline);
+const allBlockers = scenarios.flatMap((scenario) => scenario.blockers);
+const blockedSteps = allTimelineEntries.filter((item) => item.status === 'blocked').length;
 const scenarioStatus = (() => {
-  if (!primary) {
+  if (scenarios.length === 0) {
     return 'unknown';
   }
-  if (primary.status !== 'passed') {
-    return primary.status;
+
+  const hasFailedScenario = scenarios.some((scenario) => scenario.status !== 'passed');
+  if (hasFailedScenario) {
+    return scenarios.find((scenario) => scenario.status !== 'passed')?.status ?? 'failed';
   }
-  if (blockedSteps > 0 || blockers.length > 0) {
+
+  if (blockedSteps > 0 || allBlockers.length > 0) {
     return 'passed-with-blockers';
   }
+
   return 'passed';
 })();
 
-const stepLines = timeline.map((item) => {
-  const marker = item.status === 'pass' ? '[PASS]' : item.status === 'blocked' ? '[BLOCKED]' : '[INFO]';
-  return `- ${marker} ${item.step} (${item.code}) | ${item.note} | \`${item.url}\``;
+const scenarioSections = scenarios.flatMap((scenario) => {
+  const stepLines = scenario.timeline.map((item) => {
+    const marker = item.status === 'pass' ? '[PASS]' : item.status === 'blocked' ? '[BLOCKED]' : '[INFO]';
+    return `- ${marker} ${item.step} (${item.code}) | ${item.note} | \`${item.url}\``;
+  });
+
+  const blockerLines = scenario.blockers.length > 0
+    ? scenario.blockers.map((entry) => `- [BLOCKER] ${entry}`)
+    : ['- [INFO] No blockers recorded in this scenario.'];
+
+  return [
+    `## Scenario: ${scenario.title}`,
+    ...stepLines,
+    '',
+    `- Scenario test status: \`${scenario.status}\``,
+    `- Scenario source: \`${scenario.testFile || 'n/a'}\``,
+    '',
+    '### Scenario Blockers',
+    ...blockerLines,
+    '',
+  ];
 });
 
-const blockerLines = blockers.length > 0
-  ? blockers.map((entry) => `- [BLOCKER] ${entry}`)
-  : ['- [INFO] No blockers recorded in this run.'];
+const allAttachments = scenarios
+  .flatMap((scenario) => scenario.attachments)
+  .map((attachment) => `- ${attachment.name}: \`${attachment.path}\``);
 
-const attachmentLines = primary
-  ? primary.attachments
-    .filter((att) => Boolean(att.path))
-    .map((att) => `- ${att.name}: \`${att.path}\``)
+const attachmentLines = allAttachments.length > 0
+  ? allAttachments
   : ['- [INFO] No attachment metadata found.'];
 
 const report = [
@@ -110,13 +146,14 @@ const report = [
   `- Username env set: \`${process.env.E2E_XUI_USERNAME ? 'yes' : 'no'}\``,
   `- Password env set: \`${process.env.E2E_XUI_PASSWORD ? 'yes' : 'no'}\``,
   `- Scenario status: \`${scenarioStatus}\``,
-  `- Timeline totals: pass=${timeline.filter((item) => item.status === 'pass').length}, blocked=${blockedSteps}, info=${timeline.filter((item) => item.status === 'info').length}`,
+  `- Scenarios executed: \`${scenarios.length}\``,
+  `- Timeline totals: pass=${allTimelineEntries.filter((item) => item.status === 'pass').length}, blocked=${blockedSteps}, info=${allTimelineEntries.filter((item) => item.status === 'info').length}`,
   '',
-  '## Scenario: Series episode -> TV Uživo -> Live shell',
-  ...stepLines,
-  '',
-  '## Blockers',
-  ...blockerLines,
+  ...scenarioSections,
+  '## Global Blockers',
+  ...(allBlockers.length > 0
+    ? allBlockers.map((entry) => `- [BLOCKER] ${entry}`)
+    : ['- [INFO] No blockers recorded in this run.']),
   '',
   '## Artifacts',
   ...attachmentLines,
@@ -125,8 +162,8 @@ const report = [
 
 writeFileSync(reportMdPath, report, 'utf-8');
 
-const taskCandidates = blockers.length > 0
-  ? blockers.map((entry) => `- [ ] ${entry}`)
+const taskCandidates = allBlockers.length > 0
+  ? Array.from(new Set(allBlockers)).map((entry) => `- [ ] ${entry}`)
   : ['- [ ] No blockers detected in this run.'];
 
 const tasksReport = [
