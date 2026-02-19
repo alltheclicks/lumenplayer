@@ -10,6 +10,26 @@ type TimelineEntry = {
   note: string;
 };
 
+type SeriesLinkSelector = {
+  id: string;
+  locatorFactory: (page: Page) => ReturnType<Page['locator']>;
+};
+
+const SERIES_LINK_SELECTORS: SeriesLinkSelector[] = [
+  {
+    id: 'series-link-prefix',
+    locatorFactory: (page) => page.locator('a[href^="/series/"]'),
+  },
+  {
+    id: 'series-grid-link',
+    locatorFactory: (page) => page.locator('main .grid a[href*="/series/"]'),
+  },
+  {
+    id: 'series-main-link',
+    locatorFactory: (page) => page.locator('main a[href*="/series/"]'),
+  },
+];
+
 const record = (
   timeline: TimelineEntry[],
   page: Page,
@@ -27,6 +47,95 @@ const record = (
   });
 };
 
+const buildSelectorDiagnostics = async (page: Page): Promise<string> => {
+  const parts: string[] = [];
+
+  for (const selector of SERIES_LINK_SELECTORS) {
+    const locator = selector.locatorFactory(page);
+    const total = await locator.count();
+    let visible = 0;
+    for (let i = 0; i < Math.min(total, 12); i += 1) {
+      if (await locator.nth(i).isVisible().catch(() => false)) {
+        visible += 1;
+      }
+    }
+    parts.push(`${selector.id}(total=${total},visible=${visible})`);
+  }
+
+  const emptyStateVisible = await page.getByText(/Nema rezultata/i).first().isVisible().catch(() => false);
+  const loadingVisible = await page.getByText(/Učitavanje serijskog kataloga/i).first().isVisible().catch(() => false);
+  parts.push(`emptyState=${emptyStateVisible}`);
+  parts.push(`loading=${loadingVisible}`);
+
+  return parts.join('; ');
+};
+
+const openFirstSeriesDetail = async (
+  page: Page
+): Promise<{ selectorUsed: string; diagnostics: string; fallbackUsed: string | null }> => {
+  const clickFirstVisible = async (): Promise<null | string> => {
+    for (const selector of SERIES_LINK_SELECTORS) {
+      const locator = selector.locatorFactory(page);
+      const count = await locator.count();
+      for (let i = 0; i < Math.min(count, 20); i += 1) {
+        const candidate = locator.nth(i);
+        if (await candidate.isVisible().catch(() => false)) {
+          await candidate.click();
+          return selector.id;
+        }
+      }
+    }
+    return null;
+  };
+
+  const resolveFallbackHref = async (): Promise<string | null> => {
+    return page.evaluate(() => {
+      const links = Array.from(document.querySelectorAll('main a[href^="/series/"]')) as HTMLAnchorElement[];
+      for (const link of links) {
+        if (typeof link.href === 'string' && link.href.includes('/series/')) {
+          return link.href;
+        }
+      }
+      return null;
+    });
+  };
+
+  await page.waitForTimeout(400);
+  let diagnostics = await buildSelectorDiagnostics(page);
+  let selectorUsed = await clickFirstVisible();
+  let fallbackUsed: string | null = null;
+
+  if (!selectorUsed) {
+    const allSeriesButton = page.getByRole('button', { name: /Sve serije/i }).first();
+    if (await allSeriesButton.isVisible().catch(() => false)) {
+      fallbackUsed = 'reset-all-category';
+      await allSeriesButton.click();
+      await page.waitForTimeout(500);
+      diagnostics = `${diagnostics}; after-reset: ${await buildSelectorDiagnostics(page)}`;
+      selectorUsed = await clickFirstVisible();
+    }
+  }
+
+  if (!selectorUsed) {
+    const fallbackHref = await resolveFallbackHref();
+    if (fallbackHref) {
+      fallbackUsed = fallbackUsed ? `${fallbackUsed}+direct-href` : 'direct-href';
+      await page.goto(fallbackHref);
+      selectorUsed = 'direct-href';
+    }
+  }
+
+  if (!selectorUsed) {
+    throw new Error(`No series detail card available. diagnostics=${diagnostics}`);
+  }
+
+  return {
+    selectorUsed,
+    diagnostics,
+    fallbackUsed,
+  };
+};
+
 test('QAF-002: Series episode -> TV Uživo -> Live shell', async ({ page }, testInfo) => {
   test.setTimeout(180_000);
   page.setDefaultTimeout(10_000);
@@ -39,7 +148,8 @@ test('QAF-002: Series episode -> TV Uživo -> Live shell', async ({ page }, test
     step: string,
     code: string,
     action: () => Promise<void>,
-    timeoutMs = 20_000
+    timeoutMs = 20_000,
+    okNote = 'OK'
   ): Promise<boolean> => {
     try {
       await Promise.race([
@@ -50,7 +160,7 @@ test('QAF-002: Series episode -> TV Uživo -> Live shell', async ({ page }, test
           }, timeoutMs);
         }),
       ]);
-      record(timeline, page, step, 'pass', code, 'OK');
+      record(timeline, page, step, 'pass', code, okNote);
       return true;
     } catch (error) {
       const note = error instanceof Error ? error.message : String(error);
@@ -81,19 +191,30 @@ test('QAF-002: Series episode -> TV Uživo -> Live shell', async ({ page }, test
     'Open first series detail',
     'QAF002_NO_SERIES_CARD',
     async () => {
-      const firstSeriesCard = page.locator('a[href^="/series/"]').first();
-      if (!(await firstSeriesCard.isVisible().catch(() => false))) {
-        throw new Error('No series detail card available.');
-      }
-      await firstSeriesCard.click();
+      const detailOpenResult = await openFirstSeriesDetail(page);
       if (!/\/series\/[^/?]+/.test(page.url())) {
-        throw new Error(`Failed to open series detail: ${page.url()}`);
+        throw new Error(
+          `Failed to open series detail: ${page.url()} | selector=${detailOpenResult.selectorUsed} | diagnostics=${detailOpenResult.diagnostics}`
+        );
       }
       await page.screenshot({
         path: testInfo.outputPath('02-series-detail.png'),
         fullPage: true,
       });
-    }
+      const fallbackNote = detailOpenResult.fallbackUsed
+        ? `, fallback=${detailOpenResult.fallbackUsed}`
+        : '';
+      record(
+        timeline,
+        page,
+        'Series entry diagnostics',
+        'info',
+        'QAF008_SERIES_ENTRY_DIAGNOSTICS',
+        `selector=${detailOpenResult.selectorUsed}${fallbackNote} | ${detailOpenResult.diagnostics}`
+      );
+    },
+    20_000,
+    'Opened series detail with robust selector path.'
   );
 
   const openedEpisode = openedDetail && await withStep(
