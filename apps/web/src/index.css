@@ -161,6 +161,12 @@
     @apply bg-background text-foreground antialiased;
   }
 
+  @media (min-width: 1024px) {
+    body.player-route-scroll-lock {
+      overflow: hidden;
+    }
+  }
+
   html {
     scroll-behavior: smooth;
   }

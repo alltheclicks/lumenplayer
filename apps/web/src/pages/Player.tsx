@@ -1066,11 +1066,11 @@ const Player = () => {
         <title>{pageTitle}</title>
       </Helmet>
 
-      <div className="flex-1 bg-background flex">
+      <div className="flex flex-1 min-h-0 bg-background lg:h-full lg:overflow-hidden">
         {/* Sidebar for desktop */}
         {!isOnDemandSource ? (
-          <div className="hidden lg:flex h-screen">
-            <aside className="w-[180px] bg-card/50 border-r border-border flex flex-col h-screen">
+          <div className="hidden min-h-0 lg:flex lg:h-full">
+            <aside className="flex h-full w-[180px] flex-col border-r border-border bg-card/50">
               <div className="p-4 flex justify-center border-b border-border">
                 <button
                   type="button"
@@ -1297,7 +1297,7 @@ const Player = () => {
         )}
 
         {/* Main content */}
-        <main className="flex-1 flex flex-col">
+        <main className="flex flex-1 min-h-0 flex-col">
           {!isOnDemandSource && (
             <header className="lg:hidden flex items-center justify-between p-3 bg-card border-b border-border">
               <button
