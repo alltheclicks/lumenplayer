@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import { CalendarDays, ChevronLeft, Clapperboard, Home, Loader2, Search, Star, Tv, Film } from 'lucide-react';
@@ -64,6 +64,7 @@ const SeriesCategories = () => {
   );
   const [searchQuery, setSearchQuery] = useState(initialSearch);
   const [visibleCount, setVisibleCount] = useState(initialVisibleCount);
+  const [failedPosterKeys, setFailedPosterKeys] = useState<Set<string>>(new Set());
   const { data, isLoading, error } = useSeriesCatalog(selectedCategory);
   const switchToLiveMode = useSwitchToLiveMode();
 
@@ -83,6 +84,18 @@ const SeriesCategories = () => {
   useEffect(() => {
     setVisibleCount(PAGE_SIZE);
   }, [searchQuery, selectedCategory]);
+
+  const markPosterAsFailed = useCallback((posterKey: string) => {
+    setFailedPosterKeys((previous) => {
+      if (previous.has(posterKey)) {
+        return previous;
+      }
+
+      const next = new Set(previous);
+      next.add(posterKey);
+      return next;
+    });
+  }, []);
 
   const filteredItems = useMemo(
     () => (data?.items ?? []).filter((item) => {
@@ -253,71 +266,79 @@ const SeriesCategories = () => {
                 </div>
               ) : (
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6">
-                  {visibleItems.map((item) => (
-                    <Link
-                      key={item.id}
-                      to={`/series/${item.id}?back=${encodeURIComponent(catalogBackPath)}`}
-                      className="group block"
-                    >
-                      <article className="overflow-hidden rounded-xl border border-border/60 bg-card/90 transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-lg">
-                        <div className="relative aspect-[2/3] overflow-hidden">
-                          {item.cover ? (
-                            <img
-                              src={item.cover}
-                              alt={item.name}
-                              loading="lazy"
-                              className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
-                            />
-                          ) : (
-                            <div className={`flex h-full w-full items-center justify-center bg-gradient-to-br ${item.posterGradient ?? getFallbackGradient(item.id)}`}>
-                              <div className="px-4 text-center text-base font-semibold text-white/90 drop-shadow">
-                                <div className="mb-2 text-4xl">📺</div>
-                                <div>{item.name}</div>
+                  {visibleItems.map((item) => {
+                    const posterKey = `${item.id}:${item.cover}`;
+                    const shouldShowPoster = item.cover.length > 0 && !failedPosterKeys.has(posterKey);
+
+                    return (
+                      <Link
+                        key={item.id}
+                        to={`/series/${item.id}?back=${encodeURIComponent(catalogBackPath)}`}
+                        className="group block"
+                      >
+                        <article className="overflow-hidden rounded-xl border border-border/60 bg-card/90 transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-lg">
+                          <div className="relative aspect-[2/3] overflow-hidden">
+                            {shouldShowPoster ? (
+                              <img
+                                src={item.cover}
+                                alt={item.name}
+                                loading="lazy"
+                                onError={() => {
+                                  markPosterAsFailed(posterKey);
+                                }}
+                                className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+                              />
+                            ) : (
+                              <div className={`flex h-full w-full items-center justify-center bg-gradient-to-br ${item.posterGradient ?? getFallbackGradient(item.id)}`}>
+                                <div className="px-4 text-center text-base font-semibold text-white/90 drop-shadow">
+                                  <div className="mb-2 text-4xl">📺</div>
+                                  <div>{item.name}</div>
+                                </div>
                               </div>
-                            </div>
-                          )}
+                            )}
 
-                          <span className={`absolute left-2 top-2 rounded-lg px-2 py-1 text-[11px] font-semibold ${getStatusBadgeClassName(item.statusLabel)}`}>
-                            {item.statusLabel ?? 'U toku'}
-                          </span>
-
-                          {item.rating && (
-                            <span className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-lg bg-black/55 px-2 py-1 text-[11px] font-semibold text-white">
-                              <Star className="h-3 w-3 fill-current text-yellow-400" />
-                              {item.rating}
+                            <span className={`absolute left-2 top-2 rounded-lg px-2 py-1 text-[11px] font-semibold ${getStatusBadgeClassName(item.statusLabel)}`}>
+                              {item.statusLabel ?? 'U toku'}
                             </span>
-                          )}
 
-                          {item.seasonsLabel && (
-                            <span className="absolute bottom-2 left-2 rounded-lg bg-black/55 px-2 py-1 text-[11px] font-semibold text-white">
-                              {item.seasonsLabel}
-                            </span>
-                          )}
-                        </div>
+                            {item.rating && (
+                              <span className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-lg bg-black/55 px-2 py-1 text-[11px] font-semibold text-white">
+                                <Star className="h-3 w-3 fill-current text-yellow-400" />
+                                {item.rating}
+                              </span>
+                            )}
 
-                        <div className="space-y-2 border-t border-border/60 bg-card/95 p-2.5">
-                          <p className="line-clamp-2 text-[15px] font-semibold leading-5">{item.name}</p>
-                          <div className="inline-flex items-center gap-1 text-[12px] text-muted-foreground">
-                            <CalendarDays className="h-3 w-3" />
-                            <span>{resolveYearRange(item.yearRange, item.releaseDate)}</span>
-                            {typeof item.episodeCount === 'number' && item.episodeCount > 0 && (
-                              <>
-                                <span>·</span>
-                                <span>{item.episodeCount} ep.</span>
-                              </>
+                            {item.seasonsLabel && (
+                              <span className="absolute bottom-2 left-2 rounded-lg bg-black/55 px-2 py-1 text-[11px] font-semibold text-white">
+                                {item.seasonsLabel}
+                              </span>
                             )}
                           </div>
-                          <div className="flex flex-wrap gap-1.5 text-[11px]">
-                            {(item.genres?.slice(0, 2) ?? [categoryNameById.get(item.categoryId) ?? 'Serija']).map((genre) => (
-                              <span key={`${item.id}-${genre}`} className="rounded-full bg-secondary px-2 py-0.5 text-muted-foreground">
-                                {genre}
-                              </span>
-                            ))}
+
+                          <div className="space-y-2 border-t border-border/60 bg-card/95 p-2.5">
+                            <p className="line-clamp-2 text-[15px] font-semibold leading-5">{item.name}</p>
+                            <div className="inline-flex items-center gap-1 text-[12px] text-muted-foreground">
+                              <CalendarDays className="h-3 w-3" />
+                              <span>{resolveYearRange(item.yearRange, item.releaseDate)}</span>
+                              {typeof item.episodeCount === 'number' && item.episodeCount > 0 && (
+                                <>
+                                  <span>·</span>
+                                  <span>{item.episodeCount} ep.</span>
+                                </>
+                              )}
+                            </div>
+                            <div className="flex flex-wrap gap-1.5 text-[11px]">
+                              {(item.genres?.slice(0, 2) ?? [categoryNameById.get(item.categoryId) ?? 'Serija']).map((genre) => (
+                                <span key={`${item.id}-${genre}`} className="rounded-full bg-secondary px-2 py-0.5 text-muted-foreground">
+                                  {genre}
+                                </span>
+                              ))}
+                            </div>
                           </div>
-                        </div>
-                      </article>
-                    </Link>
-                  ))}
+                        </article>
+                      </Link>
+                    );
+                  })}
                 </div>
               )}
 
