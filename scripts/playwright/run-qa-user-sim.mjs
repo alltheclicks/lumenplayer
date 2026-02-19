@@ -58,6 +58,27 @@ const walk = (suites) => {
 };
 walk(parsed.suites);
 
+const CRITICAL_XTREAM_ACTIONS = new Set([
+  'authenticate',
+  'get_live_categories',
+  'get_live_streams',
+  'get_vod_categories',
+  'get_vod_streams',
+  'get_vod_info',
+  'get_series_categories',
+  'get_series',
+  'get_series_info',
+  'live-stream',
+  'vod-stream',
+  'series-stream',
+]);
+
+const NON_CRITICAL_XTREAM_ACTIONS = new Set([
+  'get_short_epg',
+  'get_simple_data_table',
+  'xmltv',
+]);
+
 const summarizeXtreamActionFailures = (networkFailures) => {
   const grouped = new Map();
 
@@ -93,6 +114,43 @@ const summarizeXtreamActionFailures = (networkFailures) => {
   }
 
   return grouped;
+};
+
+const classifyXtreamFailureSeverity = (failure) => {
+  const action = typeof failure?.action === 'string' ? failure.action.trim() : '';
+  const status = typeof failure?.status === 'number' ? failure.status : null;
+
+  if (status !== null && status >= 500) {
+    return 'critical';
+  }
+
+  if (CRITICAL_XTREAM_ACTIONS.has(action)) {
+    return 'critical';
+  }
+
+  if (NON_CRITICAL_XTREAM_ACTIONS.has(action)) {
+    return 'non-critical';
+  }
+
+  return failure?.kind === 'requestfailed' ? 'critical' : 'non-critical';
+};
+
+const formatActionBreakdownLines = (breakdown, emptyMessage) => {
+  if (breakdown.size === 0) {
+    return [`- [INFO] ${emptyMessage}`];
+  }
+
+  return Array.from(breakdown.entries())
+    .sort(([, left], [, right]) => right.total - left.total)
+    .map(([action, summary]) => {
+      const statusBreakdown = summary.statuses.size > 0
+        ? Array.from(summary.statuses.entries())
+          .sort((left, right) => left[0] - right[0])
+          .map(([status, count]) => `${status}:${count}`)
+          .join(', ')
+        : 'n/a';
+      return `- \`${action}\`: total=${summary.total}, response=${summary.responseFailures}, requestfailed=${summary.requestFailed}, statuses={${statusBreakdown}}`;
+    });
 };
 
 const scenarios = tests.map((testResult) => {
@@ -144,7 +202,15 @@ const scenarios = tests.map((testResult) => {
 const allTimelineEntries = scenarios.flatMap((scenario) => scenario.timeline);
 const allBlockers = scenarios.flatMap((scenario) => scenario.blockers);
 const allNetworkFailures = scenarios.flatMap((scenario) => scenario.networkFailures);
+const criticalNetworkFailures = allNetworkFailures.filter(
+  (failure) => classifyXtreamFailureSeverity(failure) === 'critical'
+);
+const nonCriticalNetworkFailures = allNetworkFailures.filter(
+  (failure) => classifyXtreamFailureSeverity(failure) === 'non-critical'
+);
 const xtreamActionFailureBreakdown = summarizeXtreamActionFailures(allNetworkFailures);
+const criticalActionBreakdown = summarizeXtreamActionFailures(criticalNetworkFailures);
+const nonCriticalActionBreakdown = summarizeXtreamActionFailures(nonCriticalNetworkFailures);
 const blockedSteps = allTimelineEntries.filter((item) => item.status === 'blocked').length;
 const scenarioStatus = (() => {
   if (scenarios.length === 0) {
@@ -156,8 +222,12 @@ const scenarioStatus = (() => {
     return scenarios.find((scenario) => scenario.status !== 'passed')?.status ?? 'failed';
   }
 
-  if (blockedSteps > 0 || allBlockers.length > 0) {
+  if (blockedSteps > 0 || allBlockers.length > 0 || criticalNetworkFailures.length > 0) {
     return 'passed-with-blockers';
+  }
+
+  if (nonCriticalNetworkFailures.length > 0) {
+    return 'passed-with-warnings';
   }
 
   return 'passed';
@@ -194,19 +264,25 @@ const attachmentLines = allAttachments.length > 0
   ? allAttachments
   : ['- [INFO] No attachment metadata found.'];
 
-const actionBreakdownLines = xtreamActionFailureBreakdown.size > 0
-  ? Array.from(xtreamActionFailureBreakdown.entries())
-    .sort(([, left], [, right]) => right.total - left.total)
-    .map(([action, summary]) => {
-      const statusBreakdown = summary.statuses.size > 0
-        ? Array.from(summary.statuses.entries())
-          .sort((left, right) => left[0] - right[0])
-          .map(([status, count]) => `${status}:${count}`)
-          .join(', ')
-        : 'n/a';
-      return `- \`${action}\`: total=${summary.total}, response=${summary.responseFailures}, requestfailed=${summary.requestFailed}, statuses={${statusBreakdown}}`;
-    })
-  : ['- [INFO] No Xtream API failures captured by action in this run.'];
+const actionBreakdownLines = formatActionBreakdownLines(
+  xtreamActionFailureBreakdown,
+  'No Xtream API failures captured by action in this run.'
+);
+const criticalActionBreakdownLines = formatActionBreakdownLines(
+  criticalActionBreakdown,
+  'No critical Xtream API failures in this run.'
+);
+const nonCriticalActionBreakdownLines = formatActionBreakdownLines(
+  nonCriticalActionBreakdown,
+  'No non-critical Xtream API failures in this run.'
+);
+
+const globalBlockers = [
+  ...allBlockers,
+  ...Array.from(criticalActionBreakdown.entries()).map(
+    ([action, summary]) => `NETWORK_CRITICAL ${action}: total=${summary.total}`
+  ),
+];
 
 const report = [
   '# QA User Simulation Report',
@@ -219,14 +295,22 @@ const report = [
   `- Scenarios executed: \`${scenarios.length}\``,
   `- Timeline totals: pass=${allTimelineEntries.filter((item) => item.status === 'pass').length}, blocked=${blockedSteps}, info=${allTimelineEntries.filter((item) => item.status === 'info').length}`,
   `- Xtream API failures captured: \`${allNetworkFailures.length}\``,
+  `- Network severity totals: critical=${criticalNetworkFailures.length}, non-critical=${nonCriticalNetworkFailures.length}`,
   '',
   ...scenarioSections,
+  '## Network Failure Severity',
+  '### Critical',
+  ...criticalActionBreakdownLines,
+  '',
+  '### Non-critical',
+  ...nonCriticalActionBreakdownLines,
+  '',
   '## Xtream API Failure Breakdown (by action)',
   ...actionBreakdownLines,
   '',
   '## Global Blockers',
-  ...(allBlockers.length > 0
-    ? allBlockers.map((entry) => `- [BLOCKER] ${entry}`)
+  ...(globalBlockers.length > 0
+    ? Array.from(new Set(globalBlockers)).map((entry) => `- [BLOCKER] ${entry}`)
     : ['- [INFO] No blockers recorded in this run.']),
   '',
   '## Artifacts',
@@ -236,8 +320,8 @@ const report = [
 
 writeFileSync(reportMdPath, report, 'utf-8');
 
-const taskCandidates = allBlockers.length > 0
-  ? Array.from(new Set(allBlockers)).map((entry) => `- [ ] ${entry}`)
+const taskCandidates = globalBlockers.length > 0
+  ? Array.from(new Set(globalBlockers)).map((entry) => `- [ ] ${entry}`)
   : ['- [ ] No blockers detected in this run.'];
 
 const tasksReport = [
