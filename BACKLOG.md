@@ -17,6 +17,23 @@
 
 ---
 
+## V2 QA Fix Batch — 2026-02-19
+
+Source-of-truth: `docs/V2-QA-FIX-BACKLOG.md`
+
+| ID | Task | Status | PR | Greptile |
+|----|------|--------|----|----------|
+| QAF-003 | Implement local dev API proxy to remove browser CORS failures | done | #162 | 5/5 |
+| QAF-004 | Ensure catalog hooks use same-origin proxied base in dev | done | #163 | 5/5 |
+| QAF-001 | Fix stale episode context when navigating to TV Uživo | done | #164 | 5/5 |
+
+Execution notes:
+- QAF-003 merged in PR #162 after all required checks passed and Greptile final confidence score `5/5`.
+- QAF-004 merged in PR #163 after one valid Greptile test-coverage comment was fixed; final confidence score `5/5` on latest head.
+- QAF-001 merged in PR #164 after Greptile initially reported `3/5`; follow-up fix routed Player home actions through live-mode switch, and final confidence score `5/5` was returned on latest head after delayed check-run completion.
+
+---
+
 ## Phase 0A — Session MVP
 
 ### Step 1: Session package (greenfield, ne dira apps/web)

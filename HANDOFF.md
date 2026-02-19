@@ -1,5 +1,34 @@
 # Handoff — Lumen Player
 
+## Session 2026-02-19 — QAF-003, QAF-004, QAF-001 (ordered batch)
+
+- PRs: #162 (merged), #163 (merged), #164 (merged)
+- Done:
+  - QAF-003:
+    - added Vite dev proxy endpoint `/xui-api` in `apps/web/vite.config.ts` targeting `VITE_XTREAM_SERVER`
+    - added dev-only Xtream credential resolver path so same-origin proxy is used in local development
+    - extended `XtreamCodesService` with optional credential resolver hook for runtime URL remapping
+  - QAF-004:
+    - centralized Xtream dev/prod API base resolution in `apps/web/src/config/xtream.ts`
+    - refactored `apps/web/src/services/xtreamService.ts` to use centralized runtime credential resolver
+    - added resolver unit coverage in `apps/web/src/config/xtream.test.ts`
+  - QAF-001:
+    - added explicit live-mode switch action in `apps/web/src/pages/switchToLiveMode.ts` (`commands.stop()` then navigate `/player`)
+    - wired TV/live entry points in `AppShell`, `SeriesCategories`, `VodCategories`, and `SeriesDetail` to use live-mode switch action
+    - routed Player home actions through `goToPlayerHome` in `apps/web/src/pages/Player.tsx` to clear on-demand context when needed
+    - added focused unit coverage in `apps/web/src/pages/switchToLiveMode.test.ts`
+- Local test gate passed on each task PR:
+  - `pnpm lint`
+  - `pnpm typecheck`
+  - task-focused `vitest` runs for changed behavior
+- Greptile/check notes:
+  - #162: final confidence score `5/5`
+  - #163: one valid Greptile comment (missing production-path resolver test) fixed; final confidence score `5/5`
+  - #164: initial Greptile score `3/5` addressed with follow-up Player navigation fix; Greptile final confidence score `5/5` on latest head (`d40a3d7`) after delayed check completion
+  - GitHub PR checks were green before each merge (`web-quality`, `automation-scripts`, `Greptile Review`)
+
+---
+
 ## Session 2026-02-18 — LP-0371, LP-0372, LP-0373 (ordered batch)
 
 - PRs: #156 (merged), #157 (merged), #158 (merged)
