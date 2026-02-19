@@ -67,6 +67,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { getPlayerOnDemandContext } from '@/pages/playerOnDemandContext';
 import { shouldAutoplaySource } from '@/pages/liveChannelStartupMode';
+import { useSwitchToLiveMode } from '@/pages/switchToLiveMode';
 import { fetchChannelShortEpgPrograms } from '@/services/channelEpg';
 
 type SessionSourceMetadata = {
@@ -274,6 +275,7 @@ const PlayerSurfaceState = ({
 
 const Player = () => {
   const navigate = useNavigate();
+  const switchToLiveMode = useSwitchToLiveMode();
   const playerRef = useRef<VideoPlayerHandle>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -714,6 +716,15 @@ const Player = () => {
     commands.play();
   }, [commands, currentChannelWithEPG]);
 
+  const goToPlayerHome = useCallback(() => {
+    if (isOnDemandSource) {
+      switchToLiveMode();
+      return;
+    }
+
+    navigate('/player');
+  }, [isOnDemandSource, navigate, switchToLiveMode]);
+
   const togglePlayback = useCallback(() => {
     if (!session.source) {
       return;
@@ -1064,7 +1075,7 @@ const Player = () => {
                 <button
                   type="button"
                   className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center hover:scale-105 transition-transform"
-                  onClick={() => navigate('/player')}
+                  onClick={goToPlayerHome}
                   aria-label="Player"
                 >
                   <Play className="w-5 h-5 text-primary-foreground fill-current" />
@@ -1154,7 +1165,7 @@ const Player = () => {
               <div className="p-4 border-t border-border flex flex-col items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => navigate('/player')}
+                  onClick={goToPlayerHome}
                   className="w-10 h-10 rounded-xl flex items-center justify-center text-muted-foreground hover:bg-secondary hover:text-foreground transition-all"
                   title="Početna"
                 >
@@ -1291,7 +1302,7 @@ const Player = () => {
             <header className="lg:hidden flex items-center justify-between p-3 bg-card border-b border-border">
               <button
                 type="button"
-                onClick={() => navigate('/player')}
+                onClick={goToPlayerHome}
                 className="flex items-center gap-2"
               >
                 <div className="w-7 h-7 rounded-lg bg-primary flex items-center justify-center">
@@ -1327,7 +1338,7 @@ const Player = () => {
                   variant="ghost"
                   size="icon"
                   className="h-8 w-8"
-                  onClick={() => navigate('/player')}
+                  onClick={goToPlayerHome}
                 >
                   <Home className="w-4 h-4" />
                 </Button>

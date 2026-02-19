@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { useSeriesCatalog } from '@/hooks/useSeriesCatalog';
 import { buildCatalogParams } from '@/pages/catalogQueryParams';
 import { formatSeriesCountLabel } from '@/pages/seriesCountLabel';
+import { useSwitchToLiveMode } from '@/pages/switchToLiveMode';
 
 const ALL_CATEGORY = '__all__';
 const PAGE_SIZE = 60;
@@ -64,6 +65,7 @@ const SeriesCategories = () => {
   const [searchQuery, setSearchQuery] = useState(initialSearch);
   const [visibleCount, setVisibleCount] = useState(initialVisibleCount);
   const { data, isLoading, error } = useSeriesCatalog(selectedCategory);
+  const switchToLiveMode = useSwitchToLiveMode();
 
   const categories = useMemo(() => data?.categories ?? [], [data?.categories]);
   const categoryNameById = useMemo(
@@ -125,6 +127,10 @@ const SeriesCategories = () => {
           <div className="mx-auto flex h-16 max-w-[1440px] items-center gap-2 px-3 md:gap-4 md:px-6">
             <Link
               to="/player"
+              onClick={(event) => {
+                event.preventDefault();
+                switchToLiveMode();
+              }}
               className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
               aria-label="Nazad na TV"
             >
@@ -150,7 +156,13 @@ const SeriesCategories = () => {
             </div>
 
             <div className="ml-auto hidden items-center gap-1 md:flex">
-              <Link to="/player">
+              <Link
+                to="/player"
+                onClick={(event) => {
+                  event.preventDefault();
+                  switchToLiveMode();
+                }}
+              >
                 <Button variant="ghost" size="sm" className="gap-2">
                   <Tv className="h-4 w-4" />
                   TV Uživo
@@ -325,7 +337,14 @@ const SeriesCategories = () => {
 
         <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-border bg-card/95 backdrop-blur-md pb-[env(safe-area-inset-bottom)] md:hidden">
           <div className="flex items-center justify-around py-2">
-            <Link to="/player" className="flex flex-col items-center gap-1 px-4 py-2 text-muted-foreground transition-colors hover:text-foreground">
+            <Link
+              to="/player"
+              onClick={(event) => {
+                event.preventDefault();
+                switchToLiveMode();
+              }}
+              className="flex flex-col items-center gap-1 px-4 py-2 text-muted-foreground transition-colors hover:text-foreground"
+            >
               <Tv className="h-5 w-5" />
               <span className="text-xs">TV Uživo</span>
             </Link>
