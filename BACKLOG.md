@@ -17,6 +17,34 @@
 
 ---
 
+## Post-V1 QA Stabilization Track (QAF)
+
+> Source: `docs/V2-QA-FIX-BACKLOG.md` and latest local QA report.
+
+| ID | Task | Size | Status | Depends on |
+|----|------|------|--------|------------|
+| QAF-003 | Dev proxy for Xtream API to eliminate local browser CORS failures | M | done | — |
+| QAF-004 | Centralized Xtream base URL resolver + tests | S | done | QAF-003 |
+| QAF-001 | Clear on-demand context when switching to `TV Uživo` | M | done | QAF-003, QAF-004 |
+| QAF-002 | Deterministic e2e scenario: Series episode -> TV Uživo -> Live shell | S | done | QAF-001 |
+| QAF-008 | Harden QA selectors/diagnostics for series detail entry | S | done | QAF-002 |
+| QAF-006 | Fix autoplay mode so live channel actually starts playing | M | done | QAF-001 |
+| QAF-005 | API failure breakdown in QA report by Xtream action | S | planned | QAF-003, QAF-004 |
+| QAF-007 | Separate critical vs non-critical network failures in QA scoring | S | planned | QAF-005 |
+| QAF-009 | Series poster fallback hardening (`onError` placeholder path) | S | planned | — |
+
+Completion notes (2026-02-19):
+- QAF-003 merged via PR #162 (Greptile final `5/5`).
+- QAF-004 merged via PR #163 (Greptile final `5/5` after valid-comment follow-up).
+- QAF-001 merged via PR #164 (Greptile upgraded to final `5/5` after follow-up fix).
+- QAF-002 merged via PR #166; Greptile review start confirmed, but final confidence score was not posted after 2 pings (`@greptileai`, `@greptile-apps`); fallback PR note posted before merge.
+- QAF-008 merged via PR #167; Greptile review start confirmed, but final confidence score was not posted after 2 pings (`@greptileai`, `@greptile-apps`); fallback PR note posted before merge.
+- QAF-006 merged via PR #168; Greptile review start confirmed, but final confidence score was not posted after 2 pings (`@greptileai`, `@greptile-apps`); fallback PR note posted before merge.
+- Batch QA gate executed after merge wave:
+  - Command: `E2E_XUI_USERNAME='fica' E2E_XUI_PASSWORD='fF2024BG2025' ./run-qa-simulation.sh`
+  - Report: `output/playwright/qa-user-sim/QA-REPORT.md`
+  - Result: `passed-with-blockers` (remaining blockers tied to provider/data availability and series episode entry data).
+
 ## Phase 0A — Session MVP
 
 ### Step 1: Session package (greenfield, ne dira apps/web)

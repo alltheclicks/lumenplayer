@@ -1,5 +1,60 @@
 # Handoff — Lumen Player
 
+## Session 2026-02-19 — QAF-002, QAF-008, QAF-006 (ordered batch)
+
+- PRs: #166 (merged), #167 (merged), #168 (merged)
+- Done:
+  - QAF-002:
+    - added QA simulation baseline (Playwright config + global setup) in:
+      - `playwright.config.ts`
+      - `e2e/global-setup.ts`
+      - `scripts/playwright/run-qa-user-sim.mjs`
+      - `run-qa-simulation.sh`
+    - added focused deterministic scenario:
+      - `e2e/qa-series-live-context.spec.ts`
+    - report now exposes explicit scenario block:
+      - `Series episode -> TV Uživo -> Live shell`
+  - QAF-008:
+    - hardened series detail entry reliability in:
+      - `e2e/qa-series-live-context.spec.ts`
+    - delivered:
+      - multi-selector fallback path for first series card
+      - fallback reset path via `Sve serije`
+      - direct-href fallback open when visible card is not available
+      - richer diagnostics in timeline (`selector`, counts, empty/loading flags)
+  - QAF-006:
+    - fixed autoplay startup race in:
+      - `apps/web/src/components/player/VideoPlayer.tsx`
+      - `apps/web/src/components/player/videoPlaybackSync.ts`
+      - `apps/web/src/components/player/videoPlaybackSync.test.ts`
+    - added autoplay-specific QA scenario:
+      - `e2e/qa-live-autoplay.spec.ts`
+    - updated QA report generator to show per-scenario sections and global blockers:
+      - `scripts/playwright/run-qa-user-sim.mjs`
+- Local gates run per task PR:
+  - `pnpm lint`
+  - `pnpm typecheck`
+  - `pnpm exec vitest run apps/web/src/components/player/videoPlaybackSync.test.ts` (QAF-006)
+  - `E2E_XUI_USERNAME='fica' E2E_XUI_PASSWORD='fF2024BG2025' pnpm e2e:qa:simulate`
+- Greptile/check notes:
+  - #166: Greptile review start confirmed via check-run, but final confidence score was not returned after 2 pings (`@greptileai`, `@greptile-apps`); fallback PR note was posted before merge.
+  - #167: Greptile review start confirmed via check-run, but final confidence score was not returned after 2 pings (`@greptileai`, `@greptile-apps`); fallback PR note was posted before merge.
+  - #168: Greptile review start confirmed via check-run, but final confidence score was not returned after 2 pings (`@greptileai`, `@greptile-apps`); fallback PR note was posted before merge.
+  - GitHub PR checks were green before merge (`web-quality`, `automation-scripts`).
+- Mandatory QA gate after batch:
+  - command:
+    - `E2E_XUI_USERNAME='fica' E2E_XUI_PASSWORD='fF2024BG2025' ./run-qa-simulation.sh`
+  - report:
+    - `output/playwright/qa-user-sim/QA-REPORT.md`
+  - key outcome:
+    - status `passed-with-blockers`, `pass=4`, `blocked=3`, `info=2`
+    - active blockers:
+      - `QAF006_MANUAL_EXPECTED_PAUSED`: no channel rows available for manual validation in this run
+      - `QAF006_AUTOPLAY_EXPECTED_PLAYING`: no channel rows available for autoplay validation in this run
+      - `QAF002_PLAY_EPISODE_FAILED`: no episode play CTA visible for selected series detail in this run
+
+---
+
 ## Session 2026-02-18 — LP-0371, LP-0372, LP-0373 (ordered batch)
 
 - PRs: #156 (merged), #157 (merged), #158 (merged)
