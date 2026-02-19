@@ -32,6 +32,7 @@ import type { VideoPlayerHandle } from '@/components/player/VideoPlayer';
 import { IdleTimer, SeekEngine, type SeekDirection } from '@lumen/player-core';
 import { formatDuration, formatTime } from '@lumen/core';
 import { shouldRunControlsIdleTimer } from './controlsIdlePolicy';
+import { resolveCatchUpEmptyStateReason } from './catchUpEmptyState';
 
 interface PlayerControlsProps {
   channel: PlayerChannel;
@@ -184,6 +185,10 @@ const PlayerControls = ({
   const catchUpByDate = groupProgramsByDate(channel.epg);
   const sortedDates = Array.from(catchUpByDate.keys()).sort((a, b) =>
     new Date(b).getTime() - new Date(a).getTime()
+  );
+  const catchUpEmptyStateReason = useMemo(
+    () => resolveCatchUpEmptyStateReason(channel),
+    [channel]
   );
   const hasMultipleAudioTracks = audioTracks.length > 1;
   const hasSubtitleTracks = subtitleTracks.length > 0;
@@ -1002,7 +1007,10 @@ const PlayerControls = ({
                 {sortedDates.length === 0 ? (
                   <div className="text-center text-muted-foreground py-8">
                     <Clock className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                    <p>Nema dostupnih snimaka</p>
+                    <p className="font-medium">{catchUpEmptyStateReason.title}</p>
+                    <p className="mt-1 text-xs text-muted-foreground/90">
+                      {catchUpEmptyStateReason.description}
+                    </p>
                   </div>
                 ) : (
                   sortedDates.map(dateKey => {
