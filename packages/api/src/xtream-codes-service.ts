@@ -15,13 +15,20 @@ export class XtreamCodesService {
   private static readonly VOD_CATEGORY_FETCH_CONCURRENCY = 8;
   private credentials: XtreamCredentials | null = null;
   private http: HttpClient;
+  private readonly resolveCredentials: (credentials: XtreamCredentials) => XtreamCredentials;
 
-  constructor(http: HttpClient) {
+  constructor(
+    http: HttpClient,
+    options: {
+      resolveCredentials?: (credentials: XtreamCredentials) => XtreamCredentials;
+    } = {},
+  ) {
     this.http = http;
+    this.resolveCredentials = options.resolveCredentials ?? ((credentials) => credentials);
   }
 
   setCredentials(credentials: XtreamCredentials | null): void {
-    this.credentials = credentials;
+    this.credentials = credentials ? this.resolveCredentials(credentials) : null;
   }
 
   getCredentials(): XtreamCredentials | null {
