@@ -1,6 +1,6 @@
 import type { Program, XtreamEPGItem } from '@lumen/types';
 
-const BASE64_PATTERN = /^[A-Za-z0-9+/]+={0,2}$/;
+const BASE64_PATTERN = /^[A-Za-z0-9+/_-]+={0,2}$/;
 
 const HTML_ENTITIES: Record<string, string> = {
   amp: '&',
@@ -49,6 +49,20 @@ const CP1252_EXTENDED_MAP = new Map<string, number>([
 ]);
 
 const normalizeWhitespace = (value: string): string => value.replace(/\s+/g, ' ').trim();
+
+const normalizeBase64Value = (value: string): string => {
+  const withoutWhitespace = value.replace(/\s+/g, '');
+  const normalized = withoutWhitespace
+    .replace(/-/g, '+')
+    .replace(/_/g, '/');
+
+  const paddingRemainder = normalized.length % 4;
+  if (paddingRemainder === 0) {
+    return normalized;
+  }
+
+  return `${normalized}${'='.repeat(4 - paddingRemainder)}`;
+};
 
 const decodeHtmlEntities = (value: string): string => (
   value.replace(/&(#x?[0-9a-fA-F]+|[a-zA-Z]+);/g, (_, entity: string) => {
@@ -133,18 +147,18 @@ const repairMojibake = (value: string): string => {
 
 const tryDecodeBase64ToUtf8 = (value: string): string | null => {
   const trimmed = value.trim();
+  const normalized = normalizeBase64Value(trimmed);
+
   if (
-    trimmed.length < 8 ||
-    trimmed.length % 4 !== 0 ||
-    !BASE64_PATTERN.test(trimmed) ||
-    (!trimmed.includes('=') && !trimmed.includes('+') && !trimmed.includes('/')) ||
+    normalized.length < 8 ||
+    !BASE64_PATTERN.test(normalized) ||
     typeof globalThis.atob !== 'function'
   ) {
     return null;
   }
 
   try {
-    const binary = globalThis.atob(trimmed);
+    const binary = globalThis.atob(normalized);
     const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
     const decoded = new TextDecoder('utf-8', { fatal: false }).decode(bytes).trim();
     if (!decoded || hasDisallowedControlChars(decoded)) {
@@ -157,6 +171,31 @@ const tryDecodeBase64ToUtf8 = (value: string): string | null => {
   }
 };
 
+const decodeUnicodeEscapes = (value: string): string => {
+  if (!/\\u[0-9a-fA-F]{4}|\\x[0-9a-fA-F]{2}|\\[nrt]/.test(value)) {
+    return value;
+  }
+
+  return value
+    .replace(/\\u([0-9a-fA-F]{4})/g, (_, hex: string) => String.fromCharCode(Number.parseInt(hex, 16)))
+    .replace(/\\x([0-9a-fA-F]{2})/g, (_, hex: string) => String.fromCharCode(Number.parseInt(hex, 16)))
+    .replace(/\\n/g, '\n')
+    .replace(/\\r/g, '\r')
+    .replace(/\\t/g, '\t');
+};
+
+const tryDecodePercentEncoded = (value: string): string => {
+  if (!/%[0-9a-fA-F]{2}/.test(value)) {
+    return value;
+  }
+
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+};
+
 export const normalizeEpgText = (value: string | null | undefined, fallback = ''): string => {
   const initial = typeof value === 'string' ? value.trim() : '';
   if (!initial) {
@@ -165,7 +204,9 @@ export const normalizeEpgText = (value: string | null | undefined, fallback = ''
 
   const base64Decoded = tryDecodeBase64ToUtf8(initial);
   const htmlDecoded = decodeHtmlEntities(base64Decoded ?? initial);
-  const repairedText = repairMojibake(htmlDecoded);
+  const unescapedText = decodeUnicodeEscapes(htmlDecoded);
+  const decodedPercentText = tryDecodePercentEncoded(unescapedText);
+  const repairedText = repairMojibake(decodedPercentText);
   const normalized = normalizeWhitespace(repairedText);
 
   return normalized || fallback;
