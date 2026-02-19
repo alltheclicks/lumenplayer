@@ -61,6 +61,7 @@ interface PendingSeekInteraction {
 const LONG_PRESS_THRESHOLD_MS = 250;
 const CONTROLS_IDLE_TIMEOUT_MS = 3000;
 const CONTROLS_IDLE_GRACE_MS = 1000;
+const CATCH_UP_REASON_REFRESH_MS = 60_000;
 
 const parseSessionSourceMetadata = (
   metadata: Record<string, unknown> | undefined
@@ -137,6 +138,7 @@ const PlayerControls = ({
   const [isPictureInPictureSupported, setIsPictureInPictureSupported] = useState(false);
   const [isPictureInPicture, setIsPictureInPicture] = useState(false);
   const [openDays, setOpenDays] = useState<string[]>([]);
+  const [catchUpReasonNowMs, setCatchUpReasonNowMs] = useState(() => Date.now());
   const [hoverPosition, setHoverPosition] = useState<number | null>(null);
   const [isSeeking, setIsSeeking] = useState(false);
   const [seekPreviewPosition, setSeekPreviewPosition] = useState<number | null>(null);
@@ -187,8 +189,8 @@ const PlayerControls = ({
     new Date(b).getTime() - new Date(a).getTime()
   );
   const catchUpEmptyStateReason = useMemo(
-    () => resolveCatchUpEmptyStateReason(channel),
-    [channel]
+    () => resolveCatchUpEmptyStateReason(channel, new Date(catchUpReasonNowMs)),
+    [channel, catchUpReasonNowMs]
   );
   const hasMultipleAudioTracks = audioTracks.length > 1;
   const hasSubtitleTracks = subtitleTracks.length > 0;
@@ -379,6 +381,16 @@ const PlayerControls = ({
       unsubscribe();
     };
   }, [playerRef, session.source, syncSubtitleTracks]);
+
+  useEffect(() => {
+    const intervalId = globalThis.setInterval(() => {
+      setCatchUpReasonNowMs(Date.now());
+    }, CATCH_UP_REASON_REFRESH_MS);
+
+    return () => {
+      globalThis.clearInterval(intervalId);
+    };
+  }, []);
 
   useEffect(() => {
     if (!session.source) {
