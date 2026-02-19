@@ -1,5 +1,110 @@
 # Handoff — Lumen Player
 
+## Session 2026-02-19 — QAF-014, QAF-010, QAF-012 (ordered batch)
+
+- Context:
+  - Source-of-truth execution order from stabilization track continued after already-merged `QAF-002`, `QAF-008`, `QAF-006` on `main`.
+  - This batch executed next ready bugfix tasks in order: `QAF-014 -> QAF-010 -> QAF-012`.
+- PRs:
+  - #171 (`QAF-014`) merged, Greptile `5/5`
+  - #172 (`QAF-010`) merged, Greptile `5/5`
+  - #173 (`QAF-012`) merged, Greptile `5/5`
+- Done:
+  - QAF-014:
+    - restored live playback resume after PiP exit in `apps/web/src/components/player/VideoPlayer.tsx`
+    - added PiP resume decision logic + focused tests in:
+      - `apps/web/src/components/player/videoPlaybackSync.ts`
+      - `apps/web/src/components/player/videoPlaybackSync.test.ts`
+  - QAF-010:
+    - enabled deterministic idle auto-hide behavior for non-fullscreen live controls in:
+      - `apps/web/src/components/player/PlayerControls.tsx`
+      - `apps/web/src/components/player/controlsIdlePolicy.ts`
+      - `apps/web/src/components/player/controlsIdlePolicy.test.ts`
+  - QAF-012:
+    - locked desktop player-route page scroll and constrained shell/player layout overflow in:
+      - `apps/web/src/components/layout/AppShell.tsx`
+      - `apps/web/src/components/layout/playerRouteLayout.ts`
+      - `apps/web/src/components/layout/playerRouteLayout.test.ts`
+      - `apps/web/src/pages/Player.tsx`
+      - `apps/web/src/index.css`
+- Local task gates passed per task PR:
+  - `pnpm exec vitest run ...` (task-focused suites)
+  - `pnpm lint`
+  - `pnpm typecheck`
+- Greptile/check notes:
+  - Review start confirmation was recorded on each PR via `👀` reaction and/or `Greptile Review` check-run.
+  - No valid blocking review comments remained before merge.
+- QA gate run (post-batch):
+  - command:
+    - `E2E_XUI_USERNAME='fica' E2E_XUI_PASSWORD='fF2024BG2025' ./run-qa-simulation.sh`
+  - artifacts:
+    - `output/playwright/qa-user-sim/QA-REPORT.md` (timestamp `2026-02-19T15:16:59.837Z`)
+    - `output/playwright/qa-user-sim/results.json`
+  - outcome:
+    - script exits with code `1`
+    - report summary shows `Scenario status: unknown` / `Scenarios executed: 0`
+    - underlying error in `results.json`: Playwright loader conflict (`Requiring @playwright/test second time`) referencing local `.codex/worktrees/QA-GATE` context
+  - interpretation:
+    - QA gate evidence is currently invalid due tooling/runtime setup issue, not due functional regression signal from executed scenarios.
+
+---
+
+## Session 2026-02-19 — Intake triage alignment (`WORKFLOW-LLM-QA.md`)
+
+- Context:
+  - Manual owner-reported playback/UI edge cases were captured as intake bugs (`BUG-20260219-01..06`) in `docs/V2-QA-FIX-BACKLOG.md`.
+- Done:
+  - Applied formal triage conversion per workflow rules:
+    - `BUG-20260219-01` -> `QAF-006`
+    - `BUG-20260219-02` -> `QAF-010`
+    - `BUG-20260219-03` -> `QAF-011`
+    - `BUG-20260219-04` -> `QAF-012`
+    - `BUG-20260219-05` -> `QAF-013`
+    - `BUG-20260219-06` -> `QAF-014`
+  - Expanded stabilization task set in both:
+    - `docs/V2-QA-FIX-BACKLOG.md` (active table + triage snapshot + new QAF scopes + updated execution order)
+    - `BACKLOG.md` (Post-V1 QA Stabilization Track rows)
+- Current execution priority (next batch start point):
+  - `QAF-002 -> QAF-008 -> QAF-006 -> QAF-014 -> QAF-010 -> QAF-012`
+- Notes:
+  - This session was docs/triage alignment only; no code fix merged in this step.
+
+---
+
+## Session 2026-02-19 — QAF-003, QAF-004, QAF-001 + alignment retest
+
+- Upstream batch status (reported + verified on `origin/main`):
+  - PR #162 (`QAF-003`) merged, Greptile `5/5`
+  - PR #163 (`QAF-004`) merged, Greptile `5/5` after valid-comment fix
+  - PR #164 (`QAF-001`) merged, Greptile upgraded from `3/5` to final `5/5` after follow-up fix
+  - Docs-sync PR #165 open (`BACKLOG.md`, `HANDOFF.md`)
+- Code-level verification:
+  - `origin/main` contains all expected QAF files/changes:
+    - `apps/web/src/pages/switchToLiveMode.ts`
+    - `apps/web/src/pages/switchToLiveMode.test.ts`
+    - `apps/web/src/config/xtream.test.ts`
+    - proxied Xtream updates in `apps/web/vite.config.ts`, `apps/web/src/services/xtreamService.ts`, `packages/api/src/xtream-codes-service.ts`
+- Local alignment action:
+  - local `main` fast-forwarded to `origin/main` (`4e34f98` -> `0506862`) using `git pull --rebase --autostash origin main`
+- QA retest after alignment:
+  - command:
+    - `E2E_XUI_USERNAME='fica' E2E_XUI_PASSWORD='fF2024BG2025' ./run-qa-simulation.sh`
+  - report:
+    - `output/playwright/qa-user-sim/QA-REPORT.md` (timestamp `2026-02-19T13:08:33.082Z`)
+  - key outcome:
+    - status `passed-with-blockers`, `pass=14`, `blocked=5`
+    - CORS improved (`cors=0` in console/network health step), so QAF-003/QAF-004 baseline is effective
+    - remaining blockers for next wave:
+      - series episode entry selector/path stability
+      - episode->live validation path not reached in current scenario
+      - manual startup playback step lacking channel-row availability in this run
+      - autoplay still paused in autoplay mode
+      - residual network failures/429 pressure still present
+- Next recommended execution order:
+  - QAF-002 -> QAF-008 -> QAF-006 -> QAF-005 -> QAF-007 -> QAF-009
+
+---
+
 ## Session 2026-02-18 — LP-0371, LP-0372, LP-0373 (ordered batch)
 
 - PRs: #156 (merged), #157 (merged), #158 (merged)
