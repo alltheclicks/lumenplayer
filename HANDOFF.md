@@ -1,5 +1,52 @@
 # Handoff — Lumen Player
 
+## Session 2026-02-19 — QAF-011, QAF-005, QAF-007, QAF-013 (ordered batch)
+
+- Context:
+  - Executed next ready stabilization tasks in strict order with dependency gating:
+    - `QAF-011 -> QAF-005 -> QAF-007 -> QAF-013`
+  - Git/PR/merge was run task-by-task (no parallel merges), with sync to latest `main` before each next task.
+- PRs:
+  - #175 (`QAF-011`) merged, Greptile `5/5`
+  - #176 (`QAF-005`) merged, Greptile `5/5`
+  - #177 (`QAF-007`) merged, Greptile final `5/5` after one remediation commit
+  - #178 (`QAF-013`) merged, Greptile final `5/5` after one remediation commit
+- Done:
+  - QAF-011:
+    - hardened live EPG text normalization in:
+      - `apps/web/src/services/epgProgramMapper.ts`
+      - `apps/web/src/services/epgProgramMapper.test.ts`
+    - added robust decoding paths (unpadded/url-safe base64, escaped unicode, percent-encoded values).
+  - QAF-005:
+    - introduced Xtream network failure capture for QA scenarios via:
+      - `e2e/qaNetworkTracker.ts`
+      - `e2e/qa-live-autoplay.spec.ts`
+      - `e2e/qa-series-live-context.spec.ts`
+    - extended QA report action-level failure breakdown in:
+      - `scripts/playwright/run-qa-user-sim.mjs`
+  - QAF-007:
+    - added critical vs non-critical network failure classification and scoring split in:
+      - `scripts/playwright/run-qa-user-sim.mjs`
+    - propagated critical network failures into blocker/task-candidate outputs.
+  - QAF-013:
+    - clarified fullscreen catch-up empty-state reasons in:
+      - `apps/web/src/components/player/catchUpEmptyState.ts`
+      - `apps/web/src/components/player/PlayerControls.tsx`
+      - `apps/web/src/components/player/catchUpEmptyState.test.ts`
+    - added periodic reason refresh to keep time-dependent empty-state accurate.
+- Local gates per task PR:
+  - `pnpm lint`
+  - `pnpm typecheck`
+  - focused tests:
+    - `pnpm exec vitest run apps/web/src/services/epgProgramMapper.test.ts` (QAF-011)
+    - `pnpm exec vitest run apps/web/src/components/player/catchUpEmptyState.test.ts` (QAF-013)
+- Greptile/check notes:
+  - Review start was explicitly confirmed on each PR via `Greptile Review` check-run entering in-progress.
+  - All valid Greptile comments were remediated on-task before merge.
+  - QAF-013 re-review experienced delayed finalization; two pings were posted on latest head before final score arrived (`5/5`), so no fallback/no-score path was used.
+
+---
+
 ## Session 2026-02-19 — QAF-014, QAF-010, QAF-012 (ordered batch)
 
 - Context:
