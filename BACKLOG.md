@@ -17,6 +17,42 @@
 
 ---
 
+## Post-V1 QA Stabilization Track (QAF)
+
+> Source: `docs/V2-QA-FIX-BACKLOG.md` and latest local QA report.
+
+| ID | Task | Size | Status | Depends on |
+|----|------|------|--------|------------|
+| QAF-003 | Dev proxy for Xtream API to eliminate local browser CORS failures | M | done | — |
+| QAF-004 | Centralized Xtream base URL resolver + tests | S | done | QAF-003 |
+| QAF-001 | Clear on-demand context when switching to `TV Uživo` | M | done | QAF-003, QAF-004 |
+| QAF-002 | Deterministic e2e scenario: Series episode -> TV Uživo -> Live shell | S | done | QAF-001 |
+| QAF-008 | Harden QA selectors/diagnostics for series detail entry | S | done | QAF-002 |
+| QAF-006 | Fix autoplay mode so live channel actually starts playing | M | done | QAF-001 |
+| QAF-014 | Restore live playback resume when returning from PiP | S | done | QAF-006 |
+| QAF-010 | Fix player control overlay auto-hide behavior on idle | S | done | — |
+| QAF-012 | Prevent desktop player page vertical scroll drift/dead-space | S | done | — |
+| QAF-011 | Fix EPG gibberish regression in live program blocks | S | planned | — |
+| QAF-005 | API failure breakdown in QA report by Xtream action | S | planned | QAF-003, QAF-004 |
+| QAF-007 | Separate critical vs non-critical network failures in QA scoring | S | planned | QAF-005 |
+| QAF-013 | Clarify catch-up empty-state reason in fullscreen panel | S | planned | QAF-005 |
+| QAF-009 | Series poster fallback hardening (`onError` placeholder path) | S | planned | — |
+
+Completion notes (2026-02-19):
+- QAF-003 merged via PR #162.
+- QAF-004 merged via PR #163.
+- QAF-001 merged via PR #164.
+- QAF-002 merged via PR #166.
+- QAF-008 merged via PR #167.
+- QAF-006 merged via PR #168.
+- QAF-014 merged via PR #171.
+- QAF-010 merged via PR #172.
+- QAF-012 merged via PR #173.
+- Manual intake triage (`BUG-20260219-01..06`) converted into `QAF-010..QAF-014` follow-up tasks in `docs/V2-QA-FIX-BACKLOG.md`.
+- QA gate rerun command (`E2E_XUI_USERNAME='fica' E2E_XUI_PASSWORD='fF2024BG2025' ./run-qa-simulation.sh`) currently exits with Playwright loader conflict (`Requiring @playwright/test second time`) in local `.codex/worktrees/QA-GATE` context; needs QA tooling follow-up before using this report as pass/fail signal.
+
+---
+
 ## Phase 0A — Session MVP
 
 ### Step 1: Session package (greenfield, ne dira apps/web)
@@ -317,6 +353,28 @@ Completion notes (2026-02-17):
 
 Completion notes (2026-02-17):
 - LP-0003 delivered focused unit coverage for `@lumen/core` channel/EPG/time helpers in PR #139; Greptile final confidence score `5/5`.
+
+---
+
+## Intake — Untriaged Ideas
+
+Use this section for quick idea capture before formal planning.
+
+ID format:
+- `IDEA-YYYYMMDD-XX` (example: `IDEA-20260219-01`)
+
+Template:
+
+```md
+### IDEA-YYYYMMDD-XX
+- Title:
+- Context:
+- User value:
+- Evidence/notes:
+- Reporter:
+- Timestamp:
+- Status: idea
+```
 
 ---
 
