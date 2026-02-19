@@ -189,58 +189,54 @@ Template:
 
 ## Active tasks (granular)
 
+Current snapshot (aligned with `origin/main` + merged PR history on GitHub): all QAF tasks are completed.
+
 | ID | Title | Area | Severity | Status |
 |---|---|---|---|---|
 | QAF-001 | Fix stale episode context when navigating to TV Uživo | Player Session/Navigation | P0 | done |
-| QAF-002 | Add deterministic test for `Series episode -> TV Uživo -> Live shell` | E2E QA | P0 | open |
+| QAF-002 | Add deterministic test for `Series episode -> TV Uživo -> Live shell` | E2E QA | P0 | done |
 | QAF-003 | Implement local dev API proxy to remove browser CORS failures | Dev Networking | P0 | done |
 | QAF-004 | Ensure catalog hooks use same-origin proxied base in dev | Data Layer | P0 | done |
-| QAF-005 | Add network diagnostics panel in QA report for `player_api.php` failures | QA Tooling | P1 | open |
-| QAF-006 | Fix live autoplay behavior (`autoplay` mode should actually play) | Player Playback | P1 | open |
-| QAF-007 | Separate logo/image failures from stream/API failures in QA scoring | QA Tooling | P2 | open |
-| QAF-008 | Improve series detail entry selector reliability in QA flow | E2E QA | P2 | open |
-| QAF-009 | Handle broken series posters with robust image fallback | Series UI | P3 | open |
-| QAF-010 | Fix player control overlay auto-hide behavior on idle | Player UI/Controls | P2 | open |
-| QAF-011 | Fix EPG gibberish text regression in live program blocks | EPG/Data Normalization | P1 | open |
-| QAF-012 | Prevent whole player page vertical scroll drift in desktop layout | Player Layout/Scroll Lock | P1 | open |
-| QAF-013 | Clarify/fix catch-up panel behavior when no recordings are shown | Catch-up UX/Data | P2 | open |
-| QAF-014 | Resume live playback automatically after returning from PiP | Player Playback/PiP | P1 | open |
+| QAF-005 | Add network diagnostics panel in QA report for `player_api.php` failures | QA Tooling | P1 | done |
+| QAF-006 | Fix live autoplay behavior (`autoplay` mode should actually play) | Player Playback | P1 | done |
+| QAF-007 | Separate logo/image failures from stream/API failures in QA scoring | QA Tooling | P2 | done |
+| QAF-008 | Improve series detail entry selector reliability in QA flow | E2E QA | P2 | done |
+| QAF-009 | Handle broken series posters with robust image fallback | Series UI | P3 | done |
+| QAF-010 | Fix player control overlay auto-hide behavior on idle | Player UI/Controls | P2 | done |
+| QAF-011 | Fix EPG gibberish text regression in live program blocks | EPG/Data Normalization | P1 | done |
+| QAF-012 | Prevent whole player page vertical scroll drift in desktop layout | Player Layout/Scroll Lock | P1 | done |
+| QAF-013 | Clarify/fix catch-up panel behavior when no recordings are shown | Catch-up UX/Data | P2 | done |
+| QAF-014 | Resume live playback automatically after returning from PiP | Player Playback/PiP | P1 | done |
 
 ## Completion notes (2026-02-19)
 
-- QAF-003
-  - PR: `#162` (merged)
-  - Greptile: `5/5`
-  - Scope delivered in:
-    - `apps/web/vite.config.ts`
-    - `apps/web/src/services/xtreamService.ts`
-    - `packages/api/src/xtream-codes-service.ts`
-- QAF-004
-  - PR: `#163` (merged)
-  - Greptile: `5/5` after resolving one valid comment before merge
-  - Scope delivered in:
-    - `apps/web/src/config/xtream.ts`
-    - `apps/web/src/config/xtream.test.ts`
-    - `apps/web/src/services/xtreamService.ts`
-- QAF-001
-  - PR: `#164` (merged)
-  - Greptile: initial `3/5`, final `5/5` after follow-up fix
-  - Scope delivered in:
-    - `apps/web/src/pages/switchToLiveMode.ts`
-    - `apps/web/src/pages/switchToLiveMode.test.ts`
-    - `apps/web/src/pages/Player.tsx`
-    - `apps/web/src/components/layout/AppShell.tsx`
-    - `apps/web/src/pages/SeriesCategories.tsx`
-    - `apps/web/src/pages/VodCategories.tsx`
-    - `apps/web/src/pages/SeriesDetail.tsx`
-
-- Retest snapshot after merge batch (`2026-02-19T13:08:33Z`, localhost QA run):
-  - CORS blockers improved from previous run (`cors=0` in `Console/network health` step).
-  - Remaining blockers moved to next tasks: `QAF-002`, `QAF-005`, `QAF-006`, `QAF-007`, `QAF-008`.
+- GitHub verification snapshot:
+  - merged PRs: `#162`, `#163`, `#164`, `#166`, `#167`, `#168`, `#171`, `#172`, `#173`, `#175`, `#176`, `#177`, `#178`, `#180`
+  - all QAF IDs `QAF-001..QAF-014` are completed and merged.
+- Completion map:
+  - `QAF-001` -> PR `#164` (Greptile final `5/5` after follow-up remediation)
+  - `QAF-002` -> PR `#166` (merged)
+  - `QAF-003` -> PR `#162` (Greptile `5/5`)
+  - `QAF-004` -> PR `#163` (Greptile `5/5`)
+  - `QAF-005` -> PR `#176` (Greptile `5/5`)
+  - `QAF-006` -> PR `#168` (merged)
+  - `QAF-007` -> PR `#177` (Greptile final `5/5` after remediation)
+  - `QAF-008` -> PR `#167` (Greptile `5/5`)
+  - `QAF-009` -> PR `#180` (Greptile `5/5`)
+  - `QAF-010` -> PR `#172` (Greptile `5/5`)
+  - `QAF-011` -> PR `#175` (Greptile `5/5`)
+  - `QAF-012` -> PR `#173` (Greptile `5/5`)
+  - `QAF-013` -> PR `#178` (Greptile final `5/5` after remediation)
+  - `QAF-014` -> PR `#171` (Greptile `5/5`)
+- QA gate state after implementation wave:
+  - last noted local `run-qa-simulation.sh` rerun in logs is blocked by Playwright loader conflict (`Requiring @playwright/test second time`) in `.codex/worktrees/QA-GATE`.
+  - this is tracked as QA tooling/runtime follow-up; it is not a remaining functional QAF product bug task.
 
 ---
 
-## Task details + ready prompts
+## Task details + prompt archive (historical)
+
+All QAF tasks are completed; sections below are kept as historical implementation archive.
 
 ### QAF-001
 - Problem:
@@ -576,7 +572,7 @@ Requirements:
 
 ---
 
-## Execution order suggestion
+## Execution order (historical, completed)
 
 1. QAF-002  
 2. QAF-008  
@@ -590,4 +586,4 @@ Requirements:
 10. QAF-013  
 11. QAF-009
 
-Rationale: after merged baseline fixes (`QAF-001/003/004`), next priority is deterministic episode-live proof and core playback continuity, then control/layout regressions, then diagnostics/scoring clarity, then catch-up/message polish.
+Rationale (historical): after merged baseline fixes (`QAF-001/003/004`), priority was deterministic episode-live proof and core playback continuity, then control/layout regressions, then diagnostics/scoring clarity, then catch-up/message polish.
