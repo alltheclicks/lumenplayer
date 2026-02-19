@@ -32,10 +32,10 @@
 | QAF-014 | Restore live playback resume when returning from PiP | S | done | QAF-006 |
 | QAF-010 | Fix player control overlay auto-hide behavior on idle | S | done | — |
 | QAF-012 | Prevent desktop player page vertical scroll drift/dead-space | S | done | — |
-| QAF-011 | Fix EPG gibberish regression in live program blocks | S | planned | — |
-| QAF-005 | API failure breakdown in QA report by Xtream action | S | planned | QAF-003, QAF-004 |
-| QAF-007 | Separate critical vs non-critical network failures in QA scoring | S | planned | QAF-005 |
-| QAF-013 | Clarify catch-up empty-state reason in fullscreen panel | S | planned | QAF-005 |
+| QAF-011 | Fix EPG gibberish regression in live program blocks | S | done | — |
+| QAF-005 | API failure breakdown in QA report by Xtream action | S | done | QAF-003, QAF-004 |
+| QAF-007 | Separate critical vs non-critical network failures in QA scoring | S | done | QAF-005 |
+| QAF-013 | Clarify catch-up empty-state reason in fullscreen panel | S | done | QAF-005 |
 | QAF-009 | Series poster fallback hardening (`onError` placeholder path) | S | planned | — |
 
 Completion notes (2026-02-19):
@@ -48,6 +48,10 @@ Completion notes (2026-02-19):
 - QAF-014 merged via PR #171.
 - QAF-010 merged via PR #172.
 - QAF-012 merged via PR #173.
+- QAF-011 merged via PR #175 (Greptile `5/5`).
+- QAF-005 merged via PR #176 (Greptile `5/5`).
+- QAF-007 merged via PR #177 after follow-up remediation commit; Greptile final `5/5` on latest head.
+- QAF-013 merged via PR #178 after follow-up remediation commit; Greptile final `5/5` on latest head.
 - Manual intake triage (`BUG-20260219-01..06`) converted into `QAF-010..QAF-014` follow-up tasks in `docs/V2-QA-FIX-BACKLOG.md`.
 - QA gate rerun command (`E2E_XUI_USERNAME='fica' E2E_XUI_PASSWORD='fF2024BG2025' ./run-qa-simulation.sh`) currently exits with Playwright loader conflict (`Requiring @playwright/test second time`) in local `.codex/worktrees/QA-GATE` context; needs QA tooling follow-up before using this report as pass/fail signal.
 
