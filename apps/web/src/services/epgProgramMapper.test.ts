@@ -27,6 +27,15 @@ describe('epgProgramMapper', () => {
     expect(normalizeEpgText('VmVjZXJuamUgdmVzdGk=')).toBe('Vecernje vesti');
   });
 
+  it('decodes unpadded/url-safe base64 payload values', () => {
+    expect(normalizeEpgText('RG5ldm5paw')).toBe('Dnevnik');
+  });
+
+  it('decodes escaped unicode and percent-encoded payload values', () => {
+    expect(normalizeEpgText('\\u0414\\u043d\\u0435\\u0432\\u043d\\u0438\\u043a')).toBe('Дневник');
+    expect(normalizeEpgText('%D0%94%D0%BD%D0%B5%D0%B2%D0%BD%D0%B8%D0%BA')).toBe('Дневник');
+  });
+
   it('repairs common CP-1252 mojibake text', () => {
     expect(normalizeEpgText('Dnevnik â€“ Vecernje vesti')).toBe('Dnevnik – Vecernje vesti');
   });
