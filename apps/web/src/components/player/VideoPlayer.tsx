@@ -12,6 +12,7 @@ import {
   sessionWantsPlayback,
   shouldShowBlockingPlaybackError,
   shouldHoldPauseSyncOnSourceStartup,
+  shouldResumePlaybackAfterPictureInPictureExit,
 } from './videoPlaybackSync';
 
 export interface VideoPlayerProps {
@@ -624,8 +625,20 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
       return;
     }
 
+    let wasInPictureInPicture = isVideoInPictureInPicture(video);
     const updatePictureInPictureState = () => {
-      setIsPictureInPicture(isVideoInPictureInPicture(video));
+      const isInPictureInPicture = isVideoInPictureInPicture(video);
+      const didExitPictureInPicture = wasInPictureInPicture && !isInPictureInPicture;
+      wasInPictureInPicture = isInPictureInPicture;
+      setIsPictureInPicture(isInPictureInPicture);
+
+      if (
+        didExitPictureInPicture &&
+        shouldResumePlaybackAfterPictureInPictureExit(sessionRef.current, video.paused)
+      ) {
+        adapterRef.current?.play();
+        commands.play();
+      }
     };
 
     updatePictureInPictureState();
@@ -638,7 +651,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
       video.removeEventListener('leavepictureinpicture', updatePictureInPictureState);
       video.removeEventListener('webkitpresentationmodechanged', updatePictureInPictureState);
     };
-  }, []);
+  }, [commands]);
 
   useEffect(() => {
     const video = videoRef.current as WebKitAirPlayVideoElement | null;

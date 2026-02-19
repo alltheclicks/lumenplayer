@@ -5,6 +5,7 @@ import {
   shouldClearPendingAutoplayOnPlaybackError,
   sessionWantsPlayback,
   shouldKeepPendingAutoplayOnIdle,
+  shouldResumePlaybackAfterPictureInPictureExit,
   shouldShowBlockingPlaybackError,
   shouldHoldPauseSyncOnSourceStartup,
 } from './videoPlaybackSync';
@@ -87,5 +88,44 @@ describe('videoPlaybackSync', () => {
 
     expect(shouldClearPendingAutoplayOnPlaybackError(fatalError)).toBe(true);
     expect(shouldClearPendingAutoplayOnPlaybackError(nonFatalError)).toBe(false);
+  });
+
+  it('resumes playback after PiP exit only for live playback intent while video is paused', () => {
+    const liveSession = buildSession({
+      playback: 'playing',
+      source: {
+        url: 'https://example.com/live.m3u8',
+        type: 'hls',
+        title: 'Live Channel',
+        channelId: 'live-1',
+        metadata: {
+          mode: 'live',
+        },
+      },
+    });
+    const vodSession = buildSession({
+      playback: 'playing',
+      source: {
+        url: 'https://example.com/movie.m3u8',
+        type: 'hls',
+        title: 'Movie',
+        metadata: {
+          mode: 'vod',
+        },
+      },
+    });
+
+    expect(shouldResumePlaybackAfterPictureInPictureExit(liveSession, true)).toBe(true);
+    expect(shouldResumePlaybackAfterPictureInPictureExit(vodSession, true)).toBe(false);
+    expect(shouldResumePlaybackAfterPictureInPictureExit(liveSession, false)).toBe(false);
+    expect(
+      shouldResumePlaybackAfterPictureInPictureExit(
+        buildSession({
+          playback: 'paused',
+          source: liveSession.source,
+        }),
+        true
+      )
+    ).toBe(false);
   });
 });
