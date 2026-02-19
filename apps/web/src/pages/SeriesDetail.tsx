@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Helmet } from 'react-helmet-async';
@@ -223,6 +223,7 @@ const SeriesDetail = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
+  const [isCoverBroken, setIsCoverBroken] = useState(false);
   const { commands } = useSessionContext();
   const switchToLiveMode = useSwitchToLiveMode();
   const params = useParams<{ seriesId: string }>();
@@ -258,6 +259,10 @@ const SeriesDetail = () => {
       { icon: Calendar, label: 'Release', value: data.releaseDate },
     ].filter((item) => item.value);
   }, [data]);
+
+  useEffect(() => {
+    setIsCoverBroken(false);
+  }, [data?.cover]);
 
   const seasonOptions = data?.seasons ?? [];
   const activeSeason = seasonOptions.find((season) => season.seasonNumber === contextSeason)
@@ -336,10 +341,14 @@ const SeriesDetail = () => {
               <Card className="overflow-hidden border-border/70 bg-card/80">
                 <CardContent className="p-0">
                   <div className="aspect-[2/3] bg-muted">
-                    {data.cover ? (
+                    {data.cover && !isCoverBroken ? (
                       <img
                         src={data.cover}
                         alt={data.title}
+                        loading="lazy"
+                        onError={() => {
+                          setIsCoverBroken(true);
+                        }}
                         className="h-full w-full object-cover"
                       />
                     ) : (
