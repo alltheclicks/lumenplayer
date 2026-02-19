@@ -28,9 +28,11 @@
     "release:security-baseline:validate": "node scripts/release/validate-security-privacy-baseline.mjs scripts/release/v1-security-privacy-baseline.template.json",
     "release:security-baseline:test": "vitest run scripts/release/v1-security-privacy-baseline.test.ts",
     "release:readiness:validate": "node scripts/release/validate-release-readiness.mjs scripts/release/v1-release-readiness-review.template.json",
-    "release:readiness:test": "vitest run scripts/release/v1-release-readiness-review.test.ts"
+    "release:readiness:test": "vitest run scripts/release/v1-release-readiness-review.test.ts",
+    "e2e:qa:simulate": "node scripts/playwright/run-qa-user-sim.mjs"
   },
   "devDependencies": {
+    "@playwright/test": "^1.55.0",
     "@eslint/js": "^9.9.0",
     "eslint": "^9.9.0",
     "globals": "^15.9.0",
