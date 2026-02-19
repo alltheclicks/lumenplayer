@@ -31,6 +31,7 @@ import { xtreamCodesService } from '@/services/xtreamService';
 import type { VideoPlayerHandle } from '@/components/player/VideoPlayer';
 import { IdleTimer, SeekEngine, type SeekDirection } from '@lumen/player-core';
 import { formatDuration, formatTime } from '@lumen/core';
+import { shouldRunControlsIdleTimer } from './controlsIdlePolicy';
 
 interface PlayerControlsProps {
   channel: PlayerChannel;
@@ -186,6 +187,13 @@ const PlayerControls = ({
   );
   const hasMultipleAudioTracks = audioTracks.length > 1;
   const hasSubtitleTracks = subtitleTracks.length > 0;
+  const shouldUseControlsIdleTimer = shouldRunControlsIdleTimer({
+    isFullscreen,
+    showCatchUp,
+    showAudioTracks,
+    showSubtitleTracks,
+    isSeeking,
+  });
   const selectedSubtitleTrackLabel = useMemo(() => {
     if (selectedSubtitleTrackId === null) {
       return 'Isključeno';
@@ -251,7 +259,7 @@ const PlayerControls = ({
       return;
     }
 
-    if (!isFullscreen || showCatchUp || showAudioTracks || showSubtitleTracks || isSeeking) {
+    if (!shouldUseControlsIdleTimer) {
       return;
     }
 
@@ -261,7 +269,7 @@ const PlayerControls = ({
 
     setShowControls(true);
     idleTimer.reset();
-  }, [isFullscreen, isSeeking, showAudioTracks, showCatchUp, showSubtitleTracks]);
+  }, [shouldUseControlsIdleTimer]);
 
   useEffect(() => {
     const idleTimer = idleTimerRef.current;
@@ -269,7 +277,7 @@ const PlayerControls = ({
       return;
     }
 
-    if (!isFullscreen || showCatchUp || showAudioTracks || showSubtitleTracks || isSeeking) {
+    if (!shouldUseControlsIdleTimer) {
       idleTimer.clear();
       setShowControls(true);
       return;
@@ -278,7 +286,25 @@ const PlayerControls = ({
     if (showControls) {
       idleTimer.reset();
     }
-  }, [isFullscreen, showAudioTracks, showCatchUp, showSubtitleTracks, isSeeking, showControls]);
+  }, [shouldUseControlsIdleTimer, showControls]);
+
+  useEffect(() => {
+    if (isFullscreen) {
+      return;
+    }
+
+    const handleWindowActivity = () => {
+      resetControlsIdleTimer();
+    };
+
+    window.addEventListener('mousemove', handleWindowActivity, { passive: true });
+    window.addEventListener('touchstart', handleWindowActivity, { passive: true });
+
+    return () => {
+      window.removeEventListener('mousemove', handleWindowActivity);
+      window.removeEventListener('touchstart', handleWindowActivity);
+    };
+  }, [isFullscreen, resetControlsIdleTimer]);
 
   const syncAudioTracks = useCallback(() => {
     const tracks = playerRef.current?.getAudioTracks() ?? [];
@@ -396,11 +422,7 @@ const PlayerControls = ({
         const nextShowControls = !prev;
         if (
           idleTimer &&
-          isFullscreen &&
-          !showCatchUp &&
-          !showAudioTracks &&
-          !showSubtitleTracks &&
-          !isSeeking
+          shouldUseControlsIdleTimer
         ) {
           if (nextShowControls) {
             idleTimer.reset();
@@ -412,8 +434,7 @@ const PlayerControls = ({
       });
     }
   }, [
-    isFullscreen,
-    isSeeking,
+    shouldUseControlsIdleTimer,
     resetControlsIdleTimer,
     showAudioTracks,
     showCatchUp,
@@ -753,7 +774,7 @@ const PlayerControls = ({
 
   if (!isFullscreen) {
     return (
-      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/95 via-black/60 to-transparent p-4 sm:p-6">
+      <div className={`absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/95 via-black/60 to-transparent p-4 sm:p-6 transition-all duration-300 ${showControls ? 'opacity-100 translate-y-0' : 'pointer-events-none opacity-0 translate-y-4'}`}>
         {audioTrackPanel}
         {subtitleTrackPanel}
         <div className="flex items-center gap-4 mb-4">
