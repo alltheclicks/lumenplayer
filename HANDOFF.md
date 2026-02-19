@@ -1,5 +1,27 @@
 # Handoff — Lumen Player
 
+## Session 2026-02-19 — QAF-009 (ordered batch)
+
+- Context:
+  - Executed the next ready stabilization task in strict order from source-of-truth backlog: `QAF-009`.
+  - Git/PR/merge flow was task-scoped (`1 task -> 1 branch -> 1 PR`), with latest `main` sync before execution.
+- PRs:
+  - #180 (`QAF-009`) merged, Greptile `5/5`
+- Done:
+  - hardened series poster fallback rendering in:
+    - `apps/web/src/pages/SeriesCategories.tsx`
+    - `apps/web/src/pages/SeriesDetail.tsx`
+  - added deterministic `onError` handling to avoid broken-image artifacts and keep placeholder layout stable in both list and detail flows.
+- Local task gates passed:
+  - `pnpm lint`
+  - `pnpm typecheck`
+- Greptile/check notes:
+  - Review start explicitly confirmed via `Greptile Review` check-run entering in-progress.
+  - Final Greptile summary returned confidence score `5/5` on latest PR head.
+  - No valid blocking comments remained before merge.
+
+---
+
 ## Session 2026-02-19 — QAF-011, QAF-005, QAF-007, QAF-013 (ordered batch)
 
 - Context:

@@ -36,7 +36,7 @@
 | QAF-005 | API failure breakdown in QA report by Xtream action | S | done | QAF-003, QAF-004 |
 | QAF-007 | Separate critical vs non-critical network failures in QA scoring | S | done | QAF-005 |
 | QAF-013 | Clarify catch-up empty-state reason in fullscreen panel | S | done | QAF-005 |
-| QAF-009 | Series poster fallback hardening (`onError` placeholder path) | S | planned | — |
+| QAF-009 | Series poster fallback hardening (`onError` placeholder path) | S | done | — |
 
 Completion notes (2026-02-19):
 - QAF-003 merged via PR #162.
@@ -52,6 +52,7 @@ Completion notes (2026-02-19):
 - QAF-005 merged via PR #176 (Greptile `5/5`).
 - QAF-007 merged via PR #177 after follow-up remediation commit; Greptile final `5/5` on latest head.
 - QAF-013 merged via PR #178 after follow-up remediation commit; Greptile final `5/5` on latest head.
+- QAF-009 merged via PR #180 (Greptile `5/5`).
 - Manual intake triage (`BUG-20260219-01..06`) converted into `QAF-010..QAF-014` follow-up tasks in `docs/V2-QA-FIX-BACKLOG.md`.
 - QA gate rerun command (`E2E_XUI_USERNAME='fica' E2E_XUI_PASSWORD='fF2024BG2025' ./run-qa-simulation.sh`) currently exits with Playwright loader conflict (`Requiring @playwright/test second time`) in local `.codex/worktrees/QA-GATE` context; needs QA tooling follow-up before using this report as pass/fail signal.
 
