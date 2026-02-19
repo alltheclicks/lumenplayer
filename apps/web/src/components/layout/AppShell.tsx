@@ -1,5 +1,6 @@
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { Tv, Film, Clapperboard, CalendarDays, Settings2 } from 'lucide-react';
+import { useSwitchToLiveMode } from '@/pages/switchToLiveMode';
 
 const NAV_ITEMS = [
   { path: '/player', label: 'Live', shortLabel: 'TV', icon: Tv },
@@ -19,6 +20,7 @@ const isActiveRoute = (itemPath: string, currentPath: string): boolean => {
 
 const AppShell = () => {
   const { pathname } = useLocation();
+  const switchToLiveMode = useSwitchToLiveMode();
   const isPlayerRoute = pathname === '/player' || pathname.startsWith('/player/');
   const hasRouteOwnedMobileNav = pathname === '/vod' || pathname === '/series';
 
@@ -37,6 +39,14 @@ const AppShell = () => {
                 <NavLink
                   key={item.path}
                   to={item.path}
+                  onClick={(event) => {
+                    if (item.path !== '/player') {
+                      return;
+                    }
+
+                    event.preventDefault();
+                    switchToLiveMode();
+                  }}
                   className={`flex flex-col items-center gap-1 px-4 py-2 transition-colors ${
                     active ? 'text-primary' : 'text-muted-foreground'
                   }`}

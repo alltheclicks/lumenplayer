@@ -8,6 +8,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { useSessionContext } from '@/context/session-context';
 import { loadXtreamCredentials } from '@/services/xtreamCredentials';
 import { xtreamCodesService } from '@/services/xtreamService';
+import { useSwitchToLiveMode } from '@/pages/switchToLiveMode';
 
 const DEMO_EPISODE_STREAM_URL = 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8';
 
@@ -223,6 +224,7 @@ const SeriesDetail = () => {
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const { commands } = useSessionContext();
+  const switchToLiveMode = useSwitchToLiveMode();
   const params = useParams<{ seriesId: string }>();
   const seriesId = params.seriesId;
   const catalogBackPath = useMemo(() => {
@@ -452,7 +454,7 @@ const SeriesDetail = () => {
                       Open TMDB
                     </Button>
                   )}
-                  <Button variant="secondary" onClick={() => navigate('/player')}>
+                  <Button variant="secondary" onClick={() => switchToLiveMode()}>
                     Open Player
                   </Button>
                 </div>
