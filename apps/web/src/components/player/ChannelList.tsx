@@ -35,6 +35,8 @@ const ChannelList = ({
   const viewportRef = useRef<HTMLDivElement>(null);
   const previousActiveChannelIdRef = useRef<string | undefined>(undefined);
   const rowHeight = rowHeightByVariant[variant];
+  const listTestId = `channel-list-${variant}`;
+  const viewportTestId = `channel-list-viewport-${variant}`;
 
   const rowVirtualizer = useVirtualizer({
     count: channels.length,
@@ -78,7 +80,12 @@ const ChannelList = ({
   const virtualRows = rowVirtualizer.getVirtualItems();
 
   return (
-    <ScrollArea className={className} viewportRef={viewportRef}>
+    <ScrollArea
+      className={className}
+      data-testid={listTestId}
+      viewportRef={viewportRef}
+      viewportTestId={viewportTestId}
+    >
       {channels.length === 0 ? (
         <div className="p-4 text-sm text-muted-foreground">Nema pronađenih kanala.</div>
       ) : (
@@ -96,6 +103,8 @@ const ChannelList = ({
               <div
                 key={channel.id}
                 className="absolute left-0 top-0 w-full"
+                data-testid="channel-row"
+                data-active={isActive ? 'true' : 'false'}
                 style={{
                   height: `${virtualRow.size}px`,
                   transform: `translateY(${virtualRow.start}px)`,
@@ -121,6 +130,7 @@ const ChannelList = ({
                     <button
                       type="button"
                       onClick={() => onSelectChannel(channel)}
+                      data-testid="channel-select"
                       className="flex min-w-0 flex-1 items-center gap-3 text-left"
                     >
                       <div
