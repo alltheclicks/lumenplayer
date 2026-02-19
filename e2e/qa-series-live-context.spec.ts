@@ -1,6 +1,7 @@
 import { writeFileSync } from 'node:fs';
 import type { Page } from '@playwright/test';
 import { test } from '@playwright/test';
+import { createQaNetworkTracker } from './qaNetworkTracker';
 
 type TimelineEntry = {
   step: string;
@@ -143,6 +144,7 @@ test('QAF-002: Series episode -> TV Uživo -> Live shell', async ({ page }, test
 
   const timeline: TimelineEntry[] = [];
   const blockers: string[] = [];
+  const qaNetworkTracker = createQaNetworkTracker(page);
 
   const withStep = async (
     step: string,
@@ -292,4 +294,16 @@ test('QAF-002: Series episode -> TV Uživo -> Live shell', async ({ page }, test
     path: timelinePath,
     contentType: 'application/json',
   });
+
+  const networkPath = testInfo.outputPath('qa-series-live-context.network.json');
+  writeFileSync(
+    networkPath,
+    JSON.stringify({ scenario: summary.scenario, failures: qaNetworkTracker.getFailures() }, null, 2),
+    'utf-8'
+  );
+  await testInfo.attach('qa-network', {
+    path: networkPath,
+    contentType: 'application/json',
+  });
+  qaNetworkTracker.dispose();
 });

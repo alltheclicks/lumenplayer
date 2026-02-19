@@ -1,6 +1,7 @@
 import { writeFileSync } from 'node:fs';
 import type { Page } from '@playwright/test';
 import { expect, test } from '@playwright/test';
+import { createQaNetworkTracker } from './qaNetworkTracker';
 
 type TimelineEntry = {
   step: string;
@@ -65,6 +66,7 @@ test('QAF-006: live startup mode manual vs autoplay', async ({ page }, testInfo)
 
   const timeline: TimelineEntry[] = [];
   const blockers: string[] = [];
+  const qaNetworkTracker = createQaNetworkTracker(page);
 
   const withStep = async (
     step: string,
@@ -182,4 +184,16 @@ test('QAF-006: live startup mode manual vs autoplay', async ({ page }, testInfo)
     path: timelinePath,
     contentType: 'application/json',
   });
+
+  const networkPath = testInfo.outputPath('qa-live-autoplay.network.json');
+  writeFileSync(
+    networkPath,
+    JSON.stringify({ scenario: summary.scenario, failures: qaNetworkTracker.getFailures() }, null, 2),
+    'utf-8'
+  );
+  await testInfo.attach('qa-network', {
+    path: networkPath,
+    contentType: 'application/json',
+  });
+  qaNetworkTracker.dispose();
 });
