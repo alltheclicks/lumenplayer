@@ -7,6 +7,7 @@ import type { AudioTrackOption } from '@lumen/types';
 import type { SubtitleTrackOption } from '@lumen/types';
 import { emitWebObservabilityEvent } from '@/services/observability';
 import {
+  shouldKeepPendingAutoplayOnIdle,
   shouldClearPendingAutoplayOnPlaybackError,
   sessionWantsPlayback,
   shouldShowBlockingPlaybackError,
@@ -429,7 +430,12 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
       }
 
       if (state === 'idle') {
-        pendingAutoplaySourceUrlRef.current = null;
+        if (!shouldKeepPendingAutoplayOnIdle(
+          currentSession,
+          pendingAutoplaySourceUrlRef.current
+        )) {
+          pendingAutoplaySourceUrlRef.current = null;
+        }
         setIsPlaying(false);
         setIsLoading(false);
       }
