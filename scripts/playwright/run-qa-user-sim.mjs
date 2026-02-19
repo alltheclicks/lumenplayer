@@ -132,7 +132,11 @@ const classifyXtreamFailureSeverity = (failure) => {
     return 'non-critical';
   }
 
-  return failure?.kind === 'requestfailed' ? 'critical' : 'non-critical';
+  if (failure?.kind === 'requestfailed') {
+    return 'critical';
+  }
+
+  return 'non-critical';
 };
 
 const formatActionBreakdownLines = (breakdown, emptyMessage) => {
