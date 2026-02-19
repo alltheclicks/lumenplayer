@@ -53,4 +53,24 @@ describe("resolveXtreamRuntimeCredentials", () => {
       password: "demo-pass",
     });
   });
+
+  it("keeps original server in production mode", () => {
+    expect(
+      resolveXtreamRuntimeCredentials(
+        {
+          server: "https://gw.castcdn.net:443/",
+          username: "demo-user",
+          password: "demo-pass",
+        },
+        {
+          isDev: false,
+          origin: "http://localhost:8080",
+        },
+      ),
+    ).toEqual({
+      server: "https://gw.castcdn.net:443",
+      username: "demo-user",
+      password: "demo-pass",
+    });
+  });
 });
