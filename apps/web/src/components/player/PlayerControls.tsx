@@ -32,6 +32,7 @@ import type { VideoPlayerHandle } from '@/components/player/VideoPlayer';
 import { IdleTimer, SeekEngine, type SeekDirection } from '@lumen/player-core';
 import { formatDuration, formatTime } from '@lumen/core';
 import { shouldRunControlsIdleTimer } from './controlsIdlePolicy';
+import { resolveCatchUpEmptyStateReason } from './catchUpEmptyState';
 
 interface PlayerControlsProps {
   channel: PlayerChannel;
@@ -60,6 +61,7 @@ interface PendingSeekInteraction {
 const LONG_PRESS_THRESHOLD_MS = 250;
 const CONTROLS_IDLE_TIMEOUT_MS = 3000;
 const CONTROLS_IDLE_GRACE_MS = 1000;
+const CATCH_UP_REASON_REFRESH_MS = 60_000;
 
 const parseSessionSourceMetadata = (
   metadata: Record<string, unknown> | undefined
@@ -136,6 +138,7 @@ const PlayerControls = ({
   const [isPictureInPictureSupported, setIsPictureInPictureSupported] = useState(false);
   const [isPictureInPicture, setIsPictureInPicture] = useState(false);
   const [openDays, setOpenDays] = useState<string[]>([]);
+  const [catchUpReasonNowMs, setCatchUpReasonNowMs] = useState(() => Date.now());
   const [hoverPosition, setHoverPosition] = useState<number | null>(null);
   const [isSeeking, setIsSeeking] = useState(false);
   const [seekPreviewPosition, setSeekPreviewPosition] = useState<number | null>(null);
@@ -184,6 +187,10 @@ const PlayerControls = ({
   const catchUpByDate = groupProgramsByDate(channel.epg);
   const sortedDates = Array.from(catchUpByDate.keys()).sort((a, b) =>
     new Date(b).getTime() - new Date(a).getTime()
+  );
+  const catchUpEmptyStateReason = useMemo(
+    () => resolveCatchUpEmptyStateReason(channel, new Date(catchUpReasonNowMs)),
+    [channel, catchUpReasonNowMs]
   );
   const hasMultipleAudioTracks = audioTracks.length > 1;
   const hasSubtitleTracks = subtitleTracks.length > 0;
@@ -374,6 +381,16 @@ const PlayerControls = ({
       unsubscribe();
     };
   }, [playerRef, session.source, syncSubtitleTracks]);
+
+  useEffect(() => {
+    const intervalId = globalThis.setInterval(() => {
+      setCatchUpReasonNowMs(Date.now());
+    }, CATCH_UP_REASON_REFRESH_MS);
+
+    return () => {
+      globalThis.clearInterval(intervalId);
+    };
+  }, []);
 
   useEffect(() => {
     if (!session.source) {
@@ -1002,7 +1019,10 @@ const PlayerControls = ({
                 {sortedDates.length === 0 ? (
                   <div className="text-center text-muted-foreground py-8">
                     <Clock className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                    <p>Nema dostupnih snimaka</p>
+                    <p className="font-medium">{catchUpEmptyStateReason.title}</p>
+                    <p className="mt-1 text-xs text-muted-foreground/90">
+                      {catchUpEmptyStateReason.description}
+                    </p>
                   </div>
                 ) : (
                   sortedDates.map(dateKey => {
