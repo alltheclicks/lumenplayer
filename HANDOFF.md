@@ -1,5 +1,46 @@
 # Handoff — Lumen Player
 
+## Session 2026-02-20 — QAF-015, QAF-016, QAF-017 (ordered batch)
+
+- Context:
+  - Executed next ready stabilization tasks in strict source-of-truth order:
+    - `QAF-015 -> QAF-016 -> QAF-017`
+  - Task flow was strict sequential (`1 task -> 1 branch -> 1 PR -> merge`), with latest `main` sync before each next task.
+- PRs:
+  - #184 (`QAF-015`) merged, Greptile `4/5` (approved exception with explicit rationale)
+  - #185 (`QAF-016`) merged, Greptile `5/5`
+  - #186 (`QAF-017`) merged, Greptile `5/5`
+- Done:
+  - QAF-015:
+    - hardened startup live autoplay recovery path in:
+      - `apps/web/src/components/player/VideoPlayer.tsx`
+      - `apps/web/src/components/player/videoPlaybackSync.ts`
+      - `apps/web/src/components/player/videoPlaybackSync.test.ts`
+    - added bounded retry/backoff for startup `paused` stall to prevent first-frame freeze with stale playing intent.
+  - QAF-016:
+    - reduced live channel switch overhead in:
+      - `apps/web/src/adapters/HlsPlayerAdapter.ts`
+      - `apps/web/src/adapters/HlsPlayerAdapter.test.ts`
+    - removed unnecessary media-element flush during source-switch loads while preserving explicit `stop()` flush semantics.
+  - QAF-017:
+    - restored desktop `TV Unazad` section visibility (with informative empty state when no entries) in:
+      - `apps/web/src/pages/Player.tsx`
+      - `apps/web/src/pages/liveCatchUpVisibility.ts`
+      - `apps/web/src/pages/liveCatchUpVisibility.test.ts`
+- Local gates per task PR:
+  - `pnpm lint`
+  - `pnpm typecheck`
+  - focused tests:
+    - `pnpm exec vitest run apps/web/src/components/player/videoPlaybackSync.test.ts` (QAF-015)
+    - `pnpm exec vitest run apps/web/src/adapters/HlsPlayerAdapter.test.ts` (QAF-016)
+    - `pnpm exec vitest run apps/web/src/pages/liveCatchUpVisibility.test.ts apps/web/src/components/player/catchUpEmptyState.test.ts` (QAF-017)
+- Greptile/check notes:
+  - Review start was explicitly confirmed on all three PRs via `👀` reaction and `Greptile Review` check-run.
+  - QAF-015 final Greptile score was `4/5`; used allowed exception path because summary reported no blocking findings and all local/CI checks were green.
+  - QAF-016 and QAF-017 finalized with Greptile `5/5`.
+
+---
+
 ## Session 2026-02-19 — QAF-009 (ordered batch)
 
 - Context:

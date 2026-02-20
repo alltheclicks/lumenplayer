@@ -30,6 +30,9 @@
 | QAF-008 | Harden QA selectors/diagnostics for series detail entry | S | done | QAF-002 |
 | QAF-006 | Fix autoplay mode so live channel actually starts playing | M | done | QAF-001 |
 | QAF-014 | Restore live playback resume when returning from PiP | S | done | QAF-006 |
+| QAF-015 | Fix startup live playback first-frame stall (paused=false UI but video not advancing) | S | done | QAF-006 |
+| QAF-016 | Improve live zapping latency (channel switch startup too slow) | S | done | QAF-015 |
+| QAF-017 | Restore catch-up (`TV unazad`) section visibility under live player when applicable | S | done | QAF-013 |
 | QAF-010 | Fix player control overlay auto-hide behavior on idle | S | done | — |
 | QAF-012 | Prevent desktop player page vertical scroll drift/dead-space | S | done | — |
 | QAF-011 | Fix EPG gibberish regression in live program blocks | S | done | — |
@@ -53,7 +56,11 @@ Completion notes (2026-02-19):
 - QAF-007 merged via PR #177 after follow-up remediation commit; Greptile final `5/5` on latest head.
 - QAF-013 merged via PR #178 after follow-up remediation commit; Greptile final `5/5` on latest head.
 - QAF-009 merged via PR #180 (Greptile `5/5`).
+- QAF-015 merged via PR #184 (Greptile `4/5`; documented no-blocker exception with green local + CI gates).
+- QAF-016 merged via PR #185 (Greptile `5/5`).
+- QAF-017 merged via PR #186 (Greptile `5/5`).
 - Manual intake triage (`BUG-20260219-01..06`) converted into `QAF-010..QAF-014` follow-up tasks in `docs/V2-QA-FIX-BACKLOG.md`.
+- Follow-up intake tasks (`BUG-20260220-01..03`) are now closed through `QAF-015..QAF-017`.
 - QA gate rerun command (`E2E_XUI_USERNAME='fica' E2E_XUI_PASSWORD='fF2024BG2025' ./run-qa-simulation.sh`) currently exits with Playwright loader conflict (`Requiring @playwright/test second time`) in local `.codex/worktrees/QA-GATE` context; needs QA tooling follow-up before using this report as pass/fail signal.
 
 ---
