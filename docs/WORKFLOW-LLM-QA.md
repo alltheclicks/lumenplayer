@@ -202,3 +202,50 @@ Until blockers are cleared, priority order is:
 5. Poster/image robustness
 
 This priority is based on latest `QA-REPORT.md` blocker list and manual browser evidence.
+
+## 13) XUI catch-up reality (2026-02-20 finding)
+
+For this provider class, `tv_archive=1` alone is not enough to assume playable catch-up.
+
+Observed behavior from direct API/stream probes:
+
+- `get_short_epg` can return very short windows and missing `has_archive` (`null`).
+- `get_simple_data_table` returns the reliable archive signal (`has_archive=1`) across historical rows.
+- Path-style catch-up URL (`/timeshift/{user}/{pass}/{duration}/{start}/{stream}.m3u8`) can return:
+  - `404`, or
+  - `200` with empty body (`text/html`), or
+  - token redirect without usable playlist.
+- Streaming endpoint with explicit extension is the stable catch-up path:
+  - `/streaming/timeshift.php?username=...&password=...&stream=...&start=YYYY-MM-DD:HH-MM&duration=...&extension=m3u8`
+  - expected response: `200`, content type `application/x-mpegurl`, body starts with `#EXTM3U`.
+
+Operational rule:
+- Catch-up availability in UI must be based on EPG rows with `has_archive=1` (not on "past program" heuristic).
+- If `get_short_epg` has no archived past rows, fallback to `get_simple_data_table` before rendering empty-state.
+- Do not enable live-bar timeshift for a current program that is not archive-flagged.
+
+## 14) Mandatory diagnostics checklist for TV Unazad bugs
+
+When reproducing `Greška u mreži` for catch-up, run this sequence before coding:
+
+1. Verify channel capabilities:
+   - `get_live_streams` -> `tv_archive`, `tv_archive_duration`, `stream_id`.
+2. Verify EPG data source quality:
+   - `get_short_epg&stream_id=<id>&limit=<N>`
+   - `get_simple_data_table&stream_id=<id>`
+   - compare counts of past rows and rows with `has_archive=1`.
+3. Probe generated catch-up URL with headers and body type:
+   - `curl -L -D - <url>`
+   - classify as:
+     - valid playlist (`application/x-mpegurl`, `#EXTM3U`)
+     - TS payload (`video/mp2t`)
+     - empty/HTML error (`404` or `200` with `0` bytes)
+4. If endpoint format mismatch is detected:
+   - switch URL builder to provider-accepted format first,
+   - then retest with the same stream/time tuple.
+5. Document evidence in PR description:
+   - sample API payload snippets,
+   - tested URL patterns,
+   - final accepted URL format and response type.
+
+This checklist is required for any future `QAF` item touching catch-up playback.
