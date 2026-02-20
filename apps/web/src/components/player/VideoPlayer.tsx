@@ -12,6 +12,7 @@ import {
   sessionWantsPlayback,
   shouldShowBlockingPlaybackError,
   shouldHoldPauseSyncOnSourceStartup,
+  shouldRetryPendingAutoplayAfterPausedEvent,
   shouldResumePlaybackAfterPictureInPictureExit,
 } from './videoPlaybackSync';
 
@@ -81,6 +82,9 @@ type WebKitAirPlayVideoElement = HTMLVideoElement & {
   webkitCurrentPlaybackTargetIsWireless?: boolean;
 };
 
+const STARTUP_AUTOPLAY_RECOVERY_MAX_RETRIES = 3;
+const STARTUP_AUTOPLAY_RECOVERY_BASE_DELAY_MS = 220;
+
 const canUseStandardPictureInPicture = (video: HTMLVideoElement): boolean => (
   typeof document !== 'undefined' &&
   document.pictureInPictureEnabled &&
@@ -145,6 +149,8 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
   const airPlayConnectionListenersRef = useRef(new Set<(isConnected: boolean) => void>());
   const lastStartedSourceRef = useRef<string | null>(null);
   const pendingAutoplaySourceUrlRef = useRef<string | null>(null);
+  const startupAutoplayRecoveryAttemptsRef = useRef(0);
+  const startupAutoplayRecoveryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const playbackWantsPlaying = sessionWantsPlayback(session);
   const isLocalRenderer = session.renderer === 'local-web' || session.renderer === 'airplay';
 
@@ -260,6 +266,14 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
   useEffect(() => {
     sessionRef.current = session;
   }, [session]);
+
+  const clearStartupAutoplayRecovery = useCallback(() => {
+    if (startupAutoplayRecoveryTimerRef.current !== null) {
+      clearTimeout(startupAutoplayRecoveryTimerRef.current);
+      startupAutoplayRecoveryTimerRef.current = null;
+    }
+    startupAutoplayRecoveryAttemptsRef.current = 0;
+  }, []);
 
   useImperativeHandle(ref, () => ({
     play: () => adapterRef.current?.play(),
@@ -380,6 +394,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
       }
 
       if (state === 'playing') {
+        clearStartupAutoplayRecovery();
         pendingAutoplaySourceUrlRef.current = null;
         setError(null);
         setIsPlaying(true);
@@ -410,6 +425,43 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
           currentSession,
           pendingAutoplaySourceUrlRef.current
         )) {
+          if (
+            shouldRetryPendingAutoplayAfterPausedEvent(
+              currentSession,
+              pendingAutoplaySourceUrlRef.current,
+              startupAutoplayRecoveryAttemptsRef.current,
+              STARTUP_AUTOPLAY_RECOVERY_MAX_RETRIES
+            )
+          ) {
+            if (startupAutoplayRecoveryTimerRef.current !== null) {
+              clearTimeout(startupAutoplayRecoveryTimerRef.current);
+            }
+
+            startupAutoplayRecoveryAttemptsRef.current += 1;
+            const retryDelayMs =
+              STARTUP_AUTOPLAY_RECOVERY_BASE_DELAY_MS * startupAutoplayRecoveryAttemptsRef.current;
+            startupAutoplayRecoveryTimerRef.current = setTimeout(() => {
+              startupAutoplayRecoveryTimerRef.current = null;
+              const nextSession = sessionRef.current;
+              if (
+                shouldHoldPauseSyncOnSourceStartup(
+                  nextSession,
+                  pendingAutoplaySourceUrlRef.current
+                )
+              ) {
+                adapterRef.current?.play();
+              }
+            }, retryDelayMs);
+            return;
+          }
+
+          clearStartupAutoplayRecovery();
+          pendingAutoplaySourceUrlRef.current = null;
+          setIsPlaying(false);
+          setIsLoading(false);
+          if (currentSession.source && sessionWantsPlayback(currentSession)) {
+            commands.pause();
+          }
           return;
         }
 
@@ -423,6 +475,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
       }
 
       if (state === 'ended') {
+        clearStartupAutoplayRecovery();
         pendingAutoplaySourceUrlRef.current = null;
         setIsPlaying(false);
         setIsLoading(false);
@@ -431,6 +484,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
       }
 
       if (state === 'idle') {
+        clearStartupAutoplayRecovery();
         if (!shouldKeepPendingAutoplayOnIdle(
           currentSession,
           pendingAutoplaySourceUrlRef.current
@@ -443,6 +497,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
     });
 
     const unsubscribeError = adapter.onError((playbackError) => {
+      clearStartupAutoplayRecovery();
       if (shouldClearPendingAutoplayOnPlaybackError(playbackError)) {
         pendingAutoplaySourceUrlRef.current = null;
       }
@@ -503,12 +558,13 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
       unsubscribeState();
       unsubscribeError();
       unsubscribeTime();
+      clearStartupAutoplayRecovery();
       adapter.destroy();
       if (adapterRef.current === adapter) {
         adapterRef.current = null;
       }
     };
-  }, [commands, mapPlaybackError, onCanPlay, onEnded, onError, preferNativeHls]);
+  }, [clearStartupAutoplayRecovery, commands, mapPlaybackError, onCanPlay, onEnded, onError, preferNativeHls]);
 
   useEffect(() => {
     const adapter = adapterRef.current;
@@ -521,6 +577,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
 
     if (!src || !isLocalRenderer) {
       void exitPictureInPicture();
+      clearStartupAutoplayRecovery();
       pendingAutoplaySourceUrlRef.current = null;
       setError(null);
       setIsLoading(false);
@@ -532,6 +589,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
     let cancelled = false;
     setError(null);
     setIsLoading(true);
+    clearStartupAutoplayRecovery();
     lastStartedSourceRef.current = null;
     pendingAutoplaySourceUrlRef.current = autoPlay && sessionWantsPlayback(sessionRef.current)
       ? src
@@ -556,6 +614,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
       }
 
       setIsLoading(false);
+      clearStartupAutoplayRecovery();
       pendingAutoplaySourceUrlRef.current = null;
       const message = loadError instanceof Error ? loadError.message : 'Neuspešno učitavanje streama';
       emitWebObservabilityEvent({
@@ -579,7 +638,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
     return () => {
       cancelled = true;
     };
-  }, [autoPlay, exitPictureInPicture, isLocalRenderer, onCanPlay, onError, src]);
+  }, [autoPlay, clearStartupAutoplayRecovery, exitPictureInPicture, isLocalRenderer, onCanPlay, onError, src]);
 
   useEffect(() => {
     const adapter = adapterRef.current;

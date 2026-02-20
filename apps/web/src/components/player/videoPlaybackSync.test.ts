@@ -5,6 +5,7 @@ import {
   shouldClearPendingAutoplayOnPlaybackError,
   sessionWantsPlayback,
   shouldKeepPendingAutoplayOnIdle,
+  shouldRetryPendingAutoplayAfterPausedEvent,
   shouldResumePlaybackAfterPictureInPictureExit,
   shouldShowBlockingPlaybackError,
   shouldHoldPauseSyncOnSourceStartup,
@@ -56,6 +57,24 @@ describe('videoPlaybackSync', () => {
     const playingSession = buildSession({ playback: 'playing' });
     expect(shouldKeepPendingAutoplayOnIdle(playingSession, 'https://example.com/other.m3u8')).toBe(false);
     expect(shouldKeepPendingAutoplayOnIdle(buildSession({ playback: 'paused' }), playingSession.source?.url ?? null)).toBe(false);
+  });
+
+  it('retries pending autoplay only while startup intent exists and attempts remain', () => {
+    const playingSession = buildSession({ playback: 'playing' });
+    const sourceUrl = playingSession.source?.url ?? null;
+
+    expect(shouldRetryPendingAutoplayAfterPausedEvent(playingSession, sourceUrl, 0, 3)).toBe(true);
+    expect(shouldRetryPendingAutoplayAfterPausedEvent(playingSession, sourceUrl, 2, 3)).toBe(true);
+    expect(shouldRetryPendingAutoplayAfterPausedEvent(playingSession, sourceUrl, 3, 3)).toBe(false);
+    expect(shouldRetryPendingAutoplayAfterPausedEvent(playingSession, 'https://example.com/other.m3u8', 0, 3)).toBe(false);
+    expect(
+      shouldRetryPendingAutoplayAfterPausedEvent(
+        buildSession({ playback: 'paused' }),
+        sourceUrl,
+        0,
+        3
+      )
+    ).toBe(false);
   });
 
   it('shows blocking overlay only for fatal playback errors', () => {

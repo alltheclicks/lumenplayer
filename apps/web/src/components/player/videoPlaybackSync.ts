@@ -56,6 +56,19 @@ export const shouldKeepPendingAutoplayOnIdle = (
   shouldHoldPauseSyncOnSourceStartup(session, pendingAutoplaySourceUrl)
 );
 
+export const shouldRetryPendingAutoplayAfterPausedEvent = (
+  session: SessionState,
+  pendingAutoplaySourceUrl: string | null,
+  retryCount: number,
+  maxRetries: number
+): boolean => {
+  if (!shouldHoldPauseSyncOnSourceStartup(session, pendingAutoplaySourceUrl)) {
+    return false;
+  }
+
+  return retryCount < maxRetries;
+};
+
 export const shouldShowBlockingPlaybackError = (playbackError: PlaybackError): boolean => (
   playbackError.fatal
 );
