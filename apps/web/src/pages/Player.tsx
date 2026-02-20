@@ -69,6 +69,8 @@ import { getPlayerOnDemandContext } from '@/pages/playerOnDemandContext';
 import { shouldAutoplaySource } from '@/pages/liveChannelStartupMode';
 import { useSwitchToLiveMode } from '@/pages/switchToLiveMode';
 import { fetchChannelShortEpgPrograms } from '@/services/channelEpg';
+import { resolveCatchUpEmptyStateReason } from '@/components/player/catchUpEmptyState';
+import { hasLiveCatchUpEntries, shouldShowLiveCatchUpSection } from '@/pages/liveCatchUpVisibility';
 
 type SessionSourceMetadata = {
   channelId?: string;
@@ -978,6 +980,21 @@ const Player = () => {
     () => Array.from(catchUpProgramsByDate.keys()).sort((a, b) => new Date(b).getTime() - new Date(a).getTime()),
     [catchUpProgramsByDate]
   );
+  const shouldShowTvUnazadSection = useMemo(
+    () => shouldShowLiveCatchUpSection(currentChannelWithEPG, catchUpProgramDays.length),
+    [catchUpProgramDays.length, currentChannelWithEPG]
+  );
+  const hasTvUnazadEntries = useMemo(
+    () => hasLiveCatchUpEntries(catchUpProgramDays.length),
+    [catchUpProgramDays.length]
+  );
+  const tvUnazadEmptyStateReason = useMemo(() => {
+    if (!currentChannelWithEPG) {
+      return null;
+    }
+
+    return resolveCatchUpEmptyStateReason(currentChannelWithEPG);
+  }, [currentChannelWithEPG]);
   const activeCatchUpProgramId = sessionSourceMetadata.mode === 'catchup'
     ? sessionSourceMetadata.catchUpProgramId
     : undefined;
@@ -1648,7 +1665,7 @@ const Player = () => {
                   </div>
                 )}
 
-                {catchUpProgramDays.length > 0 && (
+                {shouldShowTvUnazadSection && (
                   <div ref={tvUnazadSectionRef}>
                     <div className="flex items-center gap-2 mb-3">
                       <div className="w-6 h-6 rounded-full bg-emerald-500/20 flex items-center justify-center">
@@ -1660,7 +1677,7 @@ const Player = () => {
                       <span className="text-xs text-muted-foreground">(klikni za gledanje)</span>
                     </div>
                     <div className="space-y-2">
-                      {(() => {
+                      {hasTvUnazadEntries ? (() => {
                         const todayKey = new Date().toDateString();
                         const todayPrograms = catchUpProgramsByDate.get(todayKey) ?? [];
                         const pastDayKeys = catchUpProgramDays.filter((dayKey) => dayKey !== todayKey);
@@ -1764,12 +1781,26 @@ const Player = () => {
                             })}
                           </>
                         );
-                      })()}
+                      })() : (
+                        <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-4">
+                          <div className="flex items-start gap-3">
+                            <Clock className="mt-0.5 h-4 w-4 text-emerald-400" />
+                            <div>
+                              <p className="text-sm font-medium text-foreground">
+                                {tvUnazadEmptyStateReason?.title ?? 'TV Unazad trenutno nema stavki'}
+                              </p>
+                              <p className="mt-1 text-xs text-muted-foreground">
+                                {tvUnazadEmptyStateReason?.description ?? 'Pokušajte ponovo za nekoliko minuta.'}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
               </div>
-              {catchUpProgramDays.length > 0 && (
+              {hasTvUnazadEntries && (
                 <button
                   type="button"
                   className="flex-shrink-0 w-full p-3 bg-gradient-to-t from-card via-card to-transparent border-t border-border/50 hover:bg-secondary/30 transition-colors cursor-pointer"
