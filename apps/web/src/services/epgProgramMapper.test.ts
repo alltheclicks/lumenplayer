@@ -47,4 +47,16 @@ describe('epgProgramMapper', () => {
     expect(program.description).toBe('Vecernje vesti');
     expect(program.hasCatchUp).toBe(true);
   });
+
+  it('accepts numeric-string has_archive payloads from providers', () => {
+    const item = buildEpgItem({
+      has_archive: '1' as unknown as number,
+      start_timestamp: '9999999999',
+      stop_timestamp: '10000000000',
+    });
+
+    const program = mapXtreamEpgItemToProgram(item, 0);
+
+    expect(program.hasCatchUp).toBe(true);
+  });
 });

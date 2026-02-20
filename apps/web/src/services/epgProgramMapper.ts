@@ -231,6 +231,7 @@ export const mapXtreamEpgItemToProgram = (item: XtreamEPGItem, index: number): P
   const startTime = parseEpgTimestamp(item.start_timestamp, item.start);
   const endTime = parseEpgTimestamp(item.stop_timestamp, item.end);
   const now = Date.now();
+  const hasArchive = Number(item.has_archive) === 1;
 
   return {
     id: item.id || item.epg_id || `${item.channel_id}-${index}`,
@@ -239,6 +240,6 @@ export const mapXtreamEpgItemToProgram = (item: XtreamEPGItem, index: number): P
     startTime,
     endTime,
     category: 'show',
-    hasCatchUp: item.has_archive === 1 || startTime.getTime() < now,
+    hasCatchUp: hasArchive || startTime.getTime() < now,
   };
 };
