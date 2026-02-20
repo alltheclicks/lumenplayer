@@ -11,6 +11,7 @@ import {
   Minimize,
   Heart,
   Clock,
+  Cast,
   ChevronLeft,
   ChevronRight,
   ChevronDown,
@@ -46,6 +47,12 @@ interface PlayerControlsProps {
   onNextChannel: () => void;
   playerRef: MutableRefObject<VideoPlayerHandle | null>;
   defaultVolume?: number;
+  castControl?: {
+    isAvailable: boolean;
+    isConnected: boolean;
+    isConnecting: boolean;
+    onToggle: () => void;
+  };
 }
 
 type SessionSourceMetadata = {
@@ -121,6 +128,7 @@ const PlayerControls = ({
   onNextChannel,
   playerRef,
   defaultVolume = 80,
+  castControl,
 }: PlayerControlsProps) => {
   const { session, commands } = useSessionContext();
   const normalizedDefaultVolume = Math.max(0, Math.min(100, Math.round(defaultVolume)));
@@ -962,6 +970,20 @@ const PlayerControls = ({
                   <PictureInPicture2 className="h-4 w-4" />
                 </Button>
               )}
+              {castControl?.isAvailable && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className={`h-9 w-9 hover:bg-secondary/50 ${castControl.isConnected ? 'text-primary' : ''}`}
+                  disabled={castControl.isConnecting}
+                  title={castControl.isConnected ? 'Prekini cast' : 'Poveži cast'}
+                  onClick={() => {
+                    castControl.onToggle();
+                  }}
+                >
+                  <Cast className="h-4 w-4" />
+                </Button>
+              )}
               <Button variant="ghost" size="icon" className="h-9 w-9 hover:bg-secondary/50" onClick={onToggleFullscreen}>
                 <Maximize className="h-4 w-4" />
               </Button>
@@ -1478,6 +1500,21 @@ const PlayerControls = ({
                   }}
                 >
                   <PictureInPicture2 className="w-4 h-4 sm:w-5 sm:h-5" />
+                </Button>
+              )}
+              {castControl?.isAvailable && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className={`w-9 h-9 sm:w-10 sm:h-10 hover:bg-secondary/50 ${castControl.isConnected ? 'text-primary' : ''}`}
+                  disabled={castControl.isConnecting}
+                  title={castControl.isConnected ? 'Prekini cast' : 'Poveži cast'}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    castControl.onToggle();
+                  }}
+                >
+                  <Cast className="w-4 h-4 sm:w-5 sm:h-5" />
                 </Button>
               )}
               <Button

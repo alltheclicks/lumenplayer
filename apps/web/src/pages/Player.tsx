@@ -1226,22 +1226,9 @@ const Player = () => {
               <div className="p-4 border-b border-border">
                 <div className="flex items-center justify-between mb-3">
                   <span className="font-bold text-lg text-foreground">
-                    narodna<span className="text-primary">.tv</span>
+                    Lumen <span className="text-primary">Player</span>
                   </span>
                   <div className="flex items-center gap-1">
-                    {castSender.isAvailable && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        disabled={castSender.isConnecting}
-                        onClick={() => {
-                          void castSender.toggleCasting();
-                        }}
-                        title={castSender.isConnected ? 'Disconnect Cast' : 'Connect Cast'}
-                      >
-                        <Cast className={`w-4 h-4 ${castSender.isConnected ? 'text-primary' : ''}`} />
-                      </Button>
-                    )}
                     {isAirPlaySupported && session.renderer !== 'cast' && (
                       <Button
                         variant="ghost"
@@ -1284,19 +1271,6 @@ const Player = () => {
               <div className="mb-3 flex items-center justify-between gap-2">
                 <h1 className="text-xl font-bold">{onDemandTitle}</h1>
                 <div className="flex items-center gap-1">
-                  {castSender.isAvailable && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      disabled={castSender.isConnecting}
-                      onClick={() => {
-                        void castSender.toggleCasting();
-                      }}
-                      title={castSender.isConnected ? 'Disconnect Cast' : 'Connect Cast'}
-                    >
-                      <Cast className={`w-4 h-4 ${castSender.isConnected ? 'text-primary' : ''}`} />
-                    </Button>
-                  )}
                   {isAirPlaySupported && session.renderer !== 'cast' && (
                     <Button
                       variant="ghost"
@@ -1349,7 +1323,7 @@ const Player = () => {
                   <Play className="w-3 h-3 text-primary-foreground fill-current" />
                 </div>
                 <span className="font-bold text-sm text-foreground">
-                  narodna<span className="text-primary">.tv</span>
+                  Lumen <span className="text-primary">Player</span>
                 </span>
               </button>
 
@@ -1515,6 +1489,14 @@ const Player = () => {
                   onNextChannel={goToNextChannel}
                   playerRef={playerRef}
                   defaultVolume={appSettings.player.defaultVolume}
+                  castControl={{
+                    isAvailable: castSender.isAvailable,
+                    isConnected: castSender.isConnected,
+                    isConnecting: castSender.isConnecting,
+                    onToggle: () => {
+                      void castSender.toggleCasting();
+                    },
+                  }}
                 />
               </>
             )}
@@ -1562,7 +1544,7 @@ const Player = () => {
                         disabled={castSender.isConnecting}
                       >
                         <Cast className="mr-2 h-4 w-4" />
-                        {castSender.isConnected ? 'Disconnect Cast' : 'Cast'}
+                        {castSender.isConnected ? 'Prekini cast' : 'Poveži cast'}
                       </Button>
                     )}
                     {isAirPlaySupported && session.renderer !== 'cast' && (
@@ -1921,20 +1903,6 @@ const Player = () => {
                 </div>
 
                 <div className="p-2 pt-0 space-y-2">
-                  {castSender.isAvailable && (
-                    <Button
-                      variant={castSender.isConnected ? 'default' : 'outline'}
-                      size="sm"
-                      className="w-full"
-                      disabled={castSender.isConnecting}
-                      onClick={() => {
-                        void castSender.toggleCasting();
-                      }}
-                    >
-                      <Cast className="mr-2 h-4 w-4" />
-                      {castSender.isConnected ? 'Prekini cast' : 'Poveži cast'}
-                    </Button>
-                  )}
                   {isAirPlaySupported && session.renderer !== 'cast' && (
                     <Button
                       variant={isAirPlayConnected ? 'default' : 'outline'}
