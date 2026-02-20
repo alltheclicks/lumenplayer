@@ -27,3 +27,18 @@ export const addWatchHistoryEntry = async (
 
   await storage.add(entry);
 };
+
+export const loadLastWatchedChannelId = async (): Promise<string | null> => {
+  const storage = getWatchHistoryStorage();
+  if (!storage) {
+    return null;
+  }
+
+  const entries = await storage.getAll();
+  const firstEntry = entries[0];
+  if (!firstEntry?.channelId) {
+    return null;
+  }
+
+  return firstEntry.channelId;
+};
