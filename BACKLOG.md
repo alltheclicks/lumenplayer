@@ -36,9 +36,9 @@
 | QAF-018 | Fix catch-up false-empty states (regular + fullscreen panel) for channels with known recordings | S | done | QAF-017 |
 | QAF-019 | Preserve and restore last watched live channel when returning from VOD/Series | S | done | — |
 | QAF-020 | Make live loading spinner overlay non-blocking for essential player controls | S | done | — |
-| QAF-021 | Replace `narodna.tv` branding with `Lumen Player` and move cast icon into player-overlay friendly position (desktop/mobile) | S | planned | — |
-| QAF-022 | Add live status-bar catch-up/timeshift interaction with explicit `UŽIVO` return action (desktop/mobile/tv UX parity) | M | planned | — |
-| QAF-023 | Improve non-fullscreen catch-up discoverability (clock action should bring focus/scroll to `TV unazad` section) | S | planned | — |
+| QAF-021 | Replace `narodna.tv` branding with `Lumen Player` and move cast icon into player-overlay friendly position (desktop/mobile) | S | done | — |
+| QAF-022 | Add live status-bar catch-up/timeshift interaction with explicit `UŽIVO` return action (desktop/mobile/tv UX parity) | M | done | — |
+| QAF-023 | Improve non-fullscreen catch-up discoverability (clock action should bring focus/scroll to `TV unazad` section) | S | done | — |
 | QAF-010 | Fix player control overlay auto-hide behavior on idle | S | done | — |
 | QAF-012 | Prevent desktop player page vertical scroll drift/dead-space | S | done | — |
 | QAF-011 | Fix EPG gibberish regression in live program blocks | S | done | — |
@@ -68,9 +68,13 @@ Completion notes (2026-02-19):
 - QAF-018 merged via PR #188 (Greptile `5/5`).
 - QAF-019 merged via PR #189 (Greptile `5/5` after follow-up remediation commit).
 - QAF-020 merged via PR #190 (Greptile `5/5`).
+- QAF-021 merged via PR #192 (Greptile final `5/5` after follow-up remediation commit).
+- QAF-022 merged via PR #193 (Greptile `5/5`).
+- QAF-023 merged via PR #194 (Greptile `5/5`).
 - Manual intake triage (`BUG-20260219-01..06`) converted into `QAF-010..QAF-014` follow-up tasks in `docs/V2-QA-FIX-BACKLOG.md`.
 - Follow-up intake tasks (`BUG-20260220-01..03`) are now closed through `QAF-015..QAF-017`.
 - Follow-up intake tasks (`BUG-20260220-04..07`) are now closed through `QAF-018..QAF-020`.
+- Follow-up intake tasks (`BUG-20260220-08..10`) are now closed through `QAF-021..QAF-023`.
 - QA gate rerun command (`E2E_XUI_USERNAME='fica' E2E_XUI_PASSWORD='fF2024BG2025' ./run-qa-simulation.sh`) currently exits with Playwright loader conflict (`Requiring @playwright/test second time`) in local `.codex/worktrees/QA-GATE` context; needs QA tooling follow-up before using this report as pass/fail signal.
 
 ---

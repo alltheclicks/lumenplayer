@@ -1,5 +1,46 @@
 # Handoff — Lumen Player
 
+## Session 2026-02-20 — QAF-021, QAF-022, QAF-023 (ordered batch)
+
+- Context:
+  - Executed next ready stabilization tasks in strict source-of-truth order:
+    - `QAF-021 -> QAF-022 -> QAF-023`
+  - Task flow stayed strict sequential (`1 task -> 1 branch -> 1 PR -> merge`), with latest `main` sync before each next task.
+- PRs:
+  - #192 (`QAF-021`) merged, Greptile final `5/5` after follow-up remediation commit
+  - #193 (`QAF-022`) merged, Greptile `5/5`
+  - #194 (`QAF-023`) merged, Greptile `5/5`
+- Done:
+  - QAF-021:
+    - replaced `narodna.tv` branding with `Lumen Player` in live player shell headers
+    - moved cast control from side panels to player overlay controls (windowed + fullscreen) in:
+      - `apps/web/src/components/player/PlayerControls.tsx`
+      - `apps/web/src/pages/Player.tsx`
+  - QAF-022:
+    - added live status-bar click/tap timeshift interaction with explicit `UŽIVO` return actions in:
+      - `apps/web/src/components/player/PlayerControls.tsx`
+      - `apps/web/src/components/player/liveTimeshift.ts`
+      - `apps/web/src/components/player/liveTimeshift.test.ts`
+  - QAF-023:
+    - improved non-fullscreen catch-up discoverability by wiring clock action to guided `TV Unazad` section jump with fallback to `/epg` and transient highlight in:
+      - `apps/web/src/components/player/PlayerControls.tsx`
+      - `apps/web/src/pages/Player.tsx`
+      - `apps/web/src/pages/liveCatchUpDiscoverability.ts`
+      - `apps/web/src/pages/liveCatchUpDiscoverability.test.ts`
+- Local gates per task PR:
+  - `pnpm lint`
+  - `pnpm typecheck`
+  - focused tests:
+    - `pnpm --filter @lumen/web exec vitest run src/components/player/controlsIdlePolicy.test.ts src/pages/liveCatchUpVisibility.test.ts` (QAF-021)
+    - `pnpm --filter @lumen/web exec vitest run src/components/player/liveTimeshift.test.ts src/components/player/controlsIdlePolicy.test.ts src/pages/liveCatchUpVisibility.test.ts` (QAF-022)
+    - `pnpm --filter @lumen/web exec vitest run src/pages/liveCatchUpDiscoverability.test.ts src/pages/liveCatchUpVisibility.test.ts src/components/player/liveTimeshift.test.ts` (QAF-023)
+- Greptile/check notes:
+  - Review start confirmation recorded on each PR via `Greptile Review` check-run entering `pending`.
+  - QAF-021 first Greptile pass returned `4/5` with one valid comment (cast label consistency); fixed in follow-up commit and final re-review returned `5/5`.
+  - QAF-022 and QAF-023 finalized with Greptile `5/5` on latest heads.
+
+---
+
 ## Session 2026-02-20 — QAF-018, QAF-019, QAF-020 (ordered batch)
 
 - Context:
