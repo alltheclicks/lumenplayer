@@ -52,7 +52,7 @@ import {
   type AppSettings,
 } from '@/services/appSettings';
 import { xtreamCodesService } from '@/services/xtreamService';
-import { addWatchHistoryEntry } from '@/services/watchHistory';
+import { addWatchHistoryEntry, loadLastWatchedChannelId } from '@/services/watchHistory';
 import { emitWebObservabilityEvent } from '@/services/observability';
 import {
   AlertDialog,
@@ -67,6 +67,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { getPlayerOnDemandContext } from '@/pages/playerOnDemandContext';
 import { shouldAutoplaySource } from '@/pages/liveChannelStartupMode';
+import { resolveStartupLiveChannel } from '@/pages/restoreLiveChannel';
 import { useSwitchToLiveMode } from '@/pages/switchToLiveMode';
 import { fetchChannelShortEpgPrograms } from '@/services/channelEpg';
 import { resolveCatchUpEmptyStateReason } from '@/components/player/catchUpEmptyState';
@@ -583,15 +584,37 @@ const Player = () => {
     };
   }, []);
 
-  // Set first channel when loaded
+  // Restore last watched live channel when possible, then fall back to first channel.
   useEffect(() => {
     if (!isSettingsHydrated) {
       return;
     }
 
-    if (channels.length > 0 && !currentChannel && !session.source) {
-      switchToLiveChannel(channels[0]);
+    if (channels.length === 0 || currentChannel || session.source) {
+      return;
     }
+
+    let isCancelled = false;
+
+    const restoreStartupChannel = async () => {
+      const lastWatchedChannelId = await loadLastWatchedChannelId();
+      if (isCancelled) {
+        return;
+      }
+
+      const startupChannel = resolveStartupLiveChannel(channels, lastWatchedChannelId);
+      if (!startupChannel) {
+        return;
+      }
+
+      switchToLiveChannel(startupChannel);
+    };
+
+    void restoreStartupChannel();
+
+    return () => {
+      isCancelled = true;
+    };
   }, [channels, currentChannel, isSettingsHydrated, session.source, switchToLiveChannel]);
 
   const currentChannelId = currentChannel?.id;
