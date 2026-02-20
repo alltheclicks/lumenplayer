@@ -34,6 +34,7 @@ import { IdleTimer, SeekEngine, type SeekDirection } from '@lumen/player-core';
 import { formatDuration, formatTime } from '@lumen/core';
 import { shouldRunControlsIdleTimer } from './controlsIdlePolicy';
 import { resolveCatchUpEmptyStateReason } from './catchUpEmptyState';
+import { canStartLiveTimeshift, resolveLiveTimeshiftPositionSeconds } from './liveTimeshift';
 
 interface PlayerControlsProps {
   channel: PlayerChannel;
@@ -199,6 +200,10 @@ const PlayerControls = ({
   const catchUpEmptyStateReason = useMemo(
     () => resolveCatchUpEmptyStateReason(channel, new Date(catchUpReasonNowMs)),
     [channel, catchUpReasonNowMs]
+  );
+  const canTimeshiftFromLiveBar = useMemo(
+    () => canStartLiveTimeshift(channel.hasCatchUp, currentProgram),
+    [channel.hasCatchUp, currentProgram]
   );
   const hasMultipleAudioTracks = audioTracks.length > 1;
   const hasSubtitleTracks = subtitleTracks.length > 0;
@@ -573,6 +578,31 @@ const PlayerControls = ({
     setShowCatchUp(false);
   };
 
+  const startLiveTimeshiftAtRatio = useCallback((ratio: number) => {
+    if (!canTimeshiftFromLiveBar || !currentProgram) {
+      return;
+    }
+
+    switchToCatchUpProgram(currentProgram);
+    updateCatchUpPosition(resolveLiveTimeshiftPositionSeconds(currentProgram, ratio));
+  }, [canTimeshiftFromLiveBar, currentProgram, switchToCatchUpProgram, updateCatchUpPosition]);
+
+  const handleLiveProgressClick = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+    if (!canTimeshiftFromLiveBar) {
+      return;
+    }
+
+    event.stopPropagation();
+    const rect = event.currentTarget.getBoundingClientRect();
+    if (rect.width <= 0) {
+      startLiveTimeshiftAtRatio(progress / 100);
+      return;
+    }
+
+    const clickRatio = (event.clientX - rect.left) / rect.width;
+    startLiveTimeshiftAtRatio(clickRatio);
+  }, [canTimeshiftFromLiveBar, progress, startLiveTimeshiftAtRatio]);
+
   const goToLive = () => {
     switchToLive();
   };
@@ -839,7 +869,11 @@ const PlayerControls = ({
             </div>
           </div>
         ) : (
-          <div className="h-1 bg-secondary/50 rounded-full mb-4 overflow-hidden">
+          <div
+            className={`h-1 bg-secondary/50 rounded-full mb-4 overflow-hidden ${canTimeshiftFromLiveBar ? 'cursor-pointer' : ''}`}
+            onClick={handleLiveProgressClick}
+            title={canTimeshiftFromLiveBar ? 'Klikni za TV unazad (timeshift)' : undefined}
+          >
             <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${progress}%` }} />
           </div>
         )}
@@ -883,7 +917,7 @@ const PlayerControls = ({
                     onClick={goToLive}
                   >
                     <Radio className="h-3 w-3" />
-                    Uživo
+                    UŽIVO
                   </Button>
                 </>
               ) : (
@@ -901,9 +935,16 @@ const PlayerControls = ({
               )}
             </div>
             {currentProgram && !catchUpProgram && (
-              <span className="text-sm text-muted-foreground">
-                {formatTime(currentProgram.startTime)} - {formatTime(currentProgram.endTime)}
-              </span>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-sm text-muted-foreground">
+                  {formatTime(currentProgram.startTime)} - {formatTime(currentProgram.endTime)}
+                </span>
+                {canTimeshiftFromLiveBar && (
+                  <span className="text-[11px] text-primary/90">
+                    Klikni traku za TV unazad
+                  </span>
+                )}
+              </div>
             )}
           </div>
 
@@ -1031,7 +1072,7 @@ const PlayerControls = ({
                   onClick={goToLive}
                 >
                   <Radio className="w-4 h-4" />
-                  Vrati se na uživo
+                  Vrati se na UŽIVO
                 </Button>
               </div>
             )}
@@ -1253,9 +1294,16 @@ const PlayerControls = ({
                 </h3>
               </div>
               {!catchUpProgram && currentProgram && (
-                <span className="text-xs sm:text-sm text-muted-foreground ml-2 flex-shrink-0">
-                  {formatTime(currentProgram.startTime)} - {formatTime(currentProgram.endTime)}
-                </span>
+                <div className="ml-2 flex flex-col items-end gap-0.5">
+                  <span className="text-xs sm:text-sm text-muted-foreground flex-shrink-0">
+                    {formatTime(currentProgram.startTime)} - {formatTime(currentProgram.endTime)}
+                  </span>
+                  {canTimeshiftFromLiveBar && (
+                    <span className="text-[10px] uppercase tracking-wide text-primary/90">
+                      TV unazad
+                    </span>
+                  )}
+                </div>
               )}
             </div>
           )}
@@ -1317,7 +1365,11 @@ const PlayerControls = ({
             </div>
           ) : (
             <div className="group relative">
-              <div className="h-1 group-hover:h-2 bg-secondary/50 rounded-full overflow-hidden transition-all cursor-pointer">
+              <div
+                className={`h-1 group-hover:h-2 bg-secondary/50 rounded-full overflow-hidden transition-all ${canTimeshiftFromLiveBar ? 'cursor-pointer' : ''}`}
+                onClick={handleLiveProgressClick}
+                title={canTimeshiftFromLiveBar ? 'Klikni za TV unazad (timeshift)' : undefined}
+              >
                 <div
                   className="h-full bg-primary rounded-full transition-all relative"
                   style={{ width: `${progress}%` }}
@@ -1421,14 +1473,21 @@ const PlayerControls = ({
                   }}
                 >
                   <Radio className="w-3 h-3" />
-                  <span className="text-xs">Uživo</span>
+                  <span className="text-xs">UŽIVO</span>
                 </Button>
               )}
 
               {currentProgram && !catchUpProgram && (
-                <span className="hidden sm:inline text-xs sm:text-sm text-muted-foreground ml-2">
-                  {formatTime(currentProgram.startTime)} - {formatTime(currentProgram.endTime)}
-                </span>
+                <div className="hidden sm:flex items-center gap-2 ml-2">
+                  <span className="text-xs sm:text-sm text-muted-foreground">
+                    {formatTime(currentProgram.startTime)} - {formatTime(currentProgram.endTime)}
+                  </span>
+                  {canTimeshiftFromLiveBar && (
+                    <span className="text-[10px] uppercase tracking-wide text-primary/90">
+                      Klik za TV unazad
+                    </span>
+                  )}
+                </div>
               )}
             </div>
 
