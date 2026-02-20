@@ -19,6 +19,7 @@ const DEFAULT_CACHE_TTL_MS = 2 * 60 * 1000;
 const DEFAULT_MIN_REQUEST_INTERVAL_MS = 180;
 const DEFAULT_MAX_RATE_LIMIT_RETRIES = 2;
 const DEFAULT_RETRY_BACKOFF_MS = 400;
+const DEFAULT_SHORT_EPG_LIMIT = 168;
 
 const wait = async (ms: number): Promise<void> => {
   if (ms <= 0) {
@@ -137,7 +138,9 @@ export const createShortEpgProgramFetcher = ({
 };
 
 const sharedShortEpgProgramFetcher = createShortEpgProgramFetcher({
-  fetchEpg: async (streamId: number) => xtreamCodesService.getEPG(String(streamId)),
+  fetchEpg: async (streamId: number) => xtreamCodesService.getEPG(String(streamId), {
+    limit: DEFAULT_SHORT_EPG_LIMIT,
+  }),
 });
 
 export const fetchChannelShortEpgPrograms = async (streamId: number): Promise<Program[]> => (

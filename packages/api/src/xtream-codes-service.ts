@@ -172,9 +172,20 @@ export class XtreamCodesService {
     );
   }
 
-  async getEPG(streamId: string): Promise<XtreamEPGItem[]> {
+  async getEPG(
+    streamId: string,
+    options?: {
+      limit?: number;
+    },
+  ): Promise<XtreamEPGItem[]> {
+    const params: Record<string, string> = { stream_id: streamId };
+    const limit = options?.limit;
+    if (typeof limit === "number" && Number.isFinite(limit) && limit > 0) {
+      params.limit = String(Math.floor(limit));
+    }
+
     const data = await this.http.get<{ epg_listings?: XtreamEPGItem[] }>(
-      this.buildUrl("get_short_epg", { stream_id: streamId }),
+      this.buildUrl("get_short_epg", params),
     );
     return data.epg_listings || [];
   }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { HttpClient } from "./http-client";
-import type { XtreamCategory, XtreamVOD } from "@lumen/types";
+import type { XtreamCategory, XtreamEPGItem, XtreamVOD } from "@lumen/types";
 import { XtreamCodesService } from "./xtream-codes-service";
 
 const createVod = (streamId: number, categoryId: string): XtreamVOD => ({
@@ -159,5 +159,68 @@ describe("XtreamCodesService.getAllVODStreams", () => {
 
     expect(result.map((stream) => stream.stream_id)).toEqual([2]);
     expect(requestedUrls).toHaveLength(4);
+  });
+});
+
+describe("XtreamCodesService.getEPG", () => {
+  const buildHttpClient = (requestedUrls: string[]): HttpClient => ({
+    get: async <T>(url: string): Promise<T> => {
+      requestedUrls.push(url);
+      return {
+        epg_listings: [
+          {
+            id: "epg-1",
+            epg_id: "epg-1",
+            title: "RG5ldm5paw==",
+            lang: "sr",
+            start: "2026-02-20 20:00:00",
+            end: "2026-02-20 21:00:00",
+            description: "VmVjZXJuamUgdmVzdGk=",
+            channel_id: "10",
+            start_timestamp: "1771617600",
+            stop_timestamp: "1771621200",
+            now_playing: 0,
+            has_archive: 1,
+          },
+        ] satisfies XtreamEPGItem[],
+      } as T;
+    },
+    getText: async () => "",
+  });
+
+  it("includes explicit limit when provided", async () => {
+    const requestedUrls: string[] = [];
+    const service = new XtreamCodesService(buildHttpClient(requestedUrls));
+    service.setCredentials({
+      server: "https://example.test",
+      username: "demo",
+      password: "demo",
+    });
+
+    await service.getEPG("10", { limit: 168 });
+
+    expect(requestedUrls).toHaveLength(1);
+    const request = new URL(requestedUrls[0]);
+    expect(request.searchParams.get("action")).toBe("get_short_epg");
+    expect(request.searchParams.get("stream_id")).toBe("10");
+    expect(request.searchParams.get("limit")).toBe("168");
+  });
+
+  it("omits limit when value is not positive", async () => {
+    const requestedUrls: string[] = [];
+    const service = new XtreamCodesService(buildHttpClient(requestedUrls));
+    service.setCredentials({
+      server: "https://example.test",
+      username: "demo",
+      password: "demo",
+    });
+
+    await service.getEPG("99", { limit: 0 });
+
+    expect(requestedUrls).toHaveLength(1);
+    const request = new URL(requestedUrls[0]);
+    expect(request.searchParams.get("action")).toBe("get_short_epg");
+    expect(request.searchParams.get("stream_id")).toBe("99");
+    expect(request.searchParams.has("limit")).toBe(false);
   });
 });
