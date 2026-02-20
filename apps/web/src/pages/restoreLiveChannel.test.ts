@@ -35,4 +35,11 @@ describe('resolveStartupLiveChannel', () => {
 
     expect(resolved?.id).toBe('10');
   });
+
+  it('falls back to first channel when last watched channel id is null', () => {
+    const channels = [buildChannel('10'), buildChannel('20')];
+    const resolved = resolveStartupLiveChannel(channels, null);
+
+    expect(resolved?.id).toBe('10');
+  });
 });

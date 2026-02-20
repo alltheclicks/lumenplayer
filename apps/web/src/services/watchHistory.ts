@@ -35,7 +35,8 @@ export const loadLastWatchedChannelId = async (): Promise<string | null> => {
   }
 
   const entries = await storage.getAll();
-  const firstEntry = entries[0];
+  const sortedEntries = [...entries].sort((a, b) => b.timestamp - a.timestamp);
+  const firstEntry = sortedEntries[0];
   if (!firstEntry?.channelId) {
     return null;
   }
