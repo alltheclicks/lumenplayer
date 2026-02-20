@@ -1,5 +1,48 @@
 # Handoff — Lumen Player
 
+## Session 2026-02-20 — QAF-018, QAF-019, QAF-020 (ordered batch)
+
+- Context:
+  - Executed next ready stabilization tasks in strict source-of-truth order:
+    - `QAF-018 -> QAF-019 -> QAF-020`
+  - Task flow stayed strict sequential (`1 task -> 1 branch -> 1 PR -> merge`), with latest `main` sync before each next task.
+- PRs:
+  - #188 (`QAF-018`) merged, Greptile `5/5`
+  - #189 (`QAF-019`) merged, Greptile final `5/5` after follow-up remediation commit
+  - #190 (`QAF-020`) merged, Greptile `5/5`
+- Done:
+  - QAF-018:
+    - reduced catch-up false-empty risk by requesting deeper short-EPG history (`limit=168`) and hardening archive-flag parsing in:
+      - `apps/web/src/services/channelEpg.ts`
+      - `apps/web/src/services/epgProgramMapper.ts`
+      - `packages/api/src/xtream-codes-service.ts`
+    - added focused coverage in:
+      - `apps/web/src/services/epgProgramMapper.test.ts`
+      - `packages/api/src/xtream-codes-service.test.ts`
+  - QAF-019:
+    - restored last watched live-channel startup selection when returning to `/player` in:
+      - `apps/web/src/pages/Player.tsx`
+      - `apps/web/src/services/watchHistory.ts`
+      - `apps/web/src/pages/restoreLiveChannel.ts`
+      - `apps/web/src/pages/restoreLiveChannel.test.ts`
+  - QAF-020:
+    - made live loading spinner overlay non-blocking for essential controls in:
+      - `apps/web/src/components/player/VideoPlayer.tsx`
+- Local gates per task PR:
+  - `pnpm lint`
+  - `pnpm typecheck`
+  - focused tests:
+    - `pnpm --filter @lumen/web exec vitest run src/services/epgProgramMapper.test.ts src/services/channelEpg.test.ts` (QAF-018)
+    - `pnpm --filter @lumen/api exec vitest run src/xtream-codes-service.test.ts` (QAF-018)
+    - `pnpm --filter @lumen/web exec vitest run src/pages/restoreLiveChannel.test.ts src/pages/switchToLiveMode.test.ts` (QAF-019)
+    - `pnpm --filter @lumen/web exec vitest run src/components/player/videoPlaybackSync.test.ts src/components/player/controlsIdlePolicy.test.ts` (QAF-020)
+- Greptile/check notes:
+  - Review start was explicitly confirmed on each PR via `Greptile Review` check-run entering `pending`.
+  - QAF-019 first Greptile pass returned `4/5` with two valid comments; both remediated on-task, then final re-review returned `5/5`.
+  - No valid blocking comments remained before merges.
+
+---
+
 ## Session 2026-02-20 — QAF-015, QAF-016, QAF-017 (ordered batch)
 
 - Context:
