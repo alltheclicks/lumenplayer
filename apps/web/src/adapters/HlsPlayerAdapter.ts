@@ -73,8 +73,8 @@ export class HlsPlayerAdapter implements PlayerAdapter {
   }
 
   async load(source: MediaSource): Promise<void> {
-    this.stop();
     this.clearHls();
+    this.resetPlaybackState(false);
     this.updateState('loading');
 
     if (this.isMixedContentBlocked(source.url)) {
@@ -116,16 +116,8 @@ export class HlsPlayerAdapter implements PlayerAdapter {
   }
 
   stop(): void {
-    this.video.pause();
-    this.video.removeAttribute('src');
-    this.video.load();
-    this.audioTracks = [];
-    this.selectedAudioTrackId = null;
-    this.subtitleTracks = [];
-    this.selectedSubtitleTrackId = null;
-    this.emitAudioTracksChange();
-    this.emitSubtitleTracksChange();
-    this.updateState('idle');
+    this.clearHls();
+    this.resetPlaybackState(true);
   }
 
   destroy(): void {
@@ -472,6 +464,21 @@ export class HlsPlayerAdapter implements PlayerAdapter {
     }
     this.hls.destroy();
     this.hls = null;
+  }
+
+  private resetPlaybackState(flushMediaElement: boolean): void {
+    this.video.pause();
+    this.video.removeAttribute('src');
+    if (flushMediaElement) {
+      this.video.load();
+    }
+    this.audioTracks = [];
+    this.selectedAudioTrackId = null;
+    this.subtitleTracks = [];
+    this.selectedSubtitleTrackId = null;
+    this.emitAudioTracksChange();
+    this.emitSubtitleTracksChange();
+    this.updateState('idle');
   }
 
   private mapHlsError(data: ErrorData): PlaybackError {
