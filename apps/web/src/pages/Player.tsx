@@ -72,6 +72,7 @@ import { useSwitchToLiveMode } from '@/pages/switchToLiveMode';
 import { fetchChannelShortEpgPrograms } from '@/services/channelEpg';
 import { resolveCatchUpEmptyStateReason } from '@/components/player/catchUpEmptyState';
 import { hasLiveCatchUpEntries, shouldShowLiveCatchUpSection } from '@/pages/liveCatchUpVisibility';
+import { resolveCatchUpClockActionTarget } from '@/pages/liveCatchUpDiscoverability';
 
 type SessionSourceMetadata = {
   channelId?: string;
@@ -317,6 +318,8 @@ const Player = () => {
   const lastChannelLoadErrorRef = useRef<string | null>(null);
   const previousCastConnectedRef = useRef(castSender.isConnected);
   const tvUnazadSectionRef = useRef<HTMLDivElement>(null);
+  const tvUnazadHighlightTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [isTvUnazadHighlighted, setIsTvUnazadHighlighted] = useState(false);
 
   const sessionSourceMetadata = useMemo(
     () => parseSessionSourceMetadata(session.source?.metadata),
@@ -1011,6 +1014,30 @@ const Player = () => {
     () => hasLiveCatchUpEntries(catchUpProgramDays.length),
     [catchUpProgramDays.length]
   );
+  const triggerTvUnazadDiscoverability = useCallback(() => {
+    const actionTarget = resolveCatchUpClockActionTarget(
+      Boolean(tvUnazadSectionRef.current) && shouldShowTvUnazadSection
+    );
+    if (actionTarget === 'open-epg') {
+      navigate('/epg');
+      return;
+    }
+
+    tvUnazadSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    setIsTvUnazadHighlighted(true);
+    if (tvUnazadHighlightTimeoutRef.current) {
+      clearTimeout(tvUnazadHighlightTimeoutRef.current);
+    }
+    tvUnazadHighlightTimeoutRef.current = setTimeout(() => {
+      setIsTvUnazadHighlighted(false);
+      tvUnazadHighlightTimeoutRef.current = null;
+    }, 1800);
+  }, [navigate, shouldShowTvUnazadSection]);
+  useEffect(() => () => {
+    if (tvUnazadHighlightTimeoutRef.current) {
+      clearTimeout(tvUnazadHighlightTimeoutRef.current);
+    }
+  }, []);
   const tvUnazadEmptyStateReason = useMemo(() => {
     if (!currentChannelWithEPG) {
       return null;
@@ -1487,6 +1514,7 @@ const Player = () => {
                   onToggleFullscreen={toggleFullscreen}
                   onPrevChannel={goToPrevChannel}
                   onNextChannel={goToNextChannel}
+                  onCatchUpDiscoverabilityAction={triggerTvUnazadDiscoverability}
                   playerRef={playerRef}
                   defaultVolume={appSettings.player.defaultVolume}
                   castControl={{
@@ -1671,7 +1699,10 @@ const Player = () => {
                 )}
 
                 {shouldShowTvUnazadSection && (
-                  <div ref={tvUnazadSectionRef}>
+                  <div
+                    ref={tvUnazadSectionRef}
+                    className={`rounded-xl transition-colors duration-300 ${isTvUnazadHighlighted ? 'bg-emerald-500/10' : ''}`}
+                  >
                     <div className="flex items-center gap-2 mb-3">
                       <div className="w-6 h-6 rounded-full bg-emerald-500/20 flex items-center justify-center">
                         <Play className="w-3 h-3 text-emerald-500" />
@@ -1809,7 +1840,7 @@ const Player = () => {
                 <button
                   type="button"
                   className="flex-shrink-0 w-full p-3 bg-gradient-to-t from-card via-card to-transparent border-t border-border/50 hover:bg-secondary/30 transition-colors cursor-pointer"
-                  onClick={() => tvUnazadSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                  onClick={triggerTvUnazadDiscoverability}
                 >
                   <div className="flex items-center justify-center gap-2">
                     <ChevronDown className="w-4 h-4 animate-bounce text-muted-foreground" />

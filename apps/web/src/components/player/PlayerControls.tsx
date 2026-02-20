@@ -48,6 +48,7 @@ interface PlayerControlsProps {
   onNextChannel: () => void;
   playerRef: MutableRefObject<VideoPlayerHandle | null>;
   defaultVolume?: number;
+  onCatchUpDiscoverabilityAction?: () => void;
   castControl?: {
     isAvailable: boolean;
     isConnected: boolean;
@@ -129,6 +130,7 @@ const PlayerControls = ({
   onNextChannel,
   playerRef,
   defaultVolume = 80,
+  onCatchUpDiscoverabilityAction,
   castControl,
 }: PlayerControlsProps) => {
   const { session, commands } = useSessionContext();
@@ -607,6 +609,18 @@ const PlayerControls = ({
     switchToLive();
   };
 
+  const handleCatchUpAction = useCallback(() => {
+    setShowAudioTracks(false);
+    setShowSubtitleTracks(false);
+
+    if (isFullscreen) {
+      setShowCatchUp(true);
+      return;
+    }
+
+    onCatchUpDiscoverabilityAction?.();
+  }, [isFullscreen, onCatchUpDiscoverabilityAction]);
+
   const handleSeek = (e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>) => {
     if (!progressRef.current || !catchUpProgram) return;
 
@@ -964,11 +978,7 @@ const PlayerControls = ({
                   variant="ghost"
                   size="icon"
                   className={`h-9 w-9 hover:bg-secondary/50 ${catchUpProgram ? 'text-primary' : ''}`}
-                  onClick={() => {
-                    setShowAudioTracks(false);
-                    setShowSubtitleTracks(false);
-                    setShowCatchUp(true);
-                  }}
+                  onClick={handleCatchUpAction}
                 >
                   <Clock className="h-4 w-4" />
                 </Button>
@@ -1510,9 +1520,7 @@ const PlayerControls = ({
                   className={`w-9 h-9 sm:w-10 sm:h-10 hover:bg-secondary/50 ${catchUpProgram ? 'text-primary' : ''}`}
                   onClick={(e) => {
                     e.stopPropagation();
-                    setShowAudioTracks(false);
-                    setShowSubtitleTracks(false);
-                    setShowCatchUp(true);
+                    handleCatchUpAction();
                   }}
                 >
                   <Clock className="w-4 h-4 sm:w-5 sm:h-5" />
