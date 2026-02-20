@@ -801,7 +801,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
       />
 
       {isLoading && !error && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/50 z-10">
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/50 z-10">
           <Loader2 className="w-12 h-12 text-primary animate-spin" />
         </div>
       )}
