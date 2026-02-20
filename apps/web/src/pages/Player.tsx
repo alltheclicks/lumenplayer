@@ -1544,7 +1544,7 @@ const Player = () => {
                         disabled={castSender.isConnecting}
                       >
                         <Cast className="mr-2 h-4 w-4" />
-                        {castSender.isConnected ? 'Disconnect Cast' : 'Cast'}
+                        {castSender.isConnected ? 'Prekini cast' : 'Poveži cast'}
                       </Button>
                     )}
                     {isAirPlaySupported && session.renderer !== 'cast' && (
