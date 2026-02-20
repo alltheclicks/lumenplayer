@@ -157,7 +157,70 @@ Template:
   - P1
 - Status: converted-to `QAF-014`
 
-## Intake triage snapshot (2026-02-19)
+### BUG-20260220-01
+- Environment:
+  - `http://localhost:8080/player`, desktop browser, initial startup na live kanalu (primer: RTS 1)
+- Steps:
+  1. Pokreni dev server i otvori `/player`.
+  2. Sačekaj inicijalni autoplay/start prvog kanala.
+  3. Posmatraj video surface + play/pause stanje.
+- Expected:
+  - Live kanal treba da krene u playback odmah (ne samo prvi frame), sa konzistentnim play stanjem.
+- Actual:
+  - Prikaže se samo prvi frame; dugme izgleda kao da je playback aktivan (`pause`), ali video ne ide dok se kanal ne promeni.
+- Evidence:
+  - Korisnički nalaz “Lumen test v1 #3” (chat, 2026-02-20).
+- Reporter:
+  - Filip
+- Timestamp:
+  - 2026-02-20
+- Severity (initial):
+  - P1
+- Status: converted-to `QAF-015` (startup live playback first-frame stall)
+
+### BUG-20260220-02
+- Environment:
+  - `http://localhost:8080/player`, desktop browser, live channel switching (zapping)
+- Steps:
+  1. Pokreni live kanal.
+  2. Menjaj kanale gore/dole iz liste.
+  3. Izmeri subjektivni i/ili instrumentovani start novog streama.
+- Expected:
+  - Zapping treba da bude responsivan i uporediv sa referentnim IPTV player iskustvom.
+- Actual:
+  - Puštanje narednog kanala deluje primetno sporo.
+- Evidence:
+  - Korisnički nalaz “Lumen test v1 #3” (chat, 2026-02-20).
+- Reporter:
+  - Filip
+- Timestamp:
+  - 2026-02-20
+- Severity (initial):
+  - P2
+- Status: converted-to `QAF-016` (zapping latency hardening)
+
+### BUG-20260220-03
+- Environment:
+  - `http://localhost:8080/player`, live shell ispod video površine
+- Steps:
+  1. Otvori live player sa aktivnim kanalom.
+  2. Pogledaj sekcije ispod videa (`Sada na programu`/`Sledi`/`TV unazad`).
+  3. Proveri da li je catch-up sekcija renderovana.
+- Expected:
+  - Catch-up (`TV unazad`) sekcija treba da bude vidljiva kada postoje uslovi za prikaz.
+- Actual:
+  - Catch-up/TV unazad sekcija nije vidljiva na očekivanom mestu.
+- Evidence:
+  - Korisnički nalaz “Lumen test v1 #3” (chat, 2026-02-20).
+- Reporter:
+  - Filip
+- Timestamp:
+  - 2026-02-20
+- Severity (initial):
+  - P2
+- Status: converted-to `QAF-017` (catch-up visibility regression)
+
+## Intake triage snapshot (2026-02-20)
 
 | Intake ID | Lane | Severity | Converted to | Notes |
 |---|---|---|---|---|
@@ -167,6 +230,9 @@ Template:
 | BUG-20260219-04 | Bugfix/Layout | P1 | QAF-012 | Player page scroll-lock/layout containment |
 | BUG-20260219-05 | Bugfix/Catch-up UX | P2 | QAF-013 | Clarify catch-up no-data vs filter/data issue |
 | BUG-20260219-06 | Bugfix/Playback | P1 | QAF-014 | PiP return should auto-resume live playback |
+| BUG-20260220-01 | Bugfix/Playback | P1 | QAF-015 | Startup first-frame stall despite active play state |
+| BUG-20260220-02 | Bugfix/Playback-Perf | P2 | QAF-016 | Slow live zapping/channel switch startup |
+| BUG-20260220-03 | Bugfix/Catch-up UX | P2 | QAF-017 | Catch-up (`TV unazad`) section not visible below live player |
 
 ## Status legend
 
@@ -189,7 +255,8 @@ Template:
 
 ## Active tasks (granular)
 
-Current snapshot (aligned with `origin/main` + merged PR history on GitHub): all QAF tasks are completed.
+Current snapshot:
+- `QAF-001..QAF-017` are completed (merged).
 
 | ID | Title | Area | Severity | Status |
 |---|---|---|---|---|
@@ -207,12 +274,15 @@ Current snapshot (aligned with `origin/main` + merged PR history on GitHub): all
 | QAF-012 | Prevent whole player page vertical scroll drift in desktop layout | Player Layout/Scroll Lock | P1 | done |
 | QAF-013 | Clarify/fix catch-up panel behavior when no recordings are shown | Catch-up UX/Data | P2 | done |
 | QAF-014 | Resume live playback automatically after returning from PiP | Player Playback/PiP | P1 | done |
+| QAF-015 | Fix startup live playback first-frame stall (paused=false UI but video not advancing) | Player Playback | P1 | done |
+| QAF-016 | Improve live zapping latency (channel switch startup too slow) | Player Playback/Performance | P2 | done |
+| QAF-017 | Restore catch-up (`TV unazad`) section visibility under live player when applicable | Catch-up UX/Data | P2 | done |
 
-## Completion notes (2026-02-19)
+## Completion notes (2026-02-20)
 
 - GitHub verification snapshot:
-  - merged PRs: `#162`, `#163`, `#164`, `#166`, `#167`, `#168`, `#171`, `#172`, `#173`, `#175`, `#176`, `#177`, `#178`, `#180`
-  - all QAF IDs `QAF-001..QAF-014` are completed and merged.
+  - merged PRs: `#162`, `#163`, `#164`, `#166`, `#167`, `#168`, `#171`, `#172`, `#173`, `#175`, `#176`, `#177`, `#178`, `#180`, `#184`, `#185`, `#186`
+  - all QAF IDs `QAF-001..QAF-017` are completed and merged.
 - Completion map:
   - `QAF-001` -> PR `#164` (Greptile final `5/5` after follow-up remediation)
   - `QAF-002` -> PR `#166` (merged)
@@ -228,15 +298,18 @@ Current snapshot (aligned with `origin/main` + merged PR history on GitHub): all
   - `QAF-012` -> PR `#173` (Greptile `5/5`)
   - `QAF-013` -> PR `#178` (Greptile final `5/5` after remediation)
   - `QAF-014` -> PR `#171` (Greptile `5/5`)
+  - `QAF-015` -> PR `#184` (Greptile `4/5`, allowed no-blocker exception documented on PR)
+  - `QAF-016` -> PR `#185` (Greptile `5/5`)
+  - `QAF-017` -> PR `#186` (Greptile `5/5`)
 - QA gate state after implementation wave:
   - last noted local `run-qa-simulation.sh` rerun in logs is blocked by Playwright loader conflict (`Requiring @playwright/test second time`) in `.codex/worktrees/QA-GATE`.
-  - this is tracked as QA tooling/runtime follow-up; it is not a remaining functional QAF product bug task.
+  - this remains tracked as QA tooling/runtime follow-up after completed wave (`QAF-001..QAF-017`).
 
 ---
 
 ## Task details + prompt archive (historical)
 
-All QAF tasks are completed; sections below are kept as historical implementation archive.
+Sections below are historical archive for `QAF-001..QAF-014` implementation prompts.
 
 ### QAF-001
 - Problem:
