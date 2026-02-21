@@ -964,7 +964,7 @@ const PlayerControls = ({
           <div className="flex flex-wrap items-center gap-2 lg:justify-end">
             <div className="flex items-center gap-2 rounded-xl border border-border/40 bg-background/20 p-1 pr-2 backdrop-blur-sm">
               <Button variant="ghost" size="icon" className="h-9 w-9 hover:bg-secondary/50" onClick={toggleMute}>
-                {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+                {isMuted || volume === 0 ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
               </Button>
               <input
                 type="range"
