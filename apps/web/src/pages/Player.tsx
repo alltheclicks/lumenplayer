@@ -829,6 +829,7 @@ const Player = () => {
         });
       } else {
         commands.setSource({ ...session.source }, 0);
+        playerRef.current?.play();
         commands.play();
         toast({
           title: 'Vraćeno na UŽIVO',
