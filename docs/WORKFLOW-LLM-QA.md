@@ -1,8 +1,10 @@
 # WORKFLOW LLM + QA (Operational Guide)
 
-> Version: 1.0  
-> Date: 2026-02-19  
+> Version: 1.1  
+> Date: 2026-02-21  
 > Scope: Lumen Player ongoing delivery with parallel LLM agents.
+
+Current QA backlog: `docs/V2-QA-FIX-BACKLOG.md`
 
 ## 1) Current project state (from source-of-truth files)
 
@@ -29,6 +31,24 @@ Use this order when agents conflict:
 3. `HANDOFF.md` (what was actually done and in which order)
 4. QA artifacts (`output/playwright/qa-user-sim/QA-REPORT.md`, timelines, screenshots)
 5. Chat context (lowest authority)
+
+### 2.1 Fresh-start check (mandatory for any new agent session)
+
+Before selecting "next tasks", always do this in order:
+
+1. Sync and verify branch state:
+   - `git fetch origin --prune`
+   - confirm `main` vs `origin/main` has `0/0` ahead/behind
+2. Read current planning state from:
+   - `BACKLOG.md` (what is planned/open and dependencies)
+   - active QA backlog doc (latest intake + QAF conversion + active status)
+3. Read execution reality from:
+   - latest session block in `HANDOFF.md` (what was actually merged and in which order)
+4. Reconcile mismatch rule:
+   - If docs conflict or look stale, trust latest merged PR state + `HANDOFF.md`, then do a docs-sync PR first.
+5. Only after steps 1-4, pick next ready tasks.
+
+Never choose next work from chat memory alone when source-of-truth files disagree or are incomplete.
 
 ## 3) Parallel agent model (hour-based, not day-based)
 
@@ -73,7 +93,7 @@ Required fields:
 
 ### 5.2 New bug/problem noticed manually
 
-- File: `docs/V2-QA-FIX-BACKLOG.md`
+- File: active QA backlog doc (`Current QA backlog` pointer at top of this file)
 - Section to use: append under:
   - `## Intake — Untriaged Issues`
 - ID format:
@@ -93,7 +113,7 @@ Required fields:
 
 ### 5.3 QA-script discovered issue
 
-- File: `docs/V2-QA-FIX-BACKLOG.md`
+- File: active QA backlog doc (`Current QA backlog` pointer at top of this file)
 - Convert to `QAF-XXX` only after triage confirms it is a real actionable task.
 - Keep link to report:
   - `output/playwright/qa-user-sim/QA-REPORT.md`
@@ -145,7 +165,7 @@ E2E_XUI_USERNAME='...' E2E_XUI_PASSWORD='...' ./run-qa-simulation.sh
 
 Then update:
 - `output/playwright/qa-user-sim/QA-REPORT.md` (generated)
-- `docs/V2-QA-FIX-BACKLOG.md` (status changes and new blockers)
+- active QA backlog doc (status changes and new blockers)
 - `HANDOFF.md` (what changed + evidence)
 
 ## 10) Definition of done (task level)
