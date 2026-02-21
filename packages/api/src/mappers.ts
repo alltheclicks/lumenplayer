@@ -23,7 +23,8 @@ export const mapXtreamChannel = (
   const category = categories.find(
     (c) => c.category_id === stream.category_id,
   );
-  const hasCatchUp = stream.tv_archive === 1;
+  const hasCatchUp = Number(stream.tv_archive) === 1;
+  const catchUpDays = Number(stream.tv_archive_duration);
 
   return {
     id: String(stream.stream_id),
@@ -35,7 +36,7 @@ export const mapXtreamChannel = (
     categoryId: stream.category_id,
     categoryName: category?.category_name || "Uncategorized",
     hasCatchUp,
-    catchUpDays: stream.tv_archive_duration || 0,
+    catchUpDays: Number.isFinite(catchUpDays) && catchUpDays > 0 ? catchUpDays : 0,
     epgChannelId: stream.epg_channel_id,
     epg: epgGenerator
       ? epgGenerator(String(stream.stream_id), hasCatchUp)
