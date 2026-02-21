@@ -784,18 +784,9 @@ const Player = () => {
     navigate('/player');
   }, [isOnDemandSource, navigate, switchToLiveMode]);
 
-  const togglePlayback = useCallback(() => {
+  const resumePlayback = useCallback(() => {
     if (!session.source) {
       livePauseStartedAtRef.current = null;
-      return;
-    }
-
-    if (session.playback === 'playing' || session.playback === 'buffering') {
-      playerRef.current?.pause();
-      commands.pause();
-      if (isLiveSourcePlayback && session.source.url) {
-        livePauseStartedAtRef.current = Date.now();
-      }
       return;
     }
 
@@ -813,11 +804,10 @@ const Player = () => {
           description: 'Pauza je preduga, pa je reprodukcija vraćena na live ivicu.',
         });
       } else {
-        commands.setSource({ ...session.source }, 0);
-        commands.play();
+        commands.stop();
         toast({
-          title: 'Vraćeno na UŽIVO',
-          description: 'Kanal nije više u listi, pa je stream resetovan na live ivicu.',
+          title: 'Live kanal nije dostupan',
+          description: 'Kanal više nije u listi. Izaberite drugi kanal za nastavak.',
         });
       }
       livePauseStartedAtRef.current = null;
@@ -831,12 +821,29 @@ const Player = () => {
     commands,
     currentChannel,
     isLiveSourcePlayback,
-    session.playback,
     session.source,
     shouldAutoplayLiveOnSelect,
     switchToLiveChannel,
     toast,
   ]);
+
+  const togglePlayback = useCallback(() => {
+    if (!session.source) {
+      livePauseStartedAtRef.current = null;
+      return;
+    }
+
+    if (session.playback === 'playing' || session.playback === 'buffering') {
+      playerRef.current?.pause();
+      commands.pause();
+      if (isLiveSourcePlayback && session.source.url) {
+        livePauseStartedAtRef.current = Date.now();
+      }
+      return;
+    }
+
+    resumePlayback();
+  }, [commands, isLiveSourcePlayback, resumePlayback, session.playback, session.source]);
 
   const togglePictureInPicture = useCallback(() => {
     if (!session.source || !usesLocalRenderer || !isPictureInPictureSupported) {
@@ -1004,7 +1011,7 @@ const Player = () => {
           if (session.playback === 'playing' || session.playback === 'buffering') {
             return;
           }
-          togglePlayback();
+          resumePlayback();
           return;
         case WebKeyCodes.pause:
           event.preventDefault();
@@ -1050,6 +1057,7 @@ const Player = () => {
     isFullscreen,
     canTogglePictureInPicture,
     isLiveSourcePlayback,
+    resumePlayback,
     session.source,
     session.playback,
     togglePictureInPicture,
