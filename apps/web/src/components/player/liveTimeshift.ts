@@ -1,5 +1,11 @@
 import type { Program } from '@lumen/types';
 
+const LIVE_TIMESHIFT_ACTIVATION_KEYS = new Set([
+  'Enter',
+  ' ',
+  'Spacebar',
+]);
+
 export const canStartLiveTimeshift = (
   hasCatchUp: boolean,
   currentProgram?: Program | null
@@ -23,3 +29,7 @@ export const resolveLiveTimeshiftPositionSeconds = (
   const clampedRatio = Math.max(0, Math.min(1, ratio));
   return durationSeconds * clampedRatio;
 };
+
+export const isLiveTimeshiftActivationKey = (key: string): boolean => (
+  LIVE_TIMESHIFT_ACTIVATION_KEYS.has(key)
+);
