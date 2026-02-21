@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import type { XtreamSeries } from '@lumen/types';
 import { loadXtreamCredentials } from '@/services/xtreamCredentials';
 import { xtreamCodesService } from '@/services/xtreamService';
+import { resolveSeriesArtworkUrl } from '@/pages/seriesArtwork';
 
 export interface SeriesCategory {
   id: string;
@@ -171,7 +172,7 @@ const mapSeriesItem = (series: XtreamSeries): SeriesItem => ({
   id: String(series.series_id),
   name: series.name,
   categoryId: series.category_id,
-  cover: series.cover || '',
+  cover: resolveSeriesArtworkUrl(series as unknown as Record<string, unknown>),
   rating: series.rating || undefined,
   releaseDate: series.release_date || undefined,
   yearRange: parseReleaseYear(series.release_date),
