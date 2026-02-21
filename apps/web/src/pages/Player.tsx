@@ -68,7 +68,10 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { getPlayerOnDemandContext } from '@/pages/playerOnDemandContext';
 import { shouldAutoplaySource } from '@/pages/liveChannelStartupMode';
-import { resolveStartupLiveChannel } from '@/pages/restoreLiveChannel';
+import {
+  resolveStartupLiveChannel,
+  shouldSnapSessionRestoreToLiveEdge,
+} from '@/pages/restoreLiveChannel';
 import { useSwitchToLiveMode } from '@/pages/switchToLiveMode';
 import { fetchChannelShortEpgPrograms } from '@/services/channelEpg';
 import { resolveCatchUpEmptyStateReason } from '@/components/player/catchUpEmptyState';
@@ -320,6 +323,7 @@ const Player = () => {
   const previousCastConnectedRef = useRef(castSender.isConnected);
   const tvUnazadSectionRef = useRef<HTMLDivElement>(null);
   const tvUnazadHighlightTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const startupLiveRestoreAppliedRef = useRef(false);
   const [isTvUnazadHighlighted, setIsTvUnazadHighlighted] = useState(false);
 
   const sessionSourceMetadata = useMemo(
@@ -590,15 +594,20 @@ const Player = () => {
 
   // Restore last watched live channel when possible, then fall back to first channel.
   useEffect(() => {
+    if (startupLiveRestoreAppliedRef.current) {
+      return;
+    }
+
     if (!isSettingsHydrated) {
       return;
     }
 
-    if (channels.length === 0 || currentChannel || session.source) {
+    if (channels.length === 0) {
       return;
     }
 
     let isCancelled = false;
+    const shouldSnapPersistedLiveSource = shouldSnapSessionRestoreToLiveEdge(session.source);
 
     const restoreStartupChannel = async () => {
       const lastWatchedChannelId = await loadLastWatchedChannelId();
@@ -606,12 +615,26 @@ const Player = () => {
         return;
       }
 
-      const startupChannel = resolveStartupLiveChannel(channels, lastWatchedChannelId);
+      const shouldApplyStartupRestore = shouldSnapPersistedLiveSource || (!currentChannel && !session.source);
+      if (!shouldApplyStartupRestore) {
+        startupLiveRestoreAppliedRef.current = true;
+        return;
+      }
+
+      const startupChannel = resolveStartupLiveChannel(
+        channels,
+        lastWatchedChannelId,
+        shouldSnapPersistedLiveSource
+          ? (currentChannel?.id ?? session.source?.channelId ?? null)
+          : null
+      );
       if (!startupChannel) {
+        startupLiveRestoreAppliedRef.current = true;
         return;
       }
 
       switchToLiveChannel(startupChannel);
+      startupLiveRestoreAppliedRef.current = true;
     };
 
     void restoreStartupChannel();
