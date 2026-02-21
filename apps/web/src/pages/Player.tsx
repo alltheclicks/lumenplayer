@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback, useMemo, type ReactNode } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo, type ChangeEvent, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
@@ -21,11 +21,15 @@ import {
   Home,
   Play,
   Pause,
+  Maximize,
+  Minimize,
   PictureInPicture2,
   Cast,
   Airplay,
   SkipBack,
   SkipForward,
+  Volume2,
+  VolumeX,
   Smartphone,
   RefreshCw,
   Tv2,
@@ -41,7 +45,7 @@ import { useFavorites } from '@/hooks/useFavorites';
 import { useSessionContext } from '@/context/session-context';
 import { useGoogleCastSender } from '@/hooks/useGoogleCastSender';
 import { NumericChannelInput, WebKeyCodes } from '@lumen/input';
-import { filterChannels, formatTime, getCurrentProgram, getProgramProgress } from '@lumen/core';
+import { filterChannels, formatDuration, formatTime, getCurrentProgram, getProgramProgress } from '@lumen/core';
 import type { PlayerChannel, XtreamUserInfo } from '@lumen/types';
 import {
   loadXtreamCredentials,
@@ -205,6 +209,10 @@ const formatCatchUpDateLabel = (date: Date): string => {
 };
 
 const PICTURE_IN_PICTURE_KEY_CODE = 80; // Keyboard "P"
+const ON_DEMAND_LOADING_OVERLAY_MAX_MS = 2500;
+
+const clampVolumePercent = (value: number): number => Math.max(0, Math.min(100, Math.round(value)));
+const DEFAULT_ON_DEMAND_VOLUME = clampVolumePercent(getDefaultAppSettings().player.defaultVolume);
 
 type MediaEntryLink = {
   path: '/vod' | '/series' | '/epg';
@@ -330,6 +338,11 @@ const Player = () => {
   const livePauseStartedAtRef = useRef<number | null>(null);
   const startupLiveRestoreAppliedRef = useRef(false);
   const [isTvUnazadHighlighted, setIsTvUnazadHighlighted] = useState(false);
+  const [onDemandDurationMs, setOnDemandDurationMs] = useState(0);
+  const [onDemandVolume, setOnDemandVolume] = useState(DEFAULT_ON_DEMAND_VOLUME);
+  const [isOnDemandMuted, setIsOnDemandMuted] = useState(DEFAULT_ON_DEMAND_VOLUME === 0);
+  const [isOnDemandVolumePanelOpen, setIsOnDemandVolumePanelOpen] = useState(false);
+  const onDemandLastNonZeroVolumeRef = useRef(DEFAULT_ON_DEMAND_VOLUME > 0 ? DEFAULT_ON_DEMAND_VOLUME : 60);
 
   const sessionSourceMetadata = useMemo(
     () => parseSessionSourceMetadata(session.source?.metadata),
@@ -341,6 +354,17 @@ const Player = () => {
   );
   const liveSourceChannelId = session.source?.channelId ?? sessionSourceMetadata.channelId ?? null;
   const isOnDemandSource = onDemandContext !== null;
+  const onDemandPositionMs = useMemo(() => {
+    const normalizedPosition = Math.max(0, session.positionMs ?? 0);
+    if (onDemandDurationMs <= 0) {
+      return normalizedPosition;
+    }
+
+    return Math.min(normalizedPosition, onDemandDurationMs);
+  }, [onDemandDurationMs, session.positionMs]);
+  const onDemandDurationSeconds = onDemandDurationMs > 0 ? Math.floor(onDemandDurationMs / 1000) : 0;
+  const onDemandPositionSeconds = Math.max(0, Math.floor(onDemandPositionMs / 1000));
+  const hasOnDemandDuration = onDemandDurationMs > 0;
   const isLiveSourcePlayback = isLivePlaybackSource(sessionSourceMetadata.mode, liveSourceChannelId);
   const usesLocalRenderer = session.renderer === 'local-web' || session.renderer === 'airplay';
   const shouldAutoplayLiveOnSelect = shouldAutoplaySource('live', appSettings);
@@ -868,6 +892,19 @@ const Player = () => {
     playerRef.current?.showAirPlayPicker();
   }, [isAirPlaySupported]);
 
+  const seekOnDemandTo = useCallback((targetPositionMs: number) => {
+    if (!session.source) {
+      return;
+    }
+
+    const clampedPositionMs = hasOnDemandDuration
+      ? Math.max(0, Math.min(onDemandDurationMs, targetPositionMs))
+      : Math.max(0, targetPositionMs);
+
+    playerRef.current?.seek(clampedPositionMs / 1000);
+    commands.seek(clampedPositionMs);
+  }, [commands, hasOnDemandDuration, onDemandDurationMs, session.source]);
+
   const seekBySeconds = useCallback(
     (deltaSeconds: number) => {
       if (!session.source) {
@@ -875,11 +912,110 @@ const Player = () => {
       }
 
       const currentPositionMs = session.positionMs ?? 0;
-      const nextPositionMs = Math.max(0, currentPositionMs + deltaSeconds * 1000);
-      commands.seek(nextPositionMs);
+      const nextPositionMs = currentPositionMs + deltaSeconds * 1000;
+      seekOnDemandTo(nextPositionMs);
     },
-    [commands, session.positionMs, session.source]
+    [seekOnDemandTo, session.positionMs, session.source]
   );
+
+  const handleOnDemandSeekChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
+    const nextPositionSeconds = Number(event.target.value);
+    if (!Number.isFinite(nextPositionSeconds)) {
+      return;
+    }
+
+    seekOnDemandTo(nextPositionSeconds * 1000);
+  }, [seekOnDemandTo]);
+
+  const toggleOnDemandMute = useCallback(() => {
+    if (!isOnDemandMuted && onDemandVolume > 0) {
+      setIsOnDemandMuted(true);
+      return;
+    }
+
+    const restoredVolume = onDemandLastNonZeroVolumeRef.current;
+    setOnDemandVolume(restoredVolume);
+    setIsOnDemandMuted(false);
+    setIsOnDemandVolumePanelOpen(true);
+  }, [isOnDemandMuted, onDemandVolume]);
+
+  const handleOnDemandVolumeChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
+    const nextVolume = clampVolumePercent(Number(event.target.value));
+    setOnDemandVolume(nextVolume);
+    if (nextVolume > 0) {
+      onDemandLastNonZeroVolumeRef.current = nextVolume;
+      setIsOnDemandMuted(false);
+      return;
+    }
+
+    setIsOnDemandMuted(true);
+  }, []);
+
+  const retryCurrentPlayback = useCallback(() => {
+    if (!session.source) {
+      return;
+    }
+
+    commands.setSource({ ...session.source }, onDemandPositionMs);
+    commands.play();
+  }, [commands, onDemandPositionMs, session.source]);
+
+  useEffect(() => {
+    const defaultVolume = clampVolumePercent(appSettings.player.defaultVolume);
+    setOnDemandVolume(defaultVolume);
+    setIsOnDemandMuted(defaultVolume === 0);
+    if (defaultVolume > 0) {
+      onDemandLastNonZeroVolumeRef.current = defaultVolume;
+    }
+  }, [appSettings.player.defaultVolume]);
+
+  useEffect(() => {
+    const onDemandSourceUrl = session.source?.url ?? null;
+    if (!isOnDemandSource || !onDemandSourceUrl || !usesLocalRenderer) {
+      setOnDemandDurationMs(0);
+      return;
+    }
+
+    const syncDuration = () => {
+      const nextDurationSeconds = playerRef.current?.getDuration() ?? 0;
+      if (!Number.isFinite(nextDurationSeconds) || nextDurationSeconds <= 0) {
+        return;
+      }
+
+      const nextDurationMs = Math.floor(nextDurationSeconds * 1000);
+      setOnDemandDurationMs((previousDurationMs) => (
+        Math.abs(previousDurationMs - nextDurationMs) < 500
+          ? previousDurationMs
+          : nextDurationMs
+      ));
+    };
+
+    syncDuration();
+    const intervalId = window.setInterval(syncDuration, 400);
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [isOnDemandSource, session.source?.url, usesLocalRenderer]);
+
+  useEffect(() => {
+    if (!isOnDemandSource || !session.source || !usesLocalRenderer) {
+      return;
+    }
+
+    const effectiveVolume = isOnDemandMuted ? 0 : onDemandVolume;
+    if (effectiveVolume > 0) {
+      onDemandLastNonZeroVolumeRef.current = effectiveVolume;
+    }
+
+    playerRef.current?.setVolume(effectiveVolume / 100);
+    playerRef.current?.setMuted(effectiveVolume === 0);
+  }, [isOnDemandMuted, isOnDemandSource, onDemandVolume, session.source, usesLocalRenderer]);
+
+  useEffect(() => {
+    if (!isOnDemandSource) {
+      setIsOnDemandVolumePanelOpen(false);
+    }
+  }, [isOnDemandSource]);
 
   useEffect(() => {
     if (!session.source) {
@@ -1508,6 +1644,7 @@ const Player = () => {
                 ref={playerRef}
                 autoPlay={shouldAutoplayCurrentSource}
                 preferNativeHls={appSettings.player.preferNativeHls}
+                loadingOverlayMaxMs={isOnDemandSource ? ON_DEMAND_LOADING_OVERLAY_MAX_MS : undefined}
               />
             )}
 
@@ -1621,63 +1758,154 @@ const Player = () => {
 
             {isOnDemandSource && session.source && usesLocalRenderer && (
               <div className="absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/90 via-black/60 to-transparent p-4 sm:p-6">
-                <div className="mx-auto flex max-w-screen-xl flex-wrap items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="mb-1 flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-primary">
-                      <Film className="h-4 w-4" />
-                      {onDemandTitle}
-                    </p>
-                    <h2 className="truncate text-lg font-semibold text-foreground sm:text-xl">
-                      {session.source.title || 'On-demand playback'}
-                    </h2>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Button
-                      variant="secondary"
-                      onClick={togglePlayback}
-                    >
-                      {session.playback === 'playing' || session.playback === 'buffering' ? (
-                        <Pause className="mr-2 h-4 w-4" />
-                      ) : (
-                        <Play className="mr-2 h-4 w-4" />
+                <div className="mx-auto max-w-screen-xl space-y-3 rounded-2xl border border-border/60 bg-background/70 p-4 shadow-xl backdrop-blur-sm">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="mb-1 flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-primary">
+                        <Film className="h-4 w-4" />
+                        {onDemandTitle}
+                      </p>
+                      <h2 className="truncate text-lg font-semibold text-foreground sm:text-xl">
+                        {session.source.title || 'On-demand playback'}
+                      </h2>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {session.playback === 'buffering' && (
+                        <span className="inline-flex items-center gap-1 rounded-md border border-primary/30 bg-primary/10 px-2 py-1 text-xs text-primary">
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          Ucitavanje
+                        </span>
                       )}
-                      {session.playback === 'playing' || session.playback === 'buffering' ? 'Pause' : 'Play'}
-                    </Button>
-                    {isPictureInPictureSupported && (
-                      <Button
-                        variant="outline"
-                        onClick={togglePictureInPicture}
-                        title="Picture in Picture (P / Blue key)"
-                      >
-                        <PictureInPicture2 className="mr-2 h-4 w-4" />
-                        {isPictureInPicture ? 'Exit PiP' : 'PiP'}
+                      <Button variant="outline" onClick={retryCurrentPlayback}>
+                        <RefreshCw className="mr-2 h-4 w-4" />
+                        Retry
                       </Button>
-                    )}
-                    {castSender.isAvailable && (
-                      <Button
-                        variant={castSender.isConnected ? 'secondary' : 'outline'}
-                        onClick={() => {
-                          void castSender.toggleCasting();
-                        }}
-                        disabled={castSender.isConnecting}
-                      >
-                        <Cast className="mr-2 h-4 w-4" />
-                        {castSender.isConnected ? 'Prekini cast' : 'Poveži cast'}
+                      <Button variant="outline" onClick={() => navigate(onDemandBackPath)}>
+                        {onDemandBackLabel}
                       </Button>
-                    )}
-                    {isAirPlaySupported && session.renderer !== 'cast' && (
-                      <Button
-                        variant={isAirPlayConnected ? 'secondary' : 'outline'}
-                        onClick={openAirPlayPicker}
-                        disabled={!isAirPlayAvailable}
-                      >
-                        <Airplay className="mr-2 h-4 w-4" />
-                        {isAirPlayConnected ? 'AirPlay Active' : 'AirPlay'}
+                      <Button variant="outline" onClick={() => switchToLiveMode()}>
+                        <Tv2 className="mr-2 h-4 w-4" />
+                        TV Uzivo
                       </Button>
-                    )}
-                    <Button variant="outline" onClick={() => navigate(onDemandBackPath)}>
-                      {onDemandBackLabel}
-                    </Button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <input
+                      type="range"
+                      min="0"
+                      max={Math.max(onDemandDurationSeconds, 1)}
+                      value={Math.min(onDemandPositionSeconds, Math.max(onDemandDurationSeconds, 1))}
+                      onChange={handleOnDemandSeekChange}
+                      disabled={!hasOnDemandDuration}
+                      className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-secondary/50 accent-primary disabled:cursor-not-allowed disabled:opacity-50"
+                      aria-label="On-demand seek timeline"
+                    />
+                    <div className="flex items-center justify-between text-xs text-muted-foreground tabular-nums">
+                      <span>{formatDuration(onDemandPositionSeconds)}</span>
+                      <span>{hasOnDemandDuration ? formatDuration(onDemandDurationSeconds) : '--:--'}</span>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button variant="secondary" onClick={togglePlayback}>
+                        {session.playback === 'playing' || session.playback === 'buffering' ? (
+                          <Pause className="mr-2 h-4 w-4" />
+                        ) : (
+                          <Play className="mr-2 h-4 w-4" />
+                        )}
+                        {session.playback === 'playing' || session.playback === 'buffering' ? 'Pause' : 'Play'}
+                      </Button>
+                      <Button variant="outline" onClick={() => seekBySeconds(-15)} disabled={!hasOnDemandDuration}>
+                        <SkipBack className="mr-2 h-4 w-4" />
+                        -15s
+                      </Button>
+                      <Button variant="outline" onClick={() => seekBySeconds(15)} disabled={!hasOnDemandDuration}>
+                        <SkipForward className="mr-2 h-4 w-4" />
+                        +15s
+                      </Button>
+                      <div className="relative flex items-center rounded-lg border border-border/50 bg-background/40 p-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={toggleOnDemandMute}
+                          title={isOnDemandMuted ? 'Unmute' : 'Mute'}
+                        >
+                          {isOnDemandMuted || onDemandVolume === 0 ? (
+                            <VolumeX className="h-4 w-4" />
+                          ) : (
+                            <Volume2 className="h-4 w-4" />
+                          )}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => setIsOnDemandVolumePanelOpen((isOpen) => !isOpen)}
+                          title="Audio controls"
+                        >
+                          <ChevronDown className={`h-4 w-4 transition-transform ${isOnDemandVolumePanelOpen ? 'rotate-180' : ''}`} />
+                        </Button>
+                        {isOnDemandVolumePanelOpen && (
+                          <div className="absolute bottom-full left-0 mb-2 rounded-lg border border-border/60 bg-background/90 p-2 shadow-lg backdrop-blur-sm">
+                            <input
+                              type="range"
+                              min="0"
+                              max="100"
+                              value={isOnDemandMuted ? 0 : onDemandVolume}
+                              onChange={handleOnDemandVolumeChange}
+                              className="h-1 w-24 cursor-pointer appearance-none rounded-full bg-secondary/50 accent-primary"
+                              aria-label="On-demand volume"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button variant={isFullscreen ? 'secondary' : 'outline'} onClick={toggleFullscreen}>
+                        {isFullscreen ? (
+                          <Minimize className="mr-2 h-4 w-4" />
+                        ) : (
+                          <Maximize className="mr-2 h-4 w-4" />
+                        )}
+                        {isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+                      </Button>
+                      {isPictureInPictureSupported && (
+                        <Button
+                          variant="outline"
+                          onClick={togglePictureInPicture}
+                          title="Picture in Picture (P / Blue key)"
+                        >
+                          <PictureInPicture2 className="mr-2 h-4 w-4" />
+                          {isPictureInPicture ? 'Exit PiP' : 'PiP'}
+                        </Button>
+                      )}
+                      {castSender.isAvailable && (
+                        <Button
+                          variant={castSender.isConnected ? 'secondary' : 'outline'}
+                          onClick={() => {
+                            void castSender.toggleCasting();
+                          }}
+                          disabled={castSender.isConnecting}
+                        >
+                          <Cast className="mr-2 h-4 w-4" />
+                          {castSender.isConnected ? 'Prekini cast' : 'Povezi cast'}
+                        </Button>
+                      )}
+                      {isAirPlaySupported && session.renderer !== 'cast' && (
+                        <Button
+                          variant={isAirPlayConnected ? 'secondary' : 'outline'}
+                          onClick={openAirPlayPicker}
+                          disabled={!isAirPlayAvailable}
+                        >
+                          <Airplay className="mr-2 h-4 w-4" />
+                          {isAirPlayConnected ? 'AirPlay Active' : 'AirPlay'}
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
