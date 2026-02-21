@@ -9,6 +9,7 @@ import { useSessionContext } from '@/context/session-context';
 import { loadXtreamCredentials } from '@/services/xtreamCredentials';
 import { xtreamCodesService } from '@/services/xtreamService';
 import { useSwitchToLiveMode } from '@/pages/switchToLiveMode';
+import { resolveSeriesArtworkUrl, resolveSeriesBackdropUrl } from '@/pages/seriesArtwork';
 
 const DEMO_EPISODE_STREAM_URL = 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8';
 
@@ -45,14 +46,6 @@ interface SeriesDetailData {
   tmdbId: string;
   seasons: SeriesSeasonGroup[];
 }
-
-const getBackdropPath = (rawBackdrop: unknown): string => {
-  if (Array.isArray(rawBackdrop)) {
-    return (typeof rawBackdrop[0] === 'string' ? rawBackdrop[0] : '') || '';
-  }
-
-  return typeof rawBackdrop === 'string' ? rawBackdrop : '';
-};
 
 const parseEpisodeNumber = (value: unknown): number => {
   if (typeof value === 'number' && Number.isFinite(value)) {
@@ -204,6 +197,8 @@ const fetchSeriesDetail = async (seriesId: string): Promise<SeriesDetailData> =>
     })
     .sort((a, b) => a.seasonNumber - b.seasonNumber);
 
+  const infoRecord = info as Record<string, unknown>;
+
   return {
     title: info.name ? String(info.name) : `Series ${seriesId}`,
     plot: info.plot ? String(info.plot) : 'No description available.',
@@ -211,8 +206,8 @@ const fetchSeriesDetail = async (seriesId: string): Promise<SeriesDetailData> =>
     director: info.director ? String(info.director) : '',
     genre: info.genre ? String(info.genre) : '',
     rating: info.rating_5based ? String(info.rating_5based) : info.rating ? String(info.rating) : '',
-    cover: info.cover ? String(info.cover) : '',
-    backdrop: getBackdropPath(info.backdrop_path),
+    cover: resolveSeriesArtworkUrl(infoRecord),
+    backdrop: resolveSeriesBackdropUrl(infoRecord),
     releaseDate: info.releaseDate ? String(info.releaseDate) : '',
     tmdbId: info.tmdb ? String(info.tmdb) : '',
     seasons,
