@@ -92,7 +92,7 @@ Completion notes (2026-02-19):
 - Follow-up intake tasks (`BUG-20260220-04..07`) are now closed through `QAF-018..QAF-020`.
 - Follow-up intake tasks (`BUG-20260220-08..10`) are now closed through `QAF-021..QAF-023`.
 - New intake wave (`BUG-20260221-01..08`) is now closed through `QAF-024..QAF-031`.
-- QA gate rerun command (`E2E_XUI_USERNAME='fica' E2E_XUI_PASSWORD='fF2024BG2025' ./run-qa-simulation.sh`) currently exits with Playwright loader conflict (`Requiring @playwright/test second time`) in local `.codex/worktrees/QA-GATE` context; needs QA tooling follow-up before using this report as pass/fail signal.
+- QA gate rerun command (`E2E_XUI_USERNAME='fica' E2E_XUI_PASSWORD='fF2024BG2025' ./run-qa-simulation.sh`) no longer reports the old loader conflict, but latest root-context run still exits `1` with generated report status `unknown` and `0` executed scenarios (`output/playwright/qa-user-sim/QA-REPORT.md`); QA tooling/runtime investigation is still required before using this report as pass/fail signal.
 
 ---
 

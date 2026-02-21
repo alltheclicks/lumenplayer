@@ -49,6 +49,9 @@
   - Review start confirmation was recorded on each PR via `Greptile Review` check-run entering `pending`.
   - QAF-028 and QAF-031 finalized with Greptile `5/5`.
   - QAF-029 and QAF-030 were merged under allowed `4/5` exception path with explicit no-blocker rationale documented on PRs.
+- QA gate:
+  - executed `E2E_XUI_USERNAME='fica' E2E_XUI_PASSWORD='fF2024BG2025' ./run-qa-simulation.sh` in root context after batch completion.
+  - command still exits `1`; latest generated report is `output/playwright/qa-user-sim/QA-REPORT.md` with `Scenario status: unknown` and `Scenarios executed: 0`, so QA tooling/runtime follow-up remains open.
 
 ---
 
