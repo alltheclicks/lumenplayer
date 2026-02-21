@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { Heart } from 'lucide-react';
+import { Clock3, Heart } from 'lucide-react';
 import { getCurrentProgram } from '@lumen/core';
 import type { PlayerChannel } from '@lumen/types';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -145,9 +145,20 @@ const ChannelList = ({
                         />
                       </div>
                       <div className="min-w-0 flex-1 text-left">
-                        <p className={`font-medium truncate ${variant === 'desktop' ? 'text-[1rem] leading-tight' : 'text-sm'}`}>
-                          {channel.name}
-                        </p>
+                        <div className="flex min-w-0 items-center gap-1.5">
+                          <p className={`min-w-0 flex-1 truncate font-medium ${variant === 'desktop' ? 'text-[1rem] leading-tight' : 'text-sm'}`}>
+                            {channel.name}
+                          </p>
+                          {channel.hasCatchUp && (
+                            <span
+                              className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-emerald-500/35 bg-emerald-500/15 text-emerald-400"
+                              title="Kanal podržava TV unazad"
+                              aria-label="Kanal podržava TV unazad"
+                            >
+                              <Clock3 className="h-3 w-3" />
+                            </span>
+                          )}
+                        </div>
                         <p
                           className={`text-muted-foreground truncate ${
                             variant === 'desktop' ? 'text-xs' : 'text-[11px]'
