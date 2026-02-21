@@ -1,5 +1,33 @@
 # Handoff — Lumen Player
 
+## Session 2026-02-21 — Intake triage (BUG-20260221-01..08)
+
+- Context:
+  - Captured new owner-reported issues from manual web playback testing (layout, live restore, catch-up behavior, series assets, controls UX).
+  - Applied workflow triage from `docs/WORKFLOW-LLM-QA.md` and converted intake IDs into next stabilization tasks.
+- Intake to QAF conversion:
+  - `BUG-20260221-01` -> `QAF-024` (player scrollbar consistency + TV-unazad overflow containment)
+  - `BUG-20260221-02` -> `QAF-025` (new-tab live restore should snap to live edge)
+  - `BUG-20260221-03` -> `QAF-026` (pause/resume stale-threshold policy)
+  - `BUG-20260221-04` -> `QAF-027` (volume slider control)
+  - `BUG-20260221-05` -> `QAF-028` (Xtream series artwork mapping parity)
+  - `BUG-20260221-06` -> `QAF-029` (blue bar seek handle/pointer affordance)
+  - `BUG-20260221-07` -> `QAF-030` (catch-up network-error playback reliability)
+  - `BUG-20260221-08` -> `QAF-031` (catch-up clock badge in channel list)
+- Documentation updates:
+  - `docs/V2-QA-FIX-BACKLOG.md`
+    - added `BUG-20260221-01..08` intake records with environment/steps/evidence/severity
+    - added triage snapshot `2026-02-21`
+    - updated active QAF table (`QAF-024..QAF-031` open; `QAF-018..QAF-023` marked done)
+  - `BACKLOG.md`
+    - appended `QAF-024..QAF-031` as `planned` in stabilization track with dependencies
+- Next ready order (strict queue):
+  - `QAF-024 -> QAF-025 -> QAF-026 -> QAF-027 -> QAF-028 -> QAF-029 -> QAF-030 -> QAF-031`
+- Note:
+  - This session is docs/triage only; no code task branch/PR merge was executed in this step.
+
+---
+
 ## Session 2026-02-20 — QAF-021, QAF-022, QAF-023 (ordered batch)
 
 - Context:

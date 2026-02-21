@@ -39,6 +39,14 @@
 | QAF-021 | Replace `narodna.tv` branding with `Lumen Player` and move cast icon into player-overlay friendly position (desktop/mobile) | S | done | — |
 | QAF-022 | Add live status-bar catch-up/timeshift interaction with explicit `UŽIVO` return action (desktop/mobile/tv UX parity) | M | done | — |
 | QAF-023 | Improve non-fullscreen catch-up discoverability (clock action should bring focus/scroll to `TV unazad` section) | S | done | — |
+| QAF-024 | Normalize player scrollbar styling and fix TV-unazad overflow scrollbar artifacts | S | planned | — |
+| QAF-025 | Enforce live-edge restore on new-tab/session resume (avoid stale-segment black/static start) | M | planned | QAF-015 |
+| QAF-026 | Define and implement pause-resume stale policy for live playback (`resume` vs `snap-to-live`) | S | planned | QAF-025 |
+| QAF-027 | Add volume slider control in player overlay (desktop/mobile/PWA) | S | planned | LP-0201 |
+| QAF-028 | Fix Xtream series artwork mapping/loading (poster/banner parity with provider) | M | planned | QAF-009 |
+| QAF-029 | Improve catch-up blue bar seek affordance with handle/pointer + remote focus visibility | S | planned | QAF-022 |
+| QAF-030 | Fix catch-up seek playback failures (`Greška u mreži`) using provider-accepted timeshift URL/data path | M | planned | QAF-018, QAF-022 |
+| QAF-031 | Show catch-up capability badge (clock icon) in channel list for archive-enabled channels | S | planned | QAF-018 |
 | QAF-010 | Fix player control overlay auto-hide behavior on idle | S | done | — |
 | QAF-012 | Prevent desktop player page vertical scroll drift/dead-space | S | done | — |
 | QAF-011 | Fix EPG gibberish regression in live program blocks | S | done | — |
@@ -75,6 +83,7 @@ Completion notes (2026-02-19):
 - Follow-up intake tasks (`BUG-20260220-01..03`) are now closed through `QAF-015..QAF-017`.
 - Follow-up intake tasks (`BUG-20260220-04..07`) are now closed through `QAF-018..QAF-020`.
 - Follow-up intake tasks (`BUG-20260220-08..10`) are now closed through `QAF-021..QAF-023`.
+- New intake wave (`BUG-20260221-01..08`) is triaged and queued as `QAF-024..QAF-031` (planned).
 - QA gate rerun command (`E2E_XUI_USERNAME='fica' E2E_XUI_PASSWORD='fF2024BG2025' ./run-qa-simulation.sh`) currently exits with Playwright loader conflict (`Requiring @playwright/test second time`) in local `.codex/worktrees/QA-GATE` context; needs QA tooling follow-up before using this report as pass/fail signal.
 
 ---

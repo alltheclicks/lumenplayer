@@ -220,6 +220,327 @@ Template:
   - P2
 - Status: converted-to `QAF-017` (catch-up visibility regression)
 
+### BUG-20260220-04
+- Environment:
+  - `http://localhost:8080/player`, live kanal sa potvrđenim catch-up sadržajem na platformi
+- Steps:
+  1. Otvori live kanal za koji postoji TV unazad.
+  2. Proveri catch-up prikaz ispod playera.
+  3. Uporedi sa očekivanim emisijama za vraćanje.
+- Expected:
+  - Catch-up lista treba da bude prikazana kada recordings postoje.
+- Actual:
+  - Prikazuje se poruka `Još nema emisija za vraćanje` iako kanal ima snimanje.
+- Evidence:
+  - Screenshot + korisnički nalaz (chat, 2026-02-20).
+- Reporter:
+  - Filip
+- Timestamp:
+  - 2026-02-20
+- Severity (initial):
+  - P1
+- Status: converted-to `QAF-018` (catch-up false-empty state)
+
+### BUG-20260220-05
+- Environment:
+  - `http://localhost:8080/player`, fullscreen `Gledanje unazad` panel
+- Steps:
+  1. Uđi u fullscreen na live kanalu.
+  2. Klikni sat (`Gledanje unazad`).
+  3. Posmatraj sadržaj catch-up panela.
+- Expected:
+  - Fullscreen panel treba da prikaže iste dostupne catch-up stavke kao regular view.
+- Actual:
+  - Panel je prazan/empty-state i kada postoje recordings.
+- Evidence:
+  - Screenshot + korisnički nalaz (chat, 2026-02-20).
+- Reporter:
+  - Filip
+- Timestamp:
+  - 2026-02-20
+- Severity (initial):
+  - P1
+- Status: converted-to `QAF-018` (shared root-cause with regular catch-up false-empty)
+
+### BUG-20260220-06
+- Environment:
+  - `http://localhost:8080/player` -> `/vod` ili `/series` -> povratak na `/player`
+- Steps:
+  1. Pusti live kanal koji nije prvi u `Svi kanali` (npr. OBN1).
+  2. Idi na Filmove/Serije.
+  3. Vrati se nazad na player.
+- Expected:
+  - Player treba da pamti poslednji gledani kanal i da se na njega vrati.
+- Actual:
+  - Player se resetuje na prvi kanal iz `Svi kanali`.
+- Evidence:
+  - Korisnički nalaz (chat, 2026-02-20).
+- Reporter:
+  - Filip
+- Timestamp:
+  - 2026-02-20
+- Severity (initial):
+  - P1
+- Status: converted-to `QAF-019` (restore last watched live channel on return)
+
+### BUG-20260220-07
+- Environment:
+  - `http://localhost:8080/player`, loading spinner tokom live channel start/switch
+- Steps:
+  1. Pokreni/promeni live kanal.
+  2. Dok je loading spinner aktivan, pokušaj `pause` ili druge player kontrole.
+  3. Posmatraj da li su overlay kontrole interaktivne.
+- Expected:
+  - Loading stanje ne sme blokirati osnovne kontrole playera.
+- Actual:
+  - Spinner overlay prekriva player i privremeno blokira interakciju.
+- Evidence:
+  - Korisnički nalaz (chat, 2026-02-20).
+- Reporter:
+  - Filip
+- Timestamp:
+  - 2026-02-20
+- Severity (initial):
+  - P2
+- Status: converted-to `QAF-020` (non-blocking loading overlay controls)
+
+### BUG-20260220-08
+- Environment:
+  - `http://localhost:8080/player`, player shell branding + cast affordance (desktop/mobile)
+- Steps:
+  1. Otvori player shell i proveri brand tekst.
+  2. Proveri poziciju cast ikone.
+  3. Uporedi sa očekivanim OTT/player layout-om.
+- Expected:
+  - Branding treba da bude `Lumen Player`.
+  - Cast ikona treba da bude u player overlay zoni (logična desktop/mobile pozicija).
+- Actual:
+  - Prikazan je `narodna.tv` branding.
+  - Cast ikona je van očekivane player overlay pozicije.
+- Evidence:
+  - Treći screenshot + korisnički nalaz (chat, 2026-02-20).
+- Reporter:
+  - Filip
+- Timestamp:
+  - 2026-02-20
+- Severity (initial):
+  - P2
+- Status: converted-to `QAF-021` (branding + cast icon placement)
+
+### BUG-20260220-09
+- Environment:
+  - `http://localhost:8080/player`, live playback control bar (desktop/mobile/tv-like usage)
+- Steps:
+  1. Pusti live kanal.
+  2. Pokušaj vraćanje unazad direktno iz live status/progress bara (timeshift behavior).
+  3. Vrati se na trenutno `UŽIVO/LIVE`.
+- Expected:
+  - Catch-up/timeshift treba da bude dostupan direktno iz live progress bara, sa jasnim i brzim povratkom na `UŽIVO`.
+- Actual:
+  - Live bar trenutno ne pruža očekivani catch-up seek/timeshift UX kao na referentnim OTT playerima.
+- Evidence:
+  - Screenshot 1 + korisnički opis (chat, 2026-02-20).
+- Reporter:
+  - Filip
+- Timestamp:
+  - 2026-02-20
+- Severity (initial):
+  - P1
+- Status: converted-to `QAF-022` (live-bar catch-up/timeshift + return-to-live UX)
+
+### BUG-20260220-10
+- Environment:
+  - `http://localhost:8080/player`, non-fullscreen player layout ispod video područja
+- Steps:
+  1. Otvori live kanal u non-fullscreen režimu.
+  2. Pokušaj brzo da dođeš do `TV unazad` sekcije.
+  3. Testiraj klik na sat ikonu (catch-up) i vizuelni fokus/scroll.
+- Expected:
+  - Catch-up treba da bude jasno uočljiv i lako dostupan; klik na sat treba da vodi korisnika direktno do relevantne sekcije/panela.
+- Actual:
+  - `TV unazad` je slabo vidljiv i trenutno nije lako dostupna sekcija iz standardnog non-fullscreen toka.
+- Evidence:
+  - Screenshot 2 + korisnički opis/predlog (chat, 2026-02-20).
+- Reporter:
+  - Filip
+- Timestamp:
+  - 2026-02-20
+- Severity (initial):
+  - P2
+- Status: converted-to `QAF-023` (catch-up discoverability + guided jump from clock control)
+
+### BUG-20260221-01
+- Environment:
+  - `http://localhost:8080/player`, desktop browser, live layout sa levim kategorijama i listom kanala
+- Steps:
+  1. Otvori live player i skroluj listu kategorija/buketa.
+  2. Uporedi scrollbar za kategorije sa scrollbar-om liste kanala.
+  3. Skroluj deo `TV unazad` ispod playera.
+- Expected:
+  - Scrollbar dizajn treba da bude konzistentan kroz sve player panele.
+  - Nema "zalutalog" vertikalnog scrollbar-a preko `TV unazad` zone.
+  - Sekcije `Sada na programu`, `Sledi` i `TV unazad` ostaju vidljive i čitljive.
+- Actual:
+  - Scrollbar za bukete je vizuelno drugačiji od scrollbar-a liste kanala.
+  - Pojavljuje se loše prikazan scrollbar u `TV unazad` oblasti, layout izgleda poremećeno.
+- Evidence:
+  - Annotated screenshot (chat, 2026-02-21) sa obeleženim scrollbar regresijama.
+- Reporter:
+  - Filip
+- Timestamp:
+  - 2026-02-21
+- Severity (initial):
+  - P1
+- Status: converted-to `QAF-024` (player scrollbar consistency + TV-unazad overflow containment)
+
+### BUG-20260221-02
+- Environment:
+  - `http://localhost:8080/player`, desktop browser, scenarij zatvaranja i ponovnog otvaranja taba na live kanalu
+- Steps:
+  1. Otvori `/player`, pusti live kanal (primer RTS 1), zatvori tab.
+  2. Otvori novi tab i ponovo idi na `/player`.
+  3. Posmatraj start reprodukcije.
+- Expected:
+  - Live kanal u novom tabu treba da krene od aktuelnog live edge-a, bez pokušaja nastavka zastarele pozicije.
+- Actual:
+  - Drugi tab često ostane na crnom ekranu ili statičnom frame-u; deluje kao da pokušava nastavak stare sesije/segmenta.
+- Evidence:
+  - Korisnički opis + screenshot set (chat, 2026-02-21).
+- Reporter:
+  - Filip
+- Timestamp:
+  - 2026-02-21
+- Severity (initial):
+  - P1
+- Status: converted-to `QAF-025` (live restore policy must snap to current live edge on new-tab resume)
+
+### BUG-20260221-03
+- Environment:
+  - `http://localhost:8080/player`, live kanal, pause/resume flow
+- Steps:
+  1. Pokreni live kanal.
+  2. Klikni pause i sačekaj ~2 minuta.
+  3. Klikni play i proveri šta se pušta.
+- Expected:
+  - Resume politika treba da bude deterministička: ako je od pauze prošlo više od dozvoljenog prozora, player treba da vrati korisnika na `UŽIVO`.
+- Actual:
+  - Nije jasno koju poziciju player pokušava da pusti; ponašanje deluje nekonzistentno između uređaja/browsera.
+- Evidence:
+  - Korisnički opis (chat, 2026-02-21).
+- Reporter:
+  - Filip
+- Timestamp:
+  - 2026-02-21
+- Severity (initial):
+  - P2
+- Status: converted-to `QAF-026` (pause-resume stale-threshold policy for live playback)
+
+### BUG-20260221-04
+- Environment:
+  - `http://localhost:8080/player`, live overlay controls (desktop/mobile/PWA)
+- Steps:
+  1. Otvori player overlay.
+  2. Proveri dostupne audio kontrole.
+  3. Pokušaj fino podešavanje glasnoće.
+- Expected:
+  - Pored mute/unmute mora postojati i volume slider/control za granularno podešavanje zvuka.
+- Actual:
+  - Dostupan je samo mute/unmute toggle bez punog volume control-a.
+- Evidence:
+  - Korisnički opis (chat, 2026-02-21).
+- Reporter:
+  - Filip
+- Timestamp:
+  - 2026-02-21
+- Severity (initial):
+  - P2
+- Status: converted-to `QAF-027` (full volume control on player overlay)
+
+### BUG-20260221-05
+- Environment:
+  - `http://localhost:8080/series`, serije grid/listing, Xtream/XUI backend
+- Steps:
+  1. Otvori sekciju Serije.
+  2. Uporedi prikaz kartica sa očekivanim poster/banner podacima sa servera.
+  3. Proveri da li se prikazuju realne grafike ili placeholder boje.
+- Expected:
+  - Player treba da preuzima i prikazuje poster/banner art koje Xtream/XUI isporučuje.
+- Actual:
+  - Kartice su bez stvarne grafike (placeholder boje/ikonice), iako drugi playeri sa istim serverom prikazuju artwork.
+- Evidence:
+  - Screenshot iz Serije prikaza (chat, 2026-02-21).
+- Reporter:
+  - Filip
+- Timestamp:
+  - 2026-02-21
+- Severity (initial):
+  - P2
+- Status: converted-to `QAF-028` (Xtream series artwork parity + field mapping diagnostics)
+
+### BUG-20260221-06
+- Environment:
+  - `http://localhost:8080/player`, live/catch-up blue bar kontrola (miš + remote fokus scenariji)
+- Steps:
+  1. Aktiviraj `TV unazad` kontekst i pređi mišem preko blue bara.
+  2. Pokušaj precizno seekovanje levo/desno.
+  3. Testiraj fokus ponašanje kada se kontrola aktivira daljinskim.
+- Expected:
+  - Blue bar treba da ima jasan pointer/handle indikator trenutne pozicije na hover/focus radi lakšeg seek-a.
+- Actual:
+  - Nema vidljivog pointera; teško je pogoditi tačnu seek zonu.
+- Evidence:
+  - Korisnički opis + screenshot (chat, 2026-02-21).
+- Reporter:
+  - Filip
+- Timestamp:
+  - 2026-02-21
+- Severity (initial):
+  - P2
+- Status: converted-to `QAF-029` (catch-up seek bar affordance + focus-visible pointer)
+
+### BUG-20260221-07
+- Environment:
+  - `http://localhost:8080/player`, live kanal sa potvrđenim catch-up sadržajem (primer HRT 1), blue bar timeshift
+- Steps:
+  1. Pokreni live kanal koji ima catch-up.
+  2. Klikni emisiju unazad ili pomeri blue bar ~10 minuta unazad.
+  3. Posmatraj reprodukciju i eventualni error overlay.
+- Expected:
+  - Player treba da ode na validan catch-up stream i reprodukuje traženi vremenski offset.
+  - Povratak na `UŽIVO` treba da ostane dostupan.
+- Actual:
+  - Dobija se `Greška u mreži` pri pokušaju catch-up reprodukcije.
+- Evidence:
+  - Screenshot-ovi sa `Greška u mreži` overlay-om + korisnički opis (chat, 2026-02-21).
+- Reporter:
+  - Filip
+- Timestamp:
+  - 2026-02-21
+- Severity (initial):
+  - P1
+- Status: converted-to `QAF-030` (catch-up stream URL/probe hardening + seek execution reliability)
+
+### BUG-20260221-08
+- Environment:
+  - `http://localhost:8080/player`, lista live kanala
+- Steps:
+  1. Otvori listu kanala.
+  2. Uporedi kanale koji imaju catch-up na serveru.
+  3. Proveri postoji li vizuelni indikator snimanja/catch-up podrške.
+- Expected:
+  - Kanal sa catch-up podrškom treba da ima jasnu ikonicu (npr. sat) u listi kanala.
+- Actual:
+  - Korisnik nema brz vizuelni signal koji kanali imaju catch-up.
+- Evidence:
+  - Korisnički opis (chat, 2026-02-21).
+- Reporter:
+  - Filip
+- Timestamp:
+  - 2026-02-21
+- Severity (initial):
+  - P3
+- Status: converted-to `QAF-031` (catch-up capability badge in channel list)
+
 ## Intake triage snapshot (2026-02-20)
 
 | Intake ID | Lane | Severity | Converted to | Notes |
@@ -233,6 +554,26 @@ Template:
 | BUG-20260220-01 | Bugfix/Playback | P1 | QAF-015 | Startup first-frame stall despite active play state |
 | BUG-20260220-02 | Bugfix/Playback-Perf | P2 | QAF-016 | Slow live zapping/channel switch startup |
 | BUG-20260220-03 | Bugfix/Catch-up UX | P2 | QAF-017 | Catch-up (`TV unazad`) section not visible below live player |
+| BUG-20260220-04 | Bugfix/Catch-up Data/UI | P1 | QAF-018 | False empty-state iako catch-up postoji za kanal |
+| BUG-20260220-05 | Bugfix/Catch-up Data/UI | P1 | QAF-018 | Fullscreen catch-up panel prazno/empty-state iako postoje recordings |
+| BUG-20260220-06 | Bugfix/Session Navigation | P1 | QAF-019 | Povratak sa Filmova/Serija resetuje kanal na prvi umesto poslednjeg gledanog |
+| BUG-20260220-07 | Bugfix/Player UX | P2 | QAF-020 | Loading spinner blokira player overlay kontrole |
+| BUG-20260220-08 | Bugfix/UI Parity | P2 | QAF-021 | Branding `narodna.tv` + nelogična cast ikona pozicija |
+| BUG-20260220-09 | Bugfix/Catch-up UX | P1 | QAF-022 | Catch-up/timeshift iz live status bara + lak povratak na `UŽIVO` |
+| BUG-20260220-10 | Bugfix/Catch-up UX | P2 | QAF-023 | Non-fullscreen discoverability i brz pristup `TV unazad` sekciji |
+
+## Intake triage snapshot (2026-02-21)
+
+| Intake ID | Lane | Severity | Converted to | Notes |
+|---|---|---|---|---|
+| BUG-20260221-01 | Bugfix/Layout | P1 | QAF-024 | Scrollbar inconsistency + TV-unazad overflow/visibility regression |
+| BUG-20260221-02 | Bugfix/Playback Session | P1 | QAF-025 | New-tab live restore should snap to live edge, not stale segment |
+| BUG-20260221-03 | Bugfix/Playback Policy | P2 | QAF-026 | Define stale pause-resume threshold and deterministic live fallback |
+| BUG-20260221-04 | Feature/UX | P2 | QAF-027 | Add full volume control (not only mute toggle) |
+| BUG-20260221-05 | Bugfix/Data Mapping | P2 | QAF-028 | Series posters/banners missing despite Xtream-provided assets |
+| BUG-20260221-06 | Feature/UX | P2 | QAF-029 | Blue bar needs seek handle/pointer on hover/focus |
+| BUG-20260221-07 | Bugfix/Catch-up Playback | P1 | QAF-030 | Catch-up seek/open still fails with network error |
+| BUG-20260221-08 | Feature/UX | P3 | QAF-031 | Add catch-up clock badge on channels with archive capability |
 
 ## Status legend
 
@@ -256,7 +597,8 @@ Template:
 ## Active tasks (granular)
 
 Current snapshot:
-- `QAF-001..QAF-017` are completed (merged).
+- `QAF-001..QAF-023` are completed (merged).
+- `QAF-024..QAF-031` are open.
 
 | ID | Title | Area | Severity | Status |
 |---|---|---|---|---|
@@ -277,12 +619,26 @@ Current snapshot:
 | QAF-015 | Fix startup live playback first-frame stall (paused=false UI but video not advancing) | Player Playback | P1 | done |
 | QAF-016 | Improve live zapping latency (channel switch startup too slow) | Player Playback/Performance | P2 | done |
 | QAF-017 | Restore catch-up (`TV unazad`) section visibility under live player when applicable | Catch-up UX/Data | P2 | done |
+| QAF-018 | Fix catch-up false-empty states (regular + fullscreen panel) for channels with known recordings | Catch-up UX/Data | P1 | done |
+| QAF-019 | Preserve and restore last watched live channel when returning from VOD/Series | Player Session/Navigation | P1 | done |
+| QAF-020 | Make live loading spinner overlay non-blocking for essential player controls | Player UX/Controls | P2 | done |
+| QAF-021 | Replace `narodna.tv` branding with `Lumen Player` and move cast icon into player-overlay friendly position (desktop/mobile) | UI/Branding/Cast UX | P2 | done |
+| QAF-022 | Add live status-bar catch-up/timeshift interaction with explicit `UŽIVO` return action (desktop/mobile/tv UX parity) | Catch-up UX/Playback Controls | P1 | done |
+| QAF-023 | Improve non-fullscreen catch-up discoverability (clock action should bring focus/scroll to `TV unazad` section) | Catch-up UX/Navigation | P2 | done |
+| QAF-024 | Normalize player scrollbar styling and fix TV-unazad overflow scrollbar artifacts | Player Layout/Scroll UX | P1 | open |
+| QAF-025 | Enforce live-edge restore on new-tab/session resume (avoid stale-segment black/static start) | Player Playback/Session Restore | P1 | open |
+| QAF-026 | Define and implement pause-resume stale policy for live playback (`resume` vs `snap-to-live`) | Player Playback Policy | P2 | open |
+| QAF-027 | Add volume slider control in player overlay (desktop/mobile/PWA) | Player UX/Audio Controls | P2 | open |
+| QAF-028 | Fix Xtream series artwork mapping/loading (poster/banner parity with provider) | Series Data/UI | P2 | open |
+| QAF-029 | Improve catch-up blue bar seek affordance with handle/pointer + remote focus visibility | Catch-up UX/Controls | P2 | open |
+| QAF-030 | Fix catch-up seek playback failures (`Greška u mreži`) using provider-accepted timeshift URL/data path | Catch-up Playback/Networking | P1 | open |
+| QAF-031 | Show catch-up capability badge (clock icon) in channel list for archive-enabled channels | Channel List UX | P3 | open |
 
 ## Completion notes (2026-02-20)
 
 - GitHub verification snapshot:
   - merged PRs: `#162`, `#163`, `#164`, `#166`, `#167`, `#168`, `#171`, `#172`, `#173`, `#175`, `#176`, `#177`, `#178`, `#180`, `#184`, `#185`, `#186`
-  - all QAF IDs `QAF-001..QAF-017` are completed and merged.
+  - all QAF IDs `QAF-001..QAF-023` are completed and merged.
 - Completion map:
   - `QAF-001` -> PR `#164` (Greptile final `5/5` after follow-up remediation)
   - `QAF-002` -> PR `#166` (merged)
@@ -303,7 +659,7 @@ Current snapshot:
   - `QAF-017` -> PR `#186` (Greptile `5/5`)
 - QA gate state after implementation wave:
   - last noted local `run-qa-simulation.sh` rerun in logs is blocked by Playwright loader conflict (`Requiring @playwright/test second time`) in `.codex/worktrees/QA-GATE`.
-  - this remains tracked as QA tooling/runtime follow-up after completed wave (`QAF-001..QAF-017`).
+  - this remains tracked as QA tooling/runtime follow-up after completed wave (`QAF-001..QAF-023`).
 
 ---
 
