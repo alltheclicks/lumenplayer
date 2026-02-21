@@ -90,6 +90,17 @@ describe('shouldSnapSessionRestoreToLiveEdge', () => {
     ).toBe(false);
   });
 
+  it('returns false for explicit non-live mode even when channelId exists', () => {
+    expect(
+      shouldSnapSessionRestoreToLiveEdge({
+        channelId: '42',
+        metadata: {
+          mode: 'vod',
+        },
+      })
+    ).toBe(false);
+  });
+
   it('returns false when source is missing', () => {
     expect(shouldSnapSessionRestoreToLiveEdge(null)).toBe(false);
   });

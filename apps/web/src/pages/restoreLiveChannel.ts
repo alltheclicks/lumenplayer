@@ -37,8 +37,8 @@ export const shouldSnapSessionRestoreToLiveEdge = (source: StartupSessionSource)
   }
 
   const metadataMode = source.metadata?.mode;
-  if (metadataMode === 'live') {
-    return true;
+  if (typeof metadataMode === 'string') {
+    return metadataMode === 'live';
   }
 
   return typeof source.channelId === 'string' && source.channelId.length > 0;
