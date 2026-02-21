@@ -1,4 +1,4 @@
-# V3 QA Fix Backlog (Active)
+# V3 QA Fix Backlog (Completed + Intake Open)
 
 Purpose: active QA backlog for new bug intake, triage, and QAF execution in V3 wave.
 
@@ -59,7 +59,7 @@ Reporter note for this batch:
 - Severity (initial):
   - P1
 - Status:
-  - converted-to `QAF-030` (reopened, unresolved in prior attempts)
+  - converted-to `QAF-030` (done via PR #205, 2026-02-21)
 
 ### BUG-20260221-10
 - Environment:
@@ -82,7 +82,7 @@ Reporter note for this batch:
 - Severity (initial):
   - P2
 - Status:
-  - converted-to `QAF-027` (reopened, unresolved in prior attempts) + `QAF-032`
+  - converted-to `QAF-027` + `QAF-032` (done via PR #201 and PR #209, 2026-02-21)
 
 ### BUG-20260221-11
 - Environment:
@@ -104,7 +104,7 @@ Reporter note for this batch:
 - Severity (initial):
   - P2
 - Status:
-  - converted-to `QAF-029` (reopened, unresolved in prior attempts)
+  - converted-to `QAF-029` (done via PR #204, 2026-02-21)
 
 ### BUG-20260221-12
 - Environment:
@@ -126,7 +126,7 @@ Reporter note for this batch:
 - Severity (initial):
   - P2
 - Status:
-  - converted-to `QAF-028` (reopened, unresolved in prior attempts)
+  - converted-to `QAF-028` (done via PR #203, 2026-02-21)
 
 ### BUG-20260221-13
 - Environment:
@@ -149,7 +149,7 @@ Reporter note for this batch:
 - Severity (initial):
   - P1
 - Status:
-  - converted-to `QAF-033`
+  - converted-to `QAF-033` (done via PR #210, 2026-02-21)
 
 ## Intake triage snapshots
 
@@ -188,26 +188,44 @@ Add dated triage tables here (one snapshot block per triage session).
 
 Current snapshot:
 - `QAF-001..QAF-023` are completed (see `docs/V2-QA-FIX-BACKLOG.md`).
-- `QAF-024..QAF-033` are active in V3.
+- `QAF-024..QAF-033` are completed in V3 (merged on 2026-02-21).
 
 | ID | Title | Area | Severity | Status |
 |---|---|---|---|---|
-| QAF-024 | Normalize player scrollbar styling and fix TV-unazad overflow scrollbar artifacts | Player Layout/Scroll UX | P1 | open |
-| QAF-025 | Enforce live-edge restore on new-tab/session resume (avoid stale-segment black/static start) | Player Playback/Session Restore | P1 | open |
-| QAF-026 | Define and implement pause-resume stale policy for live playback (`resume` vs `snap-to-live`) | Player Playback Policy | P2 | open |
-| QAF-027 | Add volume slider control in player overlay (desktop/mobile/PWA), visible only on explicit audio-overlay trigger | Player UX/Audio Controls | P2 | open (reopened) |
-| QAF-028 | Fix Xtream series artwork mapping/loading (poster/banner parity with provider) | Series Data/UI | P2 | open (reopened) |
-| QAF-029 | Improve catch-up blue bar seek affordance with always-visible thumb + hover/focus scale-up + remote focus visibility | Catch-up UX/Controls | P2 | open (reopened) |
-| QAF-030 | Fix catch-up seek playback failures (`Greska u mrezi`) using provider-accepted timeshift URL/data path | Catch-up Playback/Networking | P1 | open (reopened) |
-| QAF-031 | Show catch-up capability badge (clock icon) in channel list for archive-enabled channels | Channel List UX | P3 | open |
-| QAF-032 | Remove static helper copy `Klikni traku za TV unazad` and keep only context-aware cues | Player Copy/UX Clarity | P3 | open |
-| QAF-033 | Align VOD/Series playback overlay controls with live player and make loading spinner non-blocking/short-lived | On-demand Player UX | P1 | open |
+| QAF-024 | Normalize player scrollbar styling and fix TV-unazad overflow scrollbar artifacts | Player Layout/Scroll UX | P1 | done |
+| QAF-025 | Enforce live-edge restore on new-tab/session resume (avoid stale-segment black/static start) | Player Playback/Session Restore | P1 | done |
+| QAF-026 | Define and implement pause-resume stale policy for live playback (`resume` vs `snap-to-live`) | Player Playback Policy | P2 | done |
+| QAF-027 | Add volume slider control in player overlay (desktop/mobile/PWA), visible only on explicit audio-overlay trigger | Player UX/Audio Controls | P2 | done (reopened -> fixed) |
+| QAF-028 | Fix Xtream series artwork mapping/loading (poster/banner parity with provider) | Series Data/UI | P2 | done (reopened -> fixed) |
+| QAF-029 | Improve catch-up blue bar seek affordance with always-visible thumb + hover/focus scale-up + remote focus visibility | Catch-up UX/Controls | P2 | done (reopened -> fixed) |
+| QAF-030 | Fix catch-up seek playback failures (`Greska u mrezi`) using provider-accepted timeshift URL/data path | Catch-up Playback/Networking | P1 | done (reopened -> fixed) |
+| QAF-031 | Show catch-up capability badge (clock icon) in channel list for archive-enabled channels | Channel List UX | P3 | done |
+| QAF-032 | Remove static helper copy `Klikni traku za TV unazad` and keep only context-aware cues | Player Copy/UX Clarity | P3 | done |
+| QAF-033 | Align VOD/Series playback overlay controls with live player and make loading spinner non-blocking/short-lived | On-demand Player UX | P1 | done |
 
 ## Next ready queue (strict order)
 
-`QAF-024 -> QAF-025 -> QAF-026 -> QAF-027 -> QAF-028 -> QAF-029 -> QAF-030 -> QAF-031 -> QAF-032 -> QAF-033`
+`—` (all currently queued V3 tasks are completed; next queue is created from new intake after triage)
 
-## Reopened task clarifications (must-have acceptance deltas)
+## Execution completion snapshot (2026-02-21)
+
+- Merged sequence:
+  - `QAF-024 -> QAF-025 -> QAF-026 -> QAF-027 -> QAF-028 -> QAF-029 -> QAF-030 -> QAF-031 -> QAF-032 -> QAF-033`
+- PR trace:
+  - `QAF-024` -> PR #198 (Greptile `5/5`)
+  - `QAF-025` -> PR #199 (Greptile `5/5`)
+  - `QAF-026` -> PR #200 (Greptile `4/5`, approved no-blocker exception)
+  - `QAF-027` -> PR #201 (Greptile `4/5`, approved no-blocker exception)
+  - `QAF-028` -> PR #203 (Greptile `5/5`)
+  - `QAF-029` -> PR #204 (Greptile `4/5`, approved no-blocker exception)
+  - `QAF-030` -> PR #205 (Greptile `4/5`, approved no-blocker exception)
+  - `QAF-031` -> PR #206 (Greptile `5/5`)
+  - `QAF-032` -> PR #209 (Greptile `5/5`)
+  - `QAF-033` -> PR #210 (Greptile `5/5`)
+- QA gate note:
+  - Latest post-batch run still exits with Playwright loader conflict (`Requiring @playwright/test second time`), so `output/playwright/qa-user-sim/QA-REPORT.md` remains non-actionable (`Scenario status: unknown`, `Scenarios executed: 0`) until QA tooling fix.
+
+## Reopened task clarifications (historical acceptance deltas)
 
 ### QAF-027 delta
 - Volume slider must be hidden by default.
