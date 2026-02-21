@@ -1013,8 +1013,10 @@ const Player = () => {
           return;
         case WebKeyCodes.play:
           event.preventDefault();
-          playerRef.current?.play();
-          commands.play();
+          if (session.playback === 'playing' || session.playback === 'buffering') {
+            return;
+          }
+          togglePlayback();
           return;
         case WebKeyCodes.pause:
           event.preventDefault();
@@ -1053,6 +1055,7 @@ const Player = () => {
     goToPrevChannel,
     isFullscreen,
     canTogglePictureInPicture,
+    session.playback,
     togglePictureInPicture,
     toggleFullscreen,
     togglePlayback,
