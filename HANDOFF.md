@@ -1,5 +1,99 @@
 # Handoff — Lumen Player
 
+## Session 2026-02-21 — QAF-028, QAF-029, QAF-030, QAF-031 (ordered batch)
+
+- Context:
+  - Executed next ready stabilization tasks in strict source-of-truth order:
+    - `QAF-028 -> QAF-029 -> QAF-030 -> QAF-031`
+  - Task flow stayed strict sequential (`1 task -> 1 branch -> 1 PR -> merge`), with latest `main` sync before each next task.
+- PRs:
+  - #203 (`QAF-028`) merged, Greptile `5/5`
+  - #204 (`QAF-029`) merged, Greptile final `4/5` (approved no-blocker exception; stale repeated comment referenced an already-fixed `aria-hidden` note on latest head)
+  - #205 (`QAF-030`) merged, Greptile final `4/5` (approved no-blocker exception; runtime validation note requires real-provider confirmation outside static review scope)
+  - #206 (`QAF-031`) merged, Greptile `5/5`
+- Done:
+  - QAF-028:
+    - added shared Xtream series artwork resolver with fallback field mapping (`cover`, `cover_big`, `movie_image`, etc.) in:
+      - `apps/web/src/pages/seriesArtwork.ts`
+      - `apps/web/src/pages/seriesArtwork.test.ts`
+      - `apps/web/src/hooks/useSeriesCatalog.ts`
+      - `apps/web/src/pages/SeriesDetail.tsx`
+  - QAF-029:
+    - improved live/catch-up blue-bar affordance with visible pointer handle + focus-visible keyboard/remote activation path in:
+      - `apps/web/src/components/player/PlayerControls.tsx`
+      - `apps/web/src/components/player/liveTimeshift.ts`
+      - `apps/web/src/components/player/liveTimeshift.test.ts`
+  - QAF-030:
+    - switched catch-up URL generation to provider-accepted streaming timeshift endpoint (`/streaming/timeshift.php?...&start=...&duration=...&extension=m3u8`), kept legacy fallback URL, and added one-time fallback retry on playback/load failures in:
+      - `packages/api/src/xtream-codes-service.ts`
+      - `packages/api/src/xtream-codes-service.test.ts`
+      - `apps/web/src/components/player/VideoPlayer.tsx`
+      - `apps/web/src/components/player/PlayerControls.tsx`
+      - `apps/web/src/pages/Player.tsx`
+  - QAF-031:
+    - added catch-up capability clock badge in channel list and hardened provider string/number archive parsing in:
+      - `apps/web/src/components/player/ChannelList.tsx`
+      - `packages/api/src/mappers.ts`
+      - `packages/api/src/mappers.test.ts`
+- Local gates per task PR:
+  - `pnpm lint`
+  - `pnpm typecheck`
+  - focused tests:
+    - `pnpm --filter @lumen/web exec vitest run src/pages/seriesArtwork.test.ts src/pages/seriesCountLabel.test.ts` (QAF-028)
+    - `pnpm --filter @lumen/web exec vitest run src/components/player/liveTimeshift.test.ts src/components/player/controlsIdlePolicy.test.ts` (QAF-029)
+    - `pnpm --filter @lumen/api exec vitest run src/xtream-codes-service.test.ts` (QAF-030)
+    - `pnpm --filter @lumen/web exec vitest run src/components/player/videoPlaybackSync.test.ts src/components/player/liveTimeshift.test.ts` (QAF-030)
+    - `pnpm --filter @lumen/api exec vitest run src/mappers.test.ts src/xtream-codes-service.test.ts` (QAF-031)
+    - `pnpm --filter @lumen/web exec vitest run src/pages/liveCatchUpVisibility.test.ts src/components/layout/playerRouteLayout.test.ts` (QAF-031)
+- Greptile/check notes:
+  - Review start confirmation was recorded on each PR via `Greptile Review` check-run entering `pending`.
+  - QAF-028 and QAF-031 finalized with Greptile `5/5`.
+  - QAF-029 and QAF-030 were merged under allowed `4/5` exception path with explicit no-blocker rationale documented on PRs.
+
+---
+
+## Session 2026-02-21 — QAF-024, QAF-025, QAF-026, QAF-027 (ordered batch)
+
+- Context:
+  - Executed next ready stabilization tasks in strict source-of-truth order:
+    - `QAF-024 -> QAF-025 -> QAF-026 -> QAF-027`
+  - Task flow remained strict sequential (`1 task -> 1 branch -> 1 PR -> merge`) with latest `main` sync before each next task.
+- PRs:
+  - #198 (`QAF-024`) merged, Greptile `5/5`
+  - #199 (`QAF-025`) merged, Greptile `5/5`
+  - #200 (`QAF-026`) merged, Greptile final confidence `95/100` (approved 4/5+ exception, explicit no-blocker rationale)
+  - #201 (`QAF-027`) merged, Greptile final confidence `95/100` (approved 4/5+ exception, explicit no-blocker rationale)
+- Done:
+  - QAF-024:
+    - normalized scrollbar handling and overflow containment in:
+      - `apps/web/src/pages/Player.tsx`
+      - `apps/web/src/index.css`
+  - QAF-025:
+    - enforced live-edge restore behavior on session/new-tab resume in:
+      - `apps/web/src/pages/restoreLiveChannel.ts`
+      - `apps/web/src/pages/restoreLiveChannel.test.ts`
+      - `apps/web/src/pages/Player.tsx`
+  - QAF-026:
+    - implemented deterministic live pause/resume stale policy in:
+      - `apps/web/src/pages/livePauseResumePolicy.ts`
+      - `apps/web/src/pages/livePauseResumePolicy.test.ts`
+      - `apps/web/src/pages/Player.tsx`
+  - QAF-027:
+    - added granular volume slider controls across player overlays (desktop/mobile/PWA) in:
+      - `apps/web/src/components/player/PlayerControls.tsx`
+- Local gates per task PR:
+  - `pnpm lint`
+  - `pnpm typecheck`
+  - focused tests:
+    - `pnpm --filter @lumen/web exec vitest run src/pages/liveCatchUpVisibility.test.ts src/pages/liveCatchUpDiscoverability.test.ts src/components/layout/playerRouteLayout.test.ts` (QAF-024)
+    - `pnpm --filter @lumen/web exec vitest run src/pages/restoreLiveChannel.test.ts src/pages/switchToLiveMode.test.ts` (QAF-025)
+    - `pnpm --filter @lumen/web exec vitest run src/pages/livePauseResumePolicy.test.ts src/pages/restoreLiveChannel.test.ts src/pages/switchToLiveMode.test.ts` (QAF-026)
+    - `pnpm --filter @lumen/web exec vitest run src/components/player/controlsIdlePolicy.test.ts` (QAF-027)
+- Next ready order (strict queue):
+  - `QAF-028 -> QAF-029 -> QAF-030 -> QAF-031`
+
+---
+
 ## Session 2026-02-21 — Intake triage (BUG-20260221-01..08)
 
 - Context:
