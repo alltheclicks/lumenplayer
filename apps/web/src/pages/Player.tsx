@@ -5,6 +5,7 @@ import { Helmet } from 'react-helmet-async';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Search,
   Star,
@@ -1149,7 +1150,7 @@ const Player = () => {
                 </button>
               </div>
 
-              <div className="flex-1 overflow-y-auto">
+              <ScrollArea className="flex-1 player-scrollbar">
                 <div className="py-4 flex flex-col items-center gap-1">
                   {desktopCategoryItems.map((item) => {
                     const isActive = selectedCategory === item.id;
@@ -1178,7 +1179,7 @@ const Player = () => {
                     );
                   })}
                 </div>
-              </div>
+              </ScrollArea>
 
               <div className="p-2 border-t border-border/50">
                 <div className="mb-1 px-2">
@@ -1620,8 +1621,8 @@ const Player = () => {
           </div>
 
           {!isOnDemandSource && (
-            <div className="hidden lg:flex flex-1 bg-card/50 border-t border-border overflow-hidden">
-              <div className="flex-1 overflow-y-auto p-6 space-y-6">
+            <div className="hidden lg:flex flex-1 flex-col bg-card/50 border-t border-border overflow-hidden">
+              <div className="flex-1 min-h-0 overflow-y-auto player-scrollbar p-6 space-y-6">
                 <div>
                   <div className="flex items-center gap-2 mb-2">
                     <Clock className="w-4 h-4 text-primary" />
