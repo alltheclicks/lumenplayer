@@ -69,6 +69,10 @@ import { useToast } from '@/hooks/use-toast';
 import { getPlayerOnDemandContext } from '@/pages/playerOnDemandContext';
 import { shouldAutoplaySource } from '@/pages/liveChannelStartupMode';
 import {
+  isLivePlaybackSource,
+  shouldSnapToLiveOnResume,
+} from '@/pages/livePauseResumePolicy';
+import {
   resolveStartupLiveChannel,
   shouldSnapSessionRestoreToLiveEdge,
 } from '@/pages/restoreLiveChannel';
@@ -323,6 +327,7 @@ const Player = () => {
   const previousCastConnectedRef = useRef(castSender.isConnected);
   const tvUnazadSectionRef = useRef<HTMLDivElement>(null);
   const tvUnazadHighlightTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const livePauseStartedAtRef = useRef<number | null>(null);
   const startupLiveRestoreAppliedRef = useRef(false);
   const [isTvUnazadHighlighted, setIsTvUnazadHighlighted] = useState(false);
 
@@ -334,7 +339,9 @@ const Player = () => {
     () => getPlayerOnDemandContext(sessionSourceMetadata),
     [sessionSourceMetadata]
   );
+  const liveSourceChannelId = session.source?.channelId ?? sessionSourceMetadata.channelId ?? null;
   const isOnDemandSource = onDemandContext !== null;
+  const isLiveSourcePlayback = isLivePlaybackSource(sessionSourceMetadata.mode, liveSourceChannelId);
   const usesLocalRenderer = session.renderer === 'local-web' || session.renderer === 'airplay';
   const shouldAutoplayLiveOnSelect = shouldAutoplaySource('live', appSettings);
   const shouldAutoplayCurrentSource = shouldAutoplaySource(sessionSourceMetadata.mode, appSettings);
@@ -421,7 +428,7 @@ const Player = () => {
   }, [currentChannel, currentChannelEPGQuery.data]);
 
   const switchToLiveChannel = useCallback(
-    (channel: PlayerChannel) => {
+    (channel: PlayerChannel, options?: { forceAutoplay?: boolean }) => {
       const sourceUrl = channel.streamUrl ?? xtreamCodesService.getLiveStreamUrl(channel.streamId);
       emitWebObservabilityEvent({
         name: 'playback.source-selected',
@@ -448,7 +455,7 @@ const Player = () => {
 
       commands.setSource(source, 0);
 
-      if (shouldAutoplayLiveOnSelect) {
+      if (options?.forceAutoplay || shouldAutoplayLiveOnSelect) {
         commands.play();
       }
     },
@@ -777,20 +784,62 @@ const Player = () => {
     navigate('/player');
   }, [isOnDemandSource, navigate, switchToLiveMode]);
 
+  const resumePlayback = useCallback(() => {
+    if (!session.source) {
+      livePauseStartedAtRef.current = null;
+      return;
+    }
+
+    if (
+      isLiveSourcePlayback &&
+      shouldSnapToLiveOnResume(livePauseStartedAtRef.current, Date.now())
+    ) {
+      if (currentChannel) {
+        switchToLiveChannel(currentChannel, { forceAutoplay: true });
+        toast({
+          title: 'Vraćeno na UŽIVO',
+          description: 'Pauza je preduga, pa je reprodukcija vraćena na live ivicu.',
+        });
+      } else {
+        playerRef.current?.pause();
+        commands.stop();
+        toast({
+          title: 'Live kanal nije dostupan',
+          description: 'Kanal više nije u listi. Izaberite drugi kanal za nastavak.',
+        });
+      }
+      livePauseStartedAtRef.current = null;
+      return;
+    }
+
+    commands.play();
+    livePauseStartedAtRef.current = null;
+  }, [
+    commands,
+    currentChannel,
+    isLiveSourcePlayback,
+    session.source,
+    switchToLiveChannel,
+    toast,
+  ]);
+
   const togglePlayback = useCallback(() => {
     if (!session.source) {
+      livePauseStartedAtRef.current = null;
       return;
     }
 
     if (session.playback === 'playing' || session.playback === 'buffering') {
       playerRef.current?.pause();
       commands.pause();
+      if (isLiveSourcePlayback && session.source.url) {
+        livePauseStartedAtRef.current = Date.now();
+      }
       return;
     }
 
-    playerRef.current?.play();
-    commands.play();
-  }, [commands, session.playback, session.source]);
+    resumePlayback();
+  }, [commands, isLiveSourcePlayback, resumePlayback, session.playback, session.source]);
 
   const togglePictureInPicture = useCallback(() => {
     if (!session.source || !usesLocalRenderer || !isPictureInPictureSupported) {
@@ -955,13 +1004,18 @@ const Player = () => {
           return;
         case WebKeyCodes.play:
           event.preventDefault();
-          playerRef.current?.play();
-          commands.play();
+          togglePlayback();
           return;
         case WebKeyCodes.pause:
           event.preventDefault();
+          if (session.playback === 'paused') {
+            return;
+          }
           playerRef.current?.pause();
           commands.pause();
+          if (isLiveSourcePlayback && session.source?.url) {
+            livePauseStartedAtRef.current = Date.now();
+          }
           return;
         case WebKeyCodes.enter:
           event.preventDefault();
@@ -995,6 +1049,10 @@ const Player = () => {
     goToPrevChannel,
     isFullscreen,
     canTogglePictureInPicture,
+    isLiveSourcePlayback,
+    resumePlayback,
+    session.source,
+    session.playback,
     togglePictureInPicture,
     toggleFullscreen,
     togglePlayback,
