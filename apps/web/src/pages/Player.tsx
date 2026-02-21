@@ -806,6 +806,8 @@ const Player = () => {
 
   const togglePlayback = useCallback(() => {
     if (!session.source) {
+      livePauseStartedAtRef.current = null;
+      pausedLiveSourceUrlRef.current = null;
       return;
     }
 
