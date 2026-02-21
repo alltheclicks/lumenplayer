@@ -537,12 +537,18 @@ const PlayerControls = ({
     const duration = Math.floor(
       (program.endTime.getTime() - program.startTime.getTime()) / 1000
     );
+    const catchUpUrl = xtreamCodesService.getCatchUpUrl(
+      channel.streamId,
+      startTimestamp,
+      duration
+    );
+    const catchUpFallbackUrl = xtreamCodesService.getLegacyCatchUpUrl(
+      channel.streamId,
+      startTimestamp,
+      duration
+    );
     const source = {
-      url: xtreamCodesService.getCatchUpUrl(
-        channel.streamId,
-        startTimestamp,
-        duration
-      ),
+      url: catchUpUrl,
       type: 'hls' as const,
       title: `${channel.name} - ${program.title}`,
       channelId: channel.id,
@@ -551,6 +557,8 @@ const PlayerControls = ({
         streamId: channel.streamId,
         mode: 'catchup',
         catchUpProgramId: program.id,
+        catchUpFallbackUrl,
+        catchUpFallbackUsed: false,
       },
     };
 
