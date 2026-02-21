@@ -829,8 +829,8 @@ const Player = () => {
         });
       } else {
         commands.setSource({ ...session.source }, 0);
-        playerRef.current?.play();
         commands.play();
+        playerRef.current?.play();
         toast({
           title: 'Vraćeno na UŽIVO',
           description: 'Kanal nije više u listi, pa je stream resetovan na live ivicu.',
