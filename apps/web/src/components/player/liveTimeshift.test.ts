@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { Program } from '@lumen/types';
-import { canStartLiveTimeshift, resolveLiveTimeshiftPositionSeconds } from './liveTimeshift';
+import {
+  canStartLiveTimeshift,
+  isLiveTimeshiftActivationKey,
+  resolveLiveTimeshiftPositionSeconds,
+} from './liveTimeshift';
 
 const buildProgram = (overrides: Partial<Program> = {}): Program => ({
   id: 'program-1',
@@ -33,5 +37,12 @@ describe('liveTimeshift', () => {
     expect(resolveLiveTimeshiftPositionSeconds(program, 1)).toBe(3600);
     expect(resolveLiveTimeshiftPositionSeconds(program, -0.2)).toBe(0);
     expect(resolveLiveTimeshiftPositionSeconds(program, 1.5)).toBe(3600);
+  });
+
+  it('detects keyboard keys that activate live-bar timeshift', () => {
+    expect(isLiveTimeshiftActivationKey('Enter')).toBe(true);
+    expect(isLiveTimeshiftActivationKey(' ')).toBe(true);
+    expect(isLiveTimeshiftActivationKey('Spacebar')).toBe(true);
+    expect(isLiveTimeshiftActivationKey('Escape')).toBe(false);
   });
 });
