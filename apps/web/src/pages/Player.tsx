@@ -812,8 +812,8 @@ const Player = () => {
       return;
     }
 
-    playerRef.current?.play();
     commands.play();
+    playerRef.current?.play();
     livePauseStartedAtRef.current = null;
   }, [
     commands,
