@@ -809,6 +809,10 @@ const Player = () => {
     if (session.playback === 'playing' || session.playback === 'buffering') {
       playerRef.current?.pause();
       commands.pause();
+      if (isLiveSourcePlayback && session.source.url) {
+        livePauseStartedAtRef.current = Date.now();
+        trackedLiveSourceUrlRef.current = session.source.url;
+      }
       return;
     }
 
@@ -1014,6 +1018,10 @@ const Player = () => {
           event.preventDefault();
           playerRef.current?.pause();
           commands.pause();
+          if (isLiveSourcePlayback && session.source?.url) {
+            livePauseStartedAtRef.current = Date.now();
+            trackedLiveSourceUrlRef.current = session.source.url;
+          }
           return;
         case WebKeyCodes.enter:
           event.preventDefault();
@@ -1047,6 +1055,8 @@ const Player = () => {
     goToPrevChannel,
     isFullscreen,
     canTogglePictureInPicture,
+    isLiveSourcePlayback,
+    session.source,
     session.playback,
     togglePictureInPicture,
     toggleFullscreen,
