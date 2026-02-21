@@ -1440,6 +1440,7 @@ const PlayerControls = ({
                     className={`absolute right-0 top-1/2 -translate-y-1/2 h-3 w-3 rounded-full border border-primary/40 bg-primary shadow-[0_0_0_2px_rgba(0,0,0,0.35)] transition-opacity ${
                       isLiveProgressFocused ? 'opacity-100' : 'opacity-0 group-hover/livebar:opacity-100'
                     }`}
+                    aria-hidden
                   />
                 </div>
               </div>
