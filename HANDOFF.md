@@ -1,5 +1,47 @@
 # Handoff — Lumen Player
 
+## Session 2026-02-21 — QAF-024, QAF-025, QAF-026, QAF-027 (ordered batch)
+
+- Context:
+  - Executed next ready stabilization tasks in strict source-of-truth order:
+    - `QAF-024 -> QAF-025 -> QAF-026 -> QAF-027`
+  - Task flow remained strict sequential (`1 task -> 1 branch -> 1 PR -> merge`) with latest `main` sync before each next task.
+- PRs:
+  - #198 (`QAF-024`) merged, Greptile `5/5`
+  - #199 (`QAF-025`) merged, Greptile `5/5`
+  - #200 (`QAF-026`) merged, Greptile final confidence `95/100` (approved 4/5+ exception, explicit no-blocker rationale)
+  - #201 (`QAF-027`) merged, Greptile final confidence `95/100` (approved 4/5+ exception, explicit no-blocker rationale)
+- Done:
+  - QAF-024:
+    - normalized scrollbar handling and overflow containment in:
+      - `apps/web/src/pages/Player.tsx`
+      - `apps/web/src/index.css`
+  - QAF-025:
+    - enforced live-edge restore behavior on session/new-tab resume in:
+      - `apps/web/src/pages/restoreLiveChannel.ts`
+      - `apps/web/src/pages/restoreLiveChannel.test.ts`
+      - `apps/web/src/pages/Player.tsx`
+  - QAF-026:
+    - implemented deterministic live pause/resume stale policy in:
+      - `apps/web/src/pages/livePauseResumePolicy.ts`
+      - `apps/web/src/pages/livePauseResumePolicy.test.ts`
+      - `apps/web/src/pages/Player.tsx`
+  - QAF-027:
+    - added granular volume slider controls across player overlays (desktop/mobile/PWA) in:
+      - `apps/web/src/components/player/PlayerControls.tsx`
+- Local gates per task PR:
+  - `pnpm lint`
+  - `pnpm typecheck`
+  - focused tests:
+    - `pnpm --filter @lumen/web exec vitest run src/pages/liveCatchUpVisibility.test.ts src/pages/liveCatchUpDiscoverability.test.ts src/components/layout/playerRouteLayout.test.ts` (QAF-024)
+    - `pnpm --filter @lumen/web exec vitest run src/pages/restoreLiveChannel.test.ts src/pages/switchToLiveMode.test.ts` (QAF-025)
+    - `pnpm --filter @lumen/web exec vitest run src/pages/livePauseResumePolicy.test.ts src/pages/restoreLiveChannel.test.ts src/pages/switchToLiveMode.test.ts` (QAF-026)
+    - `pnpm --filter @lumen/web exec vitest run src/components/player/controlsIdlePolicy.test.ts` (QAF-027)
+- Next ready order (strict queue):
+  - `QAF-028 -> QAF-029 -> QAF-030 -> QAF-031`
+
+---
+
 ## Session 2026-02-21 — Intake triage (BUG-20260221-01..08)
 
 - Context:
