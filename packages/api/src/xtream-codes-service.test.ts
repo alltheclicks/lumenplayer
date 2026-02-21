@@ -224,3 +224,41 @@ describe("XtreamCodesService.getEPG", () => {
     expect(request.searchParams.has("limit")).toBe(false);
   });
 });
+
+describe("XtreamCodesService catch-up URL builders", () => {
+  const createService = () => {
+    const httpClient: HttpClient = {
+      get: async <T>() => [] as T,
+      getText: async () => "",
+    };
+
+    const service = new XtreamCodesService(httpClient);
+    service.setCredentials({
+      server: "https://example.test",
+      username: "demo",
+      password: "demo",
+    });
+    return service;
+  };
+
+  it("builds provider-accepted streaming/timeshift URL for catch-up", () => {
+    const service = createService();
+    const url = new URL(service.getCatchUpUrl(77, 1771617600, 1800));
+
+    expect(url.pathname).toBe("/streaming/timeshift.php");
+    expect(url.searchParams.get("username")).toBe("demo");
+    expect(url.searchParams.get("password")).toBe("demo");
+    expect(url.searchParams.get("stream")).toBe("77");
+    expect(url.searchParams.get("duration")).toBe("1800");
+    expect(url.searchParams.get("extension")).toBe("m3u8");
+    expect(url.searchParams.get("start")).toBe("2026-02-20:20-00");
+  });
+
+  it("keeps legacy path-style catch-up URL available as fallback", () => {
+    const service = createService();
+
+    expect(service.getLegacyCatchUpUrl(77, 1771617600, 1800)).toBe(
+      "https://example.test/timeshift/demo/demo/1800/1771617600/77.m3u8",
+    );
+  });
+});

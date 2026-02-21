@@ -275,6 +275,56 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
     startupAutoplayRecoveryAttemptsRef.current = 0;
   }, []);
 
+  const switchToCatchUpFallbackIfAvailable = useCallback((reason: string): boolean => {
+    const currentSession = sessionRef.current;
+    const source = currentSession.source;
+    if (!source || typeof source.metadata !== 'object' || source.metadata === null) {
+      return false;
+    }
+
+    const metadata = source.metadata as Record<string, unknown>;
+    if (metadata.mode !== 'catchup') {
+      return false;
+    }
+
+    if (metadata.catchUpFallbackUsed === true) {
+      return false;
+    }
+
+    const fallbackUrl = typeof metadata.catchUpFallbackUrl === 'string'
+      ? metadata.catchUpFallbackUrl.trim()
+      : '';
+    if (!fallbackUrl || fallbackUrl === source.url) {
+      return false;
+    }
+
+    clearStartupAutoplayRecovery();
+    pendingAutoplaySourceUrlRef.current = fallbackUrl;
+    commands.setSource(
+      {
+        ...source,
+        url: fallbackUrl,
+        metadata: {
+          ...metadata,
+          catchUpFallbackUsed: true,
+        },
+      },
+      currentSession.positionMs ?? 0
+    );
+    commands.play();
+    setError(null);
+    setIsLoading(true);
+    emitWebObservabilityEvent({
+      name: 'playback.catchup_fallback',
+      severity: 'warn',
+      metadata: {
+        reason,
+        renderer: currentSession.renderer,
+      },
+    });
+    return true;
+  }, [clearStartupAutoplayRecovery, commands]);
+
   useImperativeHandle(ref, () => ({
     play: () => adapterRef.current?.play(),
     pause: () => adapterRef.current?.pause(),
@@ -497,6 +547,10 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
     });
 
     const unsubscribeError = adapter.onError((playbackError) => {
+      if (switchToCatchUpFallbackIfAvailable(playbackError.code)) {
+        return;
+      }
+
       clearStartupAutoplayRecovery();
       if (shouldClearPendingAutoplayOnPlaybackError(playbackError)) {
         pendingAutoplaySourceUrlRef.current = null;
@@ -564,7 +618,16 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
         adapterRef.current = null;
       }
     };
-  }, [clearStartupAutoplayRecovery, commands, mapPlaybackError, onCanPlay, onEnded, onError, preferNativeHls]);
+  }, [
+    clearStartupAutoplayRecovery,
+    commands,
+    mapPlaybackError,
+    onCanPlay,
+    onEnded,
+    onError,
+    preferNativeHls,
+    switchToCatchUpFallbackIfAvailable,
+  ]);
 
   useEffect(() => {
     const adapter = adapterRef.current;
@@ -613,10 +676,14 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
         return;
       }
 
+      const message = loadError instanceof Error ? loadError.message : 'Neuspešno učitavanje streama';
+      if (switchToCatchUpFallbackIfAvailable('LOAD_FAILED')) {
+        return;
+      }
+
       setIsLoading(false);
       clearStartupAutoplayRecovery();
       pendingAutoplaySourceUrlRef.current = null;
-      const message = loadError instanceof Error ? loadError.message : 'Neuspešno učitavanje streama';
       emitWebObservabilityEvent({
         name: 'playback.error',
         severity: 'error',
@@ -638,7 +705,16 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
     return () => {
       cancelled = true;
     };
-  }, [autoPlay, clearStartupAutoplayRecovery, exitPictureInPicture, isLocalRenderer, onCanPlay, onError, src]);
+  }, [
+    autoPlay,
+    clearStartupAutoplayRecovery,
+    exitPictureInPicture,
+    isLocalRenderer,
+    onCanPlay,
+    onError,
+    src,
+    switchToCatchUpFallbackIfAvailable,
+  ]);
 
   useEffect(() => {
     const adapter = adapterRef.current;

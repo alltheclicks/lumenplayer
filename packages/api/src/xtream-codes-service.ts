@@ -232,13 +232,33 @@ export class XtreamCodesService {
 
   getCatchUpUrl(
     streamId: number,
-    startTime: number,
+    startTimestamp: number,
     duration: number,
   ): string {
     if (!this.credentials) {
       throw new Error("Credentials not set");
     }
-    return `${this.credentials.server}/timeshift/${this.credentials.username}/${this.credentials.password}/${duration}/${startTime}/${streamId}.m3u8`;
+
+    const startTime = XtreamCodesService.formatTimeshiftStart(startTimestamp);
+    const url = new URL(`${this.credentials.server}/streaming/timeshift.php`);
+    url.searchParams.set("username", this.credentials.username);
+    url.searchParams.set("password", this.credentials.password);
+    url.searchParams.set("stream", String(streamId));
+    url.searchParams.set("start", startTime);
+    url.searchParams.set("duration", String(duration));
+    url.searchParams.set("extension", "m3u8");
+    return url.toString();
+  }
+
+  getLegacyCatchUpUrl(
+    streamId: number,
+    startTimestamp: number,
+    duration: number,
+  ): string {
+    if (!this.credentials) {
+      throw new Error("Credentials not set");
+    }
+    return `${this.credentials.server}/timeshift/${this.credentials.username}/${this.credentials.password}/${duration}/${startTimestamp}/${streamId}.m3u8`;
   }
 
   getArchiveUrl(
@@ -250,5 +270,15 @@ export class XtreamCodesService {
       throw new Error("Credentials not set");
     }
     return `${this.credentials.server}/streaming/timeshift.php?username=${this.credentials.username}&password=${this.credentials.password}&stream=${streamId}&start=${startTime}&end=${endTime}`;
+  }
+
+  private static formatTimeshiftStart(startTimestamp: number): string {
+    const startDate = new Date(startTimestamp * 1000);
+    const year = startDate.getUTCFullYear();
+    const month = String(startDate.getUTCMonth() + 1).padStart(2, "0");
+    const day = String(startDate.getUTCDate()).padStart(2, "0");
+    const hours = String(startDate.getUTCHours()).padStart(2, "0");
+    const minutes = String(startDate.getUTCMinutes()).padStart(2, "0");
+    return `${year}-${month}-${day}:${hours}-${minutes}`;
   }
 }

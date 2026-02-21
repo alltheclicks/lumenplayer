@@ -754,12 +754,18 @@ const Player = () => {
     const duration = Math.floor(
       (program.endTime.getTime() - program.startTime.getTime()) / 1000
     );
+    const catchUpUrl = xtreamCodesService.getCatchUpUrl(
+      currentChannelWithEPG.streamId,
+      startTimestamp,
+      duration
+    );
+    const catchUpFallbackUrl = xtreamCodesService.getLegacyCatchUpUrl(
+      currentChannelWithEPG.streamId,
+      startTimestamp,
+      duration
+    );
     const source = {
-      url: xtreamCodesService.getCatchUpUrl(
-        currentChannelWithEPG.streamId,
-        startTimestamp,
-        duration
-      ),
+      url: catchUpUrl,
       type: 'hls' as const,
       title: `${currentChannelWithEPG.name} - ${program.title}`,
       channelId: currentChannelWithEPG.id,
@@ -768,6 +774,8 @@ const Player = () => {
         streamId: currentChannelWithEPG.streamId,
         mode: 'catchup' as const,
         catchUpProgramId: program.id,
+        catchUpFallbackUrl,
+        catchUpFallbackUsed: false,
       },
     };
 
