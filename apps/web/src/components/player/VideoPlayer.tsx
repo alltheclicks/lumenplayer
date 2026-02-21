@@ -20,6 +20,7 @@ export interface VideoPlayerProps {
   poster?: string;
   autoPlay?: boolean;
   preferNativeHls?: boolean;
+  loadingOverlayMaxMs?: number;
   onError?: (error: string) => void;
   onEnded?: () => void;
   onCanPlay?: () => void;
@@ -126,6 +127,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
   poster,
   autoPlay = true,
   preferNativeHls = false,
+  loadingOverlayMaxMs,
   onError,
   onEnded,
   onCanPlay,
@@ -139,6 +141,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
   const isApplyingSessionSeekRef = useRef(false);
   const lastReportedPositionMsRef = useRef<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingOverlayVisible, setIsLoadingOverlayVisible] = useState(true);
   const [error, setError] = useState<PlayerError | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isPictureInPicture, setIsPictureInPicture] = useState(false);
@@ -171,6 +174,30 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
       listener(isAirPlayConnected);
     });
   }, [isAirPlayConnected]);
+
+  useEffect(() => {
+    if (!isLoading || error) {
+      setIsLoadingOverlayVisible(false);
+      return;
+    }
+
+    setIsLoadingOverlayVisible(true);
+    if (
+      typeof loadingOverlayMaxMs !== 'number' ||
+      !Number.isFinite(loadingOverlayMaxMs) ||
+      loadingOverlayMaxMs <= 0
+    ) {
+      return;
+    }
+
+    const timeoutId = setTimeout(() => {
+      setIsLoadingOverlayVisible(false);
+    }, loadingOverlayMaxMs);
+
+    return () => {
+      clearTimeout(timeoutId);
+    };
+  }, [error, isLoading, loadingOverlayMaxMs, src]);
 
   const isPictureInPictureSupported = useCallback((): boolean => {
     const video = videoRef.current as WebKitPictureInPictureVideoElement | null;
@@ -876,7 +903,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
         className="w-full h-full object-contain"
       />
 
-      {isLoading && !error && (
+      {isLoading && isLoadingOverlayVisible && !error && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/50 z-10">
           <Loader2 className="w-12 h-12 text-primary animate-spin" />
         </div>
