@@ -1150,7 +1150,7 @@ const Player = () => {
                 </button>
               </div>
 
-              <ScrollArea className="flex-1 player-scrollbar">
+              <ScrollArea className="flex-1">
                 <div className="py-4 flex flex-col items-center gap-1">
                   {desktopCategoryItems.map((item) => {
                     const isActive = selectedCategory === item.id;
