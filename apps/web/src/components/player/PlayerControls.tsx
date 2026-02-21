@@ -992,11 +992,6 @@ const PlayerControls = ({
                 <span className="text-sm text-muted-foreground">
                   {formatTime(currentProgram.startTime)} - {formatTime(currentProgram.endTime)}
                 </span>
-                {canTimeshiftFromLiveBar && (
-                  <span className="text-[11px] text-primary/90">
-                    Klikni traku za TV unazad
-                  </span>
-                )}
               </div>
             )}
           </div>
@@ -1549,11 +1544,6 @@ const PlayerControls = ({
                   <span className="text-xs sm:text-sm text-muted-foreground">
                     {formatTime(currentProgram.startTime)} - {formatTime(currentProgram.endTime)}
                   </span>
-                  {canTimeshiftFromLiveBar && (
-                    <span className="text-[10px] uppercase tracking-wide text-primary/90">
-                      Klik za TV unazad
-                    </span>
-                  )}
                 </div>
               )}
             </div>
