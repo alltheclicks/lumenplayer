@@ -4,7 +4,7 @@
 > Date: 2026-02-21  
 > Scope: Lumen Player ongoing delivery with parallel LLM agents.
 
-Current QA backlog: `docs/V2-QA-FIX-BACKLOG.md`
+Current QA backlog: `docs/V3-QA-FIX-BACKLOG.md`
 
 ## 1) Current project state (from source-of-truth files)
 
