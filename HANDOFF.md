@@ -1,5 +1,64 @@
 # Handoff — Lumen Player
 
+## Session 2026-02-21 — Docs reconciliation for already merged QAF-024..QAF-031
+
+- Context:
+  - Source-of-truth docs were stale against actual merged state on `main`.
+  - Verified merged execution order and PR trail from git/PR history before selecting next ready tasks.
+- Verified merged sequence:
+  - `QAF-024 -> QAF-025 -> QAF-026 -> QAF-027 -> QAF-028 -> QAF-029 -> QAF-030 -> QAF-031`
+- PRs already merged on `main`:
+  - #198 (`QAF-024`)
+  - #199 (`QAF-025`)
+  - #200 (`QAF-026`)
+  - #201 (`QAF-027`)
+  - #203 (`QAF-028`)
+  - #204 (`QAF-029`)
+  - #205 (`QAF-030`)
+  - #206 (`QAF-031`)
+- Note:
+  - A separate docs-sync PR was open (`#207`) but not merged at session start; this handoff/docs-sync pass supersedes stale planning state in `BACKLOG.md`/`HANDOFF.md`.
+
+---
+
+## Session 2026-02-21 — QAF-032, QAF-033 (ordered batch)
+
+- Context:
+  - After reconciliation, next ready queue was `QAF-032 -> QAF-033`.
+  - Task flow stayed strict sequential (`1 task -> 1 branch -> 1 PR -> merge`), with latest `main` sync before next task.
+- PRs:
+  - #209 (`QAF-032`) merged, Greptile final `5/5` after one valid-comment remediation commit
+  - #210 (`QAF-033`) merged, Greptile `5/5`
+- Done:
+  - QAF-032:
+    - removed persistent helper copy from primary player rows (`Klikni traku za TV unazad`, `Klik za TV unazad`, `TV unazad`) while keeping contextual live-bar affordance cues (`title`, `aria-label`, focus behavior) in:
+      - `apps/web/src/components/player/PlayerControls.tsx`
+  - QAF-033:
+    - aligned on-demand local overlay with essential live control parity (play/pause, seek timeline, +/-15s seek, audio access, fullscreen, PiP, cast/airplay, retry/back/live-route actions) in:
+      - `apps/web/src/pages/Player.tsx`
+    - made spinner non-blocking/short-lived for on-demand startup using configurable loading-overlay max window in:
+      - `apps/web/src/components/player/VideoPlayer.tsx`
+- Local gates per task PR:
+  - `pnpm lint`
+  - `pnpm typecheck`
+  - focused tests:
+    - `pnpm --filter @lumen/web exec vitest run src/components/player/liveTimeshift.test.ts src/components/player/controlsIdlePolicy.test.ts src/pages/liveCatchUpVisibility.test.ts` (QAF-032)
+    - `pnpm --filter @lumen/web exec vitest run src/pages/playerOnDemandContext.test.ts src/pages/livePauseResumePolicy.test.ts src/components/player/videoPlaybackSync.test.ts` (QAF-033)
+- Greptile/check notes:
+  - Review start confirmation recorded on both PRs via `Greptile Review` check-run entering `pending`.
+  - QAF-032 first pass flagged one valid remaining helper-copy instance; fixed on-task, then final score `5/5`.
+  - QAF-033 finalized on first review cycle with `5/5`.
+- QA gate (post-batch):
+  - Executed:
+    - `E2E_XUI_USERNAME='fica' E2E_XUI_PASSWORD='fF2024BG2025' ./run-qa-simulation.sh`
+  - Current result:
+    - command exits `1` due Playwright loader conflict (`Requiring @playwright/test second time`), captured in:
+      - `output/playwright/qa-user-sim/results.json`
+    - generated report remains non-actionable (`Scenario status: unknown`, `Scenarios executed: 0`) in:
+      - `output/playwright/qa-user-sim/QA-REPORT.md`
+
+---
+
 ## Session 2026-02-21 — Intake triage (BUG-20260221-01..08)
 
 - Context:
