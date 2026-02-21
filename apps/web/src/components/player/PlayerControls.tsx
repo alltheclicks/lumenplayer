@@ -156,6 +156,7 @@ const PlayerControls = ({
   const [hoverPosition, setHoverPosition] = useState<number | null>(null);
   const [isSeeking, setIsSeeking] = useState(false);
   const [seekPreviewPosition, setSeekPreviewPosition] = useState<number | null>(null);
+  const [isLiveProgressFocused, setIsLiveProgressFocused] = useState(false);
   const progressRef = useRef<HTMLDivElement>(null);
   const lastNonZeroVolumeRef = useRef(normalizedDefaultVolume || 80);
   const seekEngineRef = useRef<SeekEngine | null>(null);
@@ -904,14 +905,18 @@ const PlayerControls = ({
             }`}
             onClick={handleLiveProgressClick}
             onKeyDown={handleLiveProgressKeyDown}
+            onFocus={() => setIsLiveProgressFocused(true)}
+            onBlur={() => setIsLiveProgressFocused(false)}
             role={canTimeshiftFromLiveBar ? 'button' : undefined}
             tabIndex={canTimeshiftFromLiveBar ? 0 : -1}
             aria-label={canTimeshiftFromLiveBar ? 'Pokreni TV unazad sa ove pozicije' : undefined}
             title={canTimeshiftFromLiveBar ? 'Klikni za TV unazad (timeshift)' : undefined}
           >
             <div className="h-full bg-primary rounded-full transition-all relative" style={{ width: `${progress}%` }}>
-              <span
-                className="absolute right-0 top-1/2 h-3 w-3 -translate-y-1/2 rounded-full border border-primary/40 bg-primary shadow-[0_0_0_2px_rgba(0,0,0,0.35)] opacity-0 transition-opacity group-hover/livebar:opacity-100 group-focus-within/livebar:opacity-100"
+              <div
+                className={`absolute right-0 top-1/2 h-3 w-3 -translate-y-1/2 rounded-full border border-primary/40 bg-primary shadow-[0_0_0_2px_rgba(0,0,0,0.35)] transition-opacity ${
+                  isLiveProgressFocused ? 'opacity-100' : 'opacity-0 group-hover/livebar:opacity-100'
+                }`}
                 aria-hidden
               />
             </div>
@@ -1411,13 +1416,17 @@ const PlayerControls = ({
           ) : (
             <div className="group/livebar relative">
               <div
-                className={`h-1 rounded-full bg-secondary/50 overflow-visible transition-all group-hover/livebar:h-2 ${
+                className={`rounded-full bg-secondary/50 overflow-visible transition-all ${
+                  isLiveProgressFocused ? 'h-2' : 'h-1 group-hover/livebar:h-2'
+                } ${
                   canTimeshiftFromLiveBar
-                    ? 'cursor-pointer group-focus-within/livebar:h-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70 focus-visible:ring-offset-2 focus-visible:ring-offset-black'
+                    ? 'cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70 focus-visible:ring-offset-2 focus-visible:ring-offset-black'
                     : ''
                 }`}
                 onClick={handleLiveProgressClick}
                 onKeyDown={handleLiveProgressKeyDown}
+                onFocus={() => setIsLiveProgressFocused(true)}
+                onBlur={() => setIsLiveProgressFocused(false)}
                 role={canTimeshiftFromLiveBar ? 'button' : undefined}
                 tabIndex={canTimeshiftFromLiveBar ? 0 : -1}
                 aria-label={canTimeshiftFromLiveBar ? 'Pokreni TV unazad sa ove pozicije' : undefined}
@@ -1427,7 +1436,11 @@ const PlayerControls = ({
                   className="h-full bg-primary rounded-full transition-all relative"
                   style={{ width: `${progress}%` }}
                 >
-                  <div className="absolute right-0 top-1/2 -translate-y-1/2 h-3 w-3 rounded-full border border-primary/40 bg-primary opacity-0 shadow-[0_0_0_2px_rgba(0,0,0,0.35)] transition-opacity group-hover/livebar:opacity-100 group-focus-within/livebar:opacity-100" />
+                  <div
+                    className={`absolute right-0 top-1/2 -translate-y-1/2 h-3 w-3 rounded-full border border-primary/40 bg-primary shadow-[0_0_0_2px_rgba(0,0,0,0.35)] transition-opacity ${
+                      isLiveProgressFocused ? 'opacity-100' : 'opacity-0 group-hover/livebar:opacity-100'
+                    }`}
+                  />
                 </div>
               </div>
             </div>
