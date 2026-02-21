@@ -428,7 +428,7 @@ const Player = () => {
   }, [currentChannel, currentChannelEPGQuery.data]);
 
   const switchToLiveChannel = useCallback(
-    (channel: PlayerChannel) => {
+    (channel: PlayerChannel, options?: { forceAutoplay?: boolean }) => {
       const sourceUrl = channel.streamUrl ?? xtreamCodesService.getLiveStreamUrl(channel.streamId);
       emitWebObservabilityEvent({
         name: 'playback.source-selected',
@@ -455,7 +455,7 @@ const Player = () => {
 
       commands.setSource(source, 0);
 
-      if (shouldAutoplayLiveOnSelect) {
+      if (options?.forceAutoplay || shouldAutoplayLiveOnSelect) {
         commands.play();
       }
     },
@@ -795,10 +795,7 @@ const Player = () => {
       shouldSnapToLiveOnResume(livePauseStartedAtRef.current, Date.now())
     ) {
       if (currentChannel) {
-        switchToLiveChannel(currentChannel);
-        if (!shouldAutoplayLiveOnSelect) {
-          commands.play();
-        }
+        switchToLiveChannel(currentChannel, { forceAutoplay: true });
         toast({
           title: 'Vraćeno na UŽIVO',
           description: 'Pauza je preduga, pa je reprodukcija vraćena na live ivicu.',
@@ -822,7 +819,6 @@ const Player = () => {
     currentChannel,
     isLiveSourcePlayback,
     session.source,
-    shouldAutoplayLiveOnSelect,
     switchToLiveChannel,
     toast,
   ]);
