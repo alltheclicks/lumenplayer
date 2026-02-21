@@ -274,11 +274,11 @@ export class XtreamCodesService {
 
   private static formatTimeshiftStart(startTimestamp: number): string {
     const startDate = new Date(startTimestamp * 1000);
-    const year = startDate.getFullYear();
-    const month = String(startDate.getMonth() + 1).padStart(2, "0");
-    const day = String(startDate.getDate()).padStart(2, "0");
-    const hours = String(startDate.getHours()).padStart(2, "0");
-    const minutes = String(startDate.getMinutes()).padStart(2, "0");
+    const year = startDate.getUTCFullYear();
+    const month = String(startDate.getUTCMonth() + 1).padStart(2, "0");
+    const day = String(startDate.getUTCDate()).padStart(2, "0");
+    const hours = String(startDate.getUTCHours()).padStart(2, "0");
+    const minutes = String(startDate.getUTCMinutes()).padStart(2, "0");
     return `${year}-${month}-${day}:${hours}-${minutes}`;
   }
 }

@@ -251,7 +251,7 @@ describe("XtreamCodesService catch-up URL builders", () => {
     expect(url.searchParams.get("stream")).toBe("77");
     expect(url.searchParams.get("duration")).toBe("1800");
     expect(url.searchParams.get("extension")).toBe("m3u8");
-    expect(url.searchParams.get("start")).toMatch(/^\d{4}-\d{2}-\d{2}:\d{2}-\d{2}$/);
+    expect(url.searchParams.get("start")).toBe("2026-02-20:20-00");
   });
 
   it("keeps legacy path-style catch-up URL available as fallback", () => {
