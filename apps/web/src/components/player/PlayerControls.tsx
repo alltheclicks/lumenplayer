@@ -1351,11 +1351,6 @@ const PlayerControls = ({
                   <span className="text-xs sm:text-sm text-muted-foreground flex-shrink-0">
                     {formatTime(currentProgram.startTime)} - {formatTime(currentProgram.endTime)}
                   </span>
-                  {canTimeshiftFromLiveBar && (
-                    <span className="text-[10px] uppercase tracking-wide text-primary/90">
-                      TV unazad
-                    </span>
-                  )}
                 </div>
               )}
             </div>
