@@ -328,7 +328,6 @@ const Player = () => {
   const tvUnazadSectionRef = useRef<HTMLDivElement>(null);
   const tvUnazadHighlightTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const livePauseStartedAtRef = useRef<number | null>(null);
-  const trackedLiveSourceUrlRef = useRef<string | null>(null);
   const startupLiveRestoreAppliedRef = useRef(false);
   const [isTvUnazadHighlighted, setIsTvUnazadHighlighted] = useState(false);
 
@@ -696,20 +695,6 @@ const Player = () => {
     };
   }, []);
 
-  useEffect(() => {
-    const sourceUrl = session.source?.url ?? null;
-    if (!isLiveSourcePlayback || session.playback !== 'paused' || !sourceUrl) {
-      livePauseStartedAtRef.current = null;
-      trackedLiveSourceUrlRef.current = sourceUrl;
-      return;
-    }
-
-    if (trackedLiveSourceUrlRef.current !== sourceUrl || livePauseStartedAtRef.current === null) {
-      trackedLiveSourceUrlRef.current = sourceUrl;
-      livePauseStartedAtRef.current = Date.now();
-    }
-  }, [isLiveSourcePlayback, session.playback, session.source?.url]);
-
   // Filter channels
   const filteredChannels = filterChannels(channels, debouncedSearchQuery).filter(channel => {
     const matchesCategory = !selectedCategory || selectedCategory === 'favorites'
@@ -802,7 +787,6 @@ const Player = () => {
   const togglePlayback = useCallback(() => {
     if (!session.source) {
       livePauseStartedAtRef.current = null;
-      trackedLiveSourceUrlRef.current = null;
       return;
     }
 
@@ -811,7 +795,6 @@ const Player = () => {
       commands.pause();
       if (isLiveSourcePlayback && session.source.url) {
         livePauseStartedAtRef.current = Date.now();
-        trackedLiveSourceUrlRef.current = session.source.url;
       }
       return;
     }
@@ -822,14 +805,15 @@ const Player = () => {
     ) {
       if (currentChannel) {
         switchToLiveChannel(currentChannel);
-        commands.play();
+        if (!shouldAutoplayLiveOnSelect) {
+          commands.play();
+        }
         toast({
           title: 'Vraćeno na UŽIVO',
           description: 'Pauza je preduga, pa je reprodukcija vraćena na live ivicu.',
         });
       } else {
         commands.setSource({ ...session.source }, 0);
-        playerRef.current?.play();
         commands.play();
         toast({
           title: 'Vraćeno na UŽIVO',
@@ -837,15 +821,22 @@ const Player = () => {
         });
       }
       livePauseStartedAtRef.current = null;
-      trackedLiveSourceUrlRef.current = null;
       return;
     }
 
     playerRef.current?.play();
     commands.play();
     livePauseStartedAtRef.current = null;
-    trackedLiveSourceUrlRef.current = null;
-  }, [commands, currentChannel, isLiveSourcePlayback, session.playback, session.source, switchToLiveChannel, toast]);
+  }, [
+    commands,
+    currentChannel,
+    isLiveSourcePlayback,
+    session.playback,
+    session.source,
+    shouldAutoplayLiveOnSelect,
+    switchToLiveChannel,
+    toast,
+  ]);
 
   const togglePictureInPicture = useCallback(() => {
     if (!session.source || !usesLocalRenderer || !isPictureInPictureSupported) {
@@ -1017,11 +1008,13 @@ const Player = () => {
           return;
         case WebKeyCodes.pause:
           event.preventDefault();
+          if (session.playback === 'paused') {
+            return;
+          }
           playerRef.current?.pause();
           commands.pause();
           if (isLiveSourcePlayback && session.source?.url) {
             livePauseStartedAtRef.current = Date.now();
-            trackedLiveSourceUrlRef.current = session.source.url;
           }
           return;
         case WebKeyCodes.enter:
