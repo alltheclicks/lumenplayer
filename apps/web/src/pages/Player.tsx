@@ -801,6 +801,7 @@ const Player = () => {
           description: 'Pauza je preduga, pa je reprodukcija vraćena na live ivicu.',
         });
       } else {
+        playerRef.current?.pause();
         commands.stop();
         toast({
           title: 'Live kanal nije dostupan',
@@ -1004,10 +1005,7 @@ const Player = () => {
           return;
         case WebKeyCodes.play:
           event.preventDefault();
-          if (session.playback === 'playing' || session.playback === 'buffering') {
-            return;
-          }
-          resumePlayback();
+          togglePlayback();
           return;
         case WebKeyCodes.pause:
           event.preventDefault();
