@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { PlayerChannel } from '@lumen/types';
-import { resolveStartupLiveChannel } from './restoreLiveChannel';
+import {
+  resolveStartupLiveChannel,
+  shouldSnapSessionRestoreToLiveEdge,
+} from './restoreLiveChannel';
 
 const buildChannel = (id: string): PlayerChannel => ({
   id,
@@ -29,6 +32,20 @@ describe('resolveStartupLiveChannel', () => {
     expect(resolved?.id).toBe('20');
   });
 
+  it('prefers explicitly requested startup channel when available', () => {
+    const channels = [buildChannel('10'), buildChannel('20'), buildChannel('30')];
+    const resolved = resolveStartupLiveChannel(channels, '20', '30');
+
+    expect(resolved?.id).toBe('30');
+  });
+
+  it('falls back from missing preferred channel to last watched', () => {
+    const channels = [buildChannel('10'), buildChannel('20'), buildChannel('30')];
+    const resolved = resolveStartupLiveChannel(channels, '20', '99');
+
+    expect(resolved?.id).toBe('20');
+  });
+
   it('falls back to first channel when last watched channel is missing', () => {
     const channels = [buildChannel('10'), buildChannel('20')];
     const resolved = resolveStartupLiveChannel(channels, '99');
@@ -41,5 +58,39 @@ describe('resolveStartupLiveChannel', () => {
     const resolved = resolveStartupLiveChannel(channels, null);
 
     expect(resolved?.id).toBe('10');
+  });
+});
+
+describe('shouldSnapSessionRestoreToLiveEdge', () => {
+  it('returns true for explicit live metadata mode', () => {
+    expect(
+      shouldSnapSessionRestoreToLiveEdge({
+        metadata: {
+          mode: 'live',
+        },
+      })
+    ).toBe(true);
+  });
+
+  it('returns true for channel-bound source without explicit mode', () => {
+    expect(
+      shouldSnapSessionRestoreToLiveEdge({
+        channelId: '42',
+      })
+    ).toBe(true);
+  });
+
+  it('returns false for non-live on-demand source', () => {
+    expect(
+      shouldSnapSessionRestoreToLiveEdge({
+        metadata: {
+          mode: 'vod',
+        },
+      })
+    ).toBe(false);
+  });
+
+  it('returns false when source is missing', () => {
+    expect(shouldSnapSessionRestoreToLiveEdge(null)).toBe(false);
   });
 });
