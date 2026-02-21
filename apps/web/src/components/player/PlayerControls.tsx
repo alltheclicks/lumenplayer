@@ -138,7 +138,6 @@ const PlayerControls = ({
   const [showControls, setShowControls] = useState(true);
   const [volume, setVolume] = useState(normalizedDefaultVolume);
   const [isMuted, setIsMuted] = useState(false);
-  const [showVolumeSlider, setShowVolumeSlider] = useState(false);
   const [showCatchUp, setShowCatchUp] = useState(false);
   const [showAudioTracks, setShowAudioTracks] = useState(false);
   const [showSubtitleTracks, setShowSubtitleTracks] = useState(false);
@@ -963,10 +962,19 @@ const PlayerControls = ({
           </div>
 
           <div className="flex flex-wrap items-center gap-2 lg:justify-end">
-            <div className="flex items-center gap-1 rounded-xl border border-border/40 bg-background/20 p-1 backdrop-blur-sm">
+            <div className="flex items-center gap-2 rounded-xl border border-border/40 bg-background/20 p-1 pr-2 backdrop-blur-sm">
               <Button variant="ghost" size="icon" className="h-9 w-9 hover:bg-secondary/50" onClick={toggleMute}>
                 {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
               </Button>
+              <input
+                type="range"
+                min="0"
+                max="100"
+                value={isMuted ? 0 : volume}
+                onChange={handleVolumeChange}
+                className="h-1 w-20 cursor-pointer appearance-none rounded-full bg-secondary/50 accent-primary sm:w-24"
+                aria-label="Volume"
+              />
             </div>
 
             <div className="flex items-center gap-1 rounded-xl border border-border/40 bg-background/20 p-1 backdrop-blur-sm">
@@ -1435,11 +1443,7 @@ const PlayerControls = ({
                 </>
               )}
 
-              <div
-                className="relative flex items-center"
-                onMouseEnter={() => setShowVolumeSlider(true)}
-                onMouseLeave={() => setShowVolumeSlider(false)}
-              >
+              <div className="relative flex items-center gap-2 rounded-xl border border-border/40 bg-background/20 p-1 pr-2 backdrop-blur-sm">
                 <Button
                   variant="ghost"
                   size="icon"
@@ -1456,20 +1460,16 @@ const PlayerControls = ({
                   )}
                 </Button>
 
-                <div
-                  className={`hidden sm:flex items-center overflow-hidden transition-all duration-200 ${showVolumeSlider ? 'w-24 opacity-100' : 'w-0 opacity-0'
-                    }`}
-                >
-                  <input
-                    type="range"
-                    min="0"
-                    max="100"
-                    value={isMuted ? 0 : volume}
-                    onChange={handleVolumeChange}
-                    onClick={(e) => e.stopPropagation()}
-                    className="w-full h-1 bg-secondary/50 rounded-full appearance-none cursor-pointer accent-primary"
-                  />
-                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  value={isMuted ? 0 : volume}
+                  onChange={handleVolumeChange}
+                  onClick={(e) => e.stopPropagation()}
+                  className="h-1 w-16 cursor-pointer appearance-none rounded-full bg-secondary/50 accent-primary sm:w-24"
+                  aria-label="Volume"
+                />
               </div>
 
               {catchUpProgram && (
