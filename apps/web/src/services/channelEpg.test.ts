@@ -104,4 +104,50 @@ describe('channelEpg', () => {
     expect(second).toEqual(first);
     expect(second[0]?.title).toBe('Dnevnik');
   });
+
+  it('merges archive fallback rows when short EPG has no archive flags', async () => {
+    const fetchEpg = vi.fn(async () => [
+      { ...buildEpgItem('10', 'RG5ldm5paw=='), has_archive: 0 },
+    ]);
+    const fetchArchiveEpg = vi.fn(async () => [
+      { ...buildEpgItem('10', 'RG5ldm5paw=='), has_archive: 1 },
+    ]);
+
+    const fetcher = createShortEpgProgramFetcher({
+      fetchEpg,
+      fetchArchiveEpg,
+      cacheTtlMs: 60_000,
+      minRequestIntervalMs: 0,
+      maxRateLimitRetries: 0,
+      retryBackoffMs: 0,
+    });
+
+    const programs = await fetcher.getPrograms(500, { includeArchiveFallback: true });
+    expect(fetchArchiveEpg).toHaveBeenCalledTimes(1);
+    expect(programs[0]?.hasCatchUp).toBe(true);
+  });
+
+  it('keeps cache partitioned by archive-fallback option', async () => {
+    const fetchEpg = vi.fn(async () => [
+      { ...buildEpgItem('11', 'RG5ldm5paw=='), has_archive: 0 },
+    ]);
+    const fetchArchiveEpg = vi.fn(async () => [
+      { ...buildEpgItem('11', 'RG5ldm5paw=='), has_archive: 1 },
+    ]);
+
+    const fetcher = createShortEpgProgramFetcher({
+      fetchEpg,
+      fetchArchiveEpg,
+      cacheTtlMs: 60_000,
+      minRequestIntervalMs: 0,
+      maxRateLimitRetries: 0,
+      retryBackoffMs: 0,
+    });
+
+    await fetcher.getPrograms(501, { includeArchiveFallback: false });
+    await fetcher.getPrograms(501, { includeArchiveFallback: true });
+
+    expect(fetchEpg).toHaveBeenCalledTimes(2);
+    expect(fetchArchiveEpg).toHaveBeenCalledTimes(1);
+  });
 });

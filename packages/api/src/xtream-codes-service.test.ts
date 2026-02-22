@@ -225,6 +225,68 @@ describe("XtreamCodesService.getEPG", () => {
   });
 });
 
+describe("XtreamCodesService.getSimpleDataTable", () => {
+  const buildService = (handler: (url: string) => unknown) => {
+    const requestedUrls: string[] = [];
+    const httpClient: HttpClient = {
+      get: async <T>(url: string): Promise<T> => {
+        requestedUrls.push(url);
+        return handler(url) as T;
+      },
+      getText: async () => "",
+    };
+
+    const service = new XtreamCodesService(httpClient);
+    service.setCredentials({
+      server: "https://example.test",
+      username: "demo",
+      password: "demo",
+    });
+
+    return { service, requestedUrls };
+  };
+
+  const sampleItem: XtreamEPGItem = {
+    id: "epg-1",
+    epg_id: "epg-1",
+    title: "RG5ldm5paw==",
+    lang: "sr",
+    start: "2026-02-20 20:00:00",
+    end: "2026-02-20 21:00:00",
+    description: "VmVjZXJuamUgdmVzdGk=",
+    channel_id: "10",
+    start_timestamp: "1771617600",
+    stop_timestamp: "1771621200",
+    now_playing: 0,
+    has_archive: 1,
+  };
+
+  it("requests stream-scoped get_simple_data_table endpoint", async () => {
+    const { service, requestedUrls } = buildService(() => ({
+      epg_listings: [sampleItem],
+    }));
+
+    const result = await service.getSimpleDataTable("55");
+
+    expect(result).toEqual([sampleItem]);
+    expect(requestedUrls).toHaveLength(1);
+    const request = new URL(requestedUrls[0]);
+    expect(request.searchParams.get("action")).toBe("get_simple_data_table");
+    expect(request.searchParams.get("stream_id")).toBe("55");
+  });
+
+  it("extracts EPG rows when provider nests stream payload under stream id key", async () => {
+    const { service } = buildService(() => ({
+      "77": {
+        epg_listings: [sampleItem],
+      },
+    }));
+
+    const result = await service.getSimpleDataTable(77);
+    expect(result).toEqual([sampleItem]);
+  });
+});
+
 describe("XtreamCodesService catch-up URL builders", () => {
   const createService = () => {
     const httpClient: HttpClient = {
@@ -252,6 +314,31 @@ describe("XtreamCodesService catch-up URL builders", () => {
     expect(url.searchParams.get("duration")).toBe("1800");
     expect(url.searchParams.get("extension")).toBe("m3u8");
     expect(url.searchParams.get("start")).toBe("2026-02-20:20-00");
+  });
+
+  it("provides catch-up URL variants for local-time and UTC providers", () => {
+    const service = createService();
+    const startTimestamp = 1771694880;
+    const variants = service.getCatchUpUrlVariants(77, startTimestamp, 1800);
+
+    expect(variants.length).toBeGreaterThan(0);
+    expect(new Set(variants).size).toBe(variants.length);
+
+    const parsedVariants = variants.map((variant) => new URL(variant));
+    const localDate = new Date(startTimestamp * 1000);
+    const localStart = [
+      localDate.getFullYear(),
+      String(localDate.getMonth() + 1).padStart(2, "0"),
+      String(localDate.getDate()).padStart(2, "0"),
+    ].join("-") + `:${String(localDate.getHours()).padStart(2, "0")}-${String(localDate.getMinutes()).padStart(2, "0")}`;
+    const utcStart = [
+      localDate.getUTCFullYear(),
+      String(localDate.getUTCMonth() + 1).padStart(2, "0"),
+      String(localDate.getUTCDate()).padStart(2, "0"),
+    ].join("-") + `:${String(localDate.getUTCHours()).padStart(2, "0")}-${String(localDate.getUTCMinutes()).padStart(2, "0")}`;
+
+    expect(parsedVariants[0]?.searchParams.get("start")).toBe(localStart);
+    expect(parsedVariants.some((variant) => variant.searchParams.get("start") === utcStart)).toBe(true);
   });
 
   it("keeps legacy path-style catch-up URL available as fallback", () => {

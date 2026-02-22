@@ -230,7 +230,6 @@ export const parseEpgTimestamp = (timestamp: string, fallback: string): Date => 
 export const mapXtreamEpgItemToProgram = (item: XtreamEPGItem, index: number): Program => {
   const startTime = parseEpgTimestamp(item.start_timestamp, item.start);
   const endTime = parseEpgTimestamp(item.stop_timestamp, item.end);
-  const now = Date.now();
   const hasArchive = Number(item.has_archive) === 1;
 
   return {
@@ -240,6 +239,6 @@ export const mapXtreamEpgItemToProgram = (item: XtreamEPGItem, index: number): P
     startTime,
     endTime,
     category: 'show',
-    hasCatchUp: hasArchive || startTime.getTime() < now,
+    hasCatchUp: hasArchive,
   };
 };

@@ -190,6 +190,14 @@ export class XtreamCodesService {
     return data.epg_listings || [];
   }
 
+  async getSimpleDataTable(streamId: string | number): Promise<XtreamEPGItem[]> {
+    const normalizedStreamId = String(streamId);
+    const payload = await this.http.get<unknown>(
+      this.buildUrl("get_simple_data_table", { stream_id: normalizedStreamId }),
+    );
+    return XtreamCodesService.extractEpgListings(payload, normalizedStreamId);
+  }
+
   async getFullEPG(): Promise<Record<string, XtreamEPGItem[]>> {
     return this.http.get<Record<string, XtreamEPGItem[]>>(
       this.buildUrl("get_simple_data_table", { stream_id: "all" }),
@@ -239,7 +247,7 @@ export class XtreamCodesService {
       throw new Error("Credentials not set");
     }
 
-    const startTime = XtreamCodesService.formatTimeshiftStart(startTimestamp);
+    const startTime = XtreamCodesService.formatTimeshiftStartUtc(startTimestamp);
     const url = new URL(`${this.credentials.server}/streaming/timeshift.php`);
     url.searchParams.set("username", this.credentials.username);
     url.searchParams.set("password", this.credentials.password);
@@ -248,6 +256,29 @@ export class XtreamCodesService {
     url.searchParams.set("duration", String(duration));
     url.searchParams.set("extension", "m3u8");
     return url.toString();
+  }
+
+  getCatchUpUrlVariants(
+    streamId: number,
+    startTimestamp: number,
+    duration: number,
+  ): string[] {
+    if (!this.credentials) {
+      throw new Error("Credentials not set");
+    }
+    const credentials = this.credentials;
+
+    const startCandidates = XtreamCodesService.resolveTimeshiftStartCandidates(startTimestamp);
+    return startCandidates.map((startTime) => {
+      const url = new URL(`${credentials.server}/streaming/timeshift.php`);
+      url.searchParams.set("username", credentials.username);
+      url.searchParams.set("password", credentials.password);
+      url.searchParams.set("stream", String(streamId));
+      url.searchParams.set("start", startTime);
+      url.searchParams.set("duration", String(duration));
+      url.searchParams.set("extension", "m3u8");
+      return url.toString();
+    });
   }
 
   getLegacyCatchUpUrl(
@@ -274,11 +305,77 @@ export class XtreamCodesService {
 
   private static formatTimeshiftStart(startTimestamp: number): string {
     const startDate = new Date(startTimestamp * 1000);
+    const year = startDate.getFullYear();
+    const month = String(startDate.getMonth() + 1).padStart(2, "0");
+    const day = String(startDate.getDate()).padStart(2, "0");
+    const hours = String(startDate.getHours()).padStart(2, "0");
+    const minutes = String(startDate.getMinutes()).padStart(2, "0");
+    return `${year}-${month}-${day}:${hours}-${minutes}`;
+  }
+
+  private static formatTimeshiftStartUtc(startTimestamp: number): string {
+    const startDate = new Date(startTimestamp * 1000);
     const year = startDate.getUTCFullYear();
     const month = String(startDate.getUTCMonth() + 1).padStart(2, "0");
     const day = String(startDate.getUTCDate()).padStart(2, "0");
     const hours = String(startDate.getUTCHours()).padStart(2, "0");
     const minutes = String(startDate.getUTCMinutes()).padStart(2, "0");
     return `${year}-${month}-${day}:${hours}-${minutes}`;
+  }
+
+  private static resolveTimeshiftStartCandidates(startTimestamp: number): string[] {
+    const localStart = XtreamCodesService.formatTimeshiftStart(startTimestamp);
+    const utcStart = XtreamCodesService.formatTimeshiftStartUtc(startTimestamp);
+    if (localStart === utcStart) {
+      return [localStart];
+    }
+
+    return [localStart, utcStart];
+  }
+
+  private static extractEpgListings(
+    payload: unknown,
+    streamId: string,
+  ): XtreamEPGItem[] {
+    const directEntries = XtreamCodesService.pickEpgItems(payload);
+    if (directEntries) {
+      return directEntries;
+    }
+
+    if (!payload || typeof payload !== "object") {
+      return [];
+    }
+
+    const objectPayload = payload as Record<string, unknown>;
+    const byStreamId = XtreamCodesService.pickEpgItems(objectPayload[streamId]);
+    if (byStreamId) {
+      return byStreamId;
+    }
+
+    for (const value of Object.values(objectPayload)) {
+      const entries = XtreamCodesService.pickEpgItems(value);
+      if (entries && entries.length > 0) {
+        return entries;
+      }
+    }
+
+    return [];
+  }
+
+  private static pickEpgItems(value: unknown): XtreamEPGItem[] | null {
+    if (Array.isArray(value)) {
+      return value as XtreamEPGItem[];
+    }
+
+    if (!value || typeof value !== "object") {
+      return null;
+    }
+
+    const maybePayload = value as { epg_listings?: unknown };
+    if (Array.isArray(maybePayload.epg_listings)) {
+      return maybePayload.epg_listings as XtreamEPGItem[];
+    }
+
+    return null;
   }
 }

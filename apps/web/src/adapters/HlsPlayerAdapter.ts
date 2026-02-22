@@ -402,10 +402,15 @@ export class HlsPlayerAdapter implements PlayerAdapter {
         return;
       }
 
+      const isSrcNotSupported = mediaError.code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED;
+      const isManagedByHls = this.hls !== null;
+
       this.emitError({
         code: `MEDIA_ELEMENT_${mediaError.code}`,
         message: mediaError.message || 'Playback error',
-        fatal: mediaError.code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED,
+        // When hls.js is attached, code 4 can be emitted during segment retries
+        // and should not immediately hard-stop playback/fallback flow.
+        fatal: isSrcNotSupported && !isManagedByHls,
       });
     };
     const handleLoadedMetadata = () => {
