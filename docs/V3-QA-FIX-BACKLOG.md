@@ -306,6 +306,27 @@ Candidate fix prepared for external runtime validation (Reptile):
 6. Status:
    - `QAF-034` moved to `pending-review` until Reptile confirms catch-up playback success in real user flow.
 
+## QAF-034 Attempt Log (2026-02-23, pending-review)
+
+Provider-specific compatibility adjustments were added after fresh runtime probing and code review:
+
+1. Real provider behavior reconfirmed:
+   - `timeshift.php` is stable with formatted `start=YYYY-MM-DD:HH-MM`.
+   - epoch `start` is not consistently accepted on this provider class.
+2. Catch-up URL generator hardening:
+   - query-format variants now include `duration` candidates (minutes first, seconds fallback),
+   - legacy path variants now include both formatted and epoch `start` fallbacks.
+3. Runtime fallback order update:
+   - bounded retries of primary catch-up URL are attempted before wider offset/stream-id fallback expansion.
+4. Server host consistency update:
+   - login/auth flow now canonicalizes server from `server_info` and persists it for runtime,
+   - dev proxy now supports encoded per-target host routing so redirected/canonical hosts remain reachable in local dev.
+5. Local validation:
+   - `pnpm typecheck` -> pass
+   - `pnpm vitest run packages/api/src/xtream-codes-service.test.ts apps/web/src/config/xtream.test.ts` -> pass
+6. Status:
+   - `QAF-034` remains `pending-review` until external runtime validation (real user flow + Reptile feedback) confirms catch-up playback is stable end-to-end.
+
 ## Reopened task clarifications (historical acceptance deltas)
 
 ### QAF-027 delta

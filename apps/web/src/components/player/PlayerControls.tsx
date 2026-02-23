@@ -80,6 +80,30 @@ const CONTROLS_IDLE_TIMEOUT_MS = 3000;
 const CONTROLS_IDLE_GRACE_MS = 1000;
 const CATCH_UP_REASON_REFRESH_MS = 60_000;
 const CATCH_UP_INITIAL_POSITION_GUARD_SECONDS = 15;
+const CATCH_UP_PRIMARY_REQUEST_RETRIES = 2;
+
+const buildCatchUpPrimaryRetryUrls = (
+  url: string,
+  retries: number,
+): string[] => {
+  const urls: string[] = [];
+
+  for (let retryIndex = 0; retryIndex < retries; retryIndex += 1) {
+    try {
+      const retryUrl = new URL(
+        url,
+        typeof window === 'undefined' ? 'http://localhost' : window.location.origin,
+      );
+      retryUrl.searchParams.set('_retry', String(retryIndex + 1));
+      retryUrl.searchParams.set('_ts', String(Date.now() + retryIndex));
+      urls.push(retryUrl.toString());
+    } catch {
+      urls.push(url);
+    }
+  }
+
+  return urls;
+};
 
 const parseSessionSourceMetadata = (
   metadata: Record<string, unknown> | undefined
@@ -605,6 +629,7 @@ const PlayerControls = ({
     const fallbackStartOffsetsSeconds = [0, -120, -60, -180, 60];
     const catchUpFallbackUrls = [
       ...primaryCatchUpUrls.slice(1),
+      ...buildCatchUpPrimaryRetryUrls(catchUpUrl, CATCH_UP_PRIMARY_REQUEST_RETRIES),
       ...[channel.streamId, ...catchUpFallbackStreamIds].flatMap((fallbackStreamId) => (
         fallbackStartOffsetsSeconds
           .map((offsetSeconds) => startTimestamp + offsetSeconds)
@@ -615,7 +640,7 @@ const PlayerControls = ({
             duration,
           ))
       )),
-      xtreamCodesService.getLegacyCatchUpUrl(
+      ...xtreamCodesService.getLegacyCatchUpUrlVariants(
         channel.streamId,
         startTimestamp,
         duration,

@@ -243,19 +243,11 @@ export class XtreamCodesService {
     startTimestamp: number,
     duration: number,
   ): string {
-    if (!this.credentials) {
-      throw new Error("Credentials not set");
+    const candidates = this.getCatchUpUrlVariants(streamId, startTimestamp, duration);
+    if (candidates.length === 0) {
+      throw new Error("Unable to build catch-up URL");
     }
-
-    const startTime = XtreamCodesService.formatTimeshiftStartUtc(startTimestamp);
-    const url = new URL(`${this.credentials.server}/streaming/timeshift.php`);
-    url.searchParams.set("username", this.credentials.username);
-    url.searchParams.set("password", this.credentials.password);
-    url.searchParams.set("stream", String(streamId));
-    url.searchParams.set("start", startTime);
-    url.searchParams.set("duration", String(duration));
-    url.searchParams.set("extension", "m3u8");
-    return url.toString();
+    return candidates[0];
   }
 
   getCatchUpUrlVariants(
@@ -269,16 +261,23 @@ export class XtreamCodesService {
     const credentials = this.credentials;
 
     const startCandidates = XtreamCodesService.resolveTimeshiftStartCandidates(startTimestamp);
-    return startCandidates.map((startTime) => {
-      const url = new URL(`${credentials.server}/streaming/timeshift.php`);
-      url.searchParams.set("username", credentials.username);
-      url.searchParams.set("password", credentials.password);
-      url.searchParams.set("stream", String(streamId));
-      url.searchParams.set("start", startTime);
-      url.searchParams.set("duration", String(duration));
-      url.searchParams.set("extension", "m3u8");
-      return url.toString();
-    });
+    const durationCandidates = XtreamCodesService.resolveTimeshiftDurationCandidates(duration);
+    const urls: string[] = [];
+
+    for (const startTime of startCandidates) {
+      for (const durationCandidate of durationCandidates) {
+        const url = new URL(`${credentials.server}/streaming/timeshift.php`);
+        url.searchParams.set("username", credentials.username);
+        url.searchParams.set("password", credentials.password);
+        url.searchParams.set("stream", String(streamId));
+        url.searchParams.set("start", startTime);
+        url.searchParams.set("duration", String(durationCandidate));
+        url.searchParams.set("extension", "m3u8");
+        urls.push(url.toString());
+      }
+    }
+
+    return urls.filter((url, index, allUrls) => allUrls.indexOf(url) === index);
   }
 
   getLegacyCatchUpUrl(
@@ -286,10 +285,35 @@ export class XtreamCodesService {
     startTimestamp: number,
     duration: number,
   ): string {
+    const candidates = this.getLegacyCatchUpUrlVariants(streamId, startTimestamp, duration);
+    if (candidates.length === 0) {
+      throw new Error("Unable to build legacy catch-up URL");
+    }
+    return candidates[0];
+  }
+
+  getLegacyCatchUpUrlVariants(
+    streamId: number,
+    startTimestamp: number,
+    duration: number,
+  ): string[] {
     if (!this.credentials) {
       throw new Error("Credentials not set");
     }
-    return `${this.credentials.server}/timeshift/${this.credentials.username}/${this.credentials.password}/${duration}/${startTimestamp}/${streamId}.m3u8`;
+    const durationCandidates = XtreamCodesService.resolveTimeshiftDurationCandidates(duration);
+    const formattedStartCandidates = XtreamCodesService.resolveTimeshiftStartCandidates(startTimestamp);
+    const startCandidates = [...formattedStartCandidates, String(startTimestamp)];
+
+    const urls: string[] = [];
+    for (const startCandidate of startCandidates) {
+      for (const durationCandidate of durationCandidates) {
+        urls.push(
+          `${this.credentials.server}/timeshift/${this.credentials.username}/${this.credentials.password}/${durationCandidate}/${startCandidate}/${streamId}.m3u8`,
+        );
+      }
+    }
+
+    return urls.filter((url, index, allUrls) => allUrls.indexOf(url) === index);
   }
 
   getArchiveUrl(
@@ -331,6 +355,17 @@ export class XtreamCodesService {
     }
 
     return [localStart, utcStart];
+  }
+
+  private static resolveTimeshiftDurationCandidates(duration: number): number[] {
+    const normalizedSeconds = Math.max(1, Math.floor(duration));
+    const normalizedMinutes = Math.max(1, Math.round(normalizedSeconds / 60));
+
+    if (normalizedMinutes === normalizedSeconds) {
+      return [normalizedMinutes];
+    }
+
+    return [normalizedMinutes, normalizedSeconds];
   }
 
   private static extractEpgListings(

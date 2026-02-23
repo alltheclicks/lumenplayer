@@ -1,5 +1,41 @@
 # Handoff — Lumen Player
 
+## Session 2026-02-23 — QAF-034 provider catch-up compatibility hardening
+
+- Context:
+  - `QAF-034` remained `pending-review` due user-reported runtime failures in real catch-up flow despite earlier fixes.
+  - Direct provider probes confirmed this provider rejects epoch-based `start` in `timeshift.php` and accepts formatted `YYYY-MM-DD:HH-MM` start; behavior differs from "epoch-only" guidance.
+- Done:
+  - extended catch-up URL candidate generation in:
+    - `packages/api/src/xtream-codes-service.ts`
+    - `packages/api/src/xtream-codes-service.test.ts`
+  - provider fallback chain now includes:
+    - local-time + UTC formatted `start` variants,
+    - duration in minutes first, then seconds fallback,
+    - expanded legacy path variants (formatted + epoch start) as final compatibility fallback.
+  - improved runtime retry behavior for primary catch-up request in:
+    - `apps/web/src/pages/Player.tsx`
+    - `apps/web/src/components/player/PlayerControls.tsx`
+    - adds bounded same-URL retries before broader stream/offset fallback variants.
+  - canonical Xtream server resolution from `server_info` and dev-proxy routing for dynamic host assignment in:
+    - `apps/web/src/config/xtream.ts`
+    - `apps/web/src/config/xtream.test.ts`
+    - `apps/web/src/pages/Login.tsx`
+    - `apps/web/src/pages/Player.tsx`
+    - `apps/web/vite.config.ts`
+- Local validation:
+  - `pnpm typecheck` -> pass
+  - `pnpm vitest run packages/api/src/xtream-codes-service.test.ts apps/web/src/config/xtream.test.ts` -> pass
+- Notes:
+  - Existing user-owned changes in series artwork files stayed untouched in this task scope:
+    - `apps/web/src/pages/SeriesCategories.tsx`
+    - `apps/web/src/pages/SeriesDetail.tsx`
+    - `apps/web/src/pages/seriesArtwork.ts`
+    - `apps/web/src/pages/seriesArtwork.test.ts`
+  - Greptile round is not executed locally; next step is PR + external review/runtime verification on user environment.
+
+---
+
 ## Session 2026-02-21 — Docs reconciliation for already merged QAF-024..QAF-031
 
 - Context:

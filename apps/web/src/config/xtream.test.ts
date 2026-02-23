@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  resolveXtreamCanonicalServer,
   resolveXtreamApiServer,
   resolveXtreamRuntimeCredentials,
 } from "./xtream";
@@ -20,7 +21,7 @@ describe("resolveXtreamApiServer", () => {
         isDev: true,
         origin: "http://localhost:8080/",
       }),
-    ).toBe("http://localhost:8080/xui-api");
+    ).toBe("http://localhost:8080/xui-api/https%3A%2F%2Fgw.castcdn.net%3A443");
   });
 
   it("falls back to direct server URL in dev mode when origin is unavailable", () => {
@@ -48,7 +49,7 @@ describe("resolveXtreamRuntimeCredentials", () => {
         },
       ),
     ).toEqual({
-      server: "http://localhost:8080/xui-api",
+      server: "http://localhost:8080/xui-api/https%3A%2F%2Fgw.castcdn.net%3A443",
       username: "demo-user",
       password: "demo-pass",
     });
@@ -72,5 +73,31 @@ describe("resolveXtreamRuntimeCredentials", () => {
       username: "demo-user",
       password: "demo-pass",
     });
+  });
+});
+
+describe("resolveXtreamCanonicalServer", () => {
+  it("keeps current server when server info is missing", () => {
+    expect(
+      resolveXtreamCanonicalServer("http://smart.example:8080", null),
+    ).toBe("http://smart.example:8080");
+  });
+
+  it("resolves canonical host from auth server_info payload", () => {
+    expect(resolveXtreamCanonicalServer("http://smart.example:8080", {
+      url: "serv2.example",
+      port: "8080",
+      https_port: "443",
+      server_protocol: "http",
+    })).toBe("http://serv2.example:8080");
+  });
+
+  it("drops default https port when canonicalizing", () => {
+    expect(resolveXtreamCanonicalServer("http://smart.example:8080", {
+      url: "edge.example",
+      port: "8080",
+      https_port: "443",
+      server_protocol: "https",
+    })).toBe("https://edge.example");
   });
 });

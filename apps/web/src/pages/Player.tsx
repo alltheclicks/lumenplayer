@@ -50,6 +50,7 @@ import type { PlayerChannel, XtreamUserInfo } from '@lumen/types';
 import {
   loadXtreamCredentials,
   clearXtreamCredentials,
+  saveXtreamCredentials,
 } from '@/services/xtreamCredentials';
 import {
   getDefaultAppSettings,
@@ -85,6 +86,7 @@ import { fetchChannelShortEpgPrograms } from '@/services/channelEpg';
 import { resolveCatchUpEmptyStateReason } from '@/components/player/catchUpEmptyState';
 import { hasLiveCatchUpEntries, shouldShowLiveCatchUpSection } from '@/pages/liveCatchUpVisibility';
 import { resolveCatchUpClockActionTarget } from '@/pages/liveCatchUpDiscoverability';
+import { resolveXtreamCanonicalServer } from '@/config/xtream';
 
 type SessionSourceMetadata = {
   channelId?: string;
@@ -285,6 +287,31 @@ const buildCatchUpFallbackStreamIdsByChannelId = (
 const PICTURE_IN_PICTURE_KEY_CODE = 80; // Keyboard "P"
 const ON_DEMAND_LOADING_OVERLAY_MAX_MS = 2500;
 const CATCH_UP_INITIAL_POSITION_GUARD_MS = 15_000;
+const CATCH_UP_PRIMARY_REQUEST_RETRIES = 2;
+
+const buildCatchUpPrimaryRetryUrls = (
+  url: string,
+  retries: number,
+): string[] => {
+  const urls: string[] = [];
+
+  for (let retryIndex = 0; retryIndex < retries; retryIndex += 1) {
+    try {
+      const retryUrl = new URL(
+        url,
+        typeof window === 'undefined' ? 'http://localhost' : window.location.origin,
+      );
+      retryUrl.searchParams.set('_retry', String(retryIndex + 1));
+      retryUrl.searchParams.set('_ts', String(Date.now() + retryIndex));
+      urls.push(retryUrl.toString());
+    } catch {
+      // If URL parsing fails, retrying the exact same URL is still useful.
+      urls.push(url);
+    }
+  }
+
+  return urls;
+};
 
 const clampVolumePercent = (value: number): number => Math.max(0, Math.min(100, Math.round(value)));
 const DEFAULT_ON_DEMAND_VOLUME = clampVolumePercent(getDefaultAppSettings().player.defaultVolume);
@@ -670,6 +697,16 @@ const Player = () => {
       try {
         xtreamCodesService.setCredentials(credentials);
         const authResponse = await xtreamCodesService.authenticate();
+        const canonicalServer = resolveXtreamCanonicalServer(
+          credentials.server,
+          authResponse.server_info,
+        );
+        if (canonicalServer !== credentials.server) {
+          await saveXtreamCredentials({
+            ...credentials,
+            server: canonicalServer,
+          });
+        }
         if (!isCancelled) {
           setXtreamUserInfo(authResponse.user_info ?? null);
         }
@@ -878,6 +915,7 @@ const Player = () => {
     const fallbackStartOffsetsSeconds = [0, -120, -60, -180, 60];
     const catchUpFallbackUrls = [
       ...primaryCatchUpUrls.slice(1),
+      ...buildCatchUpPrimaryRetryUrls(catchUpUrl, CATCH_UP_PRIMARY_REQUEST_RETRIES),
       ...[currentChannelWithEPG.streamId, ...currentCatchUpFallbackStreamIds].flatMap((fallbackStreamId) => (
         fallbackStartOffsetsSeconds
           .map((offsetSeconds) => startTimestamp + offsetSeconds)
@@ -888,10 +926,10 @@ const Player = () => {
             duration,
           ))
       )),
-      xtreamCodesService.getLegacyCatchUpUrl(
+      ...xtreamCodesService.getLegacyCatchUpUrlVariants(
         currentChannelWithEPG.streamId,
         startTimestamp,
-        duration
+        duration,
       ),
     ].filter((fallbackUrl, index, urls) => (
       fallbackUrl !== catchUpUrl && urls.indexOf(fallbackUrl) === index

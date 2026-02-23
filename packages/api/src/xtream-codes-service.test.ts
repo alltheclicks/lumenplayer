@@ -305,15 +305,22 @@ describe("XtreamCodesService catch-up URL builders", () => {
 
   it("builds provider-accepted streaming/timeshift URL for catch-up", () => {
     const service = createService();
-    const url = new URL(service.getCatchUpUrl(77, 1771617600, 1800));
+    const startTimestamp = 1771617600;
+    const url = new URL(service.getCatchUpUrl(77, startTimestamp, 1800));
+    const localDate = new Date(startTimestamp * 1000);
+    const localStart = [
+      localDate.getFullYear(),
+      String(localDate.getMonth() + 1).padStart(2, "0"),
+      String(localDate.getDate()).padStart(2, "0"),
+    ].join("-") + `:${String(localDate.getHours()).padStart(2, "0")}-${String(localDate.getMinutes()).padStart(2, "0")}`;
 
     expect(url.pathname).toBe("/streaming/timeshift.php");
     expect(url.searchParams.get("username")).toBe("demo");
     expect(url.searchParams.get("password")).toBe("demo");
     expect(url.searchParams.get("stream")).toBe("77");
-    expect(url.searchParams.get("duration")).toBe("1800");
+    expect(url.searchParams.get("duration")).toBe("30");
     expect(url.searchParams.get("extension")).toBe("m3u8");
-    expect(url.searchParams.get("start")).toBe("2026-02-20:20-00");
+    expect(url.searchParams.get("start")).toBe(localStart);
   });
 
   it("provides catch-up URL variants for local-time and UTC providers", () => {
@@ -338,14 +345,46 @@ describe("XtreamCodesService catch-up URL builders", () => {
     ].join("-") + `:${String(localDate.getUTCHours()).padStart(2, "0")}-${String(localDate.getUTCMinutes()).padStart(2, "0")}`;
 
     expect(parsedVariants[0]?.searchParams.get("start")).toBe(localStart);
-    expect(parsedVariants.some((variant) => variant.searchParams.get("start") === utcStart)).toBe(true);
+    expect(parsedVariants[0]?.searchParams.get("duration")).toBe("30");
+    expect(parsedVariants.some((variant) => (
+      variant.searchParams.get("start") === localStart &&
+      variant.searchParams.get("duration") === "1800"
+    ))).toBe(true);
+    expect(parsedVariants.some((variant) => (
+      variant.searchParams.get("start") === utcStart &&
+      variant.searchParams.get("duration") === "30"
+    ))).toBe(true);
   });
 
   it("keeps legacy path-style catch-up URL available as fallback", () => {
     const service = createService();
+    const localDate = new Date(1771617600 * 1000);
+    const localStart = [
+      localDate.getFullYear(),
+      String(localDate.getMonth() + 1).padStart(2, "0"),
+      String(localDate.getDate()).padStart(2, "0"),
+    ].join("-") + `:${String(localDate.getHours()).padStart(2, "0")}-${String(localDate.getMinutes()).padStart(2, "0")}`;
 
     expect(service.getLegacyCatchUpUrl(77, 1771617600, 1800)).toBe(
-      "https://example.test/timeshift/demo/demo/1800/1771617600/77.m3u8",
+      `https://example.test/timeshift/demo/demo/30/${localStart}/77.m3u8`,
     );
+  });
+
+  it("provides legacy path variants with formatted and epoch starts", () => {
+    const service = createService();
+    const variants = service.getLegacyCatchUpUrlVariants(77, 1771617600, 1800);
+    const localDate = new Date(1771617600 * 1000);
+    const localStart = [
+      localDate.getFullYear(),
+      String(localDate.getMonth() + 1).padStart(2, "0"),
+      String(localDate.getDate()).padStart(2, "0"),
+    ].join("-") + `:${String(localDate.getHours()).padStart(2, "0")}-${String(localDate.getMinutes()).padStart(2, "0")}`;
+
+    expect(variants.some((variant) => (
+      variant === `https://example.test/timeshift/demo/demo/30/${localStart}/77.m3u8`
+    ))).toBe(true);
+    expect(variants.some((variant) => (
+      variant === "https://example.test/timeshift/demo/demo/1800/1771617600/77.m3u8"
+    ))).toBe(true);
   });
 });
