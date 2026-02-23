@@ -39,7 +39,6 @@ export default defineConfig(({ mode }) => {
               target: xtreamServerTarget || LOCAL_PROXY_FALLBACK_TARGET,
               changeOrigin: true,
               secure: false,
-              followRedirects: true,
               router: (request) => (
                 resolveProxyTargetFromRequestPath(request.url || "") ||
                 xtreamServerTarget ||

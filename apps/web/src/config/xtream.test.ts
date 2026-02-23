@@ -1,9 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-  decodeXtreamProxyTargetFromPathname,
   resolveXtreamCanonicalServer,
   resolveXtreamApiServer,
-  resolveXtreamProxyMediaRequestUrl,
   resolveXtreamRuntimeCredentials,
 } from "./xtream";
 
@@ -101,58 +99,5 @@ describe("resolveXtreamCanonicalServer", () => {
       https_port: "443",
       server_protocol: "https",
     })).toBe("https://edge.example");
-  });
-});
-
-describe("resolveXtreamProxyMediaRequestUrl", () => {
-  it("keeps already proxied request URL unchanged", () => {
-    expect(
-      resolveXtreamProxyMediaRequestUrl(
-        "http://localhost:8080/xui-api/http%3A%2F%2Fsmart.example%3A8080/streaming/timeshift.php?token=abc",
-        {
-          runtimeOrigin: "http://localhost:8080",
-          fallbackTarget: "http://smart.example:8080",
-        },
-      ),
-    ).toBe(
-      "http://localhost:8080/xui-api/http%3A%2F%2Fsmart.example%3A8080/streaming/timeshift.php?token=abc",
-    );
-  });
-
-  it("rewrites cross-origin request URL through same-origin proxy path", () => {
-    expect(
-      resolveXtreamProxyMediaRequestUrl(
-        "https://edge6.castcdn.net/streaming/timeshift.php?token=abc",
-        {
-          runtimeOrigin: "http://localhost:8080",
-          fallbackTarget: null,
-        },
-      ),
-    ).toBe(
-      "http://localhost:8080/xui-api/https%3A%2F%2Fedge6.castcdn.net/streaming/timeshift.php?token=abc",
-    );
-  });
-
-  it("rewrites same-origin absolute media path using fallback target", () => {
-    expect(
-      resolveXtreamProxyMediaRequestUrl("/streaming/timeshift.php?token=abc", {
-        runtimeOrigin: "http://localhost:8080",
-        fallbackTarget: "http://smart.example:8080",
-      }),
-    ).toBe(
-      "http://localhost:8080/xui-api/http%3A%2F%2Fsmart.example%3A8080/streaming/timeshift.php?token=abc",
-    );
-  });
-});
-
-describe("decodeXtreamProxyTargetFromPathname", () => {
-  it("extracts decoded target from proxy pathname", () => {
-    expect(
-      decodeXtreamProxyTargetFromPathname("/xui-api/https%3A%2F%2Fedge6.castcdn.net%3A443/streaming/timeshift.php"),
-    ).toBe("https://edge6.castcdn.net");
-  });
-
-  it("returns null for non-proxy paths", () => {
-    expect(decodeXtreamProxyTargetFromPathname("/streaming/timeshift.php")).toBeNull();
   });
 });

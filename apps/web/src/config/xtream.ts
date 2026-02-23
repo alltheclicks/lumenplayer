@@ -1,6 +1,6 @@
 import type { XtreamCredentials, XtreamServerInfo } from "@lumen/types";
 
-export const XTREAM_DEV_PROXY_BASE_PATH = "/xui-api";
+const XTREAM_DEV_PROXY_BASE_PATH = "/xui-api";
 
 const trimTrailingSlash = (value: string): string => value.trim().replace(/\/+$/, "");
 const trimLeadingSlash = (value: string): string => value.replace(/^\/+/, "");
@@ -39,84 +39,12 @@ const parseServerInfoHost = (value: string): {
   }
 };
 
-const normalizeXtreamTargetBase = (value: string): string | null => {
-  const normalized = trimTrailingSlash(value);
-  if (!normalized) {
-    return null;
-  }
-
-  try {
-    const parsed = new URL(normalized.includes("://") ? normalized : `http://${normalized}`);
-    const protocol = parsed.protocol === "https:" ? "https" : "http";
-    const port = parsed.port.trim();
-    const includePort = port.length > 0 && !isDefaultPort(protocol, port);
-    return `${protocol}://${parsed.hostname}${includePort ? `:${port}` : ""}`;
-  } catch {
-    return null;
-  }
-};
-
 // Xtream Codes server configuration from environment variable
 export const XTREAM_SERVER_URL = trimTrailingSlash(import.meta.env.VITE_XTREAM_SERVER || "");
 
 export const encodeXtreamProxyTarget = (serverUrl: string): string => (
   encodeURIComponent(trimTrailingSlash(serverUrl))
 );
-
-export const decodeXtreamProxyTargetFromPathname = (pathname: string): string | null => {
-  const match = pathname.match(new RegExp(`^${XTREAM_DEV_PROXY_BASE_PATH}/([^/?#]+)`));
-  if (!match?.[1]) {
-    return null;
-  }
-
-  try {
-    return normalizeXtreamTargetBase(decodeURIComponent(match[1])) ?? null;
-  } catch {
-    return null;
-  }
-};
-
-export const resolveXtreamProxyMediaRequestUrl = (
-  requestUrl: string,
-  options: {
-    runtimeOrigin?: string | null;
-    fallbackTarget?: string | null;
-  } = {},
-): string => {
-  const runtimeOrigin = trimTrailingSlash(
-    options.runtimeOrigin ?? (typeof window === "undefined" ? "" : window.location.origin),
-  );
-  if (!runtimeOrigin) {
-    return requestUrl;
-  }
-
-  let parsedRuntimeOrigin: URL;
-  let parsedRequestUrl: URL;
-  try {
-    parsedRuntimeOrigin = new URL(runtimeOrigin);
-    parsedRequestUrl = new URL(requestUrl, `${parsedRuntimeOrigin.origin}/`);
-  } catch {
-    return requestUrl;
-  }
-
-  if (decodeXtreamProxyTargetFromPathname(parsedRequestUrl.pathname)) {
-    return parsedRequestUrl.toString();
-  }
-
-  let targetBase = normalizeXtreamTargetBase(options.fallbackTarget ?? "");
-  const isHttpRequest = parsedRequestUrl.protocol === "http:" || parsedRequestUrl.protocol === "https:";
-
-  if (!targetBase && isHttpRequest && parsedRequestUrl.origin !== parsedRuntimeOrigin.origin) {
-    targetBase = normalizeXtreamTargetBase(parsedRequestUrl.origin);
-  }
-
-  if (!targetBase) {
-    return parsedRequestUrl.toString();
-  }
-
-  const encodedTarget = encodeXtreamProxyTarget(targetBase);
-  return `${parsedRuntimeOrigin.origin}${XTREAM_DEV_PROXY_BASE_PATH}/${trimLeadingSlash(encodedTarget)}${parsedRequestUrl.pathname}${parsedRequestUrl.search}${parsedRequestUrl.hash}`;
-};
 
 export const resolveXtreamCanonicalServer = (
   currentServerUrl: string,

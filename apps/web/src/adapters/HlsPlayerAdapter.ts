@@ -7,10 +7,6 @@ import type {
   PlayerAdapter,
   SubtitleTrackOption,
 } from '@lumen/types';
-import {
-  decodeXtreamProxyTargetFromPathname,
-  resolveXtreamProxyMediaRequestUrl,
-} from '../config/xtream';
 
 const HLS_MIME_TYPE = 'application/vnd.apple.mpegurl';
 
@@ -297,8 +293,6 @@ export class HlsPlayerAdapter implements PlayerAdapter {
     }
 
     if (Hls.isSupported()) {
-      const runtimeOrigin = typeof window === 'undefined' ? null : window.location.origin;
-      let proxyFallbackTarget = this.resolveDevProxyTargetBase(url, runtimeOrigin);
       const hls = new Hls({
         enableWorker: true,
         lowLatencyMode: true,
@@ -308,24 +302,6 @@ export class HlsPlayerAdapter implements PlayerAdapter {
         maxBufferSize: 60 * 1000 * 1000,
         maxBufferHole: 0.5,
         startLevel: -1,
-        xhrSetup: (xhr, requestUrl) => {
-          if (!runtimeOrigin) {
-            return;
-          }
-
-          const rewrittenRequestUrl = resolveXtreamProxyMediaRequestUrl(requestUrl, {
-            runtimeOrigin,
-            fallbackTarget: proxyFallbackTarget,
-          });
-          const resolvedTargetBase = this.resolveDevProxyTargetBase(rewrittenRequestUrl, runtimeOrigin);
-          if (resolvedTargetBase) {
-            proxyFallbackTarget = resolvedTargetBase;
-          }
-
-          if (rewrittenRequestUrl !== requestUrl) {
-            xhr.open('GET', rewrittenRequestUrl, true);
-          }
-        },
       });
       this.hls = hls;
 
@@ -555,39 +531,6 @@ export class HlsPlayerAdapter implements PlayerAdapter {
       return false;
     }
     return window.location.protocol === 'https:' && url.startsWith('http://');
-  }
-
-  private resolveDevProxyTargetBase(
-    url: string,
-    runtimeOrigin: string | null,
-  ): string | null {
-    if (!runtimeOrigin) {
-      return null;
-    }
-
-    let parsedRequestUrl: URL;
-    let parsedRuntimeOrigin: URL;
-    try {
-      parsedRuntimeOrigin = new URL(runtimeOrigin);
-      parsedRequestUrl = new URL(url, `${parsedRuntimeOrigin.origin}/`);
-    } catch {
-      return null;
-    }
-
-    const proxiedTarget = decodeXtreamProxyTargetFromPathname(parsedRequestUrl.pathname);
-    if (proxiedTarget) {
-      return proxiedTarget;
-    }
-
-    if (parsedRequestUrl.protocol !== 'http:' && parsedRequestUrl.protocol !== 'https:') {
-      return null;
-    }
-
-    if (parsedRequestUrl.origin === parsedRuntimeOrigin.origin) {
-      return null;
-    }
-
-    return `${parsedRequestUrl.protocol}//${parsedRequestUrl.host}`;
   }
 
   private syncHlsAudioTracks(selectedIndex: number): void {
