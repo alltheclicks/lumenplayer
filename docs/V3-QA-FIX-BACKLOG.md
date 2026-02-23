@@ -341,6 +341,11 @@ Live native traffic capture was executed on Buildara (`100.74.23.120`) while use
    - `GET /timeshift/{user}/{pass}/{duration}/{start}/{stream}.ts` on login host
    - `302` redirect to tokenized `https://edge*.castcdn.net/streaming/timeshift.php?token=...`
    - rapid retry bursts are visible with start-minute adjustments
+   - observed retry cadence from capture:
+     - `start=2026-02-23:22-37` -> 6 attempts
+     - `start=2026-02-23:22-35` -> 2 attempts
+     - `start=2026-02-23:22-19` -> 3 attempts
+     - inter-attempt timing buckets: 8 retries `<2s`, 1 retry `2-15s`, 1 retry `>=15s`
 3. Practical interpretation for Lumen:
    - redirect+token is expected provider behavior, not exceptional path
    - parity target is native flow semantics (`request -> 302 -> final media`) under web transport constraints
