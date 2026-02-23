@@ -277,7 +277,30 @@ export class XtreamCodesService {
       }
     }
 
-    return urls.filter((url, index, allUrls) => allUrls.indexOf(url) === index);
+    return XtreamCodesService.filterUniqueUrls(urls);
+  }
+
+  getCatchUpRedirectUrl(
+    streamId: number,
+    startTimestamp: number,
+    duration: number,
+  ): string {
+    const candidates = this.getCatchUpRedirectUrlVariants(streamId, startTimestamp, duration);
+    if (candidates.length === 0) {
+      throw new Error("Unable to build redirect catch-up URL");
+    }
+    return candidates[0];
+  }
+
+  getCatchUpRedirectUrlVariants(
+    streamId: number,
+    startTimestamp: number,
+    duration: number,
+  ): string[] {
+    return this.buildTimeshiftPathCatchUpVariants(streamId, startTimestamp, duration, {
+      extensions: ["ts", "m3u8"],
+      includeEpochStart: false,
+    });
   }
 
   getLegacyCatchUpUrl(
@@ -297,23 +320,48 @@ export class XtreamCodesService {
     startTimestamp: number,
     duration: number,
   ): string[] {
+    return this.buildTimeshiftPathCatchUpVariants(streamId, startTimestamp, duration, {
+      extensions: ["m3u8"],
+      includeEpochStart: true,
+    });
+  }
+
+  private buildTimeshiftPathCatchUpVariants(
+    streamId: number,
+    startTimestamp: number,
+    duration: number,
+    options: {
+      extensions: string[];
+      includeEpochStart: boolean;
+    },
+  ): string[] {
     if (!this.credentials) {
       throw new Error("Credentials not set");
     }
+
     const durationCandidates = XtreamCodesService.resolveTimeshiftDurationCandidates(duration);
     const formattedStartCandidates = XtreamCodesService.resolveTimeshiftStartCandidates(startTimestamp);
-    const startCandidates = [...formattedStartCandidates, String(startTimestamp)];
+    const startCandidates = options.includeEpochStart
+      ? [...formattedStartCandidates, String(Math.floor(startTimestamp))]
+      : formattedStartCandidates;
+    const extensionCandidates = options.extensions
+      .map((extension) => extension.trim())
+      .filter((extension, index, extensions) => (
+        extension.length > 0 && extensions.indexOf(extension) === index
+      ));
 
     const urls: string[] = [];
-    for (const startCandidate of startCandidates) {
-      for (const durationCandidate of durationCandidates) {
-        urls.push(
-          `${this.credentials.server}/timeshift/${this.credentials.username}/${this.credentials.password}/${durationCandidate}/${startCandidate}/${streamId}.m3u8`,
-        );
+    for (const extension of extensionCandidates) {
+      for (const startCandidate of startCandidates) {
+        for (const durationCandidate of durationCandidates) {
+          urls.push(
+            `${this.credentials.server}/timeshift/${this.credentials.username}/${this.credentials.password}/${durationCandidate}/${startCandidate}/${streamId}.${extension}`,
+          );
+        }
       }
     }
 
-    return urls.filter((url, index, allUrls) => allUrls.indexOf(url) === index);
+    return XtreamCodesService.filterUniqueUrls(urls);
   }
 
   getArchiveUrl(
@@ -366,6 +414,10 @@ export class XtreamCodesService {
     }
 
     return [normalizedMinutes, normalizedSeconds];
+  }
+
+  private static filterUniqueUrls(urls: string[]): string[] {
+    return urls.filter((url, index, allUrls) => allUrls.indexOf(url) === index);
   }
 
   private static extractEpgListings(

@@ -87,6 +87,7 @@ import { resolveCatchUpEmptyStateReason } from '@/components/player/catchUpEmpty
 import { hasLiveCatchUpEntries, shouldShowLiveCatchUpSection } from '@/pages/liveCatchUpVisibility';
 import { resolveCatchUpClockActionTarget } from '@/pages/liveCatchUpDiscoverability';
 import { resolveXtreamCanonicalServer } from '@/config/xtream';
+import { buildCatchUpTransportPlan } from '@/components/player/catchupTransport';
 
 type SessionSourceMetadata = {
   channelId?: string;
@@ -287,31 +288,6 @@ const buildCatchUpFallbackStreamIdsByChannelId = (
 const PICTURE_IN_PICTURE_KEY_CODE = 80; // Keyboard "P"
 const ON_DEMAND_LOADING_OVERLAY_MAX_MS = 2500;
 const CATCH_UP_INITIAL_POSITION_GUARD_MS = 15_000;
-const CATCH_UP_PRIMARY_REQUEST_RETRIES = 2;
-
-const buildCatchUpPrimaryRetryUrls = (
-  url: string,
-  retries: number,
-): string[] => {
-  const urls: string[] = [];
-
-  for (let retryIndex = 0; retryIndex < retries; retryIndex += 1) {
-    try {
-      const retryUrl = new URL(
-        url,
-        typeof window === 'undefined' ? 'http://localhost' : window.location.origin,
-      );
-      retryUrl.searchParams.set('_retry', String(retryIndex + 1));
-      retryUrl.searchParams.set('_ts', String(Date.now() + retryIndex));
-      urls.push(retryUrl.toString());
-    } catch {
-      // If URL parsing fails, retrying the exact same URL is still useful.
-      urls.push(url);
-    }
-  }
-
-  return urls;
-};
 
 const clampVolumePercent = (value: number): number => Math.max(0, Math.min(100, Math.round(value)));
 const DEFAULT_ON_DEMAND_VOLUME = clampVolumePercent(getDefaultAppSettings().player.defaultVolume);
@@ -902,48 +878,31 @@ const Player = () => {
     const duration = Math.floor(
       (program.endTime.getTime() - program.startTime.getTime()) / 1000
     );
-    const primaryCatchUpUrls = xtreamCodesService.getCatchUpUrlVariants(
-      currentChannelWithEPG.streamId,
+    const catchUpTransportPlan = buildCatchUpTransportPlan({
+      urlBuilder: xtreamCodesService,
+      streamId: currentChannelWithEPG.streamId,
       startTimestamp,
-      duration
-    );
-    const catchUpUrl = primaryCatchUpUrls[0] ?? xtreamCodesService.getCatchUpUrl(
-      currentChannelWithEPG.streamId,
-      startTimestamp,
-      duration
-    );
-    const fallbackStartOffsetsSeconds = [0, -120, -60, -180, 60];
-    const catchUpFallbackUrls = [
-      ...primaryCatchUpUrls.slice(1),
-      ...buildCatchUpPrimaryRetryUrls(catchUpUrl, CATCH_UP_PRIMARY_REQUEST_RETRIES),
-      ...[currentChannelWithEPG.streamId, ...currentCatchUpFallbackStreamIds].flatMap((fallbackStreamId) => (
-        fallbackStartOffsetsSeconds
-          .map((offsetSeconds) => startTimestamp + offsetSeconds)
-          .filter((candidateStartTimestamp) => candidateStartTimestamp > 0)
-          .flatMap((candidateStartTimestamp) => xtreamCodesService.getCatchUpUrlVariants(
-            fallbackStreamId,
-            candidateStartTimestamp,
-            duration,
-          ))
-      )),
-      ...xtreamCodesService.getLegacyCatchUpUrlVariants(
-        currentChannelWithEPG.streamId,
-        startTimestamp,
-        duration,
-      ),
-    ].filter((fallbackUrl, index, urls) => (
-      fallbackUrl !== catchUpUrl && urls.indexOf(fallbackUrl) === index
-    ));
+      durationSeconds: duration,
+      fallbackStreamIds: currentCatchUpFallbackStreamIds,
+    });
+    const catchUpUrl = catchUpTransportPlan.initialAttempt.url;
+    const catchUpFallbackUrls = catchUpTransportPlan.fallbackAttempts.map((attempt) => attempt.url);
     const catchUpFallbackUrl = catchUpFallbackUrls[0] ?? '';
     emitWebObservabilityEvent({
-      name: 'playback.catchup.requested',
+      name: 'catchup.requested',
       severity: 'info',
       metadata: {
         channelId: currentChannelWithEPG.id,
         streamId: currentChannelWithEPG.streamId,
         programId: program.id,
-        programStartTs: startTimestamp,
-        requestedDurationSeconds: duration,
+        start: startTimestamp,
+        duration,
+        attempt: 1,
+        status: 'requested',
+        finalHost: null,
+        errorCode: null,
+        initialStrategy: catchUpTransportPlan.initialAttempt.strategy,
+        initialStartTs: catchUpTransportPlan.initialAttempt.startTimestamp,
         fallbackStreamIds: currentCatchUpFallbackStreamIds,
         fallbackCount: catchUpFallbackUrls.length,
       },
@@ -959,6 +918,10 @@ const Player = () => {
         mode: 'catchup' as const,
         catchUpProgramId: program.id,
         catchUpDurationSeconds: duration,
+        catchUpStartTimestamp: catchUpTransportPlan.initialAttempt.startTimestamp,
+        catchUpAttemptPlan: catchUpTransportPlan.allAttempts,
+        catchUpAttemptIndex: 0,
+        catchUpAttemptStrategy: catchUpTransportPlan.initialAttempt.strategy,
         catchUpFallbackUrl,
         catchUpFallbackUrls,
         catchUpFallbackIndex: -1,

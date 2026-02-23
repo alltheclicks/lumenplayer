@@ -323,6 +323,34 @@ describe("XtreamCodesService catch-up URL builders", () => {
     expect(url.searchParams.get("start")).toBe(localStart);
   });
 
+  it("builds redirect-first timeshift path URL for catch-up parity", () => {
+    const service = createService();
+    const startTimestamp = 1771617600;
+    const redirectUrl = service.getCatchUpRedirectUrl(77, startTimestamp, 1800);
+    const localDate = new Date(startTimestamp * 1000);
+    const localStart = [
+      localDate.getFullYear(),
+      String(localDate.getMonth() + 1).padStart(2, "0"),
+      String(localDate.getDate()).padStart(2, "0"),
+    ].join("-") + `:${String(localDate.getHours()).padStart(2, "0")}-${String(localDate.getMinutes()).padStart(2, "0")}`;
+
+    expect(redirectUrl).toBe(
+      `https://example.test/timeshift/demo/demo/30/${localStart}/77.ts`,
+    );
+  });
+
+  it("provides redirect variants with ts and m3u8 extensions", () => {
+    const service = createService();
+    const startTimestamp = 1771694880;
+    const variants = service.getCatchUpRedirectUrlVariants(77, startTimestamp, 1800);
+    const parsed = variants.map((variant) => new URL(variant));
+
+    expect(variants.length).toBeGreaterThan(0);
+    expect(new Set(variants).size).toBe(variants.length);
+    expect(parsed[0]?.pathname.endsWith(".ts")).toBe(true);
+    expect(parsed.some((variant) => variant.pathname.endsWith(".m3u8"))).toBe(true);
+  });
+
   it("provides catch-up URL variants for local-time and UTC providers", () => {
     const service = createService();
     const startTimestamp = 1771694880;

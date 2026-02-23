@@ -41,6 +41,7 @@ import {
   resolveLiveTimeshiftPositionSeconds,
 } from './liveTimeshift';
 import { emitWebObservabilityEvent } from '@/services/observability';
+import { buildCatchUpTransportPlan } from './catchupTransport';
 
 interface PlayerControlsProps {
   channel: PlayerChannel;
@@ -80,30 +81,6 @@ const CONTROLS_IDLE_TIMEOUT_MS = 3000;
 const CONTROLS_IDLE_GRACE_MS = 1000;
 const CATCH_UP_REASON_REFRESH_MS = 60_000;
 const CATCH_UP_INITIAL_POSITION_GUARD_SECONDS = 15;
-const CATCH_UP_PRIMARY_REQUEST_RETRIES = 2;
-
-const buildCatchUpPrimaryRetryUrls = (
-  url: string,
-  retries: number,
-): string[] => {
-  const urls: string[] = [];
-
-  for (let retryIndex = 0; retryIndex < retries; retryIndex += 1) {
-    try {
-      const retryUrl = new URL(
-        url,
-        typeof window === 'undefined' ? 'http://localhost' : window.location.origin,
-      );
-      retryUrl.searchParams.set('_retry', String(retryIndex + 1));
-      retryUrl.searchParams.set('_ts', String(Date.now() + retryIndex));
-      urls.push(retryUrl.toString());
-    } catch {
-      urls.push(url);
-    }
-  }
-
-  return urls;
-};
 
 const parseSessionSourceMetadata = (
   metadata: Record<string, unknown> | undefined
@@ -616,38 +593,15 @@ const PlayerControls = ({
         0,
         Math.min(duration, CATCH_UP_INITIAL_POSITION_GUARD_SECONDS)
       );
-    const primaryCatchUpUrls = xtreamCodesService.getCatchUpUrlVariants(
-      channel.streamId,
+    const catchUpTransportPlan = buildCatchUpTransportPlan({
+      urlBuilder: xtreamCodesService,
+      streamId: channel.streamId,
       startTimestamp,
-      duration
-    );
-    const catchUpUrl = primaryCatchUpUrls[0] ?? xtreamCodesService.getCatchUpUrl(
-      channel.streamId,
-      startTimestamp,
-      duration
-    );
-    const fallbackStartOffsetsSeconds = [0, -120, -60, -180, 60];
-    const catchUpFallbackUrls = [
-      ...primaryCatchUpUrls.slice(1),
-      ...buildCatchUpPrimaryRetryUrls(catchUpUrl, CATCH_UP_PRIMARY_REQUEST_RETRIES),
-      ...[channel.streamId, ...catchUpFallbackStreamIds].flatMap((fallbackStreamId) => (
-        fallbackStartOffsetsSeconds
-          .map((offsetSeconds) => startTimestamp + offsetSeconds)
-          .filter((candidateStartTimestamp) => candidateStartTimestamp > 0)
-          .flatMap((candidateStartTimestamp) => xtreamCodesService.getCatchUpUrlVariants(
-            fallbackStreamId,
-            candidateStartTimestamp,
-            duration,
-          ))
-      )),
-      ...xtreamCodesService.getLegacyCatchUpUrlVariants(
-        channel.streamId,
-        startTimestamp,
-        duration,
-      ),
-    ].filter((fallbackUrl, index, urls) => (
-      fallbackUrl !== catchUpUrl && urls.indexOf(fallbackUrl) === index
-    ));
+      durationSeconds: duration,
+      fallbackStreamIds: catchUpFallbackStreamIds,
+    });
+    const catchUpUrl = catchUpTransportPlan.initialAttempt.url;
+    const catchUpFallbackUrls = catchUpTransportPlan.fallbackAttempts.map((attempt) => attempt.url);
     const catchUpFallbackUrl = catchUpFallbackUrls[0] ?? '';
     const source = {
       url: catchUpUrl,
@@ -660,6 +614,10 @@ const PlayerControls = ({
         mode: 'catchup',
         catchUpProgramId: program.id,
         catchUpDurationSeconds: duration,
+        catchUpStartTimestamp: catchUpTransportPlan.initialAttempt.startTimestamp,
+        catchUpAttemptPlan: catchUpTransportPlan.allAttempts,
+        catchUpAttemptIndex: 0,
+        catchUpAttemptStrategy: catchUpTransportPlan.initialAttempt.strategy,
         catchUpFallbackUrl,
         catchUpFallbackUrls,
         catchUpFallbackIndex: -1,
@@ -668,16 +626,23 @@ const PlayerControls = ({
     };
 
     emitWebObservabilityEvent({
-      name: 'playback.catchup.requested',
+      name: 'catchup.requested',
       severity: 'info',
       metadata: {
         channelId: channel.id,
         streamId: channel.streamId,
         programId: program.id,
-        programStartTs: startTimestamp,
+        start: startTimestamp,
+        duration,
+        attempt: 1,
+        status: 'requested',
+        finalHost: null,
+        errorCode: null,
         fullDurationSeconds: fullDuration,
-        requestedDurationSeconds: duration,
+        initialStrategy: catchUpTransportPlan.initialAttempt.strategy,
+        initialStartTs: catchUpTransportPlan.initialAttempt.startTimestamp,
         fallbackStreamIds: catchUpFallbackStreamIds,
+        fallbackCount: catchUpFallbackUrls.length,
         initialPositionSeconds,
       },
     });
