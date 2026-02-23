@@ -8,7 +8,6 @@ import { request as httpsRequest } from "node:https";
 
 const pwaWorkboxMode = process.env.LUMEN_PWA_SW_MODE === "production" ? "production" : "development";
 const XTREAM_DEV_PROXY_BASE_PATH = "/xui-api";
-const LOCAL_PROXY_FALLBACK_TARGET = "http://localhost";
 const trimTrailingSlash = (value: string): string => value.trim().replace(/\/+$/, "");
 
 type ParsedProxyRequest = {
@@ -105,10 +104,12 @@ const extractPathnameAndSearch = (requestPath: string): {
 };
 
 const createXtreamProxyMiddleware = (options: {
-  xtreamServerTarget: string;
+  xtreamServerTarget?: string;
   proxyDebugEnabled: boolean;
 }) => {
-  const normalizedDefaultTarget = trimTrailingSlash(options.xtreamServerTarget);
+  const normalizedDefaultTarget = options.xtreamServerTarget
+    ? trimTrailingSlash(options.xtreamServerTarget)
+    : "";
 
   return (
     request: IncomingMessage,
@@ -125,8 +126,8 @@ const createXtreamProxyMiddleware = (options: {
     const parsedProxyRequest = parseProxyRequest(requestUrl);
     const targetBase = parsedProxyRequest?.target || normalizedDefaultTarget;
     if (!targetBase) {
-      response.statusCode = 502;
-      response.end("Xtream dev proxy target is not configured.");
+      response.statusCode = 400;
+      response.end("Xtream dev proxy target is missing in request URL.");
       return;
     }
 
@@ -213,12 +214,9 @@ export default defineConfig(({ mode }) => {
       {
         name: "xtream-dev-dynamic-proxy",
         configureServer(server) {
-          if (!xtreamServerTarget) {
-            return;
-          }
           server.middlewares.use(
             createXtreamProxyMiddleware({
-              xtreamServerTarget: xtreamServerTarget || LOCAL_PROXY_FALLBACK_TARGET,
+              xtreamServerTarget,
               proxyDebugEnabled,
             }),
           );
