@@ -50,6 +50,7 @@ import type { PlayerChannel, XtreamUserInfo } from '@lumen/types';
 import {
   loadXtreamCredentials,
   clearXtreamCredentials,
+  saveXtreamCredentials,
 } from '@/services/xtreamCredentials';
 import {
   getDefaultAppSettings,
@@ -85,6 +86,8 @@ import { fetchChannelShortEpgPrograms } from '@/services/channelEpg';
 import { resolveCatchUpEmptyStateReason } from '@/components/player/catchUpEmptyState';
 import { hasLiveCatchUpEntries, shouldShowLiveCatchUpSection } from '@/pages/liveCatchUpVisibility';
 import { resolveCatchUpClockActionTarget } from '@/pages/liveCatchUpDiscoverability';
+import { resolveXtreamCanonicalServer } from '@/config/xtream';
+import { buildCatchUpTransportPlan } from '@/components/player/catchupTransport';
 
 type SessionSourceMetadata = {
   channelId?: string;
@@ -208,8 +211,83 @@ const formatCatchUpDateLabel = (date: Date): string => {
   return date.toLocaleDateString('sr-RS', { weekday: 'long', day: 'numeric', month: 'long' });
 };
 
+const normalizeCatchUpVariantBaseName = (channelName: string): string => (
+  channelName
+    .toLowerCase()
+    .replace(/\([^)]*\)/g, ' ')
+    .replace(/\b(ultra\s*hd|full\s*hd|uhd|fhd|4k|2160p|1080p|720p|hd|sd)\b/g, ' ')
+    .replace(/[-_/]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+);
+
+const normalizeCatchUpVariantLooseName = (channelName: string): string => (
+  normalizeCatchUpVariantBaseName(channelName).replace(/\s+/g, '')
+);
+
+const resolveCatchUpVariantPriority = (channelName: string): number => {
+  const normalized = channelName.toLowerCase();
+  if (/\b(ultra\s*hd|uhd|4k|2160p)\b/.test(normalized)) {
+    return 4;
+  }
+  if (/\b(full\s*hd|fhd|1080p)\b/.test(normalized)) {
+    return 3;
+  }
+  if (/\b(hd|720p)\b/.test(normalized)) {
+    return 2;
+  }
+  if (/\bsd\b/.test(normalized)) {
+    return 0;
+  }
+  return 1;
+};
+
+const buildCatchUpFallbackStreamIdsByChannelId = (
+  channels: PlayerChannel[],
+): Map<string, number[]> => {
+  const xtreamCatchUpChannels = channels.filter((channel) => (
+    channel.source === 'xtream' && channel.hasCatchUp
+  ));
+  const fallbackStreamIdsByChannelId = new Map<string, number[]>();
+
+  for (const channel of channels) {
+    if (channel.source !== 'xtream' || !channel.hasCatchUp) {
+      continue;
+    }
+    const baseName = normalizeCatchUpVariantBaseName(channel.name);
+    const looseName = normalizeCatchUpVariantLooseName(channel.name);
+    const epgChannelId = channel.epgChannelId?.trim() || null;
+    const alternativeStreamIds = xtreamCatchUpChannels
+      .filter((candidate) => candidate.id !== channel.id && candidate.streamId !== channel.streamId)
+      .filter((candidate) => {
+        const candidateBaseName = normalizeCatchUpVariantBaseName(candidate.name);
+        const candidateLooseName = normalizeCatchUpVariantLooseName(candidate.name);
+        const sameByName = baseName.length > 0 && (
+          candidateBaseName === baseName || candidateLooseName === looseName
+        );
+        const sameByEpgChannelId = Boolean(
+          epgChannelId &&
+          candidate.epgChannelId &&
+          candidate.epgChannelId.trim() === epgChannelId
+        );
+        return sameByName || sameByEpgChannelId;
+      })
+      .sort((left, right) => (
+        resolveCatchUpVariantPriority(right.name) - resolveCatchUpVariantPriority(left.name) ||
+        left.number - right.number
+      ))
+      .map((candidate) => candidate.streamId)
+      .filter((streamId, index, streamIds) => streamIds.indexOf(streamId) === index);
+
+    fallbackStreamIdsByChannelId.set(channel.id, alternativeStreamIds);
+  }
+
+  return fallbackStreamIdsByChannelId;
+};
+
 const PICTURE_IN_PICTURE_KEY_CODE = 80; // Keyboard "P"
 const ON_DEMAND_LOADING_OVERLAY_MAX_MS = 2500;
+const CATCH_UP_INITIAL_POSITION_GUARD_MS = 15_000;
 
 const clampVolumePercent = (value: number): number => Math.max(0, Math.min(100, Math.round(value)));
 const DEFAULT_ON_DEMAND_VOLUME = clampVolumePercent(getDefaultAppSettings().player.defaultVolume);
@@ -427,7 +505,9 @@ const Player = () => {
       }
 
       xtreamCodesService.setCredentials(credentials);
-      return fetchChannelShortEpgPrograms(currentChannel.streamId);
+      return fetchChannelShortEpgPrograms(currentChannel.streamId, {
+        includeArchiveFallback: currentChannel.hasCatchUp,
+      });
     },
     enabled: Boolean(currentChannel) && !isOnDemandSource,
     staleTime: 2 * 60 * 1000,
@@ -450,6 +530,16 @@ const Player = () => {
       epg: channelEpg,
     };
   }, [currentChannel, currentChannelEPGQuery.data]);
+  const catchUpFallbackStreamIdsByChannelId = useMemo(
+    () => buildCatchUpFallbackStreamIdsByChannelId(channels),
+    [channels]
+  );
+  const currentCatchUpFallbackStreamIds = useMemo(
+    () => currentChannelWithEPG
+      ? catchUpFallbackStreamIdsByChannelId.get(currentChannelWithEPG.id) ?? []
+      : [],
+    [catchUpFallbackStreamIdsByChannelId, currentChannelWithEPG]
+  );
 
   const switchToLiveChannel = useCallback(
     (channel: PlayerChannel, options?: { forceAutoplay?: boolean }) => {
@@ -583,6 +673,16 @@ const Player = () => {
       try {
         xtreamCodesService.setCredentials(credentials);
         const authResponse = await xtreamCodesService.authenticate();
+        const canonicalServer = resolveXtreamCanonicalServer(
+          credentials.server,
+          authResponse.server_info,
+        );
+        if (canonicalServer !== credentials.server) {
+          await saveXtreamCredentials({
+            ...credentials,
+            server: canonicalServer,
+          });
+        }
         if (!isCancelled) {
           setXtreamUserInfo(authResponse.user_info ?? null);
         }
@@ -778,16 +878,35 @@ const Player = () => {
     const duration = Math.floor(
       (program.endTime.getTime() - program.startTime.getTime()) / 1000
     );
-    const catchUpUrl = xtreamCodesService.getCatchUpUrl(
-      currentChannelWithEPG.streamId,
+    const catchUpTransportPlan = buildCatchUpTransportPlan({
+      urlBuilder: xtreamCodesService,
+      streamId: currentChannelWithEPG.streamId,
       startTimestamp,
-      duration
-    );
-    const catchUpFallbackUrl = xtreamCodesService.getLegacyCatchUpUrl(
-      currentChannelWithEPG.streamId,
-      startTimestamp,
-      duration
-    );
+      durationSeconds: duration,
+      fallbackStreamIds: currentCatchUpFallbackStreamIds,
+    });
+    const catchUpUrl = catchUpTransportPlan.initialAttempt.url;
+    const catchUpFallbackUrls = catchUpTransportPlan.fallbackAttempts.map((attempt) => attempt.url);
+    const catchUpFallbackUrl = catchUpFallbackUrls[0] ?? '';
+    emitWebObservabilityEvent({
+      name: 'catchup.requested',
+      severity: 'info',
+      metadata: {
+        channelId: currentChannelWithEPG.id,
+        streamId: currentChannelWithEPG.streamId,
+        programId: program.id,
+        start: startTimestamp,
+        duration,
+        attempt: 1,
+        status: 'requested',
+        finalHost: null,
+        errorCode: null,
+        initialStrategy: catchUpTransportPlan.initialAttempt.strategy,
+        initialStartTs: catchUpTransportPlan.initialAttempt.startTimestamp,
+        fallbackStreamIds: currentCatchUpFallbackStreamIds,
+        fallbackCount: catchUpFallbackUrls.length,
+      },
+    });
     const source = {
       url: catchUpUrl,
       type: 'hls' as const,
@@ -798,14 +917,21 @@ const Player = () => {
         streamId: currentChannelWithEPG.streamId,
         mode: 'catchup' as const,
         catchUpProgramId: program.id,
+        catchUpDurationSeconds: duration,
+        catchUpStartTimestamp: catchUpTransportPlan.initialAttempt.startTimestamp,
+        catchUpAttemptPlan: catchUpTransportPlan.allAttempts,
+        catchUpAttemptIndex: 0,
+        catchUpAttemptStrategy: catchUpTransportPlan.initialAttempt.strategy,
         catchUpFallbackUrl,
+        catchUpFallbackUrls,
+        catchUpFallbackIndex: -1,
         catchUpFallbackUsed: false,
       },
     };
 
-    commands.setSource(source, 0);
+    commands.setSource(source, CATCH_UP_INITIAL_POSITION_GUARD_MS);
     commands.play();
-  }, [commands, currentChannelWithEPG]);
+  }, [commands, currentCatchUpFallbackStreamIds, currentChannelWithEPG]);
 
   const goToPlayerHome = useCallback(() => {
     if (isOnDemandSource) {
@@ -1733,6 +1859,7 @@ const Player = () => {
               <>
                 <PlayerControls
                   channel={currentChannelWithEPG}
+                  catchUpFallbackStreamIds={currentCatchUpFallbackStreamIds}
                   currentProgram={currentProgram}
                   progress={progress}
                   isFavorite={isFavorite(currentChannelWithEPG.id)}

@@ -59,4 +59,16 @@ describe('epgProgramMapper', () => {
 
     expect(program.hasCatchUp).toBe(true);
   });
+
+  it('does not infer catch-up only from past schedule without archive flag', () => {
+    const item = buildEpgItem({
+      has_archive: 0,
+      start_timestamp: '1739700000',
+      stop_timestamp: '1739703600',
+    });
+
+    const program = mapXtreamEpgItemToProgram(item, 0);
+
+    expect(program.hasCatchUp).toBe(false);
+  });
 });

@@ -1,11 +1,89 @@
-import type { XtreamCredentials } from "@lumen/types";
+import type { XtreamCredentials, XtreamServerInfo } from "@lumen/types";
 
 const XTREAM_DEV_PROXY_BASE_PATH = "/xui-api";
 
 const trimTrailingSlash = (value: string): string => value.trim().replace(/\/+$/, "");
+const trimLeadingSlash = (value: string): string => value.replace(/^\/+/, "");
+const isDefaultPort = (protocol: string, port: string): boolean => (
+  (protocol === "http" && port === "80") ||
+  (protocol === "https" && port === "443")
+);
+const resolveProtocol = (protocol: string | undefined, fallback: string): "http" | "https" => {
+  if (protocol === "http" || protocol === "https") {
+    return protocol;
+  }
+  return fallback === "https" ? "https" : "http";
+};
+
+const parseServerInfoHost = (value: string): {
+  host: string;
+  protocol?: "http" | "https";
+  port?: string;
+} => {
+  const normalized = value.trim();
+  if (!normalized) {
+    return { host: "" };
+  }
+
+  try {
+    const parsed = new URL(normalized.includes("://") ? normalized : `http://${normalized}`);
+    return {
+      host: parsed.hostname,
+      protocol: normalized.includes("://") ? resolveProtocol(parsed.protocol.replace(":", ""), "http") : undefined,
+      port: parsed.port || undefined,
+    };
+  } catch {
+    return {
+      host: normalized.replace(/^https?:\/\//, "").split("/")[0],
+    };
+  }
+};
 
 // Xtream Codes server configuration from environment variable
 export const XTREAM_SERVER_URL = trimTrailingSlash(import.meta.env.VITE_XTREAM_SERVER || "");
+
+export const encodeXtreamProxyTarget = (serverUrl: string): string => (
+  encodeURIComponent(trimTrailingSlash(serverUrl))
+);
+
+export const resolveXtreamCanonicalServer = (
+  currentServerUrl: string,
+  serverInfo?: Partial<XtreamServerInfo> | null,
+): string => {
+  const normalizedCurrent = trimTrailingSlash(currentServerUrl);
+  if (!serverInfo?.url) {
+    return normalizedCurrent;
+  }
+
+  let fallbackProtocol: "http" | "https" = "http";
+  let fallbackPort = "";
+  try {
+    const parsedCurrent = new URL(normalizedCurrent);
+    fallbackProtocol = resolveProtocol(parsedCurrent.protocol.replace(":", ""), "http");
+    fallbackPort = parsedCurrent.port;
+  } catch {
+    // Keep defaults.
+  }
+
+  const parsedServerInfo = parseServerInfoHost(serverInfo.url);
+  const host = parsedServerInfo.host.trim();
+  if (!host) {
+    return normalizedCurrent;
+  }
+
+  const protocol = resolveProtocol(
+    (serverInfo.server_protocol as string | undefined) ?? parsedServerInfo.protocol,
+    fallbackProtocol,
+  );
+  const portCandidate = (
+    protocol === "https"
+      ? (serverInfo.https_port || serverInfo.port || parsedServerInfo.port || fallbackPort)
+      : (serverInfo.port || parsedServerInfo.port || fallbackPort)
+  )?.trim() || "";
+  const includePort = portCandidate.length > 0 && !isDefaultPort(protocol, portCandidate);
+
+  return `${protocol}://${host}${includePort ? `:${portCandidate}` : ""}`;
+};
 
 export const resolveXtreamApiServer = (
   serverUrl: string,
@@ -22,7 +100,8 @@ export const resolveXtreamApiServer = (
     return normalizedServer;
   }
 
-  return `${trimTrailingSlash(runtimeOrigin)}${XTREAM_DEV_PROXY_BASE_PATH}`;
+  const encodedTarget = encodeXtreamProxyTarget(normalizedServer);
+  return `${trimTrailingSlash(runtimeOrigin)}${XTREAM_DEV_PROXY_BASE_PATH}/${trimLeadingSlash(encodedTarget)}`;
 };
 
 export const resolveXtreamRuntimeCredentials = (

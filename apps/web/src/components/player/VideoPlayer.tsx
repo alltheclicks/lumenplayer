@@ -7,6 +7,15 @@ import type { AudioTrackOption } from '@lumen/types';
 import type { SubtitleTrackOption } from '@lumen/types';
 import { emitWebObservabilityEvent } from '@/services/observability';
 import {
+  isCatchUpFallbackStrategy,
+  isCatchUpTransportAttempt,
+  rememberCatchUpHostAffinity,
+  resolveCatchUpHostAffinity,
+  resolveCatchUpTargetOrigin,
+  rewriteCatchUpUrlTargetOrigin,
+  type CatchUpTransportAttempt,
+} from './catchupTransport';
+import {
   shouldKeepPendingAutoplayOnIdle,
   shouldClearPendingAutoplayOnPlaybackError,
   sessionWantsPlayback,
@@ -85,6 +94,143 @@ type WebKitAirPlayVideoElement = HTMLVideoElement & {
 
 const STARTUP_AUTOPLAY_RECOVERY_MAX_RETRIES = 3;
 const STARTUP_AUTOPLAY_RECOVERY_BASE_DELAY_MS = 220;
+const CATCH_UP_FALLBACK_POSITION_GUARD_MS = 15_000;
+const CATCH_UP_FALLBACK_ERROR_CODES = new Set([
+  'NETWORK_ERROR',
+  'MEDIA_ERROR',
+  'HLS_ERROR',
+  'LOAD_FAILED',
+]);
+
+interface ParsedCatchUpAttemptState {
+  attempts: CatchUpTransportAttempt[];
+  currentAttemptIndex: number;
+}
+
+const parseNumericMetadataValue = (value: unknown): number | null => {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === 'string') {
+    const numericValue = Number(value);
+    if (Number.isFinite(numericValue)) {
+      return numericValue;
+    }
+  }
+
+  return null;
+};
+
+const resolveCatchUpAttemptState = (
+  metadata: Record<string, unknown>,
+  currentSourceUrl: string,
+): ParsedCatchUpAttemptState => {
+  const parsedAttempts = Array.isArray(metadata.catchUpAttemptPlan)
+    ? metadata.catchUpAttemptPlan.filter(isCatchUpTransportAttempt)
+    : [];
+
+  let attempts = parsedAttempts;
+  if (attempts.length === 0) {
+    const fallbackUrls = Array.isArray(metadata.catchUpFallbackUrls)
+      ? metadata.catchUpFallbackUrls
+        .filter((value): value is string => typeof value === 'string')
+        .map((value) => value.trim())
+        .filter((value) => value.length > 0)
+      : [];
+    const fallbackUrl = typeof metadata.catchUpFallbackUrl === 'string'
+      ? metadata.catchUpFallbackUrl.trim()
+      : '';
+
+    const streamId = Math.floor(parseNumericMetadataValue(metadata.streamId) ?? 0);
+    const startTimestamp = Math.floor(parseNumericMetadataValue(metadata.catchUpStartTimestamp) ?? 0);
+    const durationSeconds = Math.floor(parseNumericMetadataValue(metadata.catchUpDurationSeconds) ?? 0);
+    const fallbackAttempts = [
+      currentSourceUrl,
+      ...fallbackUrls,
+      ...(fallbackUrl ? [fallbackUrl] : []),
+    ].filter((url, index, urls) => (
+      url.length > 0 && urls.indexOf(url) === index
+    ));
+    attempts = fallbackAttempts.map((url): CatchUpTransportAttempt => ({
+      url,
+      streamId,
+      startTimestamp,
+      durationSeconds,
+      offsetMinutes: 0,
+      strategy: 'legacy',
+    }));
+  }
+
+  let currentAttemptIndex = Math.floor(parseNumericMetadataValue(metadata.catchUpAttemptIndex) ?? -1);
+  if (
+    currentAttemptIndex < 0 ||
+    currentAttemptIndex >= attempts.length ||
+    attempts[currentAttemptIndex]?.url !== currentSourceUrl
+  ) {
+    currentAttemptIndex = attempts.findIndex((attempt) => attempt.url === currentSourceUrl);
+  }
+  if (currentAttemptIndex < 0) {
+    currentAttemptIndex = 0;
+  }
+
+  return {
+    attempts,
+    currentAttemptIndex,
+  };
+};
+
+const buildCatchUpEventMetadata = (
+  source: {
+    url: string;
+    metadata?: unknown;
+  } | null | undefined,
+  options: {
+    attemptIndex?: number;
+    status: string;
+    errorCode: string | null;
+    finalHost?: string | null;
+    strategy?: string | null;
+  },
+): Record<string, unknown> => {
+  if (!source || typeof source.metadata !== 'object' || source.metadata === null) {
+    return {
+      status: options.status,
+      errorCode: options.errorCode,
+      finalHost: options.finalHost ?? null,
+    };
+  }
+
+  const metadata = source.metadata as Record<string, unknown>;
+  if (metadata.mode !== 'catchup') {
+    return {
+      status: options.status,
+      errorCode: options.errorCode,
+      finalHost: options.finalHost ?? null,
+    };
+  }
+
+  const { attempts, currentAttemptIndex } = resolveCatchUpAttemptState(metadata, source.url);
+  const safeAttemptIndex = typeof options.attemptIndex === 'number'
+    ? options.attemptIndex
+    : currentAttemptIndex;
+  const attempt = attempts[safeAttemptIndex] ?? attempts[currentAttemptIndex] ?? null;
+  const streamId = attempt?.streamId ?? parseNumericMetadataValue(metadata.streamId);
+  const start = attempt?.startTimestamp ?? parseNumericMetadataValue(metadata.catchUpStartTimestamp);
+  const duration = attempt?.durationSeconds ?? parseNumericMetadataValue(metadata.catchUpDurationSeconds);
+  const finalHost = options.finalHost ?? resolveCatchUpHostAffinity(source.url);
+
+  return {
+    streamId: streamId ?? null,
+    start: start ?? null,
+    duration: duration ?? null,
+    attempt: safeAttemptIndex + 1,
+    status: options.status,
+    finalHost: finalHost ?? null,
+    errorCode: options.errorCode,
+    strategy: options.strategy ?? attempt?.strategy ?? null,
+  };
+};
 
 const canUseStandardPictureInPicture = (video: HTMLVideoElement): boolean => (
   typeof document !== 'undefined' &&
@@ -135,6 +281,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
 }, ref) => {
   const { session, commands } = useSessionContext();
   const src = session.source?.url ?? '';
+  const sourceType = session.source?.type ?? (src.includes('.m3u8') ? 'hls' : 'mp4');
   const videoRef = useRef<HTMLVideoElement>(null);
   const adapterRef = useRef<HlsPlayerAdapter | null>(null);
   const sessionRef = useRef(session);
@@ -302,6 +449,22 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
     startupAutoplayRecoveryAttemptsRef.current = 0;
   }, []);
 
+  const shouldAttemptCatchUpFallback = useCallback((playbackError: PlaybackError): boolean => {
+    if (playbackError.fatal) {
+      if (playbackError.code.startsWith('MEDIA_ELEMENT_')) {
+        // Media element code 4 appears during source transitions and causes
+        // aggressive fallback loops before HLS reports a real network failure.
+        return false;
+      }
+
+      return CATCH_UP_FALLBACK_ERROR_CODES.has(playbackError.code);
+    }
+
+    // Non-fatal play() rejections happen during source transitions and should not
+    // consume catch-up fallback candidates.
+    return false;
+  }, []);
+
   const switchToCatchUpFallbackIfAvailable = useCallback((reason: string): boolean => {
     const currentSession = sessionRef.current;
     const source = currentSession.source;
@@ -314,39 +477,96 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
       return false;
     }
 
-    if (metadata.catchUpFallbackUsed === true) {
+    const { attempts, currentAttemptIndex } = resolveCatchUpAttemptState(metadata, source.url);
+    if (attempts.length <= 1) {
       return false;
     }
 
-    const fallbackUrl = typeof metadata.catchUpFallbackUrl === 'string'
-      ? metadata.catchUpFallbackUrl.trim()
-      : '';
-    if (!fallbackUrl || fallbackUrl === source.url) {
+    let nextAttemptIndex = currentAttemptIndex + 1;
+    while (
+      nextAttemptIndex < attempts.length &&
+      attempts[nextAttemptIndex]?.url === source.url
+    ) {
+      nextAttemptIndex += 1;
+    }
+    if (nextAttemptIndex >= attempts.length) {
+      emitWebObservabilityEvent({
+        name: 'catchup.fallback',
+        severity: 'error',
+        metadata: {
+          ...buildCatchUpEventMetadata(source, {
+            attemptIndex: currentAttemptIndex,
+            status: 'exhausted',
+            errorCode: reason,
+          }),
+          renderer: currentSession.renderer,
+          fallbackCount: Math.max(0, attempts.length - 1),
+        },
+      });
       return false;
     }
+
+    const nextAttempt = attempts[nextAttemptIndex];
+    const preferredFinalHost = typeof metadata.catchUpPreferredFinalHost === 'string'
+      ? metadata.catchUpPreferredFinalHost
+      : resolveCatchUpHostAffinity(source.url);
+    const fallbackUrl = preferredFinalHost
+      ? rewriteCatchUpUrlTargetOrigin(nextAttempt.url, preferredFinalHost)
+      : nextAttempt.url;
+    const nextAttempts = attempts.map((attempt, index) => (
+      index === nextAttemptIndex ? { ...attempt, url: fallbackUrl } : attempt
+    ));
+    const nextFallbackUrls = nextAttempts
+      .slice(1)
+      .map((attempt) => attempt.url);
 
     clearStartupAutoplayRecovery();
     pendingAutoplaySourceUrlRef.current = fallbackUrl;
+    const nextPositionMs = metadata.mode === 'catchup'
+      ? Math.max(currentSession.positionMs ?? 0, CATCH_UP_FALLBACK_POSITION_GUARD_MS)
+      : currentSession.positionMs ?? 0;
+
     commands.setSource(
       {
         ...source,
         url: fallbackUrl,
         metadata: {
           ...metadata,
+          catchUpAttemptPlan: nextAttempts,
+          catchUpAttemptIndex: nextAttemptIndex,
+          catchUpAttemptStrategy: nextAttempt.strategy,
+          catchUpPreferredFinalHost: preferredFinalHost ?? null,
+          catchUpStartTimestamp: nextAttempt.startTimestamp,
+          catchUpDurationSeconds: nextAttempt.durationSeconds,
+          catchUpFallbackUrl: fallbackUrl,
+          catchUpFallbackUrls: nextFallbackUrls,
+          catchUpFallbackIndex: Math.max(0, nextAttemptIndex - 1),
           catchUpFallbackUsed: true,
         },
       },
-      currentSession.positionMs ?? 0
+      nextPositionMs
     );
     commands.play();
     setError(null);
     setIsLoading(true);
+
+    const isFallbackStrategy = isCatchUpFallbackStrategy(nextAttempt.strategy);
     emitWebObservabilityEvent({
-      name: 'playback.catchup_fallback',
+      name: isFallbackStrategy ? 'catchup.fallback' : 'catchup.retry',
       severity: 'warn',
       metadata: {
-        reason,
+        ...buildCatchUpEventMetadata(source, {
+          attemptIndex: nextAttemptIndex,
+          status: isFallbackStrategy ? 'fallback' : 'retry',
+          errorCode: reason,
+          finalHost: preferredFinalHost,
+          strategy: nextAttempt.strategy,
+        }),
         renderer: currentSession.renderer,
+        fallbackIndex: Math.max(0, nextAttemptIndex - 1),
+        fallbackCount: Math.max(0, nextAttempts.length - 1),
+        offsetMinutes: nextAttempt.offsetMinutes,
+        fallbackUrl,
       },
     });
     return true;
@@ -460,7 +680,51 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
       return;
     }
 
-    const adapter = new HlsPlayerAdapter(video, { preferNativeHls });
+    const adapter = new HlsPlayerAdapter(video, {
+      preferNativeHls,
+      onManifestResolved: ({ requestedUrl, manifestUrl, finalUrl }) => {
+        const source = sessionRef.current.source;
+        if (
+          !source ||
+          typeof source.metadata !== 'object' ||
+          source.metadata === null ||
+          typeof finalUrl !== 'string'
+        ) {
+          return;
+        }
+
+        const metadata = source.metadata as Record<string, unknown>;
+        if (metadata.mode !== 'catchup') {
+          return;
+        }
+
+        const requestHost = resolveCatchUpTargetOrigin(requestedUrl);
+        const finalHost = rememberCatchUpHostAffinity(requestedUrl, finalUrl) ??
+          resolveCatchUpTargetOrigin(finalUrl);
+        if (!requestHost || !finalHost || requestHost === finalHost) {
+          return;
+        }
+
+        const { currentAttemptIndex } = resolveCatchUpAttemptState(metadata, source.url);
+        emitWebObservabilityEvent({
+          name: 'catchup.redirect',
+          severity: 'info',
+          metadata: {
+            ...buildCatchUpEventMetadata(source, {
+              attemptIndex: currentAttemptIndex,
+              status: 'redirect',
+              errorCode: null,
+              finalHost,
+            }),
+            requestHost,
+            finalHost,
+            requestUrl: requestedUrl,
+            manifestUrl,
+            finalUrl,
+          },
+        });
+      },
+    });
     adapterRef.current = adapter;
 
     const unsubscribeState = adapter.onStateChange((state) => {
@@ -574,7 +838,8 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
     });
 
     const unsubscribeError = adapter.onError((playbackError) => {
-      if (switchToCatchUpFallbackIfAvailable(playbackError.code)) {
+      if (shouldAttemptCatchUpFallback(playbackError) &&
+        switchToCatchUpFallbackIfAvailable(playbackError.code)) {
         return;
       }
 
@@ -594,6 +859,10 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
           fatal: playbackError.fatal,
           message: playbackError.message,
           renderer: sessionRef.current.renderer,
+          ...buildCatchUpEventMetadata(sessionRef.current.source, {
+            status: 'error',
+            errorCode: playbackError.code,
+          }),
         },
       });
       onError?.(playbackError.message);
@@ -653,6 +922,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
     onEnded,
     onError,
     preferNativeHls,
+    shouldAttemptCatchUpFallback,
     switchToCatchUpFallbackIfAvailable,
   ]);
 
@@ -687,7 +957,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
 
     void adapter.load({
       url: src,
-      type: src.includes('.m3u8') ? 'hls' : 'mp4',
+      type: sourceType,
     }).then(() => {
       if (cancelled) {
         return;
@@ -719,6 +989,10 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
           fatal: true,
           message,
           renderer: sessionRef.current.renderer,
+          ...buildCatchUpEventMetadata(sessionRef.current.source, {
+            status: 'error',
+            errorCode: 'LOAD_FAILED',
+          }),
         },
       });
       setError((prev) => prev ?? {
@@ -739,6 +1013,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
     isLocalRenderer,
     onCanPlay,
     onError,
+    sourceType,
     src,
     switchToCatchUpFallbackIfAvailable,
   ]);

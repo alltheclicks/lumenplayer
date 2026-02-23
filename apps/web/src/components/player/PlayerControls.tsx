@@ -37,11 +37,15 @@ import { resolveCatchUpEmptyStateReason } from './catchUpEmptyState';
 import {
   canStartLiveTimeshift,
   isLiveTimeshiftActivationKey,
+  resolveLiveTimeshiftAvailableDurationSeconds,
   resolveLiveTimeshiftPositionSeconds,
 } from './liveTimeshift';
+import { emitWebObservabilityEvent } from '@/services/observability';
+import { buildCatchUpTransportPlan } from './catchupTransport';
 
 interface PlayerControlsProps {
   channel: PlayerChannel;
+  catchUpFallbackStreamIds?: number[];
   currentProgram?: Program;
   progress: number;
   isFavorite: boolean;
@@ -64,6 +68,7 @@ interface PlayerControlsProps {
 type SessionSourceMetadata = {
   mode?: 'live' | 'catchup';
   catchUpProgramId?: string;
+  catchUpDurationSeconds?: number;
 };
 
 interface PendingSeekInteraction {
@@ -75,6 +80,7 @@ const LONG_PRESS_THRESHOLD_MS = 250;
 const CONTROLS_IDLE_TIMEOUT_MS = 3000;
 const CONTROLS_IDLE_GRACE_MS = 1000;
 const CATCH_UP_REASON_REFRESH_MS = 60_000;
+const CATCH_UP_INITIAL_POSITION_GUARD_SECONDS = 15;
 
 const parseSessionSourceMetadata = (
   metadata: Record<string, unknown> | undefined
@@ -86,6 +92,11 @@ const parseSessionSourceMetadata = (
   return {
     mode: metadata.mode === 'live' || metadata.mode === 'catchup' ? metadata.mode : undefined,
     catchUpProgramId: typeof metadata.catchUpProgramId === 'string' ? metadata.catchUpProgramId : undefined,
+    catchUpDurationSeconds: typeof metadata.catchUpDurationSeconds === 'number'
+      ? metadata.catchUpDurationSeconds
+      : typeof metadata.catchUpDurationSeconds === 'string' && !Number.isNaN(Number(metadata.catchUpDurationSeconds))
+        ? Number(metadata.catchUpDurationSeconds)
+        : undefined,
   };
 };
 
@@ -124,6 +135,7 @@ const formatFullDate = (date: Date): string => {
 
 const PlayerControls = ({
   channel,
+  catchUpFallbackStreamIds = [],
   currentProgram,
   progress,
   isFavorite,
@@ -145,6 +157,7 @@ const PlayerControls = ({
   const [showCatchUp, setShowCatchUp] = useState(false);
   const [showAudioTracks, setShowAudioTracks] = useState(false);
   const [showSubtitleTracks, setShowSubtitleTracks] = useState(false);
+  const [showVolumeSlider, setShowVolumeSlider] = useState(false);
   const [audioTracks, setAudioTracks] = useState<AudioTrackOption[]>([]);
   const [selectedAudioTrackId, setSelectedAudioTrackId] = useState<string | null>(null);
   const [subtitleTracks, setSubtitleTracks] = useState<SubtitleTrackOption[]>([]);
@@ -187,7 +200,9 @@ const PlayerControls = ({
   const isPlaying = session.playback === 'playing' || session.playback === 'buffering';
 
   const catchUpDuration = catchUpProgram
-    ? (catchUpProgram.endTime.getTime() - catchUpProgram.startTime.getTime()) / 1000
+    ? sessionSourceMetadata.catchUpDurationSeconds && sessionSourceMetadata.catchUpDurationSeconds > 0
+      ? sessionSourceMetadata.catchUpDurationSeconds
+      : (catchUpProgram.endTime.getTime() - catchUpProgram.startTime.getTime()) / 1000
     : 0;
   const effectiveCatchUpPosition = catchUpProgram
     ? Math.max(
@@ -207,10 +222,13 @@ const PlayerControls = ({
     () => resolveCatchUpEmptyStateReason(channel, new Date(catchUpReasonNowMs)),
     [channel, catchUpReasonNowMs]
   );
-  const canTimeshiftFromLiveBar = useMemo(
-    () => canStartLiveTimeshift(channel.hasCatchUp, currentProgram),
-    [channel.hasCatchUp, currentProgram]
-  );
+  const nowMs = Date.now();
+  const hasArchivedCatchUpPrograms = channel.epg.some((program) => (
+    program.hasCatchUp && program.endTime.getTime() <= nowMs
+  ));
+  const canTimeshiftFromLiveBar = canStartLiveTimeshift(channel.hasCatchUp, currentProgram, nowMs, {
+    allowWithoutCurrentProgramArchive: hasArchivedCatchUpPrograms,
+  });
   const hasMultipleAudioTracks = audioTracks.length > 1;
   const hasSubtitleTracks = subtitleTracks.length > 0;
   const shouldUseControlsIdleTimer = shouldRunControlsIdleTimer({
@@ -357,6 +375,7 @@ const PlayerControls = ({
       setAudioTracks([]);
       setSelectedAudioTrackId(null);
       setShowAudioTracks(false);
+      setShowVolumeSlider(false);
       setSubtitleTracks([]);
       setSelectedSubtitleTrackId(null);
       setShowSubtitleTracks(false);
@@ -448,6 +467,9 @@ const PlayerControls = ({
     } else if (showSubtitleTracks) {
       setShowSubtitleTracks(false);
       resetControlsIdleTimer();
+    } else if (showVolumeSlider) {
+      setShowVolumeSlider(false);
+      resetControlsIdleTimer();
     } else {
       const idleTimer = idleTimerRef.current;
       if (!showControls && idleTimer?.isInGracePeriod()) {
@@ -475,6 +497,7 @@ const PlayerControls = ({
     showAudioTracks,
     showCatchUp,
     showControls,
+    showVolumeSlider,
     showSubtitleTracks,
   ]);
 
@@ -494,7 +517,7 @@ const PlayerControls = ({
     }
   };
 
-  const toggleMute = () => {
+  const toggleMute = useCallback(() => {
     setIsMuted(prev => {
       const nextMuted = !prev;
       if (!nextMuted && volume === 0) {
@@ -505,7 +528,26 @@ const PlayerControls = ({
       playerRef.current?.setMuted(nextMuted);
       return nextMuted;
     });
-  };
+  }, [playerRef, volume]);
+
+  const handleMuteAction = useCallback(() => {
+    setShowVolumeSlider(true);
+    resetControlsIdleTimer();
+    toggleMute();
+  }, [resetControlsIdleTimer, toggleMute]);
+
+  const handleToggleVolumeSlider = useCallback(() => {
+    setShowAudioTracks(false);
+    setShowSubtitleTracks(false);
+    setShowVolumeSlider((prev) => !prev);
+    resetControlsIdleTimer();
+  }, [resetControlsIdleTimer]);
+
+  useEffect(() => {
+    if (!showControls) {
+      setShowVolumeSlider(false);
+    }
+  }, [showControls]);
 
   const toggleDay = (dateKey: string) => {
     setOpenDays(prev =>
@@ -532,21 +574,35 @@ const PlayerControls = ({
     commands.play();
   }, [channel.id, channel.name, channel.streamId, commands]);
 
-  const switchToCatchUpProgram = useCallback((program: Program) => {
+  const switchToCatchUpProgram = useCallback((
+    program: Program,
+    preferredPositionSeconds = 0,
+  ): number => {
     const startTimestamp = Math.floor(program.startTime.getTime() / 1000);
-    const duration = Math.floor(
+    const fullDuration = Math.floor(
       (program.endTime.getTime() - program.startTime.getTime()) / 1000
     );
-    const catchUpUrl = xtreamCodesService.getCatchUpUrl(
-      channel.streamId,
-      startTimestamp,
-      duration
+    const availableDuration = Math.floor(resolveLiveTimeshiftAvailableDurationSeconds(program));
+    const duration = Math.max(
+      1,
+      Math.min(fullDuration, availableDuration > 0 ? availableDuration : fullDuration)
     );
-    const catchUpFallbackUrl = xtreamCodesService.getLegacyCatchUpUrl(
-      channel.streamId,
+    const initialPositionSeconds = preferredPositionSeconds > 0
+      ? Math.max(0, Math.min(duration, preferredPositionSeconds))
+      : Math.max(
+        0,
+        Math.min(duration, CATCH_UP_INITIAL_POSITION_GUARD_SECONDS)
+      );
+    const catchUpTransportPlan = buildCatchUpTransportPlan({
+      urlBuilder: xtreamCodesService,
+      streamId: channel.streamId,
       startTimestamp,
-      duration
-    );
+      durationSeconds: duration,
+      fallbackStreamIds: catchUpFallbackStreamIds,
+    });
+    const catchUpUrl = catchUpTransportPlan.initialAttempt.url;
+    const catchUpFallbackUrls = catchUpTransportPlan.fallbackAttempts.map((attempt) => attempt.url);
+    const catchUpFallbackUrl = catchUpFallbackUrls[0] ?? '';
     const source = {
       url: catchUpUrl,
       type: 'hls' as const,
@@ -557,14 +613,44 @@ const PlayerControls = ({
         streamId: channel.streamId,
         mode: 'catchup',
         catchUpProgramId: program.id,
+        catchUpDurationSeconds: duration,
+        catchUpStartTimestamp: catchUpTransportPlan.initialAttempt.startTimestamp,
+        catchUpAttemptPlan: catchUpTransportPlan.allAttempts,
+        catchUpAttemptIndex: 0,
+        catchUpAttemptStrategy: catchUpTransportPlan.initialAttempt.strategy,
         catchUpFallbackUrl,
+        catchUpFallbackUrls,
+        catchUpFallbackIndex: -1,
         catchUpFallbackUsed: false,
       },
     };
 
-    commands.setSource(source, 0);
+    emitWebObservabilityEvent({
+      name: 'catchup.requested',
+      severity: 'info',
+      metadata: {
+        channelId: channel.id,
+        streamId: channel.streamId,
+        programId: program.id,
+        start: startTimestamp,
+        duration,
+        attempt: 1,
+        status: 'requested',
+        finalHost: null,
+        errorCode: null,
+        fullDurationSeconds: fullDuration,
+        initialStrategy: catchUpTransportPlan.initialAttempt.strategy,
+        initialStartTs: catchUpTransportPlan.initialAttempt.startTimestamp,
+        fallbackStreamIds: catchUpFallbackStreamIds,
+        fallbackCount: catchUpFallbackUrls.length,
+        initialPositionSeconds,
+      },
+    });
+
+    commands.setSource(source, Math.floor(initialPositionSeconds * 1000));
     commands.play();
-  }, [channel.id, channel.name, channel.streamId, commands]);
+    return initialPositionSeconds;
+  }, [catchUpFallbackStreamIds, channel.id, channel.name, channel.streamId, commands]);
 
   const updateCatchUpPosition = useCallback((positionSeconds: number) => {
     if (!catchUpProgram) {
@@ -588,7 +674,6 @@ const PlayerControls = ({
 
   const handleSelectProgram = (program: Program) => {
     switchToCatchUpProgram(program);
-    updateCatchUpPosition(0);
     setShowCatchUp(false);
   };
 
@@ -597,9 +682,8 @@ const PlayerControls = ({
       return;
     }
 
-    switchToCatchUpProgram(currentProgram);
-    updateCatchUpPosition(resolveLiveTimeshiftPositionSeconds(currentProgram, ratio));
-  }, [canTimeshiftFromLiveBar, currentProgram, switchToCatchUpProgram, updateCatchUpPosition]);
+    switchToCatchUpProgram(currentProgram, resolveLiveTimeshiftPositionSeconds(currentProgram, ratio));
+  }, [canTimeshiftFromLiveBar, currentProgram, switchToCatchUpProgram]);
 
   const handleLiveProgressClick = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
     if (!canTimeshiftFromLiveBar) {
@@ -634,6 +718,7 @@ const PlayerControls = ({
   const handleCatchUpAction = useCallback(() => {
     setShowAudioTracks(false);
     setShowSubtitleTracks(false);
+    setShowVolumeSlider(false);
 
     if (isFullscreen) {
       setShowCatchUp(true);
@@ -918,12 +1003,11 @@ const PlayerControls = ({
             role={canTimeshiftFromLiveBar ? 'button' : undefined}
             tabIndex={canTimeshiftFromLiveBar ? 0 : -1}
             aria-label={canTimeshiftFromLiveBar ? 'Pokreni TV unazad sa ove pozicije' : undefined}
-            title={canTimeshiftFromLiveBar ? 'Klikni za TV unazad (timeshift)' : undefined}
           >
             <div className="h-full bg-primary rounded-full transition-all relative" style={{ width: `${progress}%` }}>
               <div
-                className={`absolute right-0 top-1/2 h-3 w-3 -translate-y-1/2 rounded-full border border-primary/40 bg-primary shadow-[0_0_0_2px_rgba(0,0,0,0.35)] transition-opacity ${
-                  isLiveProgressFocused ? 'opacity-100' : 'opacity-0 group-hover/livebar:opacity-100'
+                className={`absolute right-0 top-1/2 h-3 w-3 -translate-y-1/2 rounded-full border border-primary/40 bg-primary shadow-[0_0_0_2px_rgba(0,0,0,0.35)] transition-transform ${
+                  isLiveProgressFocused ? 'scale-125' : 'scale-100 group-hover/livebar:scale-125'
                 }`}
                 aria-hidden
               />
@@ -997,19 +1081,31 @@ const PlayerControls = ({
           </div>
 
           <div className="flex flex-wrap items-center gap-2 lg:justify-end">
-            <div className="flex items-center gap-2 rounded-xl border border-border/40 bg-background/20 p-1 pr-2 backdrop-blur-sm">
-              <Button variant="ghost" size="icon" className="h-9 w-9 hover:bg-secondary/50" onClick={toggleMute}>
+            <div className="flex items-center gap-1 rounded-xl border border-border/40 bg-background/20 p-1 backdrop-blur-sm">
+              <Button variant="ghost" size="icon" className="h-9 w-9 hover:bg-secondary/50" onClick={handleMuteAction}>
                 {isMuted || volume === 0 ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
               </Button>
-              <input
-                type="range"
-                min="0"
-                max="100"
-                value={isMuted ? 0 : volume}
-                onChange={handleVolumeChange}
-                className="h-1 w-20 cursor-pointer appearance-none rounded-full bg-secondary/50 accent-primary sm:w-24"
-                aria-label="Volume"
-              />
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9 hover:bg-secondary/50"
+                aria-label="Prikaži kontrole zvuka"
+                aria-expanded={showVolumeSlider}
+                onClick={handleToggleVolumeSlider}
+              >
+                <ChevronDown className={`h-4 w-4 transition-transform ${showVolumeSlider ? 'rotate-180' : ''}`} />
+              </Button>
+              {showVolumeSlider && (
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  value={isMuted ? 0 : volume}
+                  onChange={handleVolumeChange}
+                  className="h-1 w-20 cursor-pointer appearance-none rounded-full bg-secondary/50 accent-primary sm:w-24"
+                  aria-label="Volume"
+                />
+              )}
             </div>
 
             <div className="flex items-center gap-1 rounded-xl border border-border/40 bg-background/20 p-1 backdrop-blur-sm">
@@ -1032,6 +1128,7 @@ const PlayerControls = ({
                   size="icon"
                   className={`h-9 w-9 hover:bg-secondary/50 ${showAudioTracks ? 'text-primary' : ''}`}
                   onClick={() => {
+                    setShowVolumeSlider(false);
                     setShowSubtitleTracks(false);
                     setShowAudioTracks((prev) => !prev);
                   }}
@@ -1046,6 +1143,7 @@ const PlayerControls = ({
                   className={`h-9 w-9 hover:bg-secondary/50 ${showSubtitleTracks ? 'text-primary' : ''}`}
                   title={`Titlovi: ${selectedSubtitleTrackLabel}`}
                   onClick={() => {
+                    setShowVolumeSlider(false);
                     setShowAudioTracks(false);
                     setShowSubtitleTracks((prev) => !prev);
                   }}
@@ -1428,15 +1526,14 @@ const PlayerControls = ({
                 role={canTimeshiftFromLiveBar ? 'button' : undefined}
                 tabIndex={canTimeshiftFromLiveBar ? 0 : -1}
                 aria-label={canTimeshiftFromLiveBar ? 'Pokreni TV unazad sa ove pozicije' : undefined}
-                title={canTimeshiftFromLiveBar ? 'Klikni za TV unazad (timeshift)' : undefined}
               >
                 <div
                   className="h-full bg-primary rounded-full transition-all relative"
                   style={{ width: `${progress}%` }}
                 >
                   <div
-                    className={`absolute right-0 top-1/2 -translate-y-1/2 h-3 w-3 rounded-full border border-primary/40 bg-primary shadow-[0_0_0_2px_rgba(0,0,0,0.35)] transition-opacity ${
-                      isLiveProgressFocused ? 'opacity-100' : 'opacity-0 group-hover/livebar:opacity-100'
+                    className={`absolute right-0 top-1/2 -translate-y-1/2 h-3 w-3 rounded-full border border-primary/40 bg-primary shadow-[0_0_0_2px_rgba(0,0,0,0.35)] transition-transform ${
+                      isLiveProgressFocused ? 'scale-125' : 'scale-100 group-hover/livebar:scale-125'
                     }`}
                     aria-hidden
                   />
@@ -1490,14 +1587,14 @@ const PlayerControls = ({
                 </>
               )}
 
-              <div className="relative flex items-center gap-2 rounded-xl border border-border/40 bg-background/20 p-1 pr-2 backdrop-blur-sm">
+              <div className="relative flex items-center gap-1 rounded-xl border border-border/40 bg-background/20 p-1 backdrop-blur-sm">
                 <Button
                   variant="ghost"
                   size="icon"
                   className="w-9 h-9 sm:w-10 sm:h-10 hover:bg-secondary/50"
                   onClick={(e) => {
                     e.stopPropagation();
-                    toggleMute();
+                    handleMuteAction();
                   }}
                 >
                   {isMuted || volume === 0 ? (
@@ -1507,16 +1604,32 @@ const PlayerControls = ({
                   )}
                 </Button>
 
-                <input
-                  type="range"
-                  min="0"
-                  max="100"
-                  value={isMuted ? 0 : volume}
-                  onChange={handleVolumeChange}
-                  onClick={(e) => e.stopPropagation()}
-                  className="h-1 w-16 cursor-pointer appearance-none rounded-full bg-secondary/50 accent-primary sm:w-24"
-                  aria-label="Volume"
-                />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="w-9 h-9 sm:w-10 sm:h-10 hover:bg-secondary/50"
+                  aria-label="Prikaži kontrole zvuka"
+                  aria-expanded={showVolumeSlider}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleToggleVolumeSlider();
+                  }}
+                >
+                  <ChevronDown className={`w-4 h-4 sm:w-5 sm:h-5 transition-transform ${showVolumeSlider ? 'rotate-180' : ''}`} />
+                </Button>
+
+                {showVolumeSlider && (
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={isMuted ? 0 : volume}
+                    onChange={handleVolumeChange}
+                    onClick={(e) => e.stopPropagation()}
+                    className="h-1 w-16 cursor-pointer appearance-none rounded-full bg-secondary/50 accent-primary sm:w-24"
+                    aria-label="Volume"
+                  />
+                )}
               </div>
 
               {catchUpProgram && (
@@ -1575,6 +1688,7 @@ const PlayerControls = ({
                   className={`w-9 h-9 sm:w-10 sm:h-10 hover:bg-secondary/50 ${showAudioTracks ? 'text-primary' : ''}`}
                   onClick={(e) => {
                     e.stopPropagation();
+                    setShowVolumeSlider(false);
                     setShowSubtitleTracks(false);
                     setShowAudioTracks((prev) => !prev);
                   }}
@@ -1590,6 +1704,7 @@ const PlayerControls = ({
                   title={`Titlovi: ${selectedSubtitleTrackLabel}`}
                   onClick={(e) => {
                     e.stopPropagation();
+                    setShowVolumeSlider(false);
                     setShowAudioTracks(false);
                     setShowSubtitleTracks((prev) => !prev);
                   }}

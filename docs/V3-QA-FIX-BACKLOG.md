@@ -151,6 +151,32 @@ Reporter note for this batch:
 - Status:
   - converted-to `QAF-033` (done via PR #210, 2026-02-21)
 
+### BUG-20260221-14
+- Environment:
+  - `http://localhost:8080/player`, Xtream account `fica`, channels with archive (`stream_id=112`, `stream_id=105`)
+  - Browser devtools + console evidence from user session (`2026-02-21 22:10-22:38`) and Codex Playwright reproduction (`2026-02-21 22:52-23:02`)
+- Steps:
+  1. Open live channel with TV Unazad support (example: `RTS 1`).
+  2. Open `TV Unazad` list and start archived item (example: `18:28 Kvadratura kruga`).
+  3. Observe playback and network calls to `timeshift.php`.
+- Expected:
+  - Catch-up playback starts and remains stable with video/audio.
+- Actual:
+  - Partial progress: more catch-up items render and player requests archive URLs.
+  - Blocking issue remains: playback still fails in real user flow with `502/404` on provider timeshift path and/or playback startup failure burst.
+  - User still reports non-playable catch-up video after latest fixes.
+- Evidence:
+  - User screenshots + console traces in chat (2026-02-21, `edge6.castcdn.net/streaming/timeshift.php?token=...` with `404/502`).
+  - Observability events seen multiple times: `playback.catchup.requested`, `playback.catchup_fallback`, `PLAYBACK_START_FAILED`, `NETWORK_ERROR`, `LOAD_FAILED`.
+- Reporter:
+  - Filip
+- Timestamp:
+  - 2026-02-21
+- Severity (initial):
+  - P1
+- Status:
+  - converted-to `QAF-034` (pending-review, awaiting Reptile validation)
+
 ## Intake triage snapshots
 
 Add dated triage tables here (one snapshot block per triage session).
@@ -164,6 +190,7 @@ Add dated triage tables here (one snapshot block per triage session).
 | BUG-20260221-11 | Feature/UX | P2 | QAF-029 | Reopened; seek bar handle affordance still missing |
 | BUG-20260221-12 | Bugfix/Data Mapping | P2 | QAF-028 | Reopened; series artwork parity still not achieved |
 | BUG-20260221-13 | Bugfix/Player VOD UX | P1 | QAF-033 | New QAF for on-demand player overlay parity + spinner behavior |
+| BUG-20260221-14 | Bugfix/Catch-up Playback | P1 | QAF-034 | Reopened after multiple attempts; still not playable in user real flow |
 
 ## Status legend
 
@@ -202,10 +229,15 @@ Current snapshot:
 | QAF-031 | Show catch-up capability badge (clock icon) in channel list for archive-enabled channels | Channel List UX | P3 | done |
 | QAF-032 | Remove static helper copy `Klikni traku za TV unazad` and keep only context-aware cues | Player Copy/UX Clarity | P3 | done |
 | QAF-033 | Align VOD/Series playback overlay controls with live player and make loading spinner non-blocking/short-lived | On-demand Player UX | P1 | done |
+| QAF-034 | Reopened catch-up runtime failure: provider timeshift returns intermittent `404/502`, playback still fails in real user flow | Catch-up Playback/Provider Compatibility | P1 | in-progress |
 
 ## Next ready queue (strict order)
 
-`—` (all currently queued V3 tasks are completed; next queue is created from new intake after triage)
+1. `QAF-034` TiviMate comparative iteration:
+   - capture native tuple (`request -> 302 -> final host`) for live and catch-up
+   - replay equivalent tuple in web runtime and classify mismatch
+2. Build catch-up transport matrix (`http/http`, `http/https`, `https/http`, `https/https`) and log startup/failure behavior per tuple
+3. Apply minimal patch only on verified mismatch class (redirect handling, host affinity, proxy transport), then run Reptile verification
 
 ## Execution completion snapshot (2026-02-21)
 
@@ -224,6 +256,142 @@ Current snapshot:
   - `QAF-033` -> PR #210 (Greptile `5/5`)
 - QA gate note:
   - Latest post-batch run still exits with Playwright loader conflict (`Requiring @playwright/test second time`), so `output/playwright/qa-user-sim/QA-REPORT.md` remains non-actionable (`Scenario status: unknown`, `Scenarios executed: 0`) until QA tooling fix.
+
+## QAF-034 Attempt Log (2026-02-21, unresolved)
+
+Execution trace written for tomorrow continuation per `docs/WORKFLOW-LLM-QA.md`:
+
+1. Reproduced in real browser automation (Playwright, Chromium) from both persisted session and clean live start.
+2. Captured network pattern:
+   - `xui-api/streaming/timeshift.php?username=...` -> `302` to provider token URL.
+   - token manifest/segment requests show mixed behavior across attempts (`200` in some tuples, `404/502` in user-reported tuples).
+3. Probed provider paths directly with Node/curl across multiple `start` offsets and durations to classify responses (`application/x-mpegurl`, `video/mp2t`, HTML/empty error).
+4. Implemented and tested catch-up URL candidate expansion:
+   - local-time + UTC `start` variants (`getCatchUpUrlVariants`),
+   - offset candidates and sibling stream fallback list.
+5. Implemented and tested playback resilience changes:
+   - fallback guard position (`+15s` initial/fallback),
+   - reduced false fallback loops on transitional errors,
+   - adapter fatality adjustment for `MEDIA_ELEMENT_4` when `hls.js` manages media.
+6. Fixed core source-type mismatch in player load path:
+   - catch-up URL without `.m3u8` suffix now loads as declared `source.type='hls'` (not URL-heuristic `mp4`).
+7. Validation performed:
+   - `pnpm --filter @lumen/web typecheck` -> pass
+   - `pnpm --filter @lumen/web lint` -> pass
+   - targeted vitest runs for touched areas -> pass
+8. Current outcome:
+   - Local simulation can start catch-up in clean scenario, but user real flow still reports unresolved `502` runtime failure.
+   - Task remains `open` until reproducible pass is confirmed on user environment with evidence.
+
+## QAF-034 Attempt Log (2026-02-22, pending-review)
+
+Candidate fix prepared for external runtime validation (Reptile):
+
+1. Kept provider-compatible catch-up URL expansion:
+   - local-time + UTC `start` variants,
+   - offset-based `start` retries and sibling stream-id fallback candidates.
+2. Hardened startup/fallback behavior:
+   - initial catch-up position guard (`+15s`) to avoid live-edge not-yet-generated segments,
+   - fallback only on fatal network/media/hls load failures (skip transient/non-fatal transition noise).
+3. Preserved explicit HLS source type from session metadata:
+   - catch-up URLs without `.m3u8` suffix continue loading via `source.type='hls'`.
+4. Archive signal quality improvement:
+   - short EPG remains primary,
+   - archive fallback (`get_simple_data_table`) is merged when short EPG lacks `has_archive`,
+   - removed past-time-only `hasCatchUp` inference to avoid false positives.
+5. Local validation on this branch:
+   - `pnpm --filter @lumen/web typecheck` -> pass
+   - `pnpm --filter @lumen/web lint` -> pass
+   - `pnpm --filter @lumen/api lint` -> pass
+   - `pnpm exec vitest run src/components/player/liveTimeshift.test.ts src/services/channelEpg.test.ts src/services/epgProgramMapper.test.ts` (in `apps/web`) -> pass
+   - `pnpm exec vitest run src/xtream-codes-service.test.ts` (in `packages/api`) -> pass
+6. Status:
+   - `QAF-034` moved to `pending-review` until Reptile confirms catch-up playback success in real user flow.
+
+## QAF-034 Attempt Log (2026-02-23, pending-review)
+
+Provider-specific compatibility adjustments were added after fresh runtime probing and code review:
+
+1. Real provider behavior reconfirmed:
+   - `timeshift.php` is stable with formatted `start=YYYY-MM-DD:HH-MM`.
+   - epoch `start` is not consistently accepted on this provider class.
+2. Catch-up URL generator hardening:
+   - query-format variants now include `duration` candidates (minutes first, seconds fallback),
+   - legacy path variants now include both formatted and epoch `start` fallbacks.
+3. Runtime fallback order update:
+   - bounded retries of primary catch-up URL are attempted before wider offset/stream-id fallback expansion.
+4. Server host consistency update:
+   - login/auth flow now canonicalizes server from `server_info` and persists it for runtime,
+   - dev proxy now supports encoded per-target host routing so redirected/canonical hosts remain reachable in local dev.
+5. Local validation:
+   - `pnpm typecheck` -> pass
+   - `pnpm vitest run packages/api/src/xtream-codes-service.test.ts apps/web/src/config/xtream.test.ts` -> pass
+6. Status:
+   - `QAF-034` remains `pending-review` until external runtime validation (real user flow + Reptile feedback) confirms catch-up playback is stable end-to-end.
+
+## QAF-034 Attempt Log (2026-02-23, TiviMate comparative capture)
+
+Live native traffic capture was executed on Buildara (`100.74.23.120`) while user performed real TiviMate actions on Sony Android TV:
+
+1. Confirmed TiviMate request sequence for live:
+   - `GET /live/{user}/{pass}/{stream}.ts` on login host (`iptvmedia.pro:8080`)
+   - `302` redirect to edge/archive host (`l2.mediaking.fi:8080`) with token
+   - media fetch continues on redirected host
+2. Confirmed TiviMate request sequence for catch-up:
+   - `GET /timeshift/{user}/{pass}/{duration}/{start}/{stream}.ts` on login host
+   - `302` redirect to tokenized `https://edge*.castcdn.net/streaming/timeshift.php?token=...`
+   - rapid retry bursts are visible with start-minute adjustments
+   - observed retry cadence from capture:
+     - `start=2026-02-23:22-37` -> 6 attempts
+     - `start=2026-02-23:22-35` -> 2 attempts
+     - `start=2026-02-23:22-19` -> 3 attempts
+     - inter-attempt timing buckets: 8 retries `<2s`, 1 retry `2-15s`, 1 retry `>=15s`
+3. Practical interpretation for Lumen:
+   - redirect+token is expected provider behavior, not exceptional path
+   - parity target is native flow semantics (`request -> 302 -> final media`) under web transport constraints
+4. Status:
+   - `QAF-034` moved to `in-progress` pending next web-runtime parity patch and external validation.
+
+## QAF-034 Attempt Log (2026-02-23, TiviMate comparative capture #2)
+
+Additional guided scenario was captured (live RTS1 -> seek back 5m -> seek back 30m -> return live -> channel changes -> RTS1):
+
+1. Live flow remains consistent:
+   - login host request -> `302` -> edge/live host with token
+   - observed live redirect targets include `l2.mediaking.fi` and `fra10.mediaking.fi`.
+2. Catch-up flow remains redirect-driven:
+   - all observed `/timeshift/...` requests on login host return `302` to `https://edge6.castcdn.net/streaming/timeshift.php?token=...`.
+3. Retry cadence (same run, `22:52+` window):
+   - `302` totals: `timeshift_token=38`, `live=6`.
+   - attempts by stream/start:
+     - `112 @ 22-34` -> 8
+     - `112 @ 22-35` -> 1
+     - `112 @ 22-37` -> 4
+     - `2927 @ 22-52` -> 2
+     - `2927 @ 22-49` -> 4
+     - `2927 @ 22-23` -> 1
+     - `2927 @ 22-22` -> 1
+     - `2927 @ 22-19` -> 13
+     - `2927 @ 22-53` -> 3
+   - retry gap buckets: `<2s=24`, `2-10s=9`, `>=10s=3`.
+4. Practical implication:
+   - TiviMate aggressively retries and moves start-minute in bursts before giving up or returning to live.
+   - This behavior should be mirrored in Lumen catch-up transport policy (without regressing live startup).
+
+## QAF-034 Attempt Log (2026-02-23, HTTPS profile probe)
+
+User executed an additional run with HTTPS-oriented profile settings to compare with HTTP baseline.
+
+1. Observed transport shape is hybrid (not pure HTTPS):
+   - control/API requests still visible on `iptvmedia.pro:8080` (`/player_api.php`, `/xmltv.php`) in plaintext capture;
+   - media plane opens TLS sessions to `gw.castcdn.net` and `edge{3,5,6}.castcdn.net` (port 443).
+2. TLS SNI evidence in run window:
+   - `gw.castcdn.net`, `edge3.castcdn.net`, `edge5.castcdn.net`, `edge6.castcdn.net`.
+3. New TLS connection targets (SYN to 443) in sampled window:
+   - `45.141.56.136` (edge3), `79.137.99.121` (edge6), `188.241.219.211` (edge5) plus minor auxiliary endpoints.
+4. Interpretation:
+   - switching profile to HTTPS does not eliminate provider-side host/protocol switching;
+   - player compatibility still depends on robust redirect/token handling and mixed transport support (`http` control + `https` media).
 
 ## Reopened task clarifications (historical acceptance deltas)
 

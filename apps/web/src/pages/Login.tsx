@@ -7,7 +7,12 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
-import { XTREAM_SERVER_URL, isServerConfigured, getServerDisplayName } from '@/config/xtream';
+import {
+  XTREAM_SERVER_URL,
+  isServerConfigured,
+  getServerDisplayName,
+  resolveXtreamCanonicalServer,
+} from '@/config/xtream';
 import { loadXtreamCredentials, saveXtreamCredentials } from '@/services/xtreamCredentials';
 import { xtreamCodesService } from '@/services/xtreamService';
 import { AlertCircle, Eye, EyeOff, Loader2, Server, Tv } from 'lucide-react';
@@ -82,7 +87,14 @@ const Login = () => {
       const response = await xtreamCodesService.authenticate();
 
       if (response.user_info?.auth === 1) {
-        await saveXtreamCredentials(credentials);
+        const canonicalServer = resolveXtreamCanonicalServer(
+          credentials.server,
+          response.server_info,
+        );
+        const canonicalCredentials = canonicalServer === credentials.server
+          ? credentials
+          : { ...credentials, server: canonicalServer };
+        await saveXtreamCredentials(canonicalCredentials);
         toast({
           title: 'Uspešna prijava',
           description: 'Dobrodošli nazad!',

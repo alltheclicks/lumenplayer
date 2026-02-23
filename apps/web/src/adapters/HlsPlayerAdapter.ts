@@ -19,8 +19,15 @@ type SubtitleTracksListener = (
   selectedTrackId: string | null
 ) => void;
 
+interface ManifestResolvedEvent {
+  requestedUrl: string;
+  manifestUrl: string;
+  finalUrl: string | null;
+}
+
 interface HlsPlayerAdapterOptions {
   preferNativeHls?: boolean;
+  onManifestResolved?: (event: ManifestResolvedEvent) => void;
 }
 
 interface NativeAudioTrack {
@@ -65,10 +72,12 @@ export class HlsPlayerAdapter implements PlayerAdapter {
   private readonly audioTracksListeners = new Set<AudioTracksListener>();
   private readonly subtitleTracksListeners = new Set<SubtitleTracksListener>();
   private readonly removeVideoListeners: () => void;
+  private readonly onManifestResolved?: (event: ManifestResolvedEvent) => void;
 
   constructor(video: HTMLVideoElement, options: HlsPlayerAdapterOptions = {}) {
     this.video = video;
     this.preferNativeHls = options.preferNativeHls ?? false;
+    this.onManifestResolved = options.onManifestResolved;
     this.removeVideoListeners = this.attachVideoListeners();
   }
 
@@ -315,6 +324,26 @@ export class HlsPlayerAdapter implements PlayerAdapter {
             resolve();
           };
 
+          const onManifestLoaded = (
+            _event: string,
+            data: {
+              url?: string;
+              networkDetails?: unknown;
+            },
+          ) => {
+            const manifestUrl = typeof data.url === 'string' && data.url.length > 0
+              ? data.url
+              : url;
+            this.onManifestResolved?.({
+              requestedUrl: url,
+              manifestUrl,
+              finalUrl: HlsPlayerAdapter.resolveNetworkResponseUrl(
+                data.networkDetails,
+                manifestUrl,
+              ),
+            });
+          };
+
           const onHlsError = (_event: string, data: ErrorData) => {
             const mappedError = this.mapHlsError(data);
             this.emitError(mappedError);
@@ -346,9 +375,11 @@ export class HlsPlayerAdapter implements PlayerAdapter {
 
           const cleanup = () => {
             hls.off(Hls.Events.MANIFEST_PARSED, onManifestParsed);
+            hls.off(Hls.Events.MANIFEST_LOADED, onManifestLoaded);
             hls.off(Hls.Events.ERROR, onHlsError);
           };
 
+          hls.on(Hls.Events.MANIFEST_LOADED, onManifestLoaded);
           hls.on(Hls.Events.MANIFEST_PARSED, onManifestParsed);
           hls.on(Hls.Events.ERROR, onHlsError);
           hls.on(Hls.Events.AUDIO_TRACKS_UPDATED, onAudioTracksUpdated);
@@ -386,6 +417,28 @@ export class HlsPlayerAdapter implements PlayerAdapter {
     throw new Error(error.message);
   }
 
+  private static resolveNetworkResponseUrl(
+    networkDetails: unknown,
+    fallbackUrl: string,
+  ): string | null {
+    if (!networkDetails || typeof networkDetails !== 'object') {
+      return fallbackUrl || null;
+    }
+
+    const details = networkDetails as {
+      responseURL?: unknown;
+      url?: unknown;
+    };
+    if (typeof details.responseURL === 'string' && details.responseURL.length > 0) {
+      return details.responseURL;
+    }
+    if (typeof details.url === 'string' && details.url.length > 0) {
+      return details.url;
+    }
+
+    return fallbackUrl || null;
+  }
+
   private attachVideoListeners(): () => void {
     const handlePlay = () => this.updateState('playing');
     const handlePause = () => this.updateState('paused');
@@ -402,10 +455,15 @@ export class HlsPlayerAdapter implements PlayerAdapter {
         return;
       }
 
+      const isSrcNotSupported = mediaError.code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED;
+      const isManagedByHls = this.hls !== null;
+
       this.emitError({
         code: `MEDIA_ELEMENT_${mediaError.code}`,
         message: mediaError.message || 'Playback error',
-        fatal: mediaError.code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED,
+        // When hls.js is attached, code 4 can be emitted during segment retries
+        // and should not immediately hard-stop playback/fallback flow.
+        fatal: isSrcNotSupported && !isManagedByHls,
       });
     };
     const handleLoadedMetadata = () => {

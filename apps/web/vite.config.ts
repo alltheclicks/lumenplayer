@@ -5,6 +5,25 @@ import { VitePWA } from "vite-plugin-pwa";
 
 const pwaWorkboxMode = process.env.LUMEN_PWA_SW_MODE === "production" ? "production" : "development";
 const XTREAM_DEV_PROXY_BASE_PATH = "/xui-api";
+const LOCAL_PROXY_FALLBACK_TARGET = "http://localhost";
+
+const resolveProxyTargetFromRequestPath = (requestPath: string): string | null => {
+  const match = requestPath.match(new RegExp(`^${XTREAM_DEV_PROXY_BASE_PATH}/([^/?#]+)`));
+  if (!match || !match[1]) {
+    return null;
+  }
+
+  try {
+    const decodedTarget = decodeURIComponent(match[1]).trim().replace(/\/+$/, "");
+    if (decodedTarget.startsWith("http://") || decodedTarget.startsWith("https://")) {
+      return decodedTarget;
+    }
+  } catch {
+    // Ignore malformed encoded targets and fall back to default proxy target.
+  }
+
+  return null;
+};
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
@@ -17,11 +36,18 @@ export default defineConfig(({ mode }) => {
       proxy: xtreamServerTarget
         ? {
             [XTREAM_DEV_PROXY_BASE_PATH]: {
-              target: xtreamServerTarget,
+              target: xtreamServerTarget || LOCAL_PROXY_FALLBACK_TARGET,
               changeOrigin: true,
               secure: false,
+              router: (request) => (
+                resolveProxyTargetFromRequestPath(request.url || "") ||
+                xtreamServerTarget ||
+                LOCAL_PROXY_FALLBACK_TARGET
+              ),
               rewrite: (requestPath: string) => (
-                requestPath.replace(new RegExp(`^${XTREAM_DEV_PROXY_BASE_PATH}`), "")
+                requestPath
+                  .replace(new RegExp(`^${XTREAM_DEV_PROXY_BASE_PATH}/[^/?#]+`), "")
+                  .replace(new RegExp(`^${XTREAM_DEV_PROXY_BASE_PATH}`), "")
               ),
             },
           }
