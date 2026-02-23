@@ -352,6 +352,32 @@ Live native traffic capture was executed on Buildara (`100.74.23.120`) while use
 4. Status:
    - `QAF-034` moved to `in-progress` pending next web-runtime parity patch and external validation.
 
+## QAF-034 Attempt Log (2026-02-23, TiviMate comparative capture #2)
+
+Additional guided scenario was captured (live RTS1 -> seek back 5m -> seek back 30m -> return live -> channel changes -> RTS1):
+
+1. Live flow remains consistent:
+   - login host request -> `302` -> edge/live host with token
+   - observed live redirect targets include `l2.mediaking.fi` and `fra10.mediaking.fi`.
+2. Catch-up flow remains redirect-driven:
+   - all observed `/timeshift/...` requests on login host return `302` to `https://edge6.castcdn.net/streaming/timeshift.php?token=...`.
+3. Retry cadence (same run, `22:52+` window):
+   - `302` totals: `timeshift_token=38`, `live=6`.
+   - attempts by stream/start:
+     - `112 @ 22-34` -> 8
+     - `112 @ 22-35` -> 1
+     - `112 @ 22-37` -> 4
+     - `2927 @ 22-52` -> 2
+     - `2927 @ 22-49` -> 4
+     - `2927 @ 22-23` -> 1
+     - `2927 @ 22-22` -> 1
+     - `2927 @ 22-19` -> 13
+     - `2927 @ 22-53` -> 3
+   - retry gap buckets: `<2s=24`, `2-10s=9`, `>=10s=3`.
+4. Practical implication:
+   - TiviMate aggressively retries and moves start-minute in bursts before giving up or returning to live.
+   - This behavior should be mirrored in Lumen catch-up transport policy (without regressing live startup).
+
 ## Reopened task clarifications (historical acceptance deltas)
 
 ### QAF-027 delta
