@@ -229,13 +229,15 @@ Current snapshot:
 | QAF-031 | Show catch-up capability badge (clock icon) in channel list for archive-enabled channels | Channel List UX | P3 | done |
 | QAF-032 | Remove static helper copy `Klikni traku za TV unazad` and keep only context-aware cues | Player Copy/UX Clarity | P3 | done |
 | QAF-033 | Align VOD/Series playback overlay controls with live player and make loading spinner non-blocking/short-lived | On-demand Player UX | P1 | done |
-| QAF-034 | Reopened catch-up runtime failure: provider timeshift returns intermittent `404/502`, playback still fails in real user flow | Catch-up Playback/Provider Compatibility | P1 | pending-review |
+| QAF-034 | Reopened catch-up runtime failure: provider timeshift returns intermittent `404/502`, playback still fails in real user flow | Catch-up Playback/Provider Compatibility | P1 | in-progress |
 
 ## Next ready queue (strict order)
 
-1. `QAF-034` Reptile QA verification on candidate fix branch (`codex/qaf-034-provider-timeshift-runtime-fix`)
-2. If playback still fails, capture exact failing URL tuple (`stream/start/duration`) and provider response body/content-type
-3. Apply minimal follow-up patch only from verified failing tuple evidence
+1. `QAF-034` TiviMate comparative iteration:
+   - capture native tuple (`request -> 302 -> final host`) for live and catch-up
+   - replay equivalent tuple in web runtime and classify mismatch
+2. Build catch-up transport matrix (`http/http`, `http/https`, `https/http`, `https/https`) and log startup/failure behavior per tuple
+3. Apply minimal patch only on verified mismatch class (redirect handling, host affinity, proxy transport), then run Reptile verification
 
 ## Execution completion snapshot (2026-02-21)
 
@@ -326,6 +328,24 @@ Provider-specific compatibility adjustments were added after fresh runtime probi
    - `pnpm vitest run packages/api/src/xtream-codes-service.test.ts apps/web/src/config/xtream.test.ts` -> pass
 6. Status:
    - `QAF-034` remains `pending-review` until external runtime validation (real user flow + Reptile feedback) confirms catch-up playback is stable end-to-end.
+
+## QAF-034 Attempt Log (2026-02-23, TiviMate comparative capture)
+
+Live native traffic capture was executed on Buildara (`100.74.23.120`) while user performed real TiviMate actions on Sony Android TV:
+
+1. Confirmed TiviMate request sequence for live:
+   - `GET /live/{user}/{pass}/{stream}.ts` on login host (`iptvmedia.pro:8080`)
+   - `302` redirect to edge/archive host (`l2.mediaking.fi:8080`) with token
+   - media fetch continues on redirected host
+2. Confirmed TiviMate request sequence for catch-up:
+   - `GET /timeshift/{user}/{pass}/{duration}/{start}/{stream}.ts` on login host
+   - `302` redirect to tokenized `https://edge*.castcdn.net/streaming/timeshift.php?token=...`
+   - rapid retry bursts are visible with start-minute adjustments
+3. Practical interpretation for Lumen:
+   - redirect+token is expected provider behavior, not exceptional path
+   - parity target is native flow semantics (`request -> 302 -> final media`) under web transport constraints
+4. Status:
+   - `QAF-034` moved to `in-progress` pending next web-runtime parity patch and external validation.
 
 ## Reopened task clarifications (historical acceptance deltas)
 

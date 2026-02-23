@@ -1,7 +1,7 @@
 # WORKFLOW LLM + QA (Operational Guide)
 
-> Version: 1.1  
-> Date: 2026-02-21  
+> Version: 1.2  
+> Date: 2026-02-23  
 > Scope: Lumen Player ongoing delivery with parallel LLM agents.
 
 Current QA backlog: `docs/V3-QA-FIX-BACKLOG.md`
@@ -269,3 +269,40 @@ When reproducing `Greška u mreži` for catch-up, run this sequence before codin
    - final accepted URL format and response type.
 
 This checklist is required for any future `QAF` item touching catch-up playback.
+
+## 15) QAF-034 TiviMate comparative protocol (2026-02-23)
+
+Purpose:
+- Keep `QAF-034` evidence-driven by comparing real native-player traffic vs web-player runtime behavior.
+
+Confirmed from live capture (`Buildara`, Sony Android TV, TiviMate 5.2.0):
+- Live flow:
+  - `GET /live/{user}/{pass}/{stream}.ts` on login host
+  - `302` to edge/archive host with `token=...`
+  - final media fetch on redirected host
+- Catch-up flow:
+  - `GET /timeshift/{user}/{pass}/{duration}/{start}/{stream}.ts` on login host
+  - `302` to tokenized URL (`/streaming/timeshift.php?token=...`) on edge host
+  - repeated quick retries + `start` minute adjustments
+
+Operational rules for `QAF-034`:
+1. Treat `302` as expected success handshake (not failure) for both live and catch-up.
+2. Preserve host affinity after redirect (login host -> final edge/archive host).
+3. Keep catch-up fallback minute-based first (`start` rounding/offset attempts), then wider fallback.
+4. For web runtime, enforce same-origin/proxy path when direct fetch is blocked by browser CORS/mixed-content policy.
+5. Validate with both `http` and `https` provider combinations.
+
+Mandatory evidence bundle before closing `QAF-034`:
+1. Native reference tuple log:
+   - one successful live request chain and one successful catch-up chain (`request -> 302 -> final media`).
+2. Web runtime tuple log:
+   - same stream/time tuple with final status, content-type, and final host.
+3. Startup metric:
+   - time from user seek/click to first playable media bytes (native vs web).
+4. Failure classification:
+   - provider error (`404/502`) vs browser/runtime transport issue.
+
+Working capture commands (Buildara):
+- `ssh filip@100.74.23.120 "tail -100 /home/filip/tv_capture/live_feed.log"`
+- `ssh filip@100.74.23.120 "tshark -r /home/filip/tv_capture/tivimate_*.pcap -Y 'http.request' -T fields -e frame.time -e http.host -e http.request.uri"`
+- `ssh filip@100.74.23.120 "tshark -r /home/filip/tv_capture/tivimate_*.pcap -Y 'http.response.code' -T fields -e frame.time -e http.response.code -e http.location"`

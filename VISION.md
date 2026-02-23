@@ -127,6 +127,51 @@ Krajnji cilj: **jedan player koji radi svuda** — od browsera na laptopu, preko
 
 ---
 
+## Cross-Platform Playback Core (V1 -> Phase 2)
+
+> Ažurirano: 23. februar 2026 (na osnovu live TiviMate traffic analize)
+
+Osnova treba da bude ista na svim platformama: isti session model, isti Xtream domain model, isti fallback algoritmi.  
+Razlika po platformi treba da bude samo u "transport adapteru" (web vs native), ne u poslovnoj logici player-a.
+
+### Potvrđeni runtime obrazac (TiviMate)
+- Live: login host (`iptvmedia.pro:8080`) vraća `302` na edge/archive host (`l2.mediaking.fi`) sa tokenom.
+- Catch-up: `/timeshift/{user}/{pass}/{duration}/{start}/{stream}.ts` na login hostu vraća `302` na tokenizovan URL (`edge*.castcdn.net/streaming/timeshift.php?token=...`).
+- Player radi više brzih retry pokušaja i menja `start` minut kada prvi pokušaj ne krene.
+- Redirect/token flow je deo normalnog rada i mora biti first-class scenario.
+
+### Arhitekturna pravila koja važe za sve klijente
+- `@lumen/session-core` ostaje jedini source of truth za playback state i komande.
+- Xtream URL builder i catch-up fallback pravila ostaju u deljenom core sloju (ne duplirati po app-ovima).
+- Svaki klijent mora da podrži:
+  - 302 redirect chain bez gubitka auth/token parametara
+  - host affinity (login host -> final edge/archive host)
+  - catch-up retry sa start offset fallback-om (minute alignment + pomeraji)
+  - fallback nazad na live kada archive ne postoji
+
+### Platform-specific transport (adapter-only razlike)
+- Web/PWA:
+  - mora imati same-origin proxy kada browser ograničenja to zahtevaju (CORS/mixed-content).
+  - `https` app + `http` stream je browser-level rizik; mora postojati kontrolisan fallback/proxy put.
+- Native (Android TV, Tizen, WebOS, tvOS, iOS/Android):
+  - nema browser CORS model, ali isti redirect/token/fallback algoritam ostaje obavezan.
+  - platformski player adapter može direktno da prati 302 i preuzima segmente.
+
+### HTTP + HTTPS kompatibilnost (production requirement)
+- Sistem mora da radi sa providerima koji koriste:
+  - samo `http`
+  - samo `https`
+  - kombinovan login/edge model (`http` login -> `https` edge i obrnuto)
+- Ovo nije opcija po platformi, nego globalni compatibility cilj za ceo Lumen stack.
+
+### Observability kao zajednički ugovor
+- Jedinstveni događaji i polja za sve klijente:
+  - `catchup.requested`, `catchup.redirect`, `catchup.retry`, `catchup.fallback`, `playback.error`
+  - obavezno beležiti: streamId, start, duration, attempt, status, finalHost, errorCode
+- QA i produkcioni troubleshooting treba da budu mogući istim signalima na web i native klijentima.
+
+---
+
 ## Ključni tehnički zahtevi
 
 | Zahtev | Detalj |
