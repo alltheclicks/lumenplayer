@@ -378,6 +378,21 @@ Additional guided scenario was captured (live RTS1 -> seek back 5m -> seek back 
    - TiviMate aggressively retries and moves start-minute in bursts before giving up or returning to live.
    - This behavior should be mirrored in Lumen catch-up transport policy (without regressing live startup).
 
+## QAF-034 Attempt Log (2026-02-23, HTTPS profile probe)
+
+User executed an additional run with HTTPS-oriented profile settings to compare with HTTP baseline.
+
+1. Observed transport shape is hybrid (not pure HTTPS):
+   - control/API requests still visible on `iptvmedia.pro:8080` (`/player_api.php`, `/xmltv.php`) in plaintext capture;
+   - media plane opens TLS sessions to `gw.castcdn.net` and `edge{3,5,6}.castcdn.net` (port 443).
+2. TLS SNI evidence in run window:
+   - `gw.castcdn.net`, `edge3.castcdn.net`, `edge5.castcdn.net`, `edge6.castcdn.net`.
+3. New TLS connection targets (SYN to 443) in sampled window:
+   - `45.141.56.136` (edge3), `79.137.99.121` (edge6), `188.241.219.211` (edge5) plus minor auxiliary endpoints.
+4. Interpretation:
+   - switching profile to HTTPS does not eliminate provider-side host/protocol switching;
+   - player compatibility still depends on robust redirect/token handling and mixed transport support (`http` control + `https` media).
+
 ## Reopened task clarifications (historical acceptance deltas)
 
 ### QAF-027 delta
