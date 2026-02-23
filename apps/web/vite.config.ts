@@ -6,7 +6,6 @@ import { VitePWA } from "vite-plugin-pwa";
 const pwaWorkboxMode = process.env.LUMEN_PWA_SW_MODE === "production" ? "production" : "development";
 const XTREAM_DEV_PROXY_BASE_PATH = "/xui-api";
 const LOCAL_PROXY_FALLBACK_TARGET = "http://localhost";
-const trimTrailingSlash = (value: string): string => value.trim().replace(/\/+$/, "");
 
 const resolveProxyTargetFromRequestPath = (requestPath: string): string | null => {
   const match = requestPath.match(new RegExp(`^${XTREAM_DEV_PROXY_BASE_PATH}/([^/?#]+)`));
@@ -26,34 +25,6 @@ const resolveProxyTargetFromRequestPath = (requestPath: string): string | null =
   return null;
 };
 
-const buildProxiedRedirectLocation = (
-  locationHeader: string,
-  fallbackTarget: string,
-): string | null => {
-  const normalizedLocation = locationHeader.trim();
-  if (!normalizedLocation || normalizedLocation.startsWith(XTREAM_DEV_PROXY_BASE_PATH)) {
-    return null;
-  }
-
-  const normalizedFallbackTarget = trimTrailingSlash(fallbackTarget);
-  if (!normalizedFallbackTarget) {
-    return null;
-  }
-
-  try {
-    const resolvedTargetUrl = new URL(normalizedLocation, `${normalizedFallbackTarget}/`);
-    if (resolvedTargetUrl.protocol !== "http:" && resolvedTargetUrl.protocol !== "https:") {
-      return null;
-    }
-
-    const targetBase = `${resolvedTargetUrl.protocol}//${resolvedTargetUrl.host}`;
-    const encodedTarget = encodeURIComponent(trimTrailingSlash(targetBase));
-    return `${XTREAM_DEV_PROXY_BASE_PATH}/${encodedTarget}${resolvedTargetUrl.pathname}${resolvedTargetUrl.search}`;
-  } catch {
-    return null;
-  }
-};
-
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
   const xtreamServerTarget = env.VITE_XTREAM_SERVER?.trim().replace(/\/+$/, "");
@@ -68,37 +39,12 @@ export default defineConfig(({ mode }) => {
               target: xtreamServerTarget || LOCAL_PROXY_FALLBACK_TARGET,
               changeOrigin: true,
               secure: false,
+              followRedirects: true,
               router: (request) => (
                 resolveProxyTargetFromRequestPath(request.url || "") ||
                 xtreamServerTarget ||
                 LOCAL_PROXY_FALLBACK_TARGET
               ),
-              configure: (proxy) => {
-                proxy.on("proxyRes", (proxyRes, req) => {
-                  const statusCode = proxyRes.statusCode ?? 0;
-                  if (statusCode < 300 || statusCode >= 400) {
-                    return;
-                  }
-
-                  const locationHeader = proxyRes.headers.location;
-                  if (typeof locationHeader !== "string") {
-                    return;
-                  }
-
-                  const requestPath = req.url || "";
-                  const fallbackTarget = (
-                    resolveProxyTargetFromRequestPath(requestPath) ||
-                    xtreamServerTarget ||
-                    LOCAL_PROXY_FALLBACK_TARGET
-                  );
-                  const proxiedLocation = buildProxiedRedirectLocation(locationHeader, fallbackTarget);
-                  if (!proxiedLocation) {
-                    return;
-                  }
-
-                  proxyRes.headers.location = proxiedLocation;
-                });
-              },
               rewrite: (requestPath: string) => (
                 requestPath
                   .replace(new RegExp(`^${XTREAM_DEV_PROXY_BASE_PATH}/[^/?#]+`), "")
