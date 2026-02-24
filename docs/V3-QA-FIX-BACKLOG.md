@@ -177,6 +177,38 @@ Reporter note for this batch:
 - Status:
   - converted-to `QAF-034` (pending-review, awaiting Reptile validation)
 
+### BUG-20260223-01
+- Environment:
+  - `http://localhost:8080/player` (local dev, browser runtime)
+  - Xtream account `fica`
+  - channel `RTS 1` (`stream_id=112`, archive-enabled)
+- Steps:
+  1. Open `RTS 1` live stream.
+  2. In `TV Unazad`, click same-day archived program (example: `23:15 Dnevnik`).
+  3. Observe playback UI, network tab, and console observability events.
+- Expected:
+  - Catch-up starts with playable video/audio in web player (no infinite spinner / no download-like behavior).
+- Actual:
+  - Player enters catch-up mode but video never starts (`readyState=0`, paused).
+  - Network shows many fallback `404` attempts, then one `200` on token URL:
+    - `.../timeshift/.../112.ts` -> `302` -> `https://edge6.castcdn.net/streaming/timeshift.php?token=...` -> `200`
+  - Successful `200` response is `content-type: video/mp2t` (large TS payload), not HLS playlist.
+  - In browser/HLS runtime this path behaves like non-playable download stream (no rendered playback).
+- Evidence:
+  - Codex Playwright reproduction (`2026-02-23 ~22:46Z`) with full request chain and console events.
+  - Direct curl probe on returned token URL confirms:
+    - `HTTP 200`
+    - `content-type: video/mp2t`
+    - large `content-length` (`~787MB` in sampled response)
+- Reporter:
+  - Filip
+- Timestamp:
+  - 2026-02-23
+- Severity (initial):
+  - P1
+- Status:
+  - converted-to `QAF-035` (open)
+
 ## Intake triage snapshots
 
 Add dated triage tables here (one snapshot block per triage session).
@@ -191,6 +223,12 @@ Add dated triage tables here (one snapshot block per triage session).
 | BUG-20260221-12 | Bugfix/Data Mapping | P2 | QAF-028 | Reopened; series artwork parity still not achieved |
 | BUG-20260221-13 | Bugfix/Player VOD UX | P1 | QAF-033 | New QAF for on-demand player overlay parity + spinner behavior |
 | BUG-20260221-14 | Bugfix/Catch-up Playback | P1 | QAF-034 | Reopened after multiple attempts; still not playable in user real flow |
+
+### Intake triage snapshot (2026-02-23, catch-up token payload mismatch)
+
+| Intake ID | Lane | Severity | Converted to | Notes |
+|---|---|---|---|---|
+| BUG-20260223-01 | Bugfix/Catch-up Playback | P1 | QAF-035 | Web catch-up receives `200 video/mp2t` token payload that is not playable via browser HLS flow (looks like download, no video/audio) |
 
 ## Status legend
 
@@ -230,14 +268,20 @@ Current snapshot:
 | QAF-032 | Remove static helper copy `Klikni traku za TV unazad` and keep only context-aware cues | Player Copy/UX Clarity | P3 | done |
 | QAF-033 | Align VOD/Series playback overlay controls with live player and make loading spinner non-blocking/short-lived | On-demand Player UX | P1 | done |
 | QAF-034 | Reopened catch-up runtime failure: provider timeshift returns intermittent `404/502`, playback still fails in real user flow | Catch-up Playback/Provider Compatibility | P1 | in-progress |
+| QAF-035 | Catch-up token `200` returns TS payload (`video/mp2t`) in web runtime; enforce playable-response gate and fallback policy before declaring startup success | Catch-up Playback/Browser Transport | P1 | open |
 
 ## Next ready queue (strict order)
 
-1. `QAF-034` TiviMate comparative iteration:
-   - capture native tuple (`request -> 302 -> final host`) for live and catch-up
-   - replay equivalent tuple in web runtime and classify mismatch
-2. Build catch-up transport matrix (`http/http`, `http/https`, `https/http`, `https/https`) and log startup/failure behavior per tuple
-3. Apply minimal patch only on verified mismatch class (redirect handling, host affinity, proxy transport), then run Reptile verification
+1. `QAF-035` token-payload compatibility fix:
+   - reproduce `RTS 1` same-day catch-up (`23:15 Dnevnik`) and capture full tuple (`request -> 302 -> final -> content-type`)
+   - add playable-response gate for catch-up startup in web runtime (`m3u8 playlist` or HLS-parseable manifest required)
+   - classify `200 video/mp2t` token responses as non-playable in browser path and continue attempt plan (retry/fallback), not terminal success
+2. Keep `QAF-034` evidence loop active:
+   - re-validate transport matrix (`http/http`, `http/https`, `https/http`, `https/https`) after `QAF-035` patch
+   - confirm no live startup regression
+3. External runtime verification + Reptile:
+   - confirm first-frame playback on real user flow
+   - close only with tuple evidence + startup timing + final host trace
 
 ## Execution completion snapshot (2026-02-21)
 
@@ -392,6 +436,39 @@ User executed an additional run with HTTPS-oriented profile settings to compare 
 4. Interpretation:
    - switching profile to HTTPS does not eliminate provider-side host/protocol switching;
    - player compatibility still depends on robust redirect/token handling and mixed transport support (`http` control + `https` media).
+
+## QAF-035 Attempt Log (2026-02-23, reproduced token payload mismatch in web)
+
+Reproduction executed on local browser runtime after latest catch-up parity patch:
+
+1. Scenario and observed UI state:
+   - opened `RTS 1` and selected same-day archive item `23:15 Dnevnik`;
+   - player switched to `UNAZAD`, but no video/audio started (spinner/paused behavior persisted).
+2. Network chain observed in browser:
+   - multiple fallback attempts on `streaming/timeshift.php?...extension=m3u8` returned `404`;
+   - one fallback path reached:
+     - `/timeshift/.../112.ts` -> `302` -> `https://edge6.castcdn.net/streaming/timeshift.php?token=...` -> `200`.
+3. Payload classification (blocking finding):
+   - `200` response on token URL had `content-type: video/mp2t` with large `content-length`;
+   - direct probe confirmed this is TS payload, not HLS playlist (`#EXTM3U` absent);
+   - browser path treated it as non-playable stream (practically download-like behavior), no first frame.
+4. Console/observability:
+   - repeated `catchup.fallback` warnings/errors;
+   - terminal `playback.error` (`NETWORK_ERROR`, `LOAD_FAILED`) after attempt exhaustion.
+5. Practical diagnosis:
+   - current transport parity work correctly reaches redirect/token hosts, but web runtime still lacks strict playable-response gating;
+   - `HTTP 200` alone is not sufficient success condition for catch-up on web.
+6. Potential solution direction for next agent (`QAF-035`):
+   - add catch-up startup verification gate in web runtime:
+     - treat as success only when final response is playlist/HLS-parseable (`application/x-mpegurl` or manifest with `#EXTM3U`);
+     - treat token responses with `video/mp2t` as non-playable candidate for browser HLS flow;
+   - keep attempting next transport candidate (retry/minute-step/fallback) instead of waiting on non-playable `200`;
+   - enrich `catchup.retry`/`catchup.fallback` metadata with `responseContentType` and `rejectionReason` (`non_playable_ts_payload`).
+7. Acceptance criteria proposal:
+   - `RTS 1` same-day catch-up starts with video/audio in browser;
+   - no infinite spinner on `200 video/mp2t` token response (must move to next attempt quickly);
+   - `catchup.requested`, `catchup.redirect`, `catchup.retry`, `catchup.fallback`, `playback.error` events include `streamId/start/duration/attempt/status/finalHost/errorCode`;
+   - live startup/zapping behavior unchanged (no regression).
 
 ## Reopened task clarifications (historical acceptance deltas)
 

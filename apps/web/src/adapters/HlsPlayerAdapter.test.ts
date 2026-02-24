@@ -54,4 +54,68 @@ describe('HlsPlayerAdapter', () => {
     adapter.stop();
     expect(loadSpy).toHaveBeenCalledTimes(2);
   });
+
+  it('ignores play() AbortError rejections during source transitions', async () => {
+    const video = createMockVideoElement();
+    const adapter = new HlsPlayerAdapter(video);
+    const onError = vi.fn();
+    adapter.onError(onError);
+    vi.spyOn(video, 'play').mockRejectedValueOnce(new DOMException('Aborted', 'AbortError'));
+
+    adapter.play();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(onError).not.toHaveBeenCalled();
+  });
+
+  it('emits PLAYBACK_START_FAILED for non-abort play() rejections', async () => {
+    const video = createMockVideoElement();
+    const adapter = new HlsPlayerAdapter(video);
+    const onError = vi.fn();
+    adapter.onError(onError);
+    vi.spyOn(video, 'play').mockRejectedValueOnce(new Error('NotAllowedError'));
+
+    adapter.play();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(onError).toHaveBeenCalledWith(expect.objectContaining({
+      code: 'PLAYBACK_START_FAILED',
+      fatal: false,
+    }));
+  });
+
+  it('extracts HTTP status from hls.js response payload when network details are missing', () => {
+    const video = createMockVideoElement();
+    const adapter = new HlsPlayerAdapter(video);
+    const playbackError = (adapter as unknown as {
+      mapHlsError: (value: unknown) => { details?: Record<string, unknown> };
+    }).mapHlsError({
+      type: 'networkError',
+      details: 'fragLoadError',
+      reason: 'HTTP status code: 502',
+      fatal: false,
+      response: {
+        code: 502,
+      },
+    });
+
+    expect(playbackError.details?.httpStatus).toBe(502);
+  });
+
+  it('extracts HTTP status from error reason text as final fallback', () => {
+    const video = createMockVideoElement();
+    const adapter = new HlsPlayerAdapter(video);
+    const playbackError = (adapter as unknown as {
+      mapHlsError: (value: unknown) => { details?: Record<string, unknown> };
+    }).mapHlsError({
+      type: 'networkError',
+      details: 'fragLoadError',
+      reason: 'segment request failed with status 404',
+      fatal: false,
+    });
+
+    expect(playbackError.details?.httpStatus).toBe(404);
+  });
 });

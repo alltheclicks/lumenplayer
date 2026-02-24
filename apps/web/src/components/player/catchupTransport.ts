@@ -155,13 +155,54 @@ const dedupeAttempts = (attempts: CatchUpTransportAttempt[]): CatchUpTransportAt
       ...attempt,
       url: rewrittenUrl,
     });
-
-    if (uniqueAttempts.length >= MAX_CATCH_UP_ATTEMPTS) {
-      break;
-    }
   }
 
   return uniqueAttempts;
+};
+
+const limitAttemptPlanSize = (
+  attempts: CatchUpTransportAttempt[],
+  options: {
+    ensureStreamFallback: boolean;
+  },
+): CatchUpTransportAttempt[] => {
+  if (attempts.length <= MAX_CATCH_UP_ATTEMPTS) {
+    return attempts;
+  }
+
+  const limitedAttempts = attempts.slice(0, MAX_CATCH_UP_ATTEMPTS);
+  if (!options.ensureStreamFallback) {
+    return limitedAttempts;
+  }
+
+  const hasStreamFallbackAttempt = limitedAttempts.some((attempt) => (
+    attempt.strategy === 'stream-fallback'
+  ));
+  if (hasStreamFallbackAttempt) {
+    return limitedAttempts;
+  }
+
+  const streamFallbackCandidate = attempts
+    .slice(MAX_CATCH_UP_ATTEMPTS)
+    .find((attempt) => attempt.strategy === 'stream-fallback');
+  if (!streamFallbackCandidate) {
+    return limitedAttempts;
+  }
+
+  let replacementIndex = limitedAttempts.length - 1;
+  while (
+    replacementIndex > 0 &&
+    (
+      limitedAttempts[replacementIndex]?.strategy === 'redirect-primary' ||
+      limitedAttempts[replacementIndex]?.strategy === 'primary-retry' ||
+      limitedAttempts[replacementIndex]?.strategy === 'primary-query'
+    )
+  ) {
+    replacementIndex -= 1;
+  }
+
+  limitedAttempts[replacementIndex] = streamFallbackCandidate;
+  return limitedAttempts;
 };
 
 export const clearCatchUpHostAffinityMemory = (): void => {
@@ -261,6 +302,37 @@ export const applyKnownCatchUpHostAffinity = (url: string): string => {
   return rewriteCatchUpUrlTargetOrigin(url, preferredOrigin);
 };
 
+export const toCatchUpProxyUrl = (url: string): string => {
+  const parsedTarget = parseTargetUrl(url);
+  if (!parsedTarget || parsedTarget.encodedProxyTarget) {
+    return url;
+  }
+
+  const runtimeOrigin = getRuntimeOrigin();
+  const runtimeOriginUrl = parseUrl(runtimeOrigin);
+  if (!runtimeOriginUrl) {
+    return url;
+  }
+
+  if (parsedTarget.requestUrl.origin === runtimeOriginUrl.origin) {
+    return url;
+  }
+
+  const encodedTarget = encodeURIComponent(
+    normalizeServerBase(parsedTarget.targetServerUrl.origin),
+  );
+  const proxiedPath = `${XTREAM_PROXY_BASE_PATH}${encodedTarget}${parsedTarget.requestUrl.pathname}`;
+  const proxiedUrl = new URL(
+    proxiedPath.startsWith('/')
+      ? proxiedPath
+      : `/${proxiedPath}`,
+    runtimeOrigin,
+  );
+  proxiedUrl.search = parsedTarget.requestUrl.search;
+  proxiedUrl.hash = parsedTarget.requestUrl.hash;
+  return proxiedUrl.toString();
+};
+
 export const isCatchUpFallbackStrategy = (
   strategy: CatchUpTransportAttemptStrategy,
 ): boolean => strategy === 'stream-fallback' || strategy === 'legacy';
@@ -300,6 +372,10 @@ export const buildCatchUpTransportPlan = ({
   const uniqueFallbackStreamIds = fallbackStreamIds
     .map((value) => Math.floor(value))
     .filter((value) => Number.isFinite(value) && value > 0 && value !== streamId)
+    .filter((value, index, values) => values.indexOf(value) === index);
+  const uniqueStreamFallbackOffsets = streamFallbackOffsets
+    .map((value) => Math.floor(value))
+    .filter((value) => Number.isFinite(value))
     .filter((value, index, values) => values.indexOf(value) === index);
   const streamCandidates = [streamId, ...uniqueFallbackStreamIds];
 
@@ -364,6 +440,40 @@ export const buildCatchUpTransportPlan = ({
     0,
   );
 
+  const appendStreamFallbackOffsetAttempts = (offsetMinutes: number): void => {
+    const candidateStartTimestamp = minuteAlignedStartTimestamp + offsetMinutes * 60;
+    if (candidateStartTimestamp <= 0) {
+      return;
+    }
+
+    for (const candidateStreamId of uniqueFallbackStreamIds) {
+      appendUrls(
+        urlBuilder.getCatchUpRedirectUrlVariants(
+          candidateStreamId,
+          candidateStartTimestamp,
+          normalizedDurationSeconds,
+        ),
+        'stream-fallback',
+        candidateStreamId,
+        candidateStartTimestamp,
+        offsetMinutes,
+      );
+      appendUrls(
+        urlBuilder.getCatchUpUrlVariants(
+          candidateStreamId,
+          candidateStartTimestamp,
+          normalizedDurationSeconds,
+        ),
+        'stream-fallback',
+        candidateStreamId,
+        candidateStartTimestamp,
+        offsetMinutes,
+      );
+    }
+  };
+
+  const remainingStreamFallbackOffsets = new Set(uniqueStreamFallbackOffsets);
+
   for (const offsetMinutes of minuteStepOffsets) {
     if (offsetMinutes === 0) {
       continue;
@@ -396,38 +506,19 @@ export const buildCatchUpTransportPlan = ({
       candidateStartTimestamp,
       offsetMinutes,
     );
+
+    if (remainingStreamFallbackOffsets.delete(offsetMinutes)) {
+      appendStreamFallbackOffsetAttempts(offsetMinutes);
+    }
   }
 
-  for (const candidateStreamId of uniqueFallbackStreamIds) {
-    for (const offsetMinutes of streamFallbackOffsets) {
-      const candidateStartTimestamp = minuteAlignedStartTimestamp + offsetMinutes * 60;
-      if (candidateStartTimestamp <= 0) {
-        continue;
-      }
-
-      appendUrls(
-        urlBuilder.getCatchUpRedirectUrlVariants(
-          candidateStreamId,
-          candidateStartTimestamp,
-          normalizedDurationSeconds,
-        ),
-        'stream-fallback',
-        candidateStreamId,
-        candidateStartTimestamp,
-        offsetMinutes,
-      );
-      appendUrls(
-        urlBuilder.getCatchUpUrlVariants(
-          candidateStreamId,
-          candidateStartTimestamp,
-          normalizedDurationSeconds,
-        ),
-        'stream-fallback',
-        candidateStreamId,
-        candidateStartTimestamp,
-        offsetMinutes,
-      );
+  for (const offsetMinutes of uniqueStreamFallbackOffsets) {
+    if (!remainingStreamFallbackOffsets.has(offsetMinutes)) {
+      continue;
     }
+
+    remainingStreamFallbackOffsets.delete(offsetMinutes);
+    appendStreamFallbackOffsetAttempts(offsetMinutes);
   }
 
   for (const candidateStreamId of streamCandidates) {
@@ -445,14 +536,17 @@ export const buildCatchUpTransportPlan = ({
   }
 
   const deduplicatedAttempts = dedupeAttempts(attempts);
-  const initialAttempt = deduplicatedAttempts[0];
+  const plannedAttempts = limitAttemptPlanSize(deduplicatedAttempts, {
+    ensureStreamFallback: uniqueFallbackStreamIds.length > 0,
+  });
+  const initialAttempt = plannedAttempts[0];
   if (!initialAttempt) {
     throw new Error('Unable to build catch-up transport plan');
   }
 
   return {
     initialAttempt,
-    fallbackAttempts: deduplicatedAttempts.slice(1),
-    allAttempts: deduplicatedAttempts,
+    fallbackAttempts: plannedAttempts.slice(1),
+    allAttempts: plannedAttempts,
   };
 };

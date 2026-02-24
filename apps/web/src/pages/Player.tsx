@@ -87,7 +87,10 @@ import { resolveCatchUpEmptyStateReason } from '@/components/player/catchUpEmpty
 import { hasLiveCatchUpEntries, shouldShowLiveCatchUpSection } from '@/pages/liveCatchUpVisibility';
 import { resolveCatchUpClockActionTarget } from '@/pages/liveCatchUpDiscoverability';
 import { resolveXtreamCanonicalServer } from '@/config/xtream';
-import { buildCatchUpTransportPlan } from '@/components/player/catchupTransport';
+import {
+  buildCatchUpTransportPlan,
+  clearCatchUpHostAffinityMemory,
+} from '@/components/player/catchupTransport';
 
 type SessionSourceMetadata = {
   channelId?: string;
@@ -878,6 +881,7 @@ const Player = () => {
     const duration = Math.floor(
       (program.endTime.getTime() - program.startTime.getTime()) / 1000
     );
+    clearCatchUpHostAffinityMemory();
     const catchUpTransportPlan = buildCatchUpTransportPlan({
       urlBuilder: xtreamCodesService,
       streamId: currentChannelWithEPG.streamId,
@@ -888,6 +892,8 @@ const Player = () => {
     const catchUpUrl = catchUpTransportPlan.initialAttempt.url;
     const catchUpFallbackUrls = catchUpTransportPlan.fallbackAttempts.map((attempt) => attempt.url);
     const catchUpFallbackUrl = catchUpFallbackUrls[0] ?? '';
+    const catchUpLiveFallbackUrl = currentChannelWithEPG.streamUrl ??
+      xtreamCodesService.getLiveStreamUrl(currentChannelWithEPG.streamId);
     emitWebObservabilityEvent({
       name: 'catchup.requested',
       severity: 'info',
@@ -898,8 +904,14 @@ const Player = () => {
         start: startTimestamp,
         duration,
         attempt: 1,
+        attemptIndex: 0,
         status: 'requested',
         finalHost: null,
+        finalUrlHost: null,
+        httpStatus: null,
+        contentType: null,
+        isPlayableForRuntime: false,
+        fallbackReason: null,
         errorCode: null,
         initialStrategy: catchUpTransportPlan.initialAttempt.strategy,
         initialStartTs: catchUpTransportPlan.initialAttempt.startTimestamp,
@@ -926,6 +938,8 @@ const Player = () => {
         catchUpFallbackUrls,
         catchUpFallbackIndex: -1,
         catchUpFallbackUsed: false,
+        catchUpLiveFallbackUrl,
+        catchUpLiveFallbackTitle: currentChannelWithEPG.name,
       },
     };
 

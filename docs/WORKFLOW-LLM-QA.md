@@ -260,6 +260,8 @@ When reproducing `Greška u mreži` for catch-up, run this sequence before codin
      - valid playlist (`application/x-mpegurl`, `#EXTM3U`)
      - TS payload (`video/mp2t`)
      - empty/HTML error (`404` or `200` with `0` bytes)
+   - for web/browser runtime specifically:
+     - `200` + `video/mp2t` on token URL is not auto-success; treat as `non-playable candidate` unless proven renderable in player
 4. If endpoint format mismatch is detected:
    - switch URL builder to provider-accepted format first,
    - then retest with the same stream/time tuple.
@@ -306,3 +308,23 @@ Working capture commands (Buildara):
 - `ssh filip@100.74.23.120 "tail -100 /home/filip/tv_capture/live_feed.log"`
 - `ssh filip@100.74.23.120 "tshark -r /home/filip/tv_capture/tivimate_*.pcap -Y 'http.request' -T fields -e frame.time -e http.host -e http.request.uri"`
 - `ssh filip@100.74.23.120 "tshark -r /home/filip/tv_capture/tivimate_*.pcap -Y 'http.response.code' -T fields -e frame.time -e http.response.code -e http.location"`
+
+## 16) Catch-up token payload gate for web runtime (2026-02-23)
+
+New finding from local reproduction on `RTS 1` same-day catch-up (`23:15 Dnevnik`):
+
+- request chain can end in `200` token response with `content-type: video/mp2t` and large payload;
+- browser player may still fail to render first frame/audio (appears like download behavior);
+- therefore transport success must not be inferred from `HTTP 200` alone.
+
+Operational rule for next QAF pass:
+
+1. Catch-up startup success criteria on web:
+   - final response is HLS-playable (playlist content type or parsed manifest path), and playback reaches first frame/audio.
+2. If response is `200 video/mp2t` and playback does not start:
+   - classify as `non_playable_ts_payload`;
+   - continue retry/fallback attempt plan without long stall.
+3. Observability minimum:
+   - include `responseContentType` and `rejectionReason` in `catchup.retry`/`catchup.fallback` when applicable.
+4. Closure guard:
+   - do not mark catch-up task `done` without evidence bundle proving first-frame success on real browser flow for at least one known problematic tuple (`RTS 1`, same-day archive).

@@ -50,6 +50,7 @@
 | QAF-032 | Remove static helper copy `Klikni traku za TV unazad` and keep only context-aware cues | S | done | QAF-027 |
 | QAF-033 | Align VOD/Series playback overlay controls with live player and make loading spinner non-blocking/short-lived | M | done | QAF-032 |
 | QAF-034 | Reopened catch-up runtime failure: provider redirect/token flow works in native players but web flow is still unstable in real user scenarios (`404/502`, long startup) | M | in-progress | QAF-030, QAF-003 |
+| QAF-035 | Catch-up token path can return `200 video/mp2t` in web runtime without playable frame/audio; add playable-response gate and fallback continuation policy | M | planned | QAF-034 |
 | QAF-010 | Fix player control overlay auto-hide behavior on idle | S | done | — |
 | QAF-012 | Prevent desktop player page vertical scroll drift/dead-space | S | done | — |
 | QAF-011 | Fix EPG gibberish regression in live program blocks | S | done | — |
@@ -93,6 +94,7 @@ Completion notes (2026-02-19 .. 2026-02-21):
 - QAF-032 merged via PR #209 (Greptile `5/5` after follow-up remediation commit).
 - QAF-033 merged via PR #210 (Greptile `5/5`).
 - QAF-034 is active again (`in-progress`) with comparative TiviMate traffic analysis and web-runtime parity hardening (redirect/token/retry strategy).
+- QAF-035 is queued (`planned`) from fresh browser reproduction: token redirect can return `200 video/mp2t` without playable catch-up in web runtime (`RTS 1`, same-day archive scenario).
 - Manual intake triage (`BUG-20260219-01..06`) converted into `QAF-010..QAF-014` follow-up tasks in `docs/V2-QA-FIX-BACKLOG.md`.
 - Follow-up intake tasks (`BUG-20260220-01..03`) are now closed through `QAF-015..QAF-017`.
 - Follow-up intake tasks (`BUG-20260220-04..07`) are now closed through `QAF-018..QAF-020`.

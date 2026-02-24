@@ -41,7 +41,7 @@ import {
   resolveLiveTimeshiftPositionSeconds,
 } from './liveTimeshift';
 import { emitWebObservabilityEvent } from '@/services/observability';
-import { buildCatchUpTransportPlan } from './catchupTransport';
+import { buildCatchUpTransportPlan, clearCatchUpHostAffinityMemory } from './catchupTransport';
 
 interface PlayerControlsProps {
   channel: PlayerChannel;
@@ -593,6 +593,7 @@ const PlayerControls = ({
         0,
         Math.min(duration, CATCH_UP_INITIAL_POSITION_GUARD_SECONDS)
       );
+    clearCatchUpHostAffinityMemory();
     const catchUpTransportPlan = buildCatchUpTransportPlan({
       urlBuilder: xtreamCodesService,
       streamId: channel.streamId,
@@ -603,6 +604,8 @@ const PlayerControls = ({
     const catchUpUrl = catchUpTransportPlan.initialAttempt.url;
     const catchUpFallbackUrls = catchUpTransportPlan.fallbackAttempts.map((attempt) => attempt.url);
     const catchUpFallbackUrl = catchUpFallbackUrls[0] ?? '';
+    const catchUpLiveFallbackUrl = channel.streamUrl ??
+      xtreamCodesService.getLiveStreamUrl(channel.streamId);
     const source = {
       url: catchUpUrl,
       type: 'hls' as const,
@@ -622,6 +625,8 @@ const PlayerControls = ({
         catchUpFallbackUrls,
         catchUpFallbackIndex: -1,
         catchUpFallbackUsed: false,
+        catchUpLiveFallbackUrl,
+        catchUpLiveFallbackTitle: channel.name,
       },
     };
 
@@ -635,8 +640,14 @@ const PlayerControls = ({
         start: startTimestamp,
         duration,
         attempt: 1,
+        attemptIndex: 0,
         status: 'requested',
         finalHost: null,
+        finalUrlHost: null,
+        httpStatus: null,
+        contentType: null,
+        isPlayableForRuntime: false,
+        fallbackReason: null,
         errorCode: null,
         fullDurationSeconds: fullDuration,
         initialStrategy: catchUpTransportPlan.initialAttempt.strategy,
@@ -650,7 +661,7 @@ const PlayerControls = ({
     commands.setSource(source, Math.floor(initialPositionSeconds * 1000));
     commands.play();
     return initialPositionSeconds;
-  }, [catchUpFallbackStreamIds, channel.id, channel.name, channel.streamId, commands]);
+  }, [catchUpFallbackStreamIds, channel.id, channel.name, channel.streamId, channel.streamUrl, commands]);
 
   const updateCatchUpPosition = useCallback((positionSeconds: number) => {
     if (!catchUpProgram) {

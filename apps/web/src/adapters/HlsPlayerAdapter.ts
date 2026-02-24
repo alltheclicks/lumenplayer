@@ -19,15 +19,42 @@ type SubtitleTracksListener = (
   selectedTrackId: string | null
 ) => void;
 
-interface ManifestResolvedEvent {
+export interface ManifestResolvedEvent {
   requestedUrl: string;
   manifestUrl: string;
   finalUrl: string | null;
+  httpStatus: number | null;
+  contentType: string | null;
+}
+
+export interface ManifestRuntimeGateDecision {
+  isPlayableForRuntime: boolean;
+  fallbackReason?: string | null;
+}
+
+export class ManifestRuntimeGateError extends Error {
+  readonly code = 'NON_PLAYABLE_PAYLOAD';
+  readonly manifestEvent: ManifestResolvedEvent;
+  readonly fallbackReason: string | null;
+
+  constructor(
+    manifestEvent: ManifestResolvedEvent,
+    decision: ManifestRuntimeGateDecision,
+  ) {
+    super('Manifest response is not playable for runtime');
+    this.name = 'ManifestRuntimeGateError';
+    Object.setPrototypeOf(this, ManifestRuntimeGateError.prototype);
+    this.manifestEvent = manifestEvent;
+    this.fallbackReason = decision.fallbackReason ?? null;
+  }
 }
 
 interface HlsPlayerAdapterOptions {
   preferNativeHls?: boolean;
-  onManifestResolved?: (event: ManifestResolvedEvent) => void;
+  onManifestResolved?: (
+    event: ManifestResolvedEvent
+  ) => ManifestRuntimeGateDecision | void;
+  rewriteRequestUrl?: (requestUrl: string) => string;
 }
 
 interface NativeAudioTrack {
@@ -72,12 +99,16 @@ export class HlsPlayerAdapter implements PlayerAdapter {
   private readonly audioTracksListeners = new Set<AudioTracksListener>();
   private readonly subtitleTracksListeners = new Set<SubtitleTracksListener>();
   private readonly removeVideoListeners: () => void;
-  private readonly onManifestResolved?: (event: ManifestResolvedEvent) => void;
+  private readonly onManifestResolved?: (
+    event: ManifestResolvedEvent
+  ) => ManifestRuntimeGateDecision | void;
+  private readonly rewriteRequestUrl?: (requestUrl: string) => string;
 
   constructor(video: HTMLVideoElement, options: HlsPlayerAdapterOptions = {}) {
     this.video = video;
     this.preferNativeHls = options.preferNativeHls ?? false;
     this.onManifestResolved = options.onManifestResolved;
+    this.rewriteRequestUrl = options.rewriteRequestUrl;
     this.removeVideoListeners = this.attachVideoListeners();
   }
 
@@ -107,10 +138,39 @@ export class HlsPlayerAdapter implements PlayerAdapter {
   }
 
   play(): void {
-    this.video.play().catch(() => {
+    this.video.play().catch((playError: unknown) => {
+      const errorName = (
+        playError instanceof DOMException
+          ? playError.name
+          : (
+            typeof playError === 'object' &&
+            playError !== null &&
+            typeof (playError as { name?: unknown }).name === 'string'
+              ? (playError as { name: string }).name
+              : null
+          )
+      );
+
+      // Source transitions can reject outstanding play() promises; this is expected.
+      if (errorName === 'AbortError') {
+        return;
+      }
+
+      const errorMessage = (
+        playError instanceof Error
+          ? playError.message
+          : (
+            typeof playError === 'object' &&
+            playError !== null &&
+            typeof (playError as { message?: unknown }).message === 'string'
+              ? (playError as { message: string }).message
+              : 'Unable to start playback.'
+          )
+      );
+
       this.emitError({
         code: 'PLAYBACK_START_FAILED',
-        message: 'Unable to start playback.',
+        message: errorMessage,
         fatal: false,
       });
     });
@@ -311,6 +371,49 @@ export class HlsPlayerAdapter implements PlayerAdapter {
         maxBufferSize: 60 * 1000 * 1000,
         maxBufferHole: 0.5,
         startLevel: -1,
+        xhrSetup: (xhr, requestUrl) => {
+          xhr.addEventListener('loadend', () => {
+            if (xhr.status < 400) {
+              return;
+            }
+
+            const finalUrl = (
+              typeof xhr.responseURL === 'string' && xhr.responseURL.length > 0
+                ? xhr.responseURL
+                : requestUrl
+            );
+            const contentType = (
+              xhr.getResponseHeader('content-type') ??
+              xhr.getResponseHeader('Content-Type')
+            );
+
+            this.emitError({
+              code: 'NETWORK_ERROR',
+              message: `HTTP ${xhr.status} while loading stream segment.`,
+              fatal: false,
+              details: {
+                details: 'xhr_http_error',
+                reason: `HTTP status code: ${xhr.status}`,
+                httpStatus: xhr.status,
+                contentType: contentType && contentType.trim().length > 0
+                  ? contentType.trim()
+                  : null,
+                finalUrl,
+                isPlayableForRuntime: false,
+                fallbackReason: null,
+              },
+            });
+          });
+
+          if (!this.rewriteRequestUrl) {
+            return;
+          }
+
+          const rewrittenUrl = this.rewriteRequestUrl(requestUrl);
+          if (rewrittenUrl !== requestUrl) {
+            xhr.open('GET', rewrittenUrl, true);
+          }
+        },
       });
       this.hls = hls;
 
@@ -334,14 +437,27 @@ export class HlsPlayerAdapter implements PlayerAdapter {
             const manifestUrl = typeof data.url === 'string' && data.url.length > 0
               ? data.url
               : url;
-            this.onManifestResolved?.({
+            const manifestResolvedEvent: ManifestResolvedEvent = {
               requestedUrl: url,
               manifestUrl,
               finalUrl: HlsPlayerAdapter.resolveNetworkResponseUrl(
                 data.networkDetails,
                 manifestUrl,
               ),
-            });
+              httpStatus: HlsPlayerAdapter.resolveNetworkResponseStatus(data.networkDetails),
+              contentType: HlsPlayerAdapter.resolveNetworkResponseContentType(data.networkDetails),
+            };
+
+            const runtimeGateDecision = this.onManifestResolved?.(manifestResolvedEvent);
+            if (
+              runtimeGateDecision &&
+              runtimeGateDecision.isPlayableForRuntime === false
+            ) {
+              cleanup();
+              hls.destroy();
+              reject(new ManifestRuntimeGateError(manifestResolvedEvent, runtimeGateDecision));
+              return;
+            }
           };
 
           const onHlsError = (_event: string, data: ErrorData) => {
@@ -428,6 +544,9 @@ export class HlsPlayerAdapter implements PlayerAdapter {
     const details = networkDetails as {
       responseURL?: unknown;
       url?: unknown;
+      response?: {
+        url?: unknown;
+      };
     };
     if (typeof details.responseURL === 'string' && details.responseURL.length > 0) {
       return details.responseURL;
@@ -435,12 +554,133 @@ export class HlsPlayerAdapter implements PlayerAdapter {
     if (typeof details.url === 'string' && details.url.length > 0) {
       return details.url;
     }
+    if (
+      details.response &&
+      typeof details.response.url === 'string' &&
+      details.response.url.length > 0
+    ) {
+      return details.response.url;
+    }
 
     return fallbackUrl || null;
   }
 
+  private static resolveNetworkResponseStatus(networkDetails: unknown): number | null {
+    if (!networkDetails || typeof networkDetails !== 'object') {
+      return null;
+    }
+
+    const details = networkDetails as {
+      status?: unknown;
+      code?: unknown;
+      response?: {
+        status?: unknown;
+      };
+    };
+
+    const statusCandidates = [
+      details.status,
+      details.code,
+      details.response?.status,
+    ];
+
+    for (const candidate of statusCandidates) {
+      if (typeof candidate === 'number' && Number.isFinite(candidate)) {
+        return Math.floor(candidate);
+      }
+
+      if (typeof candidate === 'string') {
+        const parsed = Number(candidate);
+        if (Number.isFinite(parsed)) {
+          return Math.floor(parsed);
+        }
+      }
+    }
+
+    return null;
+  }
+
+  private static resolveErrorResponseStatus(data: ErrorData): number | null {
+    const fromNetworkDetails = HlsPlayerAdapter.resolveNetworkResponseStatus(data.networkDetails);
+    if (fromNetworkDetails !== null) {
+      return fromNetworkDetails;
+    }
+
+    const responseCode = (data as { response?: { code?: unknown } }).response?.code;
+    if (typeof responseCode === 'number' && Number.isFinite(responseCode)) {
+      return Math.floor(responseCode);
+    }
+    if (typeof responseCode === 'string') {
+      const parsedResponseCode = Number(responseCode);
+      if (Number.isFinite(parsedResponseCode)) {
+        return Math.floor(parsedResponseCode);
+      }
+    }
+
+    const statusPattern = /\b([1-5]\d{2})\b/;
+    const reasonText = typeof data.reason === 'string' ? data.reason : '';
+    const detailsText = typeof data.details === 'string' ? data.details : '';
+    const statusMatch = reasonText.match(statusPattern) ?? detailsText.match(statusPattern);
+    if (statusMatch?.[1]) {
+      const parsedFromText = Number(statusMatch[1]);
+      if (Number.isFinite(parsedFromText)) {
+        return Math.floor(parsedFromText);
+      }
+    }
+
+    return null;
+  }
+
+  private static resolveNetworkResponseContentType(networkDetails: unknown): string | null {
+    if (!networkDetails || typeof networkDetails !== 'object') {
+      return null;
+    }
+
+    const details = networkDetails as {
+      getResponseHeader?: (name: string) => string | null;
+      response?: {
+        headers?: {
+          get?: (name: string) => string | null;
+        };
+      };
+      headers?: Record<string, unknown>;
+    };
+
+    if (typeof details.getResponseHeader === 'function') {
+      const fromHeader = details.getResponseHeader('content-type') ??
+        details.getResponseHeader('Content-Type');
+      if (typeof fromHeader === 'string' && fromHeader.trim().length > 0) {
+        return fromHeader.trim();
+      }
+    }
+
+    if (
+      details.response?.headers &&
+      typeof details.response.headers.get === 'function'
+    ) {
+      const fromResponseHeaders = details.response.headers.get('content-type');
+      if (typeof fromResponseHeaders === 'string' && fromResponseHeaders.trim().length > 0) {
+        return fromResponseHeaders.trim();
+      }
+    }
+
+    if (details.headers && typeof details.headers === 'object') {
+      const fromHeadersMap = details.headers['content-type'] ?? details.headers['Content-Type'];
+      if (typeof fromHeadersMap === 'string' && fromHeadersMap.trim().length > 0) {
+        return fromHeadersMap.trim();
+      }
+    }
+
+    return null;
+  }
+
   private attachVideoListeners(): () => void {
-    const handlePlay = () => this.updateState('playing');
+    const handlePlay = () => {
+      // `play` can fire before the first decodable frame is available.
+      // Keep startup in buffering until `playing` confirms runtime progress.
+      this.updateState(this.video.readyState >= 2 ? 'playing' : 'buffering');
+    };
+    const handlePlaying = () => this.updateState('playing');
     const handlePause = () => this.updateState('paused');
     const handleWaiting = () => this.updateState('buffering');
     const handleEnded = () => this.updateState('ended');
@@ -478,6 +718,7 @@ export class HlsPlayerAdapter implements PlayerAdapter {
     };
 
     this.video.addEventListener('play', handlePlay);
+    this.video.addEventListener('playing', handlePlaying);
     this.video.addEventListener('pause', handlePause);
     this.video.addEventListener('waiting', handleWaiting);
     this.video.addEventListener('ended', handleEnded);
@@ -499,6 +740,7 @@ export class HlsPlayerAdapter implements PlayerAdapter {
 
     return () => {
       this.video.removeEventListener('play', handlePlay);
+      this.video.removeEventListener('playing', handlePlaying);
       this.video.removeEventListener('pause', handlePause);
       this.video.removeEventListener('waiting', handleWaiting);
       this.video.removeEventListener('ended', handleEnded);
@@ -540,12 +782,23 @@ export class HlsPlayerAdapter implements PlayerAdapter {
   }
 
   private mapHlsError(data: ErrorData): PlaybackError {
+    const fallbackUrl = typeof data.url === 'string' ? data.url : '';
+    const runtimeDetails = {
+      details: data.details,
+      reason: typeof data.reason === 'string' ? data.reason : null,
+      httpStatus: HlsPlayerAdapter.resolveErrorResponseStatus(data),
+      contentType: HlsPlayerAdapter.resolveNetworkResponseContentType(data.networkDetails),
+      finalUrl: HlsPlayerAdapter.resolveNetworkResponseUrl(data.networkDetails, fallbackUrl),
+      isPlayableForRuntime: false,
+      fallbackReason: null,
+    };
+
     if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
       return {
         code: 'NETWORK_ERROR',
         message: 'Network error while loading stream.',
         fatal: data.fatal,
-        details: data.details,
+        details: runtimeDetails,
       };
     }
 
@@ -554,7 +807,7 @@ export class HlsPlayerAdapter implements PlayerAdapter {
         code: 'MEDIA_ERROR',
         message: 'Media error while decoding stream.',
         fatal: data.fatal,
-        details: data.details,
+        details: runtimeDetails,
       };
     }
 
@@ -562,7 +815,7 @@ export class HlsPlayerAdapter implements PlayerAdapter {
       code: 'HLS_ERROR',
       message: data.details || 'Unknown HLS playback error.',
       fatal: data.fatal,
-      details: data.details,
+      details: runtimeDetails,
     };
   }
 
