@@ -84,6 +84,7 @@ describe('HlsPlayerAdapter', () => {
       code: 'PLAYBACK_START_FAILED',
       fatal: false,
     }));
+    expect(adapter.getState()).not.toBe('error');
   });
 
   it('extracts HTTP status from hls.js response payload when network details are missing', () => {
@@ -117,5 +118,52 @@ describe('HlsPlayerAdapter', () => {
     });
 
     expect(playbackError.details?.httpStatus).toBe(404);
+  });
+
+  it('attempts hls media recovery on decode media-element errors', () => {
+    const mediaErrorBackup = (globalThis as { MediaError?: unknown }).MediaError;
+    if (typeof mediaErrorBackup === 'undefined') {
+      (globalThis as { MediaError: { MEDIA_ERR_SRC_NOT_SUPPORTED: number; MEDIA_ERR_DECODE: number } }).MediaError = {
+        MEDIA_ERR_SRC_NOT_SUPPORTED: 4,
+        MEDIA_ERR_DECODE: 3,
+      };
+    }
+
+    try {
+      const video = createMockVideoElement();
+      const adapter = new HlsPlayerAdapter(video);
+      const onError = vi.fn();
+      adapter.onError(onError);
+
+      const recoverMediaError = vi.fn();
+      (adapter as unknown as { hls: { recoverMediaError: () => void } }).hls = {
+        recoverMediaError,
+      };
+
+      (video as unknown as { error: { code: number; message: string } }).error = {
+        code: 3,
+        message: 'decode error',
+      };
+
+      const errorListenerCall = (
+        (video.addEventListener as unknown as { mock?: { calls?: unknown[][] } }).mock?.calls ?? []
+      ).find((call) => call[0] === 'error');
+      const errorListener = errorListenerCall?.[1] as (() => void) | undefined;
+      expect(typeof errorListener).toBe('function');
+
+      errorListener?.();
+
+      expect(recoverMediaError).toHaveBeenCalledTimes(1);
+      expect(onError).toHaveBeenCalledWith(expect.objectContaining({
+        code: 'MEDIA_ELEMENT_3',
+        fatal: false,
+      }));
+    } finally {
+      if (typeof mediaErrorBackup === 'undefined') {
+        delete (globalThis as { MediaError?: unknown }).MediaError;
+      } else {
+        (globalThis as { MediaError?: unknown }).MediaError = mediaErrorBackup;
+      }
+    }
   });
 });

@@ -9,6 +9,7 @@ import type {
 } from '@lumen/types';
 
 const HLS_MIME_TYPE = 'application/vnd.apple.mpegurl';
+const MEDIA_DECODE_RECOVERY_COOLDOWN_MS = 2_000;
 
 type StateListener = (state: PlaybackState) => void;
 type ErrorListener = (error: PlaybackError) => void;
@@ -51,6 +52,7 @@ export class ManifestRuntimeGateError extends Error {
 
 interface HlsPlayerAdapterOptions {
   preferNativeHls?: boolean;
+  lowLatencyMode?: boolean;
   onManifestResolved?: (
     event: ManifestResolvedEvent
   ) => ManifestRuntimeGateDecision | void;
@@ -87,6 +89,7 @@ interface NativeTextTrackListLike {
 export class HlsPlayerAdapter implements PlayerAdapter {
   private readonly video: HTMLVideoElement;
   private readonly preferNativeHls: boolean;
+  private readonly lowLatencyMode: boolean;
   private hls: Hls | null = null;
   private audioTracks: AudioTrackOption[] = [];
   private selectedAudioTrackId: string | null = null;
@@ -103,10 +106,12 @@ export class HlsPlayerAdapter implements PlayerAdapter {
     event: ManifestResolvedEvent
   ) => ManifestRuntimeGateDecision | void;
   private readonly rewriteRequestUrl?: (requestUrl: string) => string;
+  private lastDecodeRecoveryAtMs = 0;
 
   constructor(video: HTMLVideoElement, options: HlsPlayerAdapterOptions = {}) {
     this.video = video;
     this.preferNativeHls = options.preferNativeHls ?? false;
+    this.lowLatencyMode = options.lowLatencyMode ?? false;
     this.onManifestResolved = options.onManifestResolved;
     this.rewriteRequestUrl = options.rewriteRequestUrl;
     this.removeVideoListeners = this.attachVideoListeners();
@@ -364,13 +369,21 @@ export class HlsPlayerAdapter implements PlayerAdapter {
     if (Hls.isSupported()) {
       const hls = new Hls({
         enableWorker: true,
-        lowLatencyMode: true,
+        lowLatencyMode: this.lowLatencyMode,
         backBufferLength: 90,
         maxBufferLength: 30,
         maxMaxBufferLength: 600,
         maxBufferSize: 60 * 1000 * 1000,
         maxBufferHole: 0.5,
         startLevel: -1,
+        fragLoadPolicy: {
+          default: {
+            maxTimeToFirstByteMs: 8_000,
+            maxLoadTimeMs: 30_000,
+            timeoutRetry: { maxNumRetry: 1, retryDelayMs: 500, maxRetryDelayMs: 2_000 },
+            errorRetry: { maxNumRetry: 1, retryDelayMs: 500, maxRetryDelayMs: 2_000 },
+          },
+        },
         xhrSetup: (xhr, requestUrl) => {
           xhr.addEventListener('loadend', () => {
             if (xhr.status < 400) {
@@ -460,11 +473,37 @@ export class HlsPlayerAdapter implements PlayerAdapter {
             }
           };
 
+          let hlsFatalRecoveryAttempted = false;
+
           const onHlsError = (_event: string, data: ErrorData) => {
             const mappedError = this.mapHlsError(data);
             this.emitError(mappedError);
 
             if (!data.fatal) {
+              return;
+            }
+
+            // Attempt one recovery before destroying the instance.
+            // Delay recovery to avoid hammering the server (429 rate-limit).
+            if (!hlsFatalRecoveryAttempted && data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+              hlsFatalRecoveryAttempted = true;
+              setTimeout(() => {
+                if (this.hls !== hls) {
+                  return;
+                }
+                hls.startLoad(-1);
+              }, 2_000);
+              return;
+            }
+
+            if (!hlsFatalRecoveryAttempted && data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+              hlsFatalRecoveryAttempted = true;
+              setTimeout(() => {
+                if (this.hls !== hls) {
+                  return;
+                }
+                hls.recoverMediaError();
+              }, 1_000);
               return;
             }
 
@@ -697,6 +736,23 @@ export class HlsPlayerAdapter implements PlayerAdapter {
 
       const isSrcNotSupported = mediaError.code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED;
       const isManagedByHls = this.hls !== null;
+      const mediaErrDecodeCode = (
+        typeof MediaError !== 'undefined' &&
+        typeof MediaError.MEDIA_ERR_DECODE === 'number'
+      ) ? MediaError.MEDIA_ERR_DECODE : 3;
+      const isDecodeError = mediaError.code === mediaErrDecodeCode;
+
+      if (isManagedByHls && isDecodeError) {
+        const nowMs = Date.now();
+        if (nowMs - this.lastDecodeRecoveryAtMs >= MEDIA_DECODE_RECOVERY_COOLDOWN_MS) {
+          this.lastDecodeRecoveryAtMs = nowMs;
+          try {
+            this.hls?.recoverMediaError();
+          } catch {
+            // Ignore recover failures and continue through normal error flow.
+          }
+        }
+      }
 
       this.emitError({
         code: `MEDIA_ELEMENT_${mediaError.code}`,
@@ -820,7 +876,9 @@ export class HlsPlayerAdapter implements PlayerAdapter {
   }
 
   private emitError(error: PlaybackError): void {
-    this.updateState('error');
+    if (error.fatal) {
+      this.updateState('error');
+    }
     this.errorListeners.forEach((listener) => listener(error));
   }
 

@@ -290,7 +290,7 @@ const buildCatchUpFallbackStreamIdsByChannelId = (
 
 const PICTURE_IN_PICTURE_KEY_CODE = 80; // Keyboard "P"
 const ON_DEMAND_LOADING_OVERLAY_MAX_MS = 2500;
-const CATCH_UP_INITIAL_POSITION_GUARD_MS = 15_000;
+const CATCH_UP_INITIAL_POSITION_GUARD_MS = 0;
 
 const clampVolumePercent = (value: number): number => Math.max(0, Math.min(100, Math.round(value)));
 const DEFAULT_ON_DEMAND_VOLUME = clampVolumePercent(getDefaultAppSettings().player.defaultVolume);
@@ -938,6 +938,7 @@ const Player = () => {
         catchUpFallbackUrls,
         catchUpFallbackIndex: -1,
         catchUpFallbackUsed: false,
+        catchUpRuntimePlaybackStarted: false,
         catchUpLiveFallbackUrl,
         catchUpLiveFallbackTitle: currentChannelWithEPG.name,
       },

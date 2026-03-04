@@ -80,7 +80,7 @@ const LONG_PRESS_THRESHOLD_MS = 250;
 const CONTROLS_IDLE_TIMEOUT_MS = 3000;
 const CONTROLS_IDLE_GRACE_MS = 1000;
 const CATCH_UP_REASON_REFRESH_MS = 60_000;
-const CATCH_UP_INITIAL_POSITION_GUARD_SECONDS = 15;
+const CATCH_UP_INITIAL_POSITION_GUARD_SECONDS = 0;
 
 const parseSessionSourceMetadata = (
   metadata: Record<string, unknown> | undefined
@@ -625,6 +625,7 @@ const PlayerControls = ({
         catchUpFallbackUrls,
         catchUpFallbackIndex: -1,
         catchUpFallbackUsed: false,
+        catchUpRuntimePlaybackStarted: false,
         catchUpLiveFallbackUrl,
         catchUpLiveFallbackTitle: channel.name,
       },

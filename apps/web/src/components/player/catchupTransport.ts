@@ -1,8 +1,11 @@
 const XTREAM_PROXY_BASE_PATH = '/xui-api/';
 const DEFAULT_BASE_ORIGIN = 'http://localhost';
-const MAX_CATCH_UP_ATTEMPTS = 48;
+const MAX_CATCH_UP_ATTEMPTS = 20;
+const CATCH_UP_SHORT_DURATION_REORDER_MIN_EXPECTED_SECONDS = 600;
+const CATCH_UP_SHORT_DURATION_REORDER_MAX_RATIO = 0.25;
+const CATCH_UP_SHORT_DURATION_REORDER_ABSOLUTE_SECONDS = 180;
 
-export const CATCH_UP_MINUTE_STEP_OFFSETS = [-1, -2, -3, 1, -5, 2, -10, -15, 5] as const;
+export const CATCH_UP_MINUTE_STEP_OFFSETS = [1, -1, -2, -3, 2, -5, 5, -10, -15] as const;
 export const CATCH_UP_STREAM_FALLBACK_OFFSETS = [0, -1, -2, 1, -5] as const;
 
 export type CatchUpTransportAttemptStrategy =
@@ -130,6 +133,173 @@ const alignTimestampToMinute = (timestampSeconds: number): number => {
   return Math.floor(normalized / 60) * 60;
 };
 
+const parseFiniteInteger = (value: unknown): number | null => {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return Math.floor(value);
+  }
+
+  if (typeof value === 'string') {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) {
+      return Math.floor(parsed);
+    }
+  }
+
+  return null;
+};
+
+const resolveCatchUpAttemptDurationSeconds = (attemptUrl: string): number | null => {
+  if (typeof attemptUrl !== 'string' || attemptUrl.trim().length === 0) {
+    return null;
+  }
+
+  try {
+    const parsedUrl = new URL(attemptUrl);
+    const queryDuration = parseFiniteInteger(parsedUrl.searchParams.get('duration'));
+    if (queryDuration !== null && queryDuration > 0) {
+      return queryDuration;
+    }
+
+    const pathMatch = parsedUrl.pathname.match(
+      /\/timeshift\/[^/]+\/[^/]+\/(\d+)\/[^/?#]+\/\d+\.(?:ts|m3u8)(?:[?#].*)?$/i,
+    );
+    if (pathMatch?.[1]) {
+      const pathDuration = parseFiniteInteger(pathMatch[1]);
+      if (pathDuration !== null && pathDuration > 0) {
+        return pathDuration;
+      }
+    }
+  } catch {
+    // Ignore malformed URLs.
+  }
+
+  const queryMatch = attemptUrl.match(/[?&]duration=(\d+)(?:&|$)/i);
+  if (queryMatch?.[1]) {
+    const queryDuration = parseFiniteInteger(queryMatch[1]);
+    if (queryDuration !== null && queryDuration > 0) {
+      return queryDuration;
+    }
+  }
+
+  const pathMatch = attemptUrl.match(
+    /\/timeshift\/[^/]+\/[^/]+\/(\d+)\/[^/?#]+\/\d+\.(?:ts|m3u8)(?:[?#].*)?$/i,
+  );
+  if (pathMatch?.[1]) {
+    const pathDuration = parseFiniteInteger(pathMatch[1]);
+    if (pathDuration !== null && pathDuration > 0) {
+      return pathDuration;
+    }
+  }
+
+  return null;
+};
+
+const isShortDurationAttemptVariant = (
+  attempt: CatchUpTransportAttempt,
+  expectedDurationSeconds: number,
+): boolean => {
+  if (
+    !Number.isFinite(expectedDurationSeconds) ||
+    expectedDurationSeconds < CATCH_UP_SHORT_DURATION_REORDER_MIN_EXPECTED_SECONDS
+  ) {
+    return false;
+  }
+
+  const attemptDurationSeconds = resolveCatchUpAttemptDurationSeconds(attempt.url);
+  if (
+    attemptDurationSeconds === null ||
+    !Number.isFinite(attemptDurationSeconds) ||
+    attemptDurationSeconds >= expectedDurationSeconds
+  ) {
+    return false;
+  }
+
+  const maxShortDurationSeconds = Math.max(
+    CATCH_UP_SHORT_DURATION_REORDER_ABSOLUTE_SECONDS,
+    Math.floor(expectedDurationSeconds * CATCH_UP_SHORT_DURATION_REORDER_MAX_RATIO),
+  );
+  return attemptDurationSeconds <= maxShortDurationSeconds;
+};
+
+const reorderShortDurationAttemptsToTail = (
+  attempts: CatchUpTransportAttempt[],
+  expectedDurationSeconds: number,
+): CatchUpTransportAttempt[] => {
+  if (attempts.length <= 1) {
+    return attempts;
+  }
+
+  const longDurationAttempts: CatchUpTransportAttempt[] = [];
+  const shortDurationAttempts: CatchUpTransportAttempt[] = [];
+  for (const attempt of attempts) {
+    if (isShortDurationAttemptVariant(attempt, expectedDurationSeconds)) {
+      shortDurationAttempts.push(attempt);
+      continue;
+    }
+
+    longDurationAttempts.push(attempt);
+  }
+
+  if (shortDurationAttempts.length === 0 || longDurationAttempts.length === 0) {
+    return attempts;
+  }
+
+  return [...longDurationAttempts, ...shortDurationAttempts];
+};
+
+const isManifestLikeAttemptUrl = (attemptUrl: string): boolean => {
+  if (typeof attemptUrl !== 'string' || attemptUrl.trim().length === 0) {
+    return false;
+  }
+
+  const parsedUrl = parseUrl(attemptUrl);
+  if (parsedUrl) {
+    const normalizedPath = parsedUrl.pathname.toLowerCase();
+    if (normalizedPath.endsWith('.m3u8')) {
+      return true;
+    }
+
+    const extensionValue = parsedUrl.searchParams.get('extension')?.toLowerCase() ?? '';
+    if (extensionValue === 'm3u8') {
+      return true;
+    }
+
+    const formatValue = parsedUrl.searchParams.get('format')?.toLowerCase() ?? '';
+    if (formatValue === 'm3u8') {
+      return true;
+    }
+  }
+
+  return (
+    /\.m3u8(?:[?#]|$)/i.test(attemptUrl) ||
+    /[?&]extension=m3u8(?:&|$)/i.test(attemptUrl) ||
+    /[?&]format=m3u8(?:&|$)/i.test(attemptUrl)
+  );
+};
+
+const prioritizeManifestLikeUrls = (urls: string[]): string[] => {
+  if (urls.length <= 1) {
+    return urls;
+  }
+
+  const manifestLikeUrls: string[] = [];
+  const nonManifestLikeUrls: string[] = [];
+  for (const url of urls) {
+    if (isManifestLikeAttemptUrl(url)) {
+      manifestLikeUrls.push(url);
+      continue;
+    }
+
+    nonManifestLikeUrls.push(url);
+  }
+
+  if (manifestLikeUrls.length === 0 || nonManifestLikeUrls.length === 0) {
+    return urls;
+  }
+
+  return [...manifestLikeUrls, ...nonManifestLikeUrls];
+};
+
 const buildRetryUrl = (url: string, retryAttempt: number): string => {
   const parsed = parseUrl(url);
   if (!parsed) {
@@ -140,12 +310,63 @@ const buildRetryUrl = (url: string, retryAttempt: number): string => {
   return parsed.toString();
 };
 
+/**
+ * Returns true when the URL uses the credential-path catch-up format
+ * (`/timeshift/{user}/{pass}/{duration}/{start}/{streamId}.{ext}`).
+ * These URLs embed login credentials in the path and MUST hit the
+ * original login server so the server can issue the redirect/token.
+ * Host-affinity rewriting would bypass that handshake and cause 401s.
+ */
+export const isCredentialPathCatchUpUrl = (url: string): boolean => {
+  const parsed = parseTargetUrl(url);
+  if (!parsed) {
+    return false;
+  }
+
+  const targetPathname = parsed.targetServerUrl.pathname + parsed.proxySuffixPath;
+  return /\/timeshift\/[^/]+\/[^/]+\/\d+\/[^/]+\/\d+\.(?:ts|m3u8)/i.test(targetPathname);
+};
+
+export const isCredentialQueryCatchUpUrl = (url: string): boolean => {
+  const parsed = parseTargetUrl(url);
+  if (!parsed) {
+    return false;
+  }
+
+  const searchParams = parsed.requestUrl.searchParams;
+  return (
+    (searchParams.has('username') && searchParams.has('password')) ||
+    (searchParams.has('user') && searchParams.has('pass'))
+  );
+};
+
+/**
+ * Determines whether host-affinity rewriting is safe for the given
+ * attempt URL.  Credential-path and credential-query URLs must NOT
+ * be rewritten because the login server needs to see the original
+ * host to issue a valid redirect/token.  Only token-based URLs
+ * (already redirected) are safe to rewrite.
+ */
+export const shouldApplyHostAffinityToAttempt = (url: string): boolean => {
+  if (isCredentialPathCatchUpUrl(url)) {
+    return false;
+  }
+
+  if (isCredentialQueryCatchUpUrl(url)) {
+    return false;
+  }
+
+  return true;
+};
+
 const dedupeAttempts = (attempts: CatchUpTransportAttempt[]): CatchUpTransportAttempt[] => {
   const uniqueAttempts: CatchUpTransportAttempt[] = [];
   const seenUrls = new Set<string>();
 
   for (const attempt of attempts) {
-    const rewrittenUrl = applyKnownCatchUpHostAffinity(attempt.url);
+    const rewrittenUrl = shouldApplyHostAffinityToAttempt(attempt.url)
+      ? applyKnownCatchUpHostAffinity(attempt.url)
+      : attempt.url;
     if (seenUrls.has(rewrittenUrl)) {
       continue;
     }
@@ -387,7 +608,7 @@ export const buildCatchUpTransportPlan = ({
     candidateStartTimestamp: number,
     offsetMinutes: number,
   ) => {
-    for (const url of urls) {
+    for (const url of prioritizeManifestLikeUrls(urls)) {
       attempts.push({
         url,
         streamId: candidateStreamId,
@@ -399,11 +620,11 @@ export const buildCatchUpTransportPlan = ({
     }
   };
 
-  const primaryRedirectUrls = urlBuilder.getCatchUpRedirectUrlVariants(
+  const primaryRedirectUrls = prioritizeManifestLikeUrls(urlBuilder.getCatchUpRedirectUrlVariants(
     streamId,
     minuteAlignedStartTimestamp,
     normalizedDurationSeconds,
-  );
+  ));
   appendUrls(
     primaryRedirectUrls,
     'redirect-primary',
@@ -536,7 +757,11 @@ export const buildCatchUpTransportPlan = ({
   }
 
   const deduplicatedAttempts = dedupeAttempts(attempts);
-  const plannedAttempts = limitAttemptPlanSize(deduplicatedAttempts, {
+  const reorderedAttempts = reorderShortDurationAttemptsToTail(
+    deduplicatedAttempts,
+    normalizedDurationSeconds,
+  );
+  const plannedAttempts = limitAttemptPlanSize(reorderedAttempts, {
     ensureStreamFallback: uniqueFallbackStreamIds.length > 0,
   });
   const initialAttempt = plannedAttempts[0];

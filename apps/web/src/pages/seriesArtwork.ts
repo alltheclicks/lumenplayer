@@ -24,13 +24,40 @@ const SERIES_BACKDROP_KEYS = [
   'backdrop_url',
 ] as const;
 
-const normalizeArtworkCandidate = (value: string): string => (
-  value.replace(/\\\//g, '/').replace(/&amp;/gi, '&').trim()
-);
+const OBJECT_CANDIDATE_KEYS = [
+  'url',
+  'src',
+  'path',
+  'image',
+  'cover',
+  'cover_big',
+  'movie_image',
+  'poster',
+  'backdrop',
+  'backdrop_path',
+] as const;
+
+const normalizeArtworkCandidate = (value: string): string => {
+  const normalized = value
+    .replace(/\\\//g, '/')
+    .replace(/&amp;/gi, '&')
+    .trim()
+    .replace(/^['"]+|['"]+$/g, '');
+
+  if (normalized.startsWith('//')) {
+    return `https:${normalized}`;
+  }
+
+  return normalized;
+};
 
 const isValidArtworkCandidate = (value: string): boolean => {
   const normalized = value.trim().toLowerCase();
-  return !EMPTY_ARTWORK_VALUES.has(normalized);
+  if (EMPTY_ARTWORK_VALUES.has(normalized)) {
+    return false;
+  }
+
+  return !normalized.startsWith('{') && !normalized.startsWith('[');
 };
 
 const toStringCandidates = (value: unknown): string[] => {
@@ -40,11 +67,16 @@ const toStringCandidates = (value: unknown): string[] => {
       return [];
     }
 
-    if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+    if (
+      (trimmed.startsWith('[') && trimmed.endsWith(']')) ||
+      (trimmed.startsWith('{') && trimmed.endsWith('}')) ||
+      (trimmed.startsWith('"') && trimmed.endsWith('"'))
+    ) {
       try {
         const parsed = JSON.parse(trimmed);
-        if (Array.isArray(parsed)) {
-          return parsed.filter((entry): entry is string => typeof entry === 'string');
+        const parsedCandidates = toStringCandidates(parsed);
+        if (parsedCandidates.length > 0) {
+          return parsedCandidates;
         }
       } catch {
         // Keep raw string candidate when provider returns malformed JSON-ish values.
@@ -55,7 +87,17 @@ const toStringCandidates = (value: unknown): string[] => {
   }
 
   if (Array.isArray(value)) {
-    return value.filter((entry): entry is string => typeof entry === 'string');
+    return value.flatMap((entry) => toStringCandidates(entry));
+  }
+
+  if (value && typeof value === 'object') {
+    const objectValue = value as Record<string, unknown>;
+    const prioritizedCandidates = OBJECT_CANDIDATE_KEYS.flatMap((key) => toStringCandidates(objectValue[key]));
+    if (prioritizedCandidates.length > 0) {
+      return prioritizedCandidates;
+    }
+
+    return Object.values(objectValue).flatMap((entry) => toStringCandidates(entry));
   }
 
   return [];
@@ -86,6 +128,11 @@ export const resolveSeriesArtworkUrl = (
 
 export const resolveSeriesBackdropUrl = (
   source: Record<string, unknown>
-): string => (
-  resolveArtworkFromKeys(source, SERIES_BACKDROP_KEYS)
-);
+): string => {
+  const backdrop = resolveArtworkFromKeys(source, SERIES_BACKDROP_KEYS);
+  if (backdrop.length > 0) {
+    return backdrop;
+  }
+
+  return resolveArtworkFromKeys(source, SERIES_ARTWORK_KEYS);
+};

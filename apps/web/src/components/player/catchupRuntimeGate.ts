@@ -205,6 +205,18 @@ export const evaluateCatchUpRuntimePayload = (
   const normalizedContentType = normalizeContentType(payload.contentType);
   const candidateUrl = payload.finalUrl ?? payload.manifestUrl ?? payload.requestedUrl;
 
+  if (
+    typeof payload.httpStatus === 'number' &&
+    Number.isFinite(payload.httpStatus) &&
+    payload.httpStatus >= 400
+  ) {
+    return {
+      isPlayableForRuntime: false,
+      fallbackReason: 'network_error',
+      contentType: normalizedContentType,
+    };
+  }
+
   if (normalizedContentType) {
     if (MANIFEST_CONTENT_TYPE_HINTS.some((hint) => normalizedContentType.includes(hint))) {
       return {

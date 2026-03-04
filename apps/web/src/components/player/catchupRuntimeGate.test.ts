@@ -47,6 +47,20 @@ describe('catchupRuntimeGate', () => {
     expect(result.contentType).toBe('video/mp2t');
   });
 
+  it('treats HTTP >= 400 manifest responses as non-playable runtime payload', () => {
+    const result = evaluateCatchUpRuntimePayload({
+      requestedUrl: 'https://login.example/timeshift/user/pass/30/2026-02-23:23-15/112.ts',
+      manifestUrl: 'https://edge6.castcdn.net/streaming/timeshift.php?token=abc',
+      finalUrl: 'https://edge6.castcdn.net/streaming/timeshift.php?token=abc',
+      httpStatus: 502,
+      contentType: null,
+    });
+
+    expect(result.isPlayableForRuntime).toBe(false);
+    expect(result.fallbackReason).toBe('network_error');
+    expect(result.contentType).toBeNull();
+  });
+
   it('builds non-playable fallback signal from manifest runtime gate errors', () => {
     const runtimeGateError = new ManifestRuntimeGateError(
       {

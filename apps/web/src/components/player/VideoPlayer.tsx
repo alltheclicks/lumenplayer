@@ -15,6 +15,7 @@ import {
   rememberCatchUpHostAffinity,
   resolveCatchUpHostAffinity,
   resolveCatchUpTargetOrigin,
+  shouldApplyHostAffinityToAttempt,
   toCatchUpProxyUrl,
   rewriteCatchUpUrlTargetOrigin,
   type CatchUpTransportAttempt,
@@ -30,6 +31,8 @@ import {
   type CatchUpFallbackReason,
 } from './catchupRuntimeGate';
 import {
+  evaluateCatchUpDecodeErrorBurst,
+  hasRuntimePlaybackStarted,
   shouldKeepPendingAutoplayOnIdle,
   shouldClearPendingAutoplayOnPlaybackError,
   sessionWantsPlayback,
@@ -37,6 +40,10 @@ import {
   shouldHoldPauseSyncOnSourceStartup,
   shouldRetryPendingAutoplayAfterPausedEvent,
   shouldResumePlaybackAfterPictureInPictureExit,
+  shouldAttemptCatchUpFallbackForPlaybackError,
+  shouldSkipCatchUpNonManifestAttempt,
+  shouldSkipCatchUpShortDurationAttempt,
+  shouldTriggerCatchUpRuntimeStallFallback,
 } from './videoPlaybackSync';
 
 export interface VideoPlayerProps {
@@ -108,15 +115,18 @@ type WebKitAirPlayVideoElement = HTMLVideoElement & {
 
 const STARTUP_AUTOPLAY_RECOVERY_MAX_RETRIES = 3;
 const STARTUP_AUTOPLAY_RECOVERY_BASE_DELAY_MS = 220;
-const CATCH_UP_FALLBACK_POSITION_GUARD_MS = 15_000;
 const CATCH_UP_STARTUP_TIMEOUT_MS = 12_000;
-const CATCH_UP_FALLBACK_ERROR_CODES = new Set([
-  'NETWORK_ERROR',
-  'MEDIA_ERROR',
-  'HLS_ERROR',
-  'LOAD_FAILED',
-  'NON_PLAYABLE_PAYLOAD',
-]);
+const CATCH_UP_PRESTART_NETWORK_ERROR_THRESHOLD = 3;
+const CATCH_UP_NETWORK_FALLBACK_MIN_INTERVAL_MS = 3_000;
+const CATCH_UP_RUNTIME_STALL_CHECK_INTERVAL_MS = 1_000;
+const CATCH_UP_RUNTIME_STALL_THRESHOLD_MS = 12_000;
+const CATCH_UP_RUNTIME_POST_START_STALL_THRESHOLD_MS = 12_000;
+const CATCH_UP_RUNTIME_STALL_FALLBACK_MIN_INTERVAL_MS = 4_000;
+const CATCH_UP_RUNTIME_PROGRESS_EPSILON_SECONDS = 0.2;
+const CATCH_UP_DECODE_ERROR_BURST_WINDOW_MS = 45_000;
+const CATCH_UP_DECODE_ERROR_BURST_THRESHOLD = 1;
+const CATCH_UP_DECODE_ERROR_MIN_PROGRESS_SECONDS = 5;
+const CATCH_UP_RUNTIME_MAX_FALLBACK_ATTEMPTS = 3;
 
 interface ParsedCatchUpAttemptState {
   attempts: CatchUpTransportAttempt[];
@@ -348,6 +358,27 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
   const startupAutoplayRecoveryAttemptsRef = useRef(0);
   const startupAutoplayRecoveryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const catchUpStartupTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const catchUpPreStartNetworkErrorRef = useRef<{ sourceUrl: string | null; count: number }>({
+    sourceUrl: null,
+    count: 0,
+  });
+  const catchUpLastNetworkFallbackAtRef = useRef(0);
+  const catchUpRuntimeProgressRef = useRef<{
+    sourceUrl: string | null;
+    lastPositionSeconds: number;
+    lastProgressAtMs: number;
+  }>({
+    sourceUrl: null,
+    lastPositionSeconds: 0,
+    lastProgressAtMs: 0,
+  });
+  const catchUpRuntimeStallMonitorTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const catchUpLastRuntimeStallFallbackAtRef = useRef(0);
+  const catchUpDecodeErrorBurstRef = useRef<{ sourceUrl: string | null; count: number; lastAtMs: number }>({
+    sourceUrl: null,
+    count: 0,
+    lastAtMs: 0,
+  });
   const lastCatchUpFallbackSignalRef = useRef<string | null>(null);
   const playbackWantsPlaying = sessionWantsPlayback(session);
   const isLocalRenderer = session.renderer === 'local-web' || session.renderer === 'airplay';
@@ -490,7 +521,35 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
   }, [session]);
 
   useEffect(() => {
+    const nextSourceUrl = src || null;
+    const existingRuntimeProgress = catchUpRuntimeProgressRef.current;
+    const canReuseRuntimeProgress = (
+      existingRuntimeProgress.sourceUrl === nextSourceUrl &&
+      existingRuntimeProgress.lastPositionSeconds > CATCH_UP_RUNTIME_PROGRESS_EPSILON_SECONDS
+    );
+    const fallbackPositionSeconds = Number.isFinite(videoRef.current?.currentTime)
+      ? (videoRef.current?.currentTime ?? 0)
+      : 0;
+
     lastCatchUpFallbackSignalRef.current = null;
+    catchUpPreStartNetworkErrorRef.current = {
+      sourceUrl: nextSourceUrl,
+      count: 0,
+    };
+    catchUpLastNetworkFallbackAtRef.current = 0;
+    catchUpLastRuntimeStallFallbackAtRef.current = 0;
+    catchUpRuntimeProgressRef.current = {
+      sourceUrl: nextSourceUrl,
+      lastPositionSeconds: canReuseRuntimeProgress
+        ? existingRuntimeProgress.lastPositionSeconds
+        : fallbackPositionSeconds,
+      lastProgressAtMs: Date.now(),
+    };
+    catchUpDecodeErrorBurstRef.current = {
+      sourceUrl: nextSourceUrl,
+      count: 0,
+      lastAtMs: 0,
+    };
   }, [src]);
 
   const clearStartupAutoplayRecovery = useCallback(() => {
@@ -508,50 +567,39 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
     }
   }, []);
 
+  const clearCatchUpRuntimeStallMonitor = useCallback(() => {
+    if (catchUpRuntimeStallMonitorTimerRef.current !== null) {
+      clearInterval(catchUpRuntimeStallMonitorTimerRef.current);
+      catchUpRuntimeStallMonitorTimerRef.current = null;
+    }
+  }, []);
+
+  const markCatchUpRuntimeProgress = useCallback((
+    sourceUrl: string | null,
+    positionSeconds: number,
+  ) => {
+    catchUpRuntimeProgressRef.current = {
+      sourceUrl,
+      lastPositionSeconds: Number.isFinite(positionSeconds) ? positionSeconds : 0,
+      lastProgressAtMs: Date.now(),
+    };
+  }, []);
+
   const shouldAttemptCatchUpFallback = useCallback((
     playbackError: PlaybackError,
-    signal: CatchUpFallbackSignal,
+    _signal: CatchUpFallbackSignal,
     options: {
       isCatchUpSource: boolean;
       hasRuntimePlaybackData: boolean;
+      allowNetworkFallback: boolean;
     },
   ): boolean => {
-    if (playbackError.fatal) {
-      if (playbackError.code.startsWith('MEDIA_ELEMENT_')) {
-        // Media element code 4 appears during source transitions and causes
-        // aggressive fallback loops before HLS reports a real network failure.
-        return false;
-      }
-
-      return CATCH_UP_FALLBACK_ERROR_CODES.has(playbackError.code);
-    }
-
-    if (
-      options.isCatchUpSource &&
-      !options.hasRuntimePlaybackData &&
-      (
-        playbackError.code === 'NETWORK_ERROR' ||
-        playbackError.code === 'HLS_ERROR' ||
-        playbackError.code === 'PLAYBACK_START_FAILED' ||
-        playbackError.code.startsWith('MEDIA_ELEMENT_')
-      )
-    ) {
-      return true;
-    }
-
-    // Fragment HTTP errors can stay non-fatal in hls.js while the player is still
-    // stuck before first frame. Treat 4xx/5xx as retry signal for catch-up plan.
-    if (
-      playbackError.code === 'NETWORK_ERROR' &&
-      typeof signal.httpStatus === 'number' &&
-      signal.httpStatus >= 400
-    ) {
-      return true;
-    }
-
-    // Non-fatal play() rejections during source transitions should not consume
-    // catch-up fallback candidates.
-    return false;
+    return shouldAttemptCatchUpFallbackForPlaybackError({
+      playbackError,
+      isCatchUpSource: options.isCatchUpSource,
+      hasRuntimePlaybackData: options.hasRuntimePlaybackData,
+      allowNetworkFallback: options.allowNetworkFallback,
+    });
   }, []);
 
   const switchToCatchUpFallbackIfAvailable = useCallback((signal: CatchUpFallbackSignal): boolean => {
@@ -578,11 +626,95 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
       return false;
     }
 
+    const expectedCatchUpDurationSeconds = parseNumericMetadataValue(metadata.catchUpDurationSeconds);
+    const currentRuntimeProgress = catchUpRuntimeProgressRef.current;
+    const hasRuntimePlaybackProgressForCurrentSource = (
+      currentRuntimeProgress.sourceUrl === source.url &&
+      currentRuntimeProgress.lastPositionSeconds > CATCH_UP_RUNTIME_PROGRESS_EPSILON_SECONDS
+    );
+    const hasRuntimePlaybackProgress = (
+      metadata.catchUpRuntimePlaybackStarted === true ||
+      hasRuntimePlaybackProgressForCurrentSource
+    );
+    const shouldCapRuntimeFallbackAttempts = (
+      hasRuntimePlaybackProgress &&
+      currentAttemptIndex >= CATCH_UP_RUNTIME_MAX_FALLBACK_ATTEMPTS &&
+      (
+        signal.fallbackReason === 'media_error' ||
+        signal.fallbackReason === 'network_error' ||
+        signal.fallbackReason === 'playback_error' ||
+        signal.fallbackReason === 'timeout'
+      )
+    );
     let nextAttemptIndex = currentAttemptIndex + 1;
-    while (
-      nextAttemptIndex < attempts.length &&
-      attempts[nextAttemptIndex]?.url === source.url
-    ) {
+    if (shouldCapRuntimeFallbackAttempts) {
+      emitWebObservabilityEvent({
+        name: 'catchup.runtime_gate',
+        severity: 'warn',
+        metadata: {
+          ...buildCatchUpEventMetadata(source, {
+            attemptIndex: currentAttemptIndex,
+            status: 'runtime_retry_cap_reached',
+            errorCode: signal.errorCode,
+            finalUrlHost: signal.finalUrlHost,
+            httpStatus: signal.httpStatus,
+            contentType: signal.contentType,
+            isPlayableForRuntime: signal.isPlayableForRuntime,
+            fallbackReason: signal.fallbackReason,
+          }),
+          renderer: currentSession.renderer,
+          maxRuntimeFallbackAttempts: CATCH_UP_RUNTIME_MAX_FALLBACK_ATTEMPTS,
+        },
+      });
+      nextAttemptIndex = attempts.length;
+    }
+
+    while (nextAttemptIndex < attempts.length) {
+      const candidateAttempt = attempts[nextAttemptIndex];
+      if (!candidateAttempt) {
+        break;
+      }
+
+      if (candidateAttempt.url === source.url) {
+        nextAttemptIndex += 1;
+        continue;
+      }
+
+      const shouldSkipShortDurationAttempt = shouldSkipCatchUpShortDurationAttempt({
+        attemptUrl: candidateAttempt.url,
+        expectedDurationSeconds: expectedCatchUpDurationSeconds,
+        hasRuntimePlaybackProgress,
+      });
+      const shouldSkipNonManifestAttempt = shouldSkipCatchUpNonManifestAttempt({
+        attemptUrl: candidateAttempt.url,
+        hasRuntimePlaybackProgress,
+      });
+      if (!shouldSkipShortDurationAttempt && !shouldSkipNonManifestAttempt) {
+        break;
+      }
+
+      emitWebObservabilityEvent({
+        name: 'catchup.runtime_gate',
+        severity: 'warn',
+        metadata: {
+          ...buildCatchUpEventMetadata(source, {
+            attemptIndex: nextAttemptIndex,
+            status: 'skip_short_duration',
+            errorCode: signal.errorCode,
+            finalUrlHost: signal.finalUrlHost,
+            httpStatus: signal.httpStatus,
+            contentType: signal.contentType,
+            isPlayableForRuntime: signal.isPlayableForRuntime,
+            fallbackReason: signal.fallbackReason,
+            strategy: candidateAttempt.strategy,
+          }),
+          renderer: currentSession.renderer,
+          expectedDurationSeconds: expectedCatchUpDurationSeconds,
+          rejectionReason: shouldSkipShortDurationAttempt
+            ? 'short_duration_after_progress'
+            : 'non_manifest_attempt_after_progress',
+        },
+      });
       nextAttemptIndex += 1;
     }
     if (nextAttemptIndex >= attempts.length) {
@@ -610,7 +742,9 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
 
         clearStartupAutoplayRecovery();
         clearCatchUpStartupTimeout();
+        clearCatchUpRuntimeStallMonitor();
         pendingAutoplaySourceUrlRef.current = liveFallbackUrl;
+        markCatchUpRuntimeProgress(liveFallbackUrl, 0);
         commands.setSource(
           {
             ...source,
@@ -675,7 +809,8 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
     const shouldResetPreferredFinalHost = signal.fallbackReason === 'non_playable_payload' || (
       typeof signal.httpStatus === 'number' && signal.httpStatus >= 400
     );
-    const preferredFinalHost = shouldResetPreferredFinalHost
+    const isAffinitySafeForNextAttempt = shouldApplyHostAffinityToAttempt(nextAttempt.url);
+    const preferredFinalHost = (shouldResetPreferredFinalHost || !isAffinitySafeForNextAttempt)
       ? null
       : resolvedPreferredFinalHost;
     const fallbackUrl = preferredFinalHost
@@ -690,10 +825,36 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
 
     clearStartupAutoplayRecovery();
     clearCatchUpStartupTimeout();
+    clearCatchUpRuntimeStallMonitor();
     pendingAutoplaySourceUrlRef.current = fallbackUrl;
+    const runtimeProgressMs = Math.max(
+      0,
+      Math.floor(catchUpRuntimeProgressRef.current.lastPositionSeconds * 1000),
+    );
+    const expectedDurationMs = (
+      typeof expectedCatchUpDurationSeconds === 'number' &&
+      Number.isFinite(expectedCatchUpDurationSeconds) &&
+      expectedCatchUpDurationSeconds > 0
+    ) ? Math.floor(expectedCatchUpDurationSeconds * 1000) : null;
+    const maxResumePositionMs = expectedDurationMs !== null
+      ? Math.max(0, expectedDurationMs - 2_000)
+      : null;
+    const safeResumePositionMs = maxResumePositionMs !== null
+      ? Math.min(runtimeProgressMs, maxResumePositionMs)
+      : runtimeProgressMs;
+    const shouldPreserveCatchUpPosition = (
+      metadata.mode === 'catchup' &&
+      hasRuntimePlaybackProgress &&
+      (
+        signal.fallbackReason === 'media_error' ||
+        signal.fallbackReason === 'network_error' ||
+        signal.fallbackReason === 'playback_error'
+      )
+    );
     const nextPositionMs = metadata.mode === 'catchup'
-      ? Math.max(currentSession.positionMs ?? 0, CATCH_UP_FALLBACK_POSITION_GUARD_MS)
+      ? (shouldPreserveCatchUpPosition ? safeResumePositionMs : 0)
       : currentSession.positionMs ?? 0;
+    markCatchUpRuntimeProgress(fallbackUrl, nextPositionMs / 1000);
 
     commands.setSource(
       {
@@ -717,6 +878,8 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
           catchUpLastContentType: signal.contentType,
           catchUpLastFinalUrlHost: signal.finalUrlHost,
           catchUpLastPlayableForRuntime: signal.isPlayableForRuntime,
+          catchUpRuntimePlaybackStarted: hasRuntimePlaybackProgress,
+          catchUpResumePositionMs: nextPositionMs,
         },
       },
       nextPositionMs
@@ -747,10 +910,122 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
         fallbackCount: Math.max(0, nextAttempts.length - 1),
         offsetMinutes: nextAttempt.offsetMinutes,
         fallbackUrl,
+        resumeFromMs: nextPositionMs,
       },
     });
     return true;
-  }, [clearCatchUpStartupTimeout, clearStartupAutoplayRecovery, commands]);
+  }, [
+    clearCatchUpRuntimeStallMonitor,
+    clearCatchUpStartupTimeout,
+    clearStartupAutoplayRecovery,
+    commands,
+    markCatchUpRuntimeProgress,
+  ]);
+
+  const startCatchUpRuntimeStallMonitor = useCallback(() => {
+    if (catchUpRuntimeStallMonitorTimerRef.current !== null) {
+      return;
+    }
+
+    catchUpRuntimeStallMonitorTimerRef.current = setInterval(() => {
+      const currentSession = sessionRef.current;
+      const source = currentSession.source;
+      const videoElement = videoRef.current;
+      if (
+        !source ||
+        !videoElement ||
+        typeof source.metadata !== 'object' ||
+        source.metadata === null
+      ) {
+        return;
+      }
+
+      const metadata = source.metadata as Record<string, unknown>;
+      if (!shouldApplyCatchUpRuntimeGate(metadata.mode)) {
+        return;
+      }
+
+      const runtimeSample = {
+        readyState: videoElement.readyState,
+        currentTime: videoElement.currentTime,
+        paused: videoElement.paused,
+        videoWidth: videoElement.videoWidth,
+        videoHeight: videoElement.videoHeight,
+      };
+      const currentTime = Number.isFinite(videoElement.currentTime) ? videoElement.currentTime : 0;
+      const progress = catchUpRuntimeProgressRef.current;
+      if (progress.sourceUrl !== source.url) {
+        markCatchUpRuntimeProgress(source.url, currentTime);
+        return;
+      }
+
+      const runtimePlaybackEstablished = hasRuntimePlaybackStarted(runtimeSample) || (
+        progress.lastPositionSeconds > CATCH_UP_RUNTIME_PROGRESS_EPSILON_SECONDS
+      );
+      if (!runtimePlaybackEstablished) {
+        return;
+      }
+
+      if (currentTime > progress.lastPositionSeconds + CATCH_UP_RUNTIME_PROGRESS_EPSILON_SECONDS) {
+        markCatchUpRuntimeProgress(source.url, currentTime);
+        return;
+      }
+
+      const stalledDurationMs = Date.now() - progress.lastProgressAtMs;
+      if (!shouldTriggerCatchUpRuntimeStallFallback({
+        isCatchUpSource: true,
+        hasRuntimePlaybackData: runtimePlaybackEstablished,
+        isVideoPaused: runtimeSample.paused,
+        playbackRequested: sessionWantsPlayback(currentSession),
+        stalledDurationMs,
+        thresholdMs: progress.lastPositionSeconds > 5.0
+          ? CATCH_UP_RUNTIME_POST_START_STALL_THRESHOLD_MS
+          : CATCH_UP_RUNTIME_STALL_THRESHOLD_MS,
+      })) {
+        return;
+      }
+
+      const nowMs = Date.now();
+      if (
+        nowMs - catchUpLastRuntimeStallFallbackAtRef.current <
+        CATCH_UP_RUNTIME_STALL_FALLBACK_MIN_INTERVAL_MS
+      ) {
+        return;
+      }
+      catchUpLastRuntimeStallFallbackAtRef.current = nowMs;
+
+      const { currentAttemptIndex } = resolveCatchUpAttemptState(metadata, source.url);
+      const stallSignal: CatchUpFallbackSignal = {
+        errorCode: 'PLAYBACK_STALLED',
+        fallbackReason: 'media_error',
+        httpStatus: null,
+        contentType: null,
+        finalUrlHost: resolveUrlHost(source.url),
+        isPlayableForRuntime: false,
+      };
+      emitWebObservabilityEvent({
+        name: 'catchup.runtime_gate',
+        severity: 'warn',
+        metadata: {
+          ...buildCatchUpEventMetadata(source, {
+            attemptIndex: currentAttemptIndex,
+            status: 'stalled',
+            errorCode: stallSignal.errorCode,
+            finalUrlHost: stallSignal.finalUrlHost,
+            httpStatus: stallSignal.httpStatus,
+            contentType: stallSignal.contentType,
+            isPlayableForRuntime: stallSignal.isPlayableForRuntime,
+            fallbackReason: stallSignal.fallbackReason,
+          }),
+          renderer: currentSession.renderer,
+          stalledDurationMs,
+          stalledAtSeconds: currentTime,
+        },
+      });
+
+      switchToCatchUpFallbackIfAvailable(stallSignal);
+    }, CATCH_UP_RUNTIME_STALL_CHECK_INTERVAL_MS);
+  }, [markCatchUpRuntimeProgress, switchToCatchUpFallbackIfAvailable]);
 
   const scheduleCatchUpStartupTimeout = useCallback((sourceUrl: string) => {
     clearCatchUpStartupTimeout();
@@ -766,6 +1041,19 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
         source.metadata === null ||
         !shouldApplyCatchUpRuntimeGate((source.metadata as Record<string, unknown>).mode)
       ) {
+        return;
+      }
+
+      if (hasRuntimePlaybackStarted(videoRef.current
+        ? {
+          readyState: videoRef.current.readyState,
+          currentTime: videoRef.current.currentTime,
+          paused: videoRef.current.paused,
+          videoWidth: videoRef.current.videoWidth,
+          videoHeight: videoRef.current.videoHeight,
+        }
+        : null
+      )) {
         return;
       }
 
@@ -1102,7 +1390,16 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
 
       if (state === 'playing') {
         const videoElement = videoRef.current;
-        const hasRuntimePlaybackData = !videoElement || videoElement.readyState >= 2;
+        const runtimePlaybackSample = videoElement
+          ? {
+            readyState: videoElement.readyState,
+            currentTime: videoElement.currentTime,
+            paused: videoElement.paused,
+            videoWidth: videoElement.videoWidth,
+            videoHeight: videoElement.videoHeight,
+          }
+          : null;
+        const hasRuntimePlaybackData = hasRuntimePlaybackStarted(runtimePlaybackSample);
         if (!hasRuntimePlaybackData) {
           setIsLoading(true);
           return;
@@ -1113,13 +1410,19 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
         const isCatchUpSource = typeof sourceMetadata === 'object' &&
           sourceMetadata !== null &&
           shouldApplyCatchUpRuntimeGate((sourceMetadata as Record<string, unknown>).mode);
-        if (!isCatchUpSource) {
-          clearCatchUpStartupTimeout();
-        }
+        clearCatchUpStartupTimeout();
         pendingAutoplaySourceUrlRef.current = null;
         setError(null);
         setIsPlaying(true);
         setIsLoading(false);
+        markCatchUpRuntimeProgress(
+          currentSession.source?.url ?? null,
+          runtimePlaybackSample?.currentTime ?? 0
+        );
+        catchUpPreStartNetworkErrorRef.current = {
+          sourceUrl: currentSession.source?.url ?? null,
+          count: 0,
+        };
         onCanPlay?.();
 
         const sourceUrl = sessionRef.current.source?.url ?? null;
@@ -1190,7 +1493,8 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
         setIsLoading(false);
 
         if (currentSession.source && sessionWantsPlayback(currentSession)) {
-          commands.pause();
+          setIsLoading(true);
+          adapterRef.current?.play();
         }
         return;
       }
@@ -1219,16 +1523,124 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
       }
     });
 
-  const unsubscribeError = adapter.onError((playbackError) => {
-    const catchUpFallbackSignal = createCatchUpFallbackSignalFromPlaybackError(playbackError);
+    const unsubscribeError = adapter.onError((playbackError) => {
+      const catchUpFallbackSignal = createCatchUpFallbackSignalFromPlaybackError(playbackError);
       const sourceMetadata = sessionRef.current.source?.metadata;
       const isCatchUpSource = typeof sourceMetadata === 'object' &&
         sourceMetadata !== null &&
         shouldApplyCatchUpRuntimeGate((sourceMetadata as Record<string, unknown>).mode);
-      const hasRuntimePlaybackData = (videoRef.current?.readyState ?? 0) >= 2;
+      const hasRuntimePlaybackData = hasRuntimePlaybackStarted(videoRef.current
+        ? {
+          readyState: videoRef.current.readyState,
+          currentTime: videoRef.current.currentTime,
+          paused: videoRef.current.paused,
+          videoWidth: videoRef.current.videoWidth,
+          videoHeight: videoRef.current.videoHeight,
+        }
+        : null
+      );
+      const currentSourceUrl = sessionRef.current.source?.url ?? null;
+      const runtimeProgress = catchUpRuntimeProgressRef.current;
+      const hasRuntimeProgressForCurrentSource = (
+        currentSourceUrl !== null &&
+        runtimeProgress.sourceUrl === currentSourceUrl &&
+        runtimeProgress.lastPositionSeconds >= CATCH_UP_DECODE_ERROR_MIN_PROGRESS_SECONDS
+      );
+      const decodeBurstDecision = evaluateCatchUpDecodeErrorBurst({
+        tracker: catchUpDecodeErrorBurstRef.current,
+        isCatchUpSource,
+        playbackErrorCode: playbackError.code,
+        hasRuntimeProgressForCurrentSource,
+        currentSourceUrl,
+        nowMs: Date.now(),
+        windowMs: CATCH_UP_DECODE_ERROR_BURST_WINDOW_MS,
+        threshold: CATCH_UP_DECODE_ERROR_BURST_THRESHOLD,
+      });
+      catchUpDecodeErrorBurstRef.current = decodeBurstDecision.tracker;
+      let allowDecodeErrorBurstFallback = decodeBurstDecision.shouldFallback;
+      let allowNetworkFallback = false;
+      if (
+        isCatchUpSource &&
+        (playbackError.code === 'NETWORK_ERROR' || playbackError.code === 'HLS_ERROR')
+      ) {
+        if (catchUpPreStartNetworkErrorRef.current.sourceUrl !== currentSourceUrl) {
+          catchUpPreStartNetworkErrorRef.current = {
+            sourceUrl: currentSourceUrl,
+            count: 1,
+          };
+        } else {
+          catchUpPreStartNetworkErrorRef.current.count += 1;
+        }
+
+        const hasRuntimeProgress = hasRuntimePlaybackData || hasRuntimeProgressForCurrentSource;
+        const isUnauthorizedRuntimeError = (
+          hasRuntimeProgress &&
+          catchUpFallbackSignal.httpStatus === 401
+        );
+
+        if (isUnauthorizedRuntimeError) {
+          allowNetworkFallback = true;
+        } else if (!hasRuntimePlaybackData) {
+          allowNetworkFallback =
+            catchUpPreStartNetworkErrorRef.current.count >= CATCH_UP_PRESTART_NETWORK_ERROR_THRESHOLD;
+        }
+
+        if (allowNetworkFallback) {
+          const nowMs = Date.now();
+          if (nowMs - catchUpLastNetworkFallbackAtRef.current < CATCH_UP_NETWORK_FALLBACK_MIN_INTERVAL_MS) {
+            allowNetworkFallback = false;
+          } else {
+            catchUpLastNetworkFallbackAtRef.current = nowMs;
+          }
+        }
+      } else {
+        catchUpPreStartNetworkErrorRef.current = {
+          sourceUrl: sessionRef.current.source?.url ?? null,
+          count: 0,
+        };
+      }
+
+      if (allowDecodeErrorBurstFallback) {
+        const nowMs = Date.now();
+        if (
+          nowMs - catchUpLastRuntimeStallFallbackAtRef.current <
+          CATCH_UP_RUNTIME_STALL_FALLBACK_MIN_INTERVAL_MS
+        ) {
+          allowDecodeErrorBurstFallback = false;
+        } else {
+          catchUpLastRuntimeStallFallbackAtRef.current = nowMs;
+        }
+      }
+
+      if (allowDecodeErrorBurstFallback) {
+        emitWebObservabilityEvent({
+          name: 'catchup.runtime_gate',
+          severity: 'warn',
+          metadata: {
+            ...buildCatchUpEventMetadata(sessionRef.current.source, {
+              status: 'decode_error_burst',
+              errorCode: playbackError.code,
+              finalUrlHost: catchUpFallbackSignal.finalUrlHost,
+              httpStatus: catchUpFallbackSignal.httpStatus,
+              contentType: catchUpFallbackSignal.contentType,
+              isPlayableForRuntime: catchUpFallbackSignal.isPlayableForRuntime,
+              fallbackReason: catchUpFallbackSignal.fallbackReason,
+            }),
+            renderer: sessionRef.current.renderer,
+            decodeErrorBurstCount: catchUpDecodeErrorBurstRef.current.count,
+            runtimeProgressSeconds: runtimeProgress.lastPositionSeconds,
+          },
+        });
+
+        if (switchToCatchUpFallbackIfAvailable(catchUpFallbackSignal)) {
+          return;
+        }
+      }
+
       if (shouldAttemptCatchUpFallback(playbackError, catchUpFallbackSignal, {
         isCatchUpSource,
         hasRuntimePlaybackData,
+        allowNetworkFallback,
       }) && switchToCatchUpFallbackIfAvailable(catchUpFallbackSignal)) {
         return;
       }
@@ -1279,6 +1691,24 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
       const isCatchUpSource = typeof sourceMetadata === 'object' &&
         sourceMetadata !== null &&
         shouldApplyCatchUpRuntimeGate((sourceMetadata as Record<string, unknown>).mode);
+      const hasRuntimePlaybackData = hasRuntimePlaybackStarted(videoRef.current
+        ? {
+          readyState: videoRef.current.readyState,
+          currentTime: videoRef.current.currentTime,
+          paused: videoRef.current.paused,
+          videoWidth: videoRef.current.videoWidth,
+          videoHeight: videoRef.current.videoHeight,
+        }
+        : null
+      );
+      if (isCatchUpSource && hasRuntimePlaybackData) {
+        clearCatchUpStartupTimeout();
+        catchUpPreStartNetworkErrorRef.current = {
+          sourceUrl: currentSession.source?.url ?? null,
+          count: 0,
+        };
+        markCatchUpRuntimeProgress(currentSession.source?.url ?? null, time);
+      }
 
       if (isApplyingSessionSeekRef.current) {
         if (
@@ -1304,19 +1734,15 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
       ) {
         return;
       }
-
-      const hasRuntimePlaybackData = (videoRef.current?.readyState ?? 0) >= 2;
       if (!hasRuntimePlaybackData) {
         return;
-      }
-
-      if (isCatchUpSource) {
-        clearCatchUpStartupTimeout();
       }
 
       lastReportedPositionMsRef.current = currentPositionMs;
       commands.seek(currentPositionMs);
     });
+
+    startCatchUpRuntimeStallMonitor();
 
     return () => {
       unsubscribeState();
@@ -1324,6 +1750,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
       unsubscribeTime();
       clearStartupAutoplayRecovery();
       clearCatchUpStartupTimeout();
+      clearCatchUpRuntimeStallMonitor();
       adapter.destroy();
       if (adapterRef.current === adapter) {
         adapterRef.current = null;
@@ -1332,13 +1759,16 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
   }, [
     clearStartupAutoplayRecovery,
     clearCatchUpStartupTimeout,
+    clearCatchUpRuntimeStallMonitor,
     commands,
+    markCatchUpRuntimeProgress,
     mapPlaybackError,
     onCanPlay,
     onEnded,
     onError,
     preferNativeHls,
     shouldAttemptCatchUpFallback,
+    startCatchUpRuntimeStallMonitor,
     switchToCatchUpFallbackIfAvailable,
   ]);
 
@@ -1355,7 +1785,9 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
       void exitPictureInPicture();
       clearStartupAutoplayRecovery();
       clearCatchUpStartupTimeout();
+      clearCatchUpRuntimeStallMonitor();
       pendingAutoplaySourceUrlRef.current = null;
+      markCatchUpRuntimeProgress(null, 0);
       setError(null);
       setIsLoading(false);
       setIsPlaying(false);
@@ -1368,6 +1800,13 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
     setIsLoading(true);
     clearStartupAutoplayRecovery();
     clearCatchUpStartupTimeout();
+    startCatchUpRuntimeStallMonitor();
+    const existingRuntimeProgress = catchUpRuntimeProgressRef.current;
+    const initialCatchUpPositionSeconds = (
+      existingRuntimeProgress.sourceUrl === src &&
+      existingRuntimeProgress.lastPositionSeconds > CATCH_UP_RUNTIME_PROGRESS_EPSILON_SECONDS
+    ) ? existingRuntimeProgress.lastPositionSeconds : 0;
+    markCatchUpRuntimeProgress(src, initialCatchUpPositionSeconds);
     lastStartedSourceRef.current = null;
     pendingAutoplaySourceUrlRef.current = autoPlay && sessionWantsPlayback(sessionRef.current)
       ? src
@@ -1538,12 +1977,15 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
     autoPlay,
     clearStartupAutoplayRecovery,
     clearCatchUpStartupTimeout,
+    clearCatchUpRuntimeStallMonitor,
     exitPictureInPicture,
     isLocalRenderer,
+    markCatchUpRuntimeProgress,
     onCanPlay,
     onError,
     scheduleCatchUpStartupTimeout,
     sourceType,
+    startCatchUpRuntimeStallMonitor,
     src,
     switchToCatchUpFallbackIfAvailable,
   ]);
