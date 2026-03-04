@@ -41,6 +41,7 @@ const parseServerInfoHost = (value: string): {
 
 // Xtream Codes server configuration from environment variable
 export const XTREAM_SERVER_URL = trimTrailingSlash(import.meta.env.VITE_XTREAM_SERVER || "");
+export const XTREAM_PROXY_ORIGIN = trimTrailingSlash(import.meta.env.VITE_XTREAM_PROXY_ORIGIN || "");
 
 export const encodeXtreamProxyTarget = (serverUrl: string): string => (
   encodeURIComponent(trimTrailingSlash(serverUrl))
@@ -90,17 +91,23 @@ export const resolveXtreamApiServer = (
   options: {
     isDev?: boolean;
     origin?: string | null;
+    proxyOrigin?: string | null;
   } = {},
 ): string => {
   const normalizedServer = trimTrailingSlash(serverUrl);
   const isDevMode = options.isDev ?? import.meta.env.DEV;
   const runtimeOrigin = options.origin ?? (typeof window === "undefined" ? null : window.location.origin);
+  const proxyOrigin = trimTrailingSlash(options.proxyOrigin ?? XTREAM_PROXY_ORIGIN);
+  const encodedTarget = encodeXtreamProxyTarget(normalizedServer);
+
+  if (proxyOrigin) {
+    return `${proxyOrigin}${XTREAM_DEV_PROXY_BASE_PATH}/${trimLeadingSlash(encodedTarget)}`;
+  }
 
   if (!isDevMode || !runtimeOrigin) {
     return normalizedServer;
   }
 
-  const encodedTarget = encodeXtreamProxyTarget(normalizedServer);
   return `${trimTrailingSlash(runtimeOrigin)}${XTREAM_DEV_PROXY_BASE_PATH}/${trimLeadingSlash(encodedTarget)}`;
 };
 
@@ -109,6 +116,7 @@ export const resolveXtreamRuntimeCredentials = (
   options: {
     isDev?: boolean;
     origin?: string | null;
+    proxyOrigin?: string | null;
   } = {},
 ): XtreamCredentials => ({
   ...credentials,

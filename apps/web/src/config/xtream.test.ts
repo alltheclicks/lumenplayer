@@ -15,6 +15,16 @@ describe("resolveXtreamApiServer", () => {
     ).toBe("https://gw.castcdn.net:443");
   });
 
+  it("uses dedicated proxy origin in non-dev mode when configured", () => {
+    expect(
+      resolveXtreamApiServer("https://gw.castcdn.net:443/", {
+        isDev: false,
+        origin: "https://app.lumenplayer.com",
+        proxyOrigin: "https://proxy.lumenplayer.com/",
+      }),
+    ).toBe("https://proxy.lumenplayer.com/xui-api/https%3A%2F%2Fgw.castcdn.net%3A443");
+  });
+
   it("returns same-origin proxy URL in dev mode", () => {
     expect(
       resolveXtreamApiServer("https://gw.castcdn.net:443", {
@@ -22,6 +32,16 @@ describe("resolveXtreamApiServer", () => {
         origin: "http://localhost:8080/",
       }),
     ).toBe("http://localhost:8080/xui-api/https%3A%2F%2Fgw.castcdn.net%3A443");
+  });
+
+  it("prefers dedicated proxy origin in dev mode when configured", () => {
+    expect(
+      resolveXtreamApiServer("https://gw.castcdn.net:443", {
+        isDev: true,
+        origin: "http://localhost:8080/",
+        proxyOrigin: "http://localhost:8788",
+      }),
+    ).toBe("http://localhost:8788/xui-api/https%3A%2F%2Fgw.castcdn.net%3A443");
   });
 
   it("falls back to direct server URL in dev mode when origin is unavailable", () => {
@@ -50,6 +70,27 @@ describe("resolveXtreamRuntimeCredentials", () => {
       ),
     ).toEqual({
       server: "http://localhost:8080/xui-api/https%3A%2F%2Fgw.castcdn.net%3A443",
+      username: "demo-user",
+      password: "demo-pass",
+    });
+  });
+
+  it("rewrites server base to dedicated proxy origin when configured", () => {
+    expect(
+      resolveXtreamRuntimeCredentials(
+        {
+          server: "https://gw.castcdn.net:443/",
+          username: "demo-user",
+          password: "demo-pass",
+        },
+        {
+          isDev: false,
+          origin: "https://app.lumenplayer.com",
+          proxyOrigin: "https://proxy.lumenplayer.com",
+        },
+      ),
+    ).toEqual({
+      server: "https://proxy.lumenplayer.com/xui-api/https%3A%2F%2Fgw.castcdn.net%3A443",
       username: "demo-user",
       password: "demo-pass",
     });
