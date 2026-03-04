@@ -413,7 +413,10 @@ export class XtreamCodesService {
       return [normalizedMinutes];
     }
 
-    return [normalizedMinutes, normalizedSeconds];
+    // Prefer the explicit seconds value first. Some providers interpret the
+    // path/query duration as seconds, and minute-first ordering can downgrade
+    // long catch-up requests (e.g. 1800s -> 30s), causing short playback.
+    return [normalizedSeconds, normalizedMinutes];
   }
 
   private static filterUniqueUrls(urls: string[]): string[] {

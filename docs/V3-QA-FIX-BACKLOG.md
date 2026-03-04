@@ -177,6 +177,225 @@ Reporter note for this batch:
 - Status:
   - converted-to `QAF-034` (pending-review, awaiting Reptile validation)
 
+### BUG-20260223-01
+- Environment:
+  - `http://localhost:8080/player` (local dev, browser runtime)
+  - Xtream account `fica`
+  - channel `RTS 1` (`stream_id=112`, archive-enabled)
+- Steps:
+  1. Open `RTS 1` live stream.
+  2. In `TV Unazad`, click same-day archived program (example: `23:15 Dnevnik`).
+  3. Observe playback UI, network tab, and console observability events.
+- Expected:
+  - Catch-up starts with playable video/audio in web player (no infinite spinner / no download-like behavior).
+- Actual:
+  - Player enters catch-up mode but video never starts (`readyState=0`, paused).
+  - Network shows many fallback `404` attempts, then one `200` on token URL:
+    - `.../timeshift/.../112.ts` -> `302` -> `https://edge6.castcdn.net/streaming/timeshift.php?token=...` -> `200`
+  - Successful `200` response is `content-type: video/mp2t` (large TS payload), not HLS playlist.
+  - In browser/HLS runtime this path behaves like non-playable download stream (no rendered playback).
+- Evidence:
+  - Codex Playwright reproduction (`2026-02-23 ~22:46Z`) with full request chain and console events.
+  - Direct curl probe on returned token URL confirms:
+    - `HTTP 200`
+    - `content-type: video/mp2t`
+    - large `content-length` (`~787MB` in sampled response)
+- Reporter:
+  - Filip
+- Timestamp:
+  - 2026-02-23
+- Severity (initial):
+  - P1
+- Status:
+  - converted-to `QAF-035` (open)
+
+### BUG-20260224-01
+- Environment:
+  - `http://localhost:8080/player` (live channels, laptop keyboard)
+- Steps:
+  1. Focus live channel list.
+  2. Press `ArrowUp` and `ArrowDown` multiple times.
+  3. Observe highlighted/active channel movement direction.
+- Expected:
+  - `ArrowUp` moves channel selection up.
+  - `ArrowDown` moves channel selection down.
+- Actual:
+  - Direction feels inverted (`ArrowUp` acts like down and vice versa).
+- Evidence:
+  - Manual tester note from owner chat (`2026-02-24`).
+- Reporter:
+  - Filip
+- Timestamp:
+  - 2026-02-24
+- Severity (initial):
+  - P2
+- Status:
+  - converted-to `QAF-036` (open)
+
+### BUG-20260224-02
+- Environment:
+  - `http://localhost:8080/player`, Favorites (`Nick Junior`), catch-up badge visible
+- Steps:
+  1. Open `Nick Junior` from favorites where catch-up badge is shown.
+  2. Check `TV Unazad` program list availability.
+  3. Restart dev server and repeat.
+- Expected:
+  - Archive badge and catch-up program availability stay consistent for same provider/account state.
+- Actual:
+  - One run showed catch-up badge but no catch-up program entries.
+  - After dev server reset, same channel started showing catch-up items.
+- Evidence:
+  - Manual tester note from owner chat (`2026-02-24`).
+- Reporter:
+  - Filip
+- Timestamp:
+  - 2026-02-24
+- Severity (initial):
+  - P1
+- Status:
+  - converted-to `QAF-038` (open)
+
+### BUG-20260224-03
+- Environment:
+  - `http://localhost:8080/player`, live channel browsing via keyboard hold (`ArrowDown`)
+- Steps:
+  1. Open live player and focus channel list.
+  2. Hold `ArrowDown` to quickly traverse channels.
+  3. Observe network/player load behavior.
+- Expected:
+  - Rapid browsing should not trigger playback start for every transient highlighted channel.
+  - Playback commit should happen only after selection dwell threshold (target `~300ms`) or explicit confirm.
+- Actual:
+  - Player attempts to start many channels while key is held; high request burst risks provider `429`.
+- Evidence:
+  - Manual tester note from owner chat (`2026-02-24`).
+- Reporter:
+  - Filip
+- Timestamp:
+  - 2026-02-24
+- Severity (initial):
+  - P1
+- Status:
+  - converted-to `QAF-037` (open)
+
+### BUG-20260224-04
+- Environment:
+  - `http://localhost:8080/series`, `http://localhost:8080/series/:id`
+- Steps:
+  1. Open series catalog and detail.
+  2. Compare poster/backdrop rendering against provider payload (XUI/Xtream).
+  3. Compare with movies page under same account.
+- Expected:
+  - Series list/detail render provider poster/backdrop when available.
+- Actual:
+  - Series still often missing posters/backdrops.
+- Evidence:
+  - Manual tester note from owner chat (`2026-02-24`).
+- Reporter:
+  - Filip
+- Timestamp:
+  - 2026-02-24
+- Severity (initial):
+  - P2
+- Status:
+  - converted-to `QAF-039` (open)
+
+### BUG-20260224-05
+- Environment:
+  - Live player volume control overlay (`desktop`)
+- Steps:
+  1. Open player overlay and inspect volume control entry.
+  2. Observe icon/affordance for showing/hiding slider.
+  3. Move focus/mouse away from volume area.
+- Expected:
+  - Volume icon opens slider overlay.
+  - Slider hides when focus/hover leaves audio control area.
+  - No up/down arrow toggle icon as primary interaction metaphor.
+- Actual:
+  - Up/down arrow affordance is used for slider show/hide; behavior feels non-intuitive.
+- Evidence:
+  - Owner screenshots + tester note (`2026-02-24`).
+- Reporter:
+  - Filip
+- Timestamp:
+  - 2026-02-24
+- Severity (initial):
+  - P2
+- Status:
+  - converted-to `QAF-040` (open)
+
+### BUG-20260224-06
+- Environment:
+  - Live player with channel/category side panels visible
+- Steps:
+  1. Keep pointer outside video surface (over channel list/categories/page chrome).
+  2. Move mouse and watch overlay visibility changes.
+  3. Repeat movement directly over video viewport.
+- Expected:
+  - Overlay show/hide should react to pointer movement only within player viewport/controls hitbox.
+- Actual:
+  - Overlay appears/disappears when pointer moves anywhere on page.
+- Evidence:
+  - Manual tester note from owner chat (`2026-02-24`).
+- Reporter:
+  - Filip
+- Timestamp:
+  - 2026-02-24
+- Severity (initial):
+  - P2
+- Status:
+  - converted-to `QAF-041` (open)
+
+### BUG-20260224-07
+- Environment:
+  - Favorites list + regular channel lists on `http://localhost:8080/player`
+- Steps:
+  1. Add channel to favorites from regular list.
+  2. Open same channel from favorites.
+  3. Remove channel from favorites while it is currently selected/playing in favorites.
+- Expected:
+  - Favorites should hold channel reference/link (no duplicated player-channel identity).
+  - Removing active favorite should restore selection to source list if channel exists there, without reloading stream.
+- Actual:
+  - Behavior suggests duplicated channel instance in player context and possible unnecessary stream restart on removal.
+- Evidence:
+  - Manual tester note from owner chat (`2026-02-24`).
+- Reporter:
+  - Filip
+- Timestamp:
+  - 2026-02-24
+- Severity (initial):
+  - P1
+- Status:
+  - converted-to `QAF-042` (open)
+
+### BUG-20260303-01
+- Environment:
+  - `http://localhost:8080/player` (browser runtime, manual owner repro)
+  - same live channel with catch-up enabled (`RTS 1` repro class)
+- Steps:
+  1. Open catch-up and select first archived program.
+  2. Wait for playback start.
+  3. Seek within the same program or switch to 2-3 older programs on the same channel.
+  4. Observe startup time and continuity of playback.
+- Expected:
+  - Catch-up startup should be reasonably fast and playback should continue (not only one short segment).
+  - Seek/program switch should continue playback, not restart into short fragment then stop/churn.
+- Actual:
+  - First selected program eventually starts, but with very long loading.
+  - After seek or switching to older programs, startup is again very long and playback often shows only one segment/chunk behavior.
+  - Result is visible picture but unstable catch-up runtime behavior.
+- Evidence:
+  - Manual owner report in chat (`2026-03-03`).
+- Reporter:
+  - Filip
+- Timestamp:
+  - 2026-03-03
+- Severity (initial):
+  - P1
+- Status:
+  - converted-to `QAF-034` + `QAF-035` (reopened runtime stability evidence)
+
 ## Intake triage snapshots
 
 Add dated triage tables here (one snapshot block per triage session).
@@ -191,6 +410,30 @@ Add dated triage tables here (one snapshot block per triage session).
 | BUG-20260221-12 | Bugfix/Data Mapping | P2 | QAF-028 | Reopened; series artwork parity still not achieved |
 | BUG-20260221-13 | Bugfix/Player VOD UX | P1 | QAF-033 | New QAF for on-demand player overlay parity + spinner behavior |
 | BUG-20260221-14 | Bugfix/Catch-up Playback | P1 | QAF-034 | Reopened after multiple attempts; still not playable in user real flow |
+
+### Intake triage snapshot (2026-02-23, catch-up token payload mismatch)
+
+| Intake ID | Lane | Severity | Converted to | Notes |
+|---|---|---|---|---|
+| BUG-20260223-01 | Bugfix/Catch-up Playback | P1 | QAF-035 | Web catch-up receives `200 video/mp2t` token payload that is not playable via browser HLS flow (looks like download, no video/audio) |
+
+### Intake triage snapshot (2026-02-24, keyboard/overlay/favorites + series)
+
+| Intake ID | Lane | Severity | Converted to | Notes |
+|---|---|---|---|---|
+| BUG-20260224-01 | Bugfix/Input UX | P2 | QAF-036 | Keyboard vertical direction feels inverted in live channel navigation |
+| BUG-20260224-02 | Bugfix/Catch-up Consistency | P1 | QAF-038 | `Nick Junior` catch-up badge vs archive list availability is inconsistent between runs |
+| BUG-20260224-03 | Bugfix/Playback Transport Guard | P1 | QAF-037 | Holding arrow key causes per-highlight playback starts and request bursts (`429` risk) |
+| BUG-20260224-04 | Bugfix/Series Data Mapping | P2 | QAF-039 | Series posters/backdrops still missing in real flow |
+| BUG-20260224-05 | Bugfix/Audio Overlay UX | P2 | QAF-040 | Volume slider interaction model still non-intuitive |
+| BUG-20260224-06 | Bugfix/Overlay Scope UX | P2 | QAF-041 | Overlay visibility reacts to page-level mouse movement, not only player viewport |
+| BUG-20260224-07 | Bugfix/Favorites Selection Model | P1 | QAF-042 | Favorites removal while active may duplicate state and restart stream unexpectedly |
+
+### Intake triage snapshot (2026-03-03, catch-up long-load + single-segment instability)
+
+| Intake ID | Lane | Severity | Converted to | Notes |
+|---|---|---|---|---|
+| BUG-20260303-01 | Bugfix/Catch-up Runtime Stability | P1 | QAF-034 + QAF-035 | Catch-up can show picture but still has very long startup and unstable "single segment then stall/churn" behavior after seek/program switch |
 
 ## Status legend
 
@@ -230,14 +473,44 @@ Current snapshot:
 | QAF-032 | Remove static helper copy `Klikni traku za TV unazad` and keep only context-aware cues | Player Copy/UX Clarity | P3 | done |
 | QAF-033 | Align VOD/Series playback overlay controls with live player and make loading spinner non-blocking/short-lived | On-demand Player UX | P1 | done |
 | QAF-034 | Reopened catch-up runtime failure: provider timeshift returns intermittent `404/502`, playback still fails in real user flow | Catch-up Playback/Provider Compatibility | P1 | in-progress |
+| QAF-035 | Catch-up token `200` returns TS payload (`video/mp2t`) in web runtime; enforce playable-response gate and fallback policy before declaring startup success | Catch-up Playback/Browser Transport | P1 | open |
+| QAF-036 | Align live channel keyboard navigation semantics so `ArrowUp`/`ArrowDown` move selection in matching visual direction | Input/Navigation UX | P2 | open |
+| QAF-037 | Add keyboard zapping commit debounce (`~300ms` dwell) so rapid browsing does not start every highlighted channel/request | Playback/Networking Guard | P1 | open |
+| QAF-038 | Stabilize catch-up availability consistency for archive-badged channels (Nick Junior repro + diagnostics + cache state handling) | Catch-up Data/UX Consistency | P1 | open |
+| QAF-039 | Reopen Xtream series artwork parity: enforce poster/backdrop mapping on list + detail with provider payload diagnostics | Series Data/UI | P2 | open |
+| QAF-040 | Rework volume slider UX: icon-triggered overlay, hide on blur/leave, remove arrow-toggle metaphor | Player UX/Audio Controls | P2 | open |
+| QAF-041 | Scope player overlay show/hide to player viewport only (ignore pointer movement outside player surface) | Player Overlay Behavior | P2 | open |
+| QAF-042 | Favorites should behave as channel references (not duplicate playback identity) and removing active favorite should restore list selection without stream restart | Favorites/Playback State | P1 | open |
 
 ## Next ready queue (strict order)
 
-1. `QAF-034` TiviMate comparative iteration:
-   - capture native tuple (`request -> 302 -> final host`) for live and catch-up
-   - replay equivalent tuple in web runtime and classify mismatch
-2. Build catch-up transport matrix (`http/http`, `http/https`, `https/http`, `https/https`) and log startup/failure behavior per tuple
-3. Apply minimal patch only on verified mismatch class (redirect handling, host affinity, proxy transport), then run Reptile verification
+1. `QAF-035` token-payload compatibility fix:
+   - reproduce `RTS 1` same-day catch-up (`23:15 Dnevnik`) and capture full tuple (`request -> 302 -> final -> content-type`)
+   - add playable-response gate for catch-up startup in web runtime (`m3u8 playlist` or HLS-parseable manifest required)
+   - classify `200 video/mp2t` token responses as non-playable in browser path and continue attempt plan (retry/fallback), not terminal success
+   - do not mark pass when only initial short segment is visible; require continuous playback progression after startup and after one seek/program-switch action
+2. Keep `QAF-034` evidence loop active:
+   - re-validate transport matrix (`http/http`, `http/https`, `https/http`, `https/https`) after `QAF-035` patch
+   - confirm no live startup regression
+   - include long-load and "single segment then stop/churn" checks from `BUG-20260303-01`
+3. `QAF-038` catch-up consistency hardening for archive-badged channels:
+   - reproduce `Nick Junior` inconsistency with/without dev-server restart
+   - verify cache/data-source alignment (`get_short_epg` vs fallback sources) and badge/list consistency
+   - ensure deterministic empty-state reasoning when archive list is legitimately unavailable
+4. `QAF-036 -> QAF-037` keyboard navigation + zapping burst guard:
+   - fix up/down semantic mapping
+   - add zapping commit dwell (`~300ms`) so rapid key-hold does not trigger per-highlight stream startup bursts
+5. `QAF-040 -> QAF-041` overlay UX consistency:
+   - volume slider opens from audio icon and hides when leaving audio area
+   - overlay show/hide reacts only to player viewport interactions
+6. `QAF-042` favorites playback-state integrity:
+   - remove duplicate channel-identity behavior in favorites context
+   - on remove-active-favorite, restore selection without reloading stream
+7. `QAF-039` series artwork parity re-validation:
+   - trace provider payload fields and verify poster/backdrop mapping in list + detail
+8. External runtime verification + Reptile:
+   - confirm first-frame playback on real user flow
+   - close only with tuple evidence + startup timing + final host trace
 
 ## Execution completion snapshot (2026-02-21)
 
@@ -392,6 +665,39 @@ User executed an additional run with HTTPS-oriented profile settings to compare 
 4. Interpretation:
    - switching profile to HTTPS does not eliminate provider-side host/protocol switching;
    - player compatibility still depends on robust redirect/token handling and mixed transport support (`http` control + `https` media).
+
+## QAF-035 Attempt Log (2026-02-23, reproduced token payload mismatch in web)
+
+Reproduction executed on local browser runtime after latest catch-up parity patch:
+
+1. Scenario and observed UI state:
+   - opened `RTS 1` and selected same-day archive item `23:15 Dnevnik`;
+   - player switched to `UNAZAD`, but no video/audio started (spinner/paused behavior persisted).
+2. Network chain observed in browser:
+   - multiple fallback attempts on `streaming/timeshift.php?...extension=m3u8` returned `404`;
+   - one fallback path reached:
+     - `/timeshift/.../112.ts` -> `302` -> `https://edge6.castcdn.net/streaming/timeshift.php?token=...` -> `200`.
+3. Payload classification (blocking finding):
+   - `200` response on token URL had `content-type: video/mp2t` with large `content-length`;
+   - direct probe confirmed this is TS payload, not HLS playlist (`#EXTM3U` absent);
+   - browser path treated it as non-playable stream (practically download-like behavior), no first frame.
+4. Console/observability:
+   - repeated `catchup.fallback` warnings/errors;
+   - terminal `playback.error` (`NETWORK_ERROR`, `LOAD_FAILED`) after attempt exhaustion.
+5. Practical diagnosis:
+   - current transport parity work correctly reaches redirect/token hosts, but web runtime still lacks strict playable-response gating;
+   - `HTTP 200` alone is not sufficient success condition for catch-up on web.
+6. Potential solution direction for next agent (`QAF-035`):
+   - add catch-up startup verification gate in web runtime:
+     - treat as success only when final response is playlist/HLS-parseable (`application/x-mpegurl` or manifest with `#EXTM3U`);
+     - treat token responses with `video/mp2t` as non-playable candidate for browser HLS flow;
+   - keep attempting next transport candidate (retry/minute-step/fallback) instead of waiting on non-playable `200`;
+   - enrich `catchup.retry`/`catchup.fallback` metadata with `responseContentType` and `rejectionReason` (`non_playable_ts_payload`).
+7. Acceptance criteria proposal:
+   - `RTS 1` same-day catch-up starts with video/audio in browser;
+   - no infinite spinner on `200 video/mp2t` token response (must move to next attempt quickly);
+   - `catchup.requested`, `catchup.redirect`, `catchup.retry`, `catchup.fallback`, `playback.error` events include `streamId/start/duration/attempt/status/finalHost/errorCode`;
+   - live startup/zapping behavior unchanged (no regression).
 
 ## Reopened task clarifications (historical acceptance deltas)
 

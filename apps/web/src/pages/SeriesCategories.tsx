@@ -269,11 +269,17 @@ const SeriesCategories = () => {
                   {visibleItems.map((item) => {
                     const posterKey = `${item.id}:${item.cover}`;
                     const shouldShowPoster = item.cover.length > 0 && !failedPosterKeys.has(posterKey);
+                    const detailParams = new URLSearchParams();
+                    detailParams.set('back', catalogBackPath);
+                    if (item.cover.length > 0) {
+                      detailParams.set('cover', item.cover);
+                    }
+                    const detailPath = `/series/${item.id}?${detailParams.toString()}`;
 
                     return (
                       <Link
                         key={item.id}
-                        to={`/series/${item.id}?back=${encodeURIComponent(catalogBackPath)}`}
+                        to={detailPath}
                         className="group block"
                       >
                         <article className="overflow-hidden rounded-xl border border-border/60 bg-card/90 transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-lg">

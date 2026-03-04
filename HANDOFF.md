@@ -1,5 +1,33 @@
 # Handoff — Lumen Player
 
+## Session 2026-02-24 — Intake triage (BUG-20260224-01..07) + QAF prompt pack
+
+- Context:
+  - Owner submitted fresh manual QA notes for keyboard navigation, zapping behavior, catch-up consistency, series artwork, overlay UX, and favorites state integrity.
+  - Explicit closure requirement was raised: every QAF must be `PASS` across local checks, manual reproduction, and Greptile.
+- Done (docs-sync only):
+  - Added new intake records in:
+    - `docs/V3-QA-FIX-BACKLOG.md`
+      - `BUG-20260224-01` -> `QAF-036` (keyboard up/down semantic alignment)
+      - `BUG-20260224-02` -> `QAF-038` (catch-up badge/list consistency, `Nick Junior`)
+      - `BUG-20260224-03` -> `QAF-037` (zapping burst guard + dwell commit policy)
+      - `BUG-20260224-04` -> `QAF-039` (series poster/backdrop parity re-open)
+      - `BUG-20260224-05` -> `QAF-040` (volume slider interaction model)
+      - `BUG-20260224-06` -> `QAF-041` (overlay viewport-scoped visibility)
+      - `BUG-20260224-07` -> `QAF-042` (favorites reference semantics + no-restart selection restore)
+  - Updated stabilization planning in:
+    - `BACKLOG.md` (`QAF-036..QAF-042` added as `planned` with dependencies)
+  - Updated workflow closure policy in:
+    - `docs/WORKFLOW-LLM-QA.md`
+      - introduced mandatory `PASS-100` gate (`local PASS` + `manual PASS` + `Greptile PASS`) before marking task `done`.
+  - Created runnable agent prompt pack in:
+    - `docs/QAF-AGENT-RUNBOOK-2026-02-24.md`
+      - includes single-task prompts and ordered batch prompts for `QAF-036..QAF-042` and active catch-up items.
+- Notes:
+  - This session is planning/triage only; no production code patch or runtime validation was executed in this step.
+
+---
+
 ## Session 2026-02-23 — QAF-034 provider catch-up compatibility hardening
 
 - Context:

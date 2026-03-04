@@ -155,6 +155,40 @@ For each task ID:
 8. Merge only when task gate is satisfied.
 9. Update `HANDOFF.md`.
 
+### 8.1 Mandatory GitHub + Greptile gate (QAF tasks)
+
+For every `QAF-*` task, this is non-optional:
+
+1. One task -> one branch -> one PR.
+   - branch: `codex/<qaf-id>-<slug>`
+   - commit messages: include exact QAF ID (`QAF-035: ...`)
+   - PR title: include exact QAF ID
+2. Greptile must run on the PR.
+   - if not auto-started, trigger by repo-approved mention/comment immediately.
+   - do not treat "review requested" as PASS; wait for final result.
+3. Roles are split, but still minimal:
+   - `Implementer`: code + tests + observability + local gates
+   - `Verifier`: manual browser runtime check (Console + Network + playback state evidence)
+4. Status discipline:
+   - `open` -> `in-progress` when coding starts
+   - `in-progress` -> `pending-review` only after local gates PASS and PR opened
+   - `pending-review` -> `done` only after PASS-100 (local + manual + Greptile)
+5. No merge and no `done` if any of these is missing:
+   - local PASS
+   - manual runtime PASS
+   - Greptile final PASS with no unresolved valid blockers
+
+PR checklist (copy into PR description):
+
+```md
+## QAF Gate
+- [ ] Local PASS (`lint`, `typecheck`, relevant tests)
+- [ ] Manual runtime PASS (target scenario reproduced + evidence attached)
+- [ ] Greptile review started on this PR
+- [ ] Greptile final PASS (no unresolved valid blockers)
+- [ ] Docs synced (`docs/V3-QA-FIX-BACKLOG.md`, `BACKLOG.md`, `HANDOFF.md`)
+```
+
 ## 9) QA gate after each bugfix batch
 
 After each bugfix batch (1-2 tasks max), run:
@@ -177,6 +211,11 @@ Task is `done` only when all are true:
 - Relevant tests/checks passed.
 - QA impact verified (no untracked regression).
 - `HANDOFF.md` updated with evidence paths.
+- `PASS-100` closure gate is satisfied:
+  - local gates: `PASS` (`lint`, `typecheck`, relevant tests),
+  - manual reproduction on target flow: `PASS` (reporter-confirmed),
+  - Greptile final review on latest head: `PASS` (no unresolved valid blockers).
+  - for catch-up tasks, runtime acceptance from section `17` is satisfied.
 
 ## 11) Quick templates (copy/paste)
 
@@ -260,6 +299,8 @@ When reproducing `Greška u mreži` for catch-up, run this sequence before codin
      - valid playlist (`application/x-mpegurl`, `#EXTM3U`)
      - TS payload (`video/mp2t`)
      - empty/HTML error (`404` or `200` with `0` bytes)
+   - for web/browser runtime specifically:
+     - `200` + `video/mp2t` on token URL is not auto-success; treat as `non-playable candidate` unless proven renderable in player
 4. If endpoint format mismatch is detected:
    - switch URL builder to provider-accepted format first,
    - then retest with the same stream/time tuple.
@@ -306,3 +347,57 @@ Working capture commands (Buildara):
 - `ssh filip@100.74.23.120 "tail -100 /home/filip/tv_capture/live_feed.log"`
 - `ssh filip@100.74.23.120 "tshark -r /home/filip/tv_capture/tivimate_*.pcap -Y 'http.request' -T fields -e frame.time -e http.host -e http.request.uri"`
 - `ssh filip@100.74.23.120 "tshark -r /home/filip/tv_capture/tivimate_*.pcap -Y 'http.response.code' -T fields -e frame.time -e http.response.code -e http.location"`
+
+## 16) Catch-up token payload gate for web runtime (2026-02-23)
+
+New finding from local reproduction on `RTS 1` same-day catch-up (`23:15 Dnevnik`):
+
+- request chain can end in `200` token response with `content-type: video/mp2t` and large payload;
+- browser player may still fail to render first frame/audio (appears like download behavior);
+- therefore transport success must not be inferred from `HTTP 200` alone.
+
+Operational rule for next QAF pass:
+
+1. Catch-up startup success criteria on web:
+   - final response is HLS-playable (playlist content type or parsed manifest path), and playback reaches first frame/audio.
+2. If response is `200 video/mp2t` and playback does not start:
+   - classify as `non_playable_ts_payload`;
+   - continue retry/fallback attempt plan without long stall.
+3. Observability minimum:
+   - include `responseContentType` and `rejectionReason` in `catchup.retry`/`catchup.fallback` when applicable.
+4. Closure guard:
+   - do not mark catch-up task `done` without evidence bundle proving first-frame success on real browser flow for at least one known problematic tuple (`RTS 1`, same-day archive).
+
+## 17) Catch-up runtime stability acceptance gate (2026-03-03)
+
+Context:
+- A catch-up run can show initial picture but still be functionally broken:
+  - very long startup,
+  - seek/program switch returns only one segment/chunk,
+  - then playback stalls or loops through retries.
+
+Hard pass criteria for catch-up tasks (`QAF-034`, `QAF-035`, and successors):
+
+1. Initial startup:
+   - first playable frame/audio should start without excessive delay.
+   - practical target: `<= 15s` in normal run; if above target, classify exact blocking reason (`provider 5xx`, `non_playable_payload`, `runtime_timeout`) with evidence.
+2. Continuity after startup:
+   - playback must progress continuously for at least `90s` (no immediate stall/churn).
+   - `currentTime` must show monotonic forward movement in sampled runtime checks.
+3. Seek reliability:
+   - one seek inside same program must resume and continue playback (not one short segment then stop).
+4. Program-switch reliability (same channel):
+   - switching to 2-3 older programs must start and continue playback for each selected item.
+5. Live safety:
+   - no regression in live startup behavior while changing catch-up runtime logic.
+
+Fail conditions (automatic `FAIL`, no `done`):
+- "Picture appeared once" but playback does not remain stable.
+- only one short segment/chunk plays after seek or program switch.
+- repeated fallback/retry loops without stable runtime progression.
+- status is inferred from `HTTP 200` without runtime playback proof.
+
+Minimum manual evidence bundle:
+- console observability events for the full run,
+- network chain (`request -> redirect -> final`) with status/content-type/final host,
+- runtime samples (`currentTime`, `readyState`, `paused`) proving continuous playback.

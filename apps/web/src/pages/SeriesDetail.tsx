@@ -198,6 +198,41 @@ const fetchSeriesDetail = async (seriesId: string): Promise<SeriesDetailData> =>
     .sort((a, b) => a.seasonNumber - b.seasonNumber);
 
   const infoRecord = info as Record<string, unknown>;
+  const seriesInfoRecord = seriesInfo as unknown as Record<string, unknown>;
+  const movieDataRecord = (
+    seriesInfoRecord.movie_data &&
+    typeof seriesInfoRecord.movie_data === 'object'
+  )
+    ? seriesInfoRecord.movie_data as Record<string, unknown>
+    : {};
+  const artworkSource: Record<string, unknown> = {
+    ...seriesInfoRecord,
+    ...movieDataRecord,
+    ...infoRecord,
+  };
+  let cover = resolveSeriesArtworkUrl(artworkSource);
+  let backdrop = resolveSeriesBackdropUrl(artworkSource);
+
+  if (!cover || !backdrop) {
+    try {
+      const catalogSeries = await xtreamCodesService.getSeries();
+      const catalogMatch = catalogSeries.find(
+        (series) => String(series.series_id) === String(seriesId)
+      );
+
+      if (catalogMatch) {
+        const catalogSource = catalogMatch as unknown as Record<string, unknown>;
+        if (!cover) {
+          cover = resolveSeriesArtworkUrl(catalogSource);
+        }
+        if (!backdrop) {
+          backdrop = resolveSeriesBackdropUrl(catalogSource);
+        }
+      }
+    } catch {
+      // Keep detail payload artwork when catalog fallback is unavailable.
+    }
+  }
 
   return {
     title: info.name ? String(info.name) : `Series ${seriesId}`,
@@ -206,8 +241,8 @@ const fetchSeriesDetail = async (seriesId: string): Promise<SeriesDetailData> =>
     director: info.director ? String(info.director) : '',
     genre: info.genre ? String(info.genre) : '',
     rating: info.rating_5based ? String(info.rating_5based) : info.rating ? String(info.rating) : '',
-    cover: resolveSeriesArtworkUrl(infoRecord),
-    backdrop: resolveSeriesBackdropUrl(infoRecord),
+    cover,
+    backdrop,
     releaseDate: info.releaseDate ? String(info.releaseDate) : '',
     tmdbId: info.tmdb ? String(info.tmdb) : '',
     seasons,
@@ -219,6 +254,7 @@ const SeriesDetail = () => {
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const [isCoverBroken, setIsCoverBroken] = useState(false);
+  const [isBackdropCoverBroken, setIsBackdropCoverBroken] = useState(false);
   const { commands } = useSessionContext();
   const switchToLiveMode = useSwitchToLiveMode();
   const params = useParams<{ seriesId: string }>();
@@ -231,6 +267,8 @@ const SeriesDetail = () => {
 
     return '/series';
   }, [searchParams]);
+  const queryCoverFallback = (searchParams.get('cover') ?? '').trim();
+  const queryBackdropFallback = (searchParams.get('backdrop') ?? '').trim();
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['series-detail', seriesId],
@@ -238,6 +276,13 @@ const SeriesDetail = () => {
     enabled: Boolean(seriesId),
     staleTime: 5 * 60 * 1000,
   });
+  const effectiveCover = data?.cover || queryCoverFallback;
+  const effectiveBackdrop = data?.backdrop || queryBackdropFallback || queryCoverFallback;
+  const posterSource = !isCoverBroken && effectiveCover
+    ? effectiveCover
+    : !isBackdropCoverBroken
+      ? effectiveBackdrop
+      : '';
 
   const contextSeason = parsePositiveInteger(searchParams.get('season'));
   const contextEpisodeId = (searchParams.get('episode') ?? '').trim() || null;
@@ -257,7 +302,8 @@ const SeriesDetail = () => {
 
   useEffect(() => {
     setIsCoverBroken(false);
-  }, [data?.cover]);
+    setIsBackdropCoverBroken(false);
+  }, [effectiveBackdrop, effectiveCover]);
 
   const seasonOptions = data?.seasons ?? [];
   const activeSeason = seasonOptions.find((season) => season.seasonNumber === contextSeason)
@@ -309,8 +355,8 @@ const SeriesDetail = () => {
         <div
           className="h-52 w-full bg-cover bg-center md:h-72"
           style={{
-            backgroundImage: data?.backdrop
-              ? `linear-gradient(to bottom, transparent, hsl(var(--background))), url("${sanitizeCssUrl(data.backdrop)}")`
+            backgroundImage: effectiveBackdrop
+              ? `linear-gradient(to bottom, transparent, hsl(var(--background))), url("${sanitizeCssUrl(effectiveBackdrop)}")`
               : 'none',
           }}
         />
@@ -336,13 +382,18 @@ const SeriesDetail = () => {
               <Card className="overflow-hidden border-border/70 bg-card/80">
                 <CardContent className="p-0">
                   <div className="aspect-[2/3] bg-muted">
-                    {data.cover && !isCoverBroken ? (
+                    {posterSource ? (
                       <img
-                        src={data.cover}
+                        src={posterSource}
                         alt={data.title}
                         loading="lazy"
                         onError={() => {
-                          setIsCoverBroken(true);
+                          if (!isCoverBroken && effectiveCover) {
+                            setIsCoverBroken(true);
+                            return;
+                          }
+
+                          setIsBackdropCoverBroken(true);
                         }}
                         className="h-full w-full object-cover"
                       />

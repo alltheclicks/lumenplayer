@@ -318,7 +318,7 @@ describe("XtreamCodesService catch-up URL builders", () => {
     expect(url.searchParams.get("username")).toBe("demo");
     expect(url.searchParams.get("password")).toBe("demo");
     expect(url.searchParams.get("stream")).toBe("77");
-    expect(url.searchParams.get("duration")).toBe("30");
+    expect(url.searchParams.get("duration")).toBe("1800");
     expect(url.searchParams.get("extension")).toBe("m3u8");
     expect(url.searchParams.get("start")).toBe(localStart);
   });
@@ -335,7 +335,7 @@ describe("XtreamCodesService catch-up URL builders", () => {
     ].join("-") + `:${String(localDate.getHours()).padStart(2, "0")}-${String(localDate.getMinutes()).padStart(2, "0")}`;
 
     expect(redirectUrl).toBe(
-      `https://example.test/timeshift/demo/demo/30/${localStart}/77.ts`,
+      `https://example.test/timeshift/demo/demo/1800/${localStart}/77.ts`,
     );
   });
 
@@ -373,7 +373,7 @@ describe("XtreamCodesService catch-up URL builders", () => {
     ].join("-") + `:${String(localDate.getUTCHours()).padStart(2, "0")}-${String(localDate.getUTCMinutes()).padStart(2, "0")}`;
 
     expect(parsedVariants[0]?.searchParams.get("start")).toBe(localStart);
-    expect(parsedVariants[0]?.searchParams.get("duration")).toBe("30");
+    expect(parsedVariants[0]?.searchParams.get("duration")).toBe("1800");
     expect(parsedVariants.some((variant) => (
       variant.searchParams.get("start") === localStart &&
       variant.searchParams.get("duration") === "1800"
@@ -394,7 +394,7 @@ describe("XtreamCodesService catch-up URL builders", () => {
     ].join("-") + `:${String(localDate.getHours()).padStart(2, "0")}-${String(localDate.getMinutes()).padStart(2, "0")}`;
 
     expect(service.getLegacyCatchUpUrl(77, 1771617600, 1800)).toBe(
-      `https://example.test/timeshift/demo/demo/30/${localStart}/77.m3u8`,
+      `https://example.test/timeshift/demo/demo/1800/${localStart}/77.m3u8`,
     );
   });
 
@@ -409,7 +409,7 @@ describe("XtreamCodesService catch-up URL builders", () => {
     ].join("-") + `:${String(localDate.getHours()).padStart(2, "0")}-${String(localDate.getMinutes()).padStart(2, "0")}`;
 
     expect(variants.some((variant) => (
-      variant === `https://example.test/timeshift/demo/demo/30/${localStart}/77.m3u8`
+      variant === `https://example.test/timeshift/demo/demo/1800/${localStart}/77.m3u8`
     ))).toBe(true);
     expect(variants.some((variant) => (
       variant === "https://example.test/timeshift/demo/demo/1800/1771617600/77.m3u8"

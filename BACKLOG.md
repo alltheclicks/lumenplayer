@@ -50,6 +50,14 @@
 | QAF-032 | Remove static helper copy `Klikni traku za TV unazad` and keep only context-aware cues | S | done | QAF-027 |
 | QAF-033 | Align VOD/Series playback overlay controls with live player and make loading spinner non-blocking/short-lived | M | done | QAF-032 |
 | QAF-034 | Reopened catch-up runtime failure: provider redirect/token flow works in native players but web flow is still unstable in real user scenarios (`404/502`, long startup) | M | in-progress | QAF-030, QAF-003 |
+| QAF-035 | Catch-up token path can return `200 video/mp2t` in web runtime without playable frame/audio; add playable-response gate and fallback continuation policy | M | planned | QAF-034 |
+| QAF-036 | Align live channel keyboard navigation semantics so `ArrowUp`/`ArrowDown` match visual up/down movement in channel list | S | planned | — |
+| QAF-037 | Add keyboard zapping commit debounce (`~300ms` dwell) to avoid per-highlight playback bursts and provider `429` risk | M | planned | QAF-036 |
+| QAF-038 | Stabilize catch-up availability consistency for archive-badged channels (Nick Junior repro + cache/data-source diagnostics) | M | planned | QAF-035 |
+| QAF-039 | Reopen Xtream series artwork parity: enforce poster/backdrop mapping on list + detail and document payload fields used | M | planned | QAF-028 |
+| QAF-040 | Rework volume slider UX: icon-triggered overlay, hide on blur/leave, remove arrow-toggle interaction pattern | S | planned | QAF-027 |
+| QAF-041 | Scope player overlay show/hide to player viewport only (ignore pointer movement outside video/player controls) | S | planned | QAF-040 |
+| QAF-042 | Favorites should keep channel references (no duplicate playback identity) and removing active favorite should restore selection without stream restart | M | planned | QAF-019 |
 | QAF-010 | Fix player control overlay auto-hide behavior on idle | S | done | — |
 | QAF-012 | Prevent desktop player page vertical scroll drift/dead-space | S | done | — |
 | QAF-011 | Fix EPG gibberish regression in live program blocks | S | done | — |
@@ -93,6 +101,9 @@ Completion notes (2026-02-19 .. 2026-02-21):
 - QAF-032 merged via PR #209 (Greptile `5/5` after follow-up remediation commit).
 - QAF-033 merged via PR #210 (Greptile `5/5`).
 - QAF-034 is active again (`in-progress`) with comparative TiviMate traffic analysis and web-runtime parity hardening (redirect/token/retry strategy).
+- QAF-035 is queued (`planned`) from fresh browser reproduction: token redirect can return `200 video/mp2t` without playable catch-up in web runtime (`RTS 1`, same-day archive scenario).
+- New intake wave (`BUG-20260224-01..07`) converted into `QAF-036..QAF-042` for keyboard navigation, zapping burst guard, catch-up consistency, series artwork parity, overlay UX scope, and favorites state integrity.
+- `PASS-100` closure gate is now mandatory for every QAF: local gates `PASS` + manual reproduction `PASS` + Greptile final `PASS`.
 - Manual intake triage (`BUG-20260219-01..06`) converted into `QAF-010..QAF-014` follow-up tasks in `docs/V2-QA-FIX-BACKLOG.md`.
 - Follow-up intake tasks (`BUG-20260220-01..03`) are now closed through `QAF-015..QAF-017`.
 - Follow-up intake tasks (`BUG-20260220-04..07`) are now closed through `QAF-018..QAF-020`.
@@ -442,6 +453,31 @@ Template:
 | LP-1508 | Implement optional ingest/cache middleware in dashboard backend (feature-flagged, non-blocking for direct mode) | L | idea | LP-1507 |
 | LP-1509 | Add parser/normalization pipeline for large Xtream payloads (channels, VOD, series, EPG) with incremental refresh | L | idea | LP-1508 |
 | LP-1510 | Define middleware activation criteria + SLO gates (enable when direct mode exceeds latency/memory/error thresholds) | S | idea | LP-1507, LP-0327, LP-0328 |
+| LP-1511 | Build shared Xtream transport gateway (Fastify) for dev/beta/prod: same-origin media/API proxy, redirect-safe routing, timeout/retry policy, and unified observability | L | planned | LP-1507 |
+
+### LP-1511 — Shared Xtream Transport Gateway (spec)
+
+- Goal: one production-grade proxy/gateway endpoint used by `apps/web` in all environments (`dev`, `beta`, `production`) to remove browser CORS/mixed-content blockers and reduce transport variance between environments.
+- Recommended solution: standalone `Fastify` service (`apps/proxy`) with stream-safe passthrough and strict outbound controls.
+- Required routes: preserve existing `/xui-api/{encoded-target}/...` contract so current web transport code stays compatible.
+- Must do
+- Forward Xtream API and media requests as byte-stream passthrough (no response body buffering for media).
+- Support redirect/token flows (`302/301/307/308`) and rewrite `Location` headers back to proxy path.
+- Apply explicit upstream timeout and limited retry (`GET`/`HEAD`, transport errors only; no blind retry on HTTP `4xx/5xx`).
+- Add host allowlist for outbound targets (prevent open-proxy abuse).
+- Emit structured logs/metrics that separate `proxy_error` vs `upstream_error` and record upstream status/time/host.
+- Preserve headers needed for HLS playback while stripping hop-by-hop headers.
+- Return deterministic error classes to client (`upstream_timeout`, `transport_error`, `missing_target`, `blocked_host`).
+- Nice to have (phase 2): optional short TTL cache for control/API endpoints only (`player_api.php`, `xmltv.php`), disabled for segment traffic.
+- Non-goals
+- No transcoding.
+- No long-term media caching by default.
+- No provider-specific playback business logic in proxy (that remains in player transport/runtime gate).
+- Acceptance criteria
+- Web app works with `VITE_XTREAM_PROXY_ORIGIN` in dev and non-dev modes without Vite-only proxy dependency.
+- Catch-up/live redirect token flows remain playable through gateway with parity to direct flow where browser policy allows direct.
+- Gateway resilience: timeout + single retry policy verified by tests.
+- Security: allowlist enforcement and blocked-host audit logging verified.
 
 ---
 
