@@ -1,5 +1,67 @@
 # Handoff — Lumen Player
 
+## Session 2026-03-04 — LP-1511 shared Xtream transport gateway (`pending-review`)
+
+- Context:
+  - Required execution order was `LP-1511` first, then `QAF-035`, with strict `1 task -> 1 branch -> 1 PR` workflow.
+- PR:
+  - #216 (`LP-1511`) — branch `codex/lp-1511-xtream-gateway`
+- Done:
+  - added standalone `apps/proxy` Fastify service with `/xui-api/{encoded-target}/...` compatibility contract
+  - implemented:
+    - host allowlist enforcement,
+    - timeout + bounded retry (`GET`/`HEAD` transport failures),
+    - redirect-safe `Location` rewrite back to `/xui-api/...`,
+    - deterministic error classes (`missing_target`, `blocked_host`, `upstream_timeout`, `transport_error`),
+    - structured proxy/upstream logging fields
+  - updated web runtime resolver to support `VITE_XTREAM_PROXY_ORIGIN` in both dev and non-dev flows:
+    - `apps/web/src/config/xtream.ts`
+    - `apps/web/src/config/xtream.test.ts`
+- Local validation:
+  - `pnpm lint` -> pass
+  - `pnpm typecheck` -> pass
+  - `pnpm vitest run apps/proxy/src/server.test.ts apps/web/src/config/xtream.test.ts` -> pass
+- Status:
+  - task moved to `pending-review` (PR open + local gates pass)
+  - Greptile final PASS is currently unavailable due service account/trial gate (bot responded, no score emitted)
+
+---
+
+## Session 2026-03-04 — QAF-035 runtime payload gate + fallback continuation (`pending-review`)
+
+- Context:
+  - Target issue: catch-up token flow could return `HTTP 200` with `video/mp2t` payload in browser runtime without usable playback start.
+  - Hard-pass manual scenario required: `RTS 1` catch-up (start -> seek -> 2-3 older programs, `>=90s` continuity).
+- PR:
+  - #217 (`QAF-035`) — branch `codex/qaf-035-runtime-payload-gate`
+- Done:
+  - added runtime payload gate module:
+    - `apps/web/src/components/player/catchupRuntimeGate.ts`
+    - `apps/web/src/components/player/catchupRuntimeGate.test.ts`
+  - extended adapter manifest callback with runtime payload metadata and gate rejection path:
+    - `apps/web/src/adapters/HlsPlayerAdapter.ts`
+  - integrated gate decisions + startup-timeout fallback continuation in player runtime:
+    - `apps/web/src/components/player/VideoPlayer.tsx`
+  - enriched fallback observability (`catchup.retry`/`catchup.fallback`) with:
+    - `responseContentType`
+    - `rejectionReason`
+- Local validation:
+  - `pnpm lint` -> pass
+  - `pnpm typecheck` -> pass
+  - `pnpm --filter @lumen/web exec vitest run src/components/player/catchupRuntimeGate.test.ts src/components/player/catchupTransport.test.ts src/adapters/HlsPlayerAdapter.test.ts src/components/player/videoPlaybackSync.test.ts` -> pass
+- Manual runtime attempt (browser automation):
+  - Playwright CLI run executed on `http://localhost:8080/player`
+  - login succeeded (`fica`), but current dataset in this environment exposed demo channels only (`Channel 1..5`) and no `RTS 1` catch-up tuple for required hard-pass flow
+  - artifacts:
+    - `.playwright-cli/page-2026-03-04T12-33-21-716Z.yml`
+    - `.playwright-cli/network-2026-03-04T12-33-53-774Z.log`
+    - `.playwright-cli/console-2026-03-04T12-33-37-518Z.log`
+- Status:
+  - task moved to `pending-review` (PR open + local gates pass)
+  - `done` is blocked until PASS-100 is satisfied (manual RTS1 tuple evidence + Greptile final PASS)
+
+---
+
 ## Session 2026-02-23 — QAF-034 provider catch-up compatibility hardening
 
 - Context:

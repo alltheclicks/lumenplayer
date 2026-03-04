@@ -230,14 +230,33 @@ Current snapshot:
 | QAF-032 | Remove static helper copy `Klikni traku za TV unazad` and keep only context-aware cues | Player Copy/UX Clarity | P3 | done |
 | QAF-033 | Align VOD/Series playback overlay controls with live player and make loading spinner non-blocking/short-lived | On-demand Player UX | P1 | done |
 | QAF-034 | Reopened catch-up runtime failure: provider timeshift returns intermittent `404/502`, playback still fails in real user flow | Catch-up Playback/Provider Compatibility | P1 | in-progress |
+| QAF-035 | Catch-up token `200 video/mp2t` payload is now runtime-gated in web path with fallback continuation metadata (`responseContentType`, `rejectionReason`); waiting PASS-100 closure evidence | Catch-up Playback/Browser Transport | P1 | pending-review |
 
 ## Next ready queue (strict order)
 
-1. `QAF-034` TiviMate comparative iteration:
+1. `QAF-035` PASS-100 closure on target tuple:
+   - rerun required `RTS 1` catch-up hard-pass scenario (first program -> seek -> 2-3 older programs)
+   - confirm continuity `>=90s` with monotonic `currentTime` growth and no live regression
+   - capture final Greptile PASS once review service is available
+2. `QAF-034` TiviMate comparative iteration:
    - capture native tuple (`request -> 302 -> final host`) for live and catch-up
    - replay equivalent tuple in web runtime and classify mismatch
-2. Build catch-up transport matrix (`http/http`, `http/https`, `https/http`, `https/https`) and log startup/failure behavior per tuple
-3. Apply minimal patch only on verified mismatch class (redirect handling, host affinity, proxy transport), then run Reptile verification
+3. Build catch-up transport matrix (`http/http`, `http/https`, `https/http`, `https/https`) and log startup/failure behavior per tuple
+4. Apply minimal patch only on verified mismatch class (redirect handling, host affinity, proxy transport), then run Reptile verification
+
+## QAF-035 Attempt Log (2026-03-04, pending-review)
+
+1. Implemented runtime payload gate in web player path (PR #217):
+   - `catchupRuntimeGate` evaluator classifies manifest/runtime payload with explicit reject for `200 video/mp2t` (`non_playable_ts_payload`)
+   - `HlsPlayerAdapter` now propagates manifest `httpStatus` + `contentType` and rejects non-playable manifest payloads via runtime-gate error
+   - `VideoPlayer` now continues fallback plan on runtime-gate rejection and startup timeout, and emits enriched `catchup.retry`/`catchup.fallback` metadata (`responseContentType`, `rejectionReason`)
+2. Local validation:
+   - `pnpm lint` -> pass
+   - `pnpm typecheck` -> pass
+   - focused tests (`catchupRuntimeGate`, `catchupTransport`, `HlsPlayerAdapter`, `videoPlaybackSync`) -> pass
+3. Manual runtime attempt (browser automation) is currently blocked for hard-pass tuple:
+   - login succeeds, but active dataset in this environment exposes demo channels only (`Channel 1..5`) without required `RTS 1` catch-up tuple
+   - therefore task remains `pending-review` until required manual tuple evidence is available
 
 ## Execution completion snapshot (2026-02-21)
 
