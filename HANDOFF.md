@@ -1,5 +1,68 @@
 # Handoff — Lumen Player
 
+## Session 2026-03-05 — QAF-035 first runtime anti-loop stabilization (`codex/disable-demo-fallback-xui`)
+
+- Context:
+  - User confirmed runtime loop/freeze is still reproducible in real flows (`NOVA S` catch-up `19:30 Dnevnik`, `RTS 1` catch-up `03:00 Takovska 10`), even after earlier recovery attempt.
+  - Request was to continue strict `QAF-035` scope and record exact state-level evidence for other agents.
+- Done:
+  - applied minimal runtime recovery hardening in player logic:
+    - disabled catch-up runtime pipeline-reload loop path (`RUNTIME_PIPELINE_RECOVERY_MAX_RETRIES = 0`);
+    - added runtime catch-up retry/fallback skip-ahead (`+5s`) to avoid re-entering same bad segment;
+    - kept startup/runtime recovery guards and watchdog behavior for non-proxy runtime failures.
+  - touched files:
+    - `apps/web/src/components/player/VideoPlayer.tsx`
+    - `apps/web/src/components/player/videoPlaybackSync.ts`
+    - `apps/web/src/components/player/videoPlaybackSync.test.ts`
+- Evidence (manual browser + state sampling):
+  - before patch (reproduced freeze on `Takovska 10`):
+    - 100s run: `currentTime 42.283 -> 42.286`, `readyState=0`, `paused=true`, `videoWidth=0`, spinner present for all samples.
+  - after anti-loop patch:
+    - `RTS1 / Takovska 03:00`, 100s: `currentTime 15 -> 112.732`, `progressedSeconds=97.732`, `jumps=0`, `spinnerSamples=11`.
+    - `NOVA S / Dnevnik 19:30`, 100s: `progressedSeconds=94.519`, `jumps=0`.
+    - `NOVA S live`, 100s: `progressedSeconds=99.282`, `jumps=0`, no spinner.
+  - local gates:
+    - `pnpm --filter @lumen/web lint` pass
+    - `pnpm --filter @lumen/web typecheck` pass
+    - `pnpm --filter @lumen/web exec vitest run src/components/player/videoPlaybackSync.test.ts src/adapters/HlsPlayerAdapter.test.ts` pass
+    - `pnpm lint` pass
+    - `pnpm typecheck` pass
+- Status:
+  - `QAF-035` stays `in-progress`; first fix is solid in repeated local runs, but user still has additional runtime remarks to fold into next stabilization pass.
+- Next:
+  - capture exact user-reported edge case timestamp/flow and correlate with `playback.runtime_recovery` + `catchup.retry` observability sequence.
+  - keep strict runtime-only scope (no proxy-contract changes) and continue bounded anti-loop tuning.
+
+---
+
+## Session 2026-03-04 — LP-1511 + QAF-035 runtime triage (`/xui-api` vs player freeze)
+
+- Context:
+  - User reported regression in real runtime flow: long loading spinner and static frame on live/catch-up, with no video/audio progression.
+  - Request was to validate whether `/xui-api` proxy middleware is the root cause, and to continue `QAF-035` validation on real Xtream data (`smart.mediaking.fi`, user `fica`).
+- Done:
+  - enabled proxy diagnostics with `VITE_XUI_PROXY_DEBUG=1` in local dev and observed request/response flow while reproducing in real browser automation.
+  - executed Playwright user-simulation on `http://localhost:8080/player` (RTS1):
+    - `TV unazad` `13:15 Građanin` -> older entries (`12:00 Dnevnik 1`, `03:00 Takovska 10`) -> return to live.
+  - aligned local direction for `LP-1511` to keep real XUI routing path (`/xui-api`) and avoid demo-source fallback in runtime data flow.
+- Evidence:
+  - proxy plane is functional in reproduced failures:
+    - `/streaming/timeshift.php?...&extension=m3u8` observed as `302` with valid `location` to tokenized edge host;
+    - `/live/fica/.../112.m3u8` observed as `302` with valid redirect;
+    - no `xui-proxy:error` signal in failing run.
+  - runtime/player failure profile is reproducible:
+    - after switching to older catch-up item (`03:00 Takovska 10`) state enters `paused=false`, `readyState=0`, `currentTime=15`, `videoWidth=0` (spinner/no decode);
+    - then transitions to `paused=true`, `readyState=4`, stale/static frame (`currentTime` stops near `~42s`);
+    - console/observability warns: `playback.error` with `MEDIA_ELEMENT_3` (non-fatal), while segment fetches still return `200`.
+- Conclusion:
+  - primary blocker is not proxy middleware contract; issue is runtime playback state/recovery logic after catch-up transition.
+  - `QAF-035` remains `in-progress` (not ready for `pending-review`).
+- Next:
+  - implement runtime freeze recovery for `MEDIA_ELEMENT_3` + stale-frame state (auto-resume/retry gate tied to real progression signal, without live regression).
+  - rerun mandatory hard-pass scenario: RTS1 catch-up start, seek, switch 2-3 older programs, then confirm continuous playback >=90s with increasing `currentTime`.
+
+---
+
 ## Session 2026-02-23 — QAF-034 provider catch-up compatibility hardening
 
 - Context:

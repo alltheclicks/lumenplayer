@@ -69,6 +69,36 @@ export const shouldRetryPendingAutoplayAfterPausedEvent = (
   return retryCount < maxRetries;
 };
 
+export const shouldAttemptStartupPipelineRecovery = (
+  session: SessionState,
+  pendingAutoplaySourceUrl: string | null,
+  recoveryCount: number,
+  maxRecoveries: number
+): boolean => {
+  if (!shouldHoldPauseSyncOnSourceStartup(session, pendingAutoplaySourceUrl)) {
+    return false;
+  }
+
+  return recoveryCount < maxRecoveries;
+};
+
+export const shouldAttemptMediaElementStartupRecovery = (
+  playbackError: PlaybackError,
+  session: SessionState,
+  pendingAutoplaySourceUrl: string | null,
+  recoveryCount: number,
+  maxRecoveries: number
+): boolean => (
+  playbackError.code === 'MEDIA_ELEMENT_3' &&
+  !playbackError.fatal &&
+  shouldAttemptStartupPipelineRecovery(
+    session,
+    pendingAutoplaySourceUrl,
+    recoveryCount,
+    maxRecoveries
+  )
+);
+
 export const shouldShowBlockingPlaybackError = (playbackError: PlaybackError): boolean => (
   playbackError.fatal
 );
