@@ -105,6 +105,7 @@ const RUNTIME_PIPELINE_RECOVERY_MAX_RETRIES = 0;
 const RUNTIME_STALL_WATCHDOG_INTERVAL_MS = 2_000;
 const RUNTIME_STALL_WATCHDOG_THRESHOLD_MS = 8_000;
 const RUNTIME_STALL_PROGRESS_EPSILON_SECONDS = 0.15;
+const RUNTIME_STALL_WATCHDOG_MAX_RECOVERY_FAILURES = 3;
 const CATCH_UP_FALLBACK_POSITION_GUARD_MS = 15_000;
 const CATCH_UP_RUNTIME_RETRY_SKIP_AHEAD_MS = 5_000;
 const CATCH_UP_FALLBACK_ERROR_CODES = new Set([
@@ -124,6 +125,8 @@ interface RuntimeStallSampleState {
   currentTime: number;
   observedAtMs: number;
   stalledForMs: number;
+  consecutiveRecoveryFailures: number;
+  recoveryExhausted: boolean;
 }
 
 const parseNumericMetadataValue = (value: unknown): number | null => {
@@ -1252,6 +1255,8 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
           currentTime,
           observedAtMs: nowMs,
           stalledForMs: 0,
+          consecutiveRecoveryFailures: 0,
+          recoveryExhausted: false,
         };
         return;
       }
@@ -1264,6 +1269,8 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
           currentTime,
           observedAtMs: nowMs,
           stalledForMs: 0,
+          consecutiveRecoveryFailures: 0,
+          recoveryExhausted: false,
         };
         return;
       }
@@ -1274,17 +1281,26 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
         currentTime,
         observedAtMs: nowMs,
         stalledForMs,
+        consecutiveRecoveryFailures: previousSample.consecutiveRecoveryFailures,
+        recoveryExhausted: previousSample.recoveryExhausted,
       };
 
       if (stalledForMs < RUNTIME_STALL_WATCHDOG_THRESHOLD_MS) {
         return;
       }
 
+      if (previousSample.recoveryExhausted) {
+        return;
+      }
+
+      const recoveryAttempt = previousSample.consecutiveRecoveryFailures + 1;
       runtimeStallSampleRef.current = {
         sourceUrl: source.url,
         currentTime,
         observedAtMs: nowMs,
         stalledForMs: 0,
+        consecutiveRecoveryFailures: previousSample.consecutiveRecoveryFailures,
+        recoveryExhausted: false,
       };
       emitWebObservabilityEvent({
         name: 'playback.runtime_recovery',
@@ -1292,6 +1308,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
         metadata: {
           reason: 'RUNTIME_STALLED_PROGRESS',
           strategy: 'progress-watchdog',
+          attempt: recoveryAttempt,
           renderer: currentSession.renderer,
           sourceType: source.type,
         },
@@ -1305,6 +1322,48 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
         return;
       }
 
+      if (recoveryAttempt >= RUNTIME_STALL_WATCHDOG_MAX_RECOVERY_FAILURES) {
+        const message = (
+          'Reprodukcija je zastala i automatski oporavak nije uspeo. '
+          + 'Pokušajte drugi sadržaj ili povratak na live.'
+        );
+        runtimeStallSampleRef.current = {
+          sourceUrl: source.url,
+          currentTime,
+          observedAtMs: nowMs,
+          stalledForMs,
+          consecutiveRecoveryFailures: recoveryAttempt,
+          recoveryExhausted: true,
+        };
+        setIsLoading(false);
+        setError({
+          type: 'network',
+          message: 'Reprodukcija je zastala',
+          details: message,
+        });
+        emitWebObservabilityEvent({
+          name: 'playback.runtime_recovery',
+          severity: 'error',
+          metadata: {
+            reason: 'RUNTIME_STALLED_PROGRESS_EXHAUSTED',
+            strategy: 'progress-watchdog',
+            attempt: recoveryAttempt,
+            renderer: currentSession.renderer,
+            sourceType: source.type,
+          },
+        });
+        onError?.(message);
+        return;
+      }
+
+      runtimeStallSampleRef.current = {
+        sourceUrl: source.url,
+        currentTime,
+        observedAtMs: nowMs,
+        stalledForMs: 0,
+        consecutiveRecoveryFailures: recoveryAttempt,
+        recoveryExhausted: false,
+      };
       adapterRef.current?.play();
     }, RUNTIME_STALL_WATCHDOG_INTERVAL_MS);
 
