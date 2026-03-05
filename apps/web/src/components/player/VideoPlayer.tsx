@@ -108,6 +108,7 @@ const RUNTIME_STALL_PROGRESS_EPSILON_SECONDS = 0.15;
 const RUNTIME_STALL_WATCHDOG_MAX_RECOVERY_FAILURES = 3;
 const CATCH_UP_FALLBACK_POSITION_GUARD_MS = 15_000;
 const CATCH_UP_RUNTIME_RETRY_SKIP_AHEAD_MS = 5_000;
+const CATCH_UP_RUNTIME_FALLBACK_MAX_ATTEMPTS = 3;
 const CATCH_UP_FALLBACK_ERROR_CODES = new Set([
   'NETWORK_ERROR',
   'MEDIA_ERROR',
@@ -127,6 +128,11 @@ interface RuntimeStallSampleState {
   stalledForMs: number;
   consecutiveRecoveryFailures: number;
   recoveryExhausted: boolean;
+}
+
+interface RuntimeCatchUpFallbackBudgetState {
+  recoveryKey: string;
+  attempts: number;
 }
 
 const parseNumericMetadataValue = (value: unknown): number | null => {
@@ -215,6 +221,24 @@ const isRuntimeRecoveryReason = (reason: string): boolean => (
   reason === 'MEDIA_ELEMENT_3_RUNTIME' ||
   reason.startsWith('RUNTIME_')
 );
+
+const buildCatchUpRecoveryKey = (
+  metadata: Record<string, unknown>,
+  sourceUrl: string,
+): string => {
+  const streamId = Math.floor(parseNumericMetadataValue(metadata.streamId) ?? 0);
+  const startTimestamp = Math.floor(parseNumericMetadataValue(metadata.catchUpStartTimestamp) ?? 0);
+  if (streamId > 0 && startTimestamp > 0) {
+    return `${streamId}:${startTimestamp}`;
+  }
+
+  const programId = typeof metadata.programId === 'string' ? metadata.programId.trim() : '';
+  if (programId.length > 0) {
+    return `program:${programId}`;
+  }
+
+  return `url:${sourceUrl}`;
+};
 
 const buildCatchUpEventMetadata = (
   source: {
@@ -342,6 +366,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
   const runtimePauseRecoveryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const runtimePipelineRecoveryAttemptsRef = useRef(0);
   const runtimeStallSampleRef = useRef<RuntimeStallSampleState | null>(null);
+  const runtimeCatchUpFallbackBudgetRef = useRef<RuntimeCatchUpFallbackBudgetState | null>(null);
   const playbackWantsPlaying = sessionWantsPlayback(session);
   const isLocalRenderer = session.renderer === 'local-web' || session.renderer === 'airplay';
 
@@ -530,6 +555,39 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
     const { attempts, currentAttemptIndex } = resolveCatchUpAttemptState(metadata, source.url);
     if (attempts.length <= 1) {
       return false;
+    }
+
+    if (isRuntimeRecoveryReason(reason)) {
+      const recoveryKey = buildCatchUpRecoveryKey(metadata, source.url);
+      const previousRuntimeBudget = runtimeCatchUpFallbackBudgetRef.current;
+      const runtimeFallbackAttempt = (
+        previousRuntimeBudget && previousRuntimeBudget.recoveryKey === recoveryKey
+          ? previousRuntimeBudget.attempts + 1
+          : 1
+      );
+      runtimeCatchUpFallbackBudgetRef.current = {
+        recoveryKey,
+        attempts: runtimeFallbackAttempt,
+      };
+
+      if (runtimeFallbackAttempt > CATCH_UP_RUNTIME_FALLBACK_MAX_ATTEMPTS) {
+        emitWebObservabilityEvent({
+          name: 'catchup.fallback',
+          severity: 'error',
+          metadata: {
+            ...buildCatchUpEventMetadata(source, {
+              attemptIndex: currentAttemptIndex,
+              status: 'runtime-recovery-budget-exhausted',
+              errorCode: reason,
+            }),
+            renderer: currentSession.renderer,
+            fallbackCount: Math.max(0, attempts.length - 1),
+            runtimeFallbackBudget: CATCH_UP_RUNTIME_FALLBACK_MAX_ATTEMPTS,
+            runtimeFallbackAttempt,
+          },
+        });
+        return false;
+      }
     }
 
     let nextAttemptIndex = currentAttemptIndex + 1;
@@ -1428,6 +1486,9 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
     startupPipelineRecoveryAttemptsRef.current = 0;
     runtimePipelineRecoveryAttemptsRef.current = 0;
     lastStartedSourceRef.current = null;
+    if (!isCatchUpSourceSession(sessionRef.current)) {
+      runtimeCatchUpFallbackBudgetRef.current = null;
+    }
     pendingAutoplaySourceUrlRef.current = autoPlay && sessionWantsPlayback(sessionRef.current)
       ? src
       : null;
