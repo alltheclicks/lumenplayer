@@ -226,18 +226,43 @@ const buildCatchUpRecoveryKey = (
   metadata: Record<string, unknown>,
   sourceUrl: string,
 ): string => {
-  const streamId = Math.floor(parseNumericMetadataValue(metadata.streamId) ?? 0);
-  const startTimestamp = Math.floor(parseNumericMetadataValue(metadata.catchUpStartTimestamp) ?? 0);
-  if (streamId > 0 && startTimestamp > 0) {
-    return `${streamId}:${startTimestamp}`;
-  }
-
   const programId = typeof metadata.programId === 'string' ? metadata.programId.trim() : '';
   if (programId.length > 0) {
     return `program:${programId}`;
   }
 
+  const streamId = Math.floor(
+    parseNumericMetadataValue(metadata.initialStreamId)
+    ?? parseNumericMetadataValue(metadata.streamId)
+    ?? 0
+  );
+  const startTimestamp = Math.floor(
+    parseNumericMetadataValue(metadata.initialStartTs)
+    ?? parseNumericMetadataValue(metadata.catchUpInitialStartTimestamp)
+    ?? parseNumericMetadataValue(metadata.catchUpStartTimestamp)
+    ?? 0
+  );
+  if (startTimestamp > 0) {
+    return `catchup:${streamId}:${startTimestamp}`;
+  }
+
   return `url:${sourceUrl}`;
+};
+
+const isCatchUpRuntimeFallbackBudgetExhausted = (
+  budget: RuntimeCatchUpFallbackBudgetState | null,
+  metadata: Record<string, unknown>,
+  sourceUrl: string,
+): boolean => {
+  if (!budget) {
+    return false;
+  }
+
+  const recoveryKey = buildCatchUpRecoveryKey(metadata, sourceUrl);
+  return (
+    budget.recoveryKey === recoveryKey &&
+    budget.attempts > CATCH_UP_RUNTIME_FALLBACK_MAX_ATTEMPTS
+  );
 };
 
 const buildCatchUpEventMetadata = (
@@ -571,21 +596,28 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
       };
 
       if (runtimeFallbackAttempt > CATCH_UP_RUNTIME_FALLBACK_MAX_ATTEMPTS) {
-        emitWebObservabilityEvent({
-          name: 'catchup.fallback',
-          severity: 'error',
-          metadata: {
-            ...buildCatchUpEventMetadata(source, {
-              attemptIndex: currentAttemptIndex,
-              status: 'runtime-recovery-budget-exhausted',
-              errorCode: reason,
-            }),
-            renderer: currentSession.renderer,
-            fallbackCount: Math.max(0, attempts.length - 1),
-            runtimeFallbackBudget: CATCH_UP_RUNTIME_FALLBACK_MAX_ATTEMPTS,
-            runtimeFallbackAttempt,
-          },
-        });
+        const alreadyExhausted = (
+          previousRuntimeBudget &&
+          previousRuntimeBudget.recoveryKey === recoveryKey &&
+          previousRuntimeBudget.attempts > CATCH_UP_RUNTIME_FALLBACK_MAX_ATTEMPTS
+        );
+        if (!alreadyExhausted) {
+          emitWebObservabilityEvent({
+            name: 'catchup.fallback',
+            severity: 'error',
+            metadata: {
+              ...buildCatchUpEventMetadata(source, {
+                attemptIndex: currentAttemptIndex,
+                status: 'runtime-recovery-budget-exhausted',
+                errorCode: reason,
+              }),
+              renderer: currentSession.renderer,
+              fallbackCount: Math.max(0, attempts.length - 1),
+              runtimeFallbackBudget: CATCH_UP_RUNTIME_FALLBACK_MAX_ATTEMPTS,
+              runtimeFallbackAttempt,
+            },
+          });
+        }
         return false;
       }
     }
@@ -1383,6 +1415,53 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
         return;
       }
 
+      if (
+        typeof source.metadata === 'object' &&
+        source.metadata !== null &&
+        isCatchUpRuntimeFallbackBudgetExhausted(
+          runtimeCatchUpFallbackBudgetRef.current,
+          source.metadata as Record<string, unknown>,
+          source.url
+        )
+      ) {
+        const message = (
+          'TV unazad je nestabilan za izabranu emisiju. '
+          + 'Pokušajte drugu emisiju ili povratak na live.'
+        );
+        runtimeStallSampleRef.current = {
+          sourceUrl: source.url,
+          currentTime,
+          observedAtMs: nowMs,
+          stalledForMs,
+          consecutiveRecoveryFailures: recoveryAttempt,
+          recoveryExhausted: true,
+        };
+        clearStartupAutoplayRecovery();
+        clearRuntimePauseRecovery();
+        pendingAutoplaySourceUrlRef.current = null;
+        commands.pause();
+        setIsLoading(false);
+        setError({
+          type: 'network',
+          message: 'TV unazad je zastao',
+          details: message,
+        });
+        emitWebObservabilityEvent({
+          name: 'playback.runtime_recovery',
+          severity: 'error',
+          metadata: {
+            reason: 'RUNTIME_CATCHUP_RETRY_BUDGET_EXHAUSTED',
+            strategy: 'progress-watchdog',
+            attempt: recoveryAttempt,
+            renderer: currentSession.renderer,
+            sourceType: source.type,
+            runtimeFallbackBudget: CATCH_UP_RUNTIME_FALLBACK_MAX_ATTEMPTS,
+          },
+        });
+        onError?.(message);
+        return;
+      }
+
       if (recoveryAttempt >= RUNTIME_STALL_WATCHDOG_MAX_RECOVERY_FAILURES) {
         const message = (
           'Reprodukcija je zastala i automatski oporavak nije uspeo. '
@@ -1396,6 +1475,10 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
           consecutiveRecoveryFailures: recoveryAttempt,
           recoveryExhausted: true,
         };
+        clearStartupAutoplayRecovery();
+        clearRuntimePauseRecovery();
+        pendingAutoplaySourceUrlRef.current = null;
+        commands.pause();
         setIsLoading(false);
         setError({
           type: 'network',
