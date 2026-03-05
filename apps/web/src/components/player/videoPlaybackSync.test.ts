@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import type { SessionState } from '@lumen/session-core';
 import type { PlaybackError } from '@lumen/types';
 import {
+  shouldAttemptMediaElementStartupRecovery,
+  shouldAttemptStartupPipelineRecovery,
   shouldClearPendingAutoplayOnPlaybackError,
   sessionWantsPlayback,
   shouldKeepPendingAutoplayOnIdle,
@@ -74,6 +76,56 @@ describe('videoPlaybackSync', () => {
         0,
         3
       )
+    ).toBe(false);
+  });
+
+  it('allows a bounded startup pipeline recovery while startup autoplay intent exists', () => {
+    const playingSession = buildSession({ playback: 'playing' });
+    const sourceUrl = playingSession.source?.url ?? null;
+
+    expect(shouldAttemptStartupPipelineRecovery(playingSession, sourceUrl, 0, 1)).toBe(true);
+    expect(shouldAttemptStartupPipelineRecovery(playingSession, sourceUrl, 1, 1)).toBe(false);
+    expect(
+      shouldAttemptStartupPipelineRecovery(
+        buildSession({ playback: 'paused' }),
+        sourceUrl,
+        0,
+        1
+      )
+    ).toBe(false);
+    expect(shouldAttemptStartupPipelineRecovery(playingSession, 'https://example.com/other.m3u8', 0, 1)).toBe(false);
+  });
+
+  it('triggers media-element startup recovery only for non-fatal MEDIA_ELEMENT_3 during startup', () => {
+    const session = buildSession({ playback: 'playing' });
+    const sourceUrl = session.source?.url ?? null;
+    const nonFatalMediaElement: PlaybackError = {
+      code: 'MEDIA_ELEMENT_3',
+      message: 'Decode stalled',
+      fatal: false,
+    };
+    const fatalMediaElement: PlaybackError = {
+      code: 'MEDIA_ELEMENT_3',
+      message: 'fatal',
+      fatal: true,
+    };
+    const otherError: PlaybackError = {
+      code: 'NETWORK_ERROR',
+      message: 'network',
+      fatal: false,
+    };
+
+    expect(
+      shouldAttemptMediaElementStartupRecovery(nonFatalMediaElement, session, sourceUrl, 0, 1)
+    ).toBe(true);
+    expect(
+      shouldAttemptMediaElementStartupRecovery(nonFatalMediaElement, session, sourceUrl, 1, 1)
+    ).toBe(false);
+    expect(
+      shouldAttemptMediaElementStartupRecovery(fatalMediaElement, session, sourceUrl, 0, 1)
+    ).toBe(false);
+    expect(
+      shouldAttemptMediaElementStartupRecovery(otherError, session, sourceUrl, 0, 1)
     ).toBe(false);
   });
 

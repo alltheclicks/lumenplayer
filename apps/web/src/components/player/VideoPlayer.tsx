@@ -1,5 +1,6 @@
 import { useRef, useEffect, useState, useCallback, forwardRef, useImperativeHandle } from 'react';
 import { AlertCircle, Loader2, WifiOff, ShieldAlert } from 'lucide-react';
+import type { SessionState } from '@lumen/session-core';
 import { useSessionContext } from '@/context/session-context';
 import { HlsPlayerAdapter } from '@/adapters/HlsPlayerAdapter';
 import type { PlaybackError } from '@lumen/types';
@@ -16,6 +17,8 @@ import {
   type CatchUpTransportAttempt,
 } from './catchupTransport';
 import {
+  shouldAttemptMediaElementStartupRecovery,
+  shouldAttemptStartupPipelineRecovery,
   shouldKeepPendingAutoplayOnIdle,
   shouldClearPendingAutoplayOnPlaybackError,
   sessionWantsPlayback,
@@ -31,6 +34,9 @@ export interface VideoPlayerProps {
   preferNativeHls?: boolean;
   loadingOverlayMaxMs?: number;
   onError?: (error: string) => void;
+  onCatchUpRecoveryExhausted?: (
+    reason: 'runtime-fallback-budget' | 'runtime-stall-retries'
+  ) => boolean | void;
   onEnded?: () => void;
   onCanPlay?: () => void;
   className?: string;
@@ -93,8 +99,19 @@ type WebKitAirPlayVideoElement = HTMLVideoElement & {
 };
 
 const STARTUP_AUTOPLAY_RECOVERY_MAX_RETRIES = 3;
+const STARTUP_AUTOPLAY_RECOVERY_CATCH_UP_MAX_RETRIES = 12;
 const STARTUP_AUTOPLAY_RECOVERY_BASE_DELAY_MS = 220;
+const STARTUP_PIPELINE_RECOVERY_MAX_RETRIES = 1;
+const RUNTIME_PAUSE_RECOVERY_MAX_RETRIES = 4;
+const RUNTIME_PAUSE_RECOVERY_BASE_DELAY_MS = 260;
+const RUNTIME_PIPELINE_RECOVERY_MAX_RETRIES = 0;
+const RUNTIME_STALL_WATCHDOG_INTERVAL_MS = 2_000;
+const RUNTIME_STALL_WATCHDOG_THRESHOLD_MS = 8_000;
+const RUNTIME_STALL_PROGRESS_EPSILON_SECONDS = 0.15;
+const RUNTIME_STALL_WATCHDOG_MAX_RECOVERY_FAILURES = 3;
 const CATCH_UP_FALLBACK_POSITION_GUARD_MS = 15_000;
+const CATCH_UP_RUNTIME_RETRY_SKIP_AHEAD_MS = 5_000;
+const CATCH_UP_RUNTIME_FALLBACK_MAX_ATTEMPTS = 3;
 const CATCH_UP_FALLBACK_ERROR_CODES = new Set([
   'NETWORK_ERROR',
   'MEDIA_ERROR',
@@ -105,6 +122,20 @@ const CATCH_UP_FALLBACK_ERROR_CODES = new Set([
 interface ParsedCatchUpAttemptState {
   attempts: CatchUpTransportAttempt[];
   currentAttemptIndex: number;
+}
+
+interface RuntimeStallSampleState {
+  sourceUrl: string;
+  currentTime: number;
+  observedAtMs: number;
+  stalledForMs: number;
+  consecutiveRecoveryFailures: number;
+  recoveryExhausted: boolean;
+}
+
+interface RuntimeCatchUpFallbackBudgetState {
+  recoveryKey: string;
+  attempts: number;
 }
 
 const parseNumericMetadataValue = (value: unknown): number | null => {
@@ -120,6 +151,15 @@ const parseNumericMetadataValue = (value: unknown): number | null => {
   }
 
   return null;
+};
+
+const isCatchUpSourceSession = (session: SessionState): boolean => {
+  if (!session.source || typeof session.source.metadata !== 'object' || session.source.metadata === null) {
+    return false;
+  }
+
+  const metadata = session.source.metadata as Record<string, unknown>;
+  return metadata.mode === 'catchup';
 };
 
 const resolveCatchUpAttemptState = (
@@ -178,6 +218,54 @@ const resolveCatchUpAttemptState = (
     attempts,
     currentAttemptIndex,
   };
+};
+
+const isRuntimeRecoveryReason = (reason: string): boolean => (
+  reason === 'MEDIA_ELEMENT_3_RUNTIME' ||
+  reason.startsWith('RUNTIME_')
+);
+
+const buildCatchUpRecoveryKey = (
+  metadata: Record<string, unknown>,
+  sourceUrl: string,
+): string => {
+  const programId = typeof metadata.programId === 'string' ? metadata.programId.trim() : '';
+  if (programId.length > 0) {
+    return `program:${programId}`;
+  }
+
+  const streamId = Math.floor(
+    parseNumericMetadataValue(metadata.initialStreamId)
+    ?? parseNumericMetadataValue(metadata.streamId)
+    ?? 0
+  );
+  const startTimestamp = Math.floor(
+    parseNumericMetadataValue(metadata.initialStartTs)
+    ?? parseNumericMetadataValue(metadata.catchUpInitialStartTimestamp)
+    ?? parseNumericMetadataValue(metadata.catchUpStartTimestamp)
+    ?? 0
+  );
+  if (startTimestamp > 0) {
+    return `catchup:${streamId}:${startTimestamp}`;
+  }
+
+  return `url:${sourceUrl}`;
+};
+
+const isCatchUpRuntimeFallbackBudgetExhausted = (
+  budget: RuntimeCatchUpFallbackBudgetState | null,
+  metadata: Record<string, unknown>,
+  sourceUrl: string,
+): boolean => {
+  if (!budget) {
+    return false;
+  }
+
+  const recoveryKey = buildCatchUpRecoveryKey(metadata, sourceUrl);
+  return (
+    budget.recoveryKey === recoveryKey &&
+    budget.attempts > CATCH_UP_RUNTIME_FALLBACK_MAX_ATTEMPTS
+  );
 };
 
 const buildCatchUpEventMetadata = (
@@ -275,6 +363,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
   preferNativeHls = false,
   loadingOverlayMaxMs,
   onError,
+  onCatchUpRecoveryExhausted,
   onEnded,
   onCanPlay,
   className = '',
@@ -301,6 +390,12 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
   const pendingAutoplaySourceUrlRef = useRef<string | null>(null);
   const startupAutoplayRecoveryAttemptsRef = useRef(0);
   const startupAutoplayRecoveryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const startupPipelineRecoveryAttemptsRef = useRef(0);
+  const runtimePauseRecoveryAttemptsRef = useRef(0);
+  const runtimePauseRecoveryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const runtimePipelineRecoveryAttemptsRef = useRef(0);
+  const runtimeStallSampleRef = useRef<RuntimeStallSampleState | null>(null);
+  const runtimeCatchUpFallbackBudgetRef = useRef<RuntimeCatchUpFallbackBudgetState | null>(null);
   const playbackWantsPlaying = sessionWantsPlayback(session);
   const isLocalRenderer = session.renderer === 'local-web' || session.renderer === 'airplay';
 
@@ -449,6 +544,15 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
     startupAutoplayRecoveryAttemptsRef.current = 0;
   }, []);
 
+  const clearRuntimePauseRecovery = useCallback(() => {
+    if (runtimePauseRecoveryTimerRef.current !== null) {
+      clearTimeout(runtimePauseRecoveryTimerRef.current);
+      runtimePauseRecoveryTimerRef.current = null;
+    }
+    runtimePauseRecoveryAttemptsRef.current = 0;
+    runtimeStallSampleRef.current = null;
+  }, []);
+
   const shouldAttemptCatchUpFallback = useCallback((playbackError: PlaybackError): boolean => {
     if (playbackError.fatal) {
       if (playbackError.code.startsWith('MEDIA_ELEMENT_')) {
@@ -480,6 +584,46 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
     const { attempts, currentAttemptIndex } = resolveCatchUpAttemptState(metadata, source.url);
     if (attempts.length <= 1) {
       return false;
+    }
+
+    if (isRuntimeRecoveryReason(reason)) {
+      const recoveryKey = buildCatchUpRecoveryKey(metadata, source.url);
+      const previousRuntimeBudget = runtimeCatchUpFallbackBudgetRef.current;
+      const runtimeFallbackAttempt = (
+        previousRuntimeBudget && previousRuntimeBudget.recoveryKey === recoveryKey
+          ? previousRuntimeBudget.attempts + 1
+          : 1
+      );
+      runtimeCatchUpFallbackBudgetRef.current = {
+        recoveryKey,
+        attempts: runtimeFallbackAttempt,
+      };
+
+      if (runtimeFallbackAttempt > CATCH_UP_RUNTIME_FALLBACK_MAX_ATTEMPTS) {
+        const alreadyExhausted = (
+          previousRuntimeBudget &&
+          previousRuntimeBudget.recoveryKey === recoveryKey &&
+          previousRuntimeBudget.attempts > CATCH_UP_RUNTIME_FALLBACK_MAX_ATTEMPTS
+        );
+        if (!alreadyExhausted) {
+          emitWebObservabilityEvent({
+            name: 'catchup.fallback',
+            severity: 'error',
+            metadata: {
+              ...buildCatchUpEventMetadata(source, {
+                attemptIndex: currentAttemptIndex,
+                status: 'runtime-recovery-budget-exhausted',
+                errorCode: reason,
+              }),
+              renderer: currentSession.renderer,
+              fallbackCount: Math.max(0, attempts.length - 1),
+              runtimeFallbackBudget: CATCH_UP_RUNTIME_FALLBACK_MAX_ATTEMPTS,
+              runtimeFallbackAttempt,
+            },
+          });
+        }
+        return false;
+      }
     }
 
     let nextAttemptIndex = currentAttemptIndex + 1;
@@ -522,8 +666,16 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
 
     clearStartupAutoplayRecovery();
     pendingAutoplaySourceUrlRef.current = fallbackUrl;
+    const baseCatchUpPositionMs = Math.max(
+      currentSession.positionMs ?? 0,
+      CATCH_UP_FALLBACK_POSITION_GUARD_MS
+    );
     const nextPositionMs = metadata.mode === 'catchup'
-      ? Math.max(currentSession.positionMs ?? 0, CATCH_UP_FALLBACK_POSITION_GUARD_MS)
+      ? (
+        isRuntimeRecoveryReason(reason)
+          ? baseCatchUpPositionMs + CATCH_UP_RUNTIME_RETRY_SKIP_AHEAD_MS
+          : baseCatchUpPositionMs
+      )
       : currentSession.positionMs ?? 0;
 
     commands.setSource(
@@ -571,6 +723,166 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
     });
     return true;
   }, [clearStartupAutoplayRecovery, commands]);
+
+  const recoverStartupPlaybackPipeline = useCallback((reason: string): boolean => {
+    const adapter = adapterRef.current;
+    const currentSession = sessionRef.current;
+    const source = currentSession.source;
+    if (!adapter || !source) {
+      return false;
+    }
+
+    if (!shouldAttemptStartupPipelineRecovery(
+      currentSession,
+      pendingAutoplaySourceUrlRef.current,
+      startupPipelineRecoveryAttemptsRef.current,
+      STARTUP_PIPELINE_RECOVERY_MAX_RETRIES
+    )) {
+      return false;
+    }
+
+    startupPipelineRecoveryAttemptsRef.current += 1;
+    const recoveryAttempt = startupPipelineRecoveryAttemptsRef.current;
+    const recoverySourceType = source.type ?? (source.url.includes('.m3u8') ? 'hls' : 'mp4');
+    const sourceMode = source.metadata && typeof source.metadata === 'object'
+      ? (source.metadata as { mode?: unknown }).mode
+      : null;
+
+    clearStartupAutoplayRecovery();
+    pendingAutoplaySourceUrlRef.current = source.url;
+    setError(null);
+    setIsLoading(true);
+
+    emitWebObservabilityEvent({
+      name: 'playback.startup_recovery',
+      severity: 'warn',
+      metadata: {
+        reason,
+        attempt: recoveryAttempt,
+        renderer: currentSession.renderer,
+        sourceType: recoverySourceType,
+        sourceMode: typeof sourceMode === 'string' ? sourceMode : null,
+      },
+    });
+
+    void adapter.load({
+      ...source,
+      type: recoverySourceType,
+    }).then(() => {
+      const nextSession = sessionRef.current;
+      if (!shouldHoldPauseSyncOnSourceStartup(nextSession, source.url)) {
+        return;
+      }
+
+      adapterRef.current?.play();
+    }).catch((loadError: unknown) => {
+      const message = loadError instanceof Error ? loadError.message : 'Startup recovery load failed';
+      emitWebObservabilityEvent({
+        name: 'playback.startup_recovery',
+        severity: 'error',
+        metadata: {
+          reason,
+          attempt: recoveryAttempt,
+          status: 'failed',
+          message,
+          renderer: sessionRef.current.renderer,
+          sourceType: recoverySourceType,
+        },
+      });
+
+      if (isCatchUpSourceSession(sessionRef.current)) {
+        switchToCatchUpFallbackIfAvailable('STARTUP_RECOVERY_LOAD_FAILED');
+      }
+    });
+
+    return true;
+  }, [clearStartupAutoplayRecovery, switchToCatchUpFallbackIfAvailable]);
+
+  const recoverRuntimePlaybackPipeline = useCallback((reason: string): boolean => {
+    const adapter = adapterRef.current;
+    const currentSession = sessionRef.current;
+    const source = currentSession.source;
+    if (!adapter || !source) {
+      return false;
+    }
+
+    if (runtimePipelineRecoveryAttemptsRef.current >= RUNTIME_PIPELINE_RECOVERY_MAX_RETRIES) {
+      return false;
+    }
+
+    runtimePipelineRecoveryAttemptsRef.current += 1;
+    const recoveryAttempt = runtimePipelineRecoveryAttemptsRef.current;
+    const recoverySourceType = source.type ?? (source.url.includes('.m3u8') ? 'hls' : 'mp4');
+    const runtimePositionMs = Math.max(0, Math.floor((adapter.getCurrentTime() || 0) * 1000));
+    const sessionPositionMs = Math.max(0, currentSession.positionMs ?? 0);
+    const lastReportedPositionMs = Math.max(0, lastReportedPositionMsRef.current ?? 0);
+    const resumePositionMs = Math.max(sessionPositionMs, runtimePositionMs, lastReportedPositionMs);
+    const sourceMode = source.metadata && typeof source.metadata === 'object'
+      ? (source.metadata as { mode?: unknown }).mode
+      : null;
+
+    clearRuntimePauseRecovery();
+    clearStartupAutoplayRecovery();
+    pendingAutoplaySourceUrlRef.current = source.url;
+    setError(null);
+    setIsLoading(true);
+
+    emitWebObservabilityEvent({
+      name: 'playback.runtime_recovery',
+      severity: 'warn',
+      metadata: {
+        reason,
+        strategy: 'pipeline-reload',
+        attempt: recoveryAttempt,
+        renderer: currentSession.renderer,
+        sourceType: recoverySourceType,
+        sourceMode: typeof sourceMode === 'string' ? sourceMode : null,
+      },
+    });
+
+    void adapter.load({
+      ...source,
+      type: recoverySourceType,
+    }).then(() => {
+      const nextSession = sessionRef.current;
+      if (!shouldHoldPauseSyncOnSourceStartup(
+        nextSession,
+        pendingAutoplaySourceUrlRef.current
+      )) {
+        return;
+      }
+
+      if (resumePositionMs > 0) {
+        adapterRef.current?.seek(resumePositionMs / 1000);
+      }
+      adapterRef.current?.play();
+    }).catch((loadError: unknown) => {
+      const message = loadError instanceof Error ? loadError.message : 'Runtime recovery load failed';
+      emitWebObservabilityEvent({
+        name: 'playback.runtime_recovery',
+        severity: 'error',
+        metadata: {
+          reason,
+          strategy: 'pipeline-reload',
+          attempt: recoveryAttempt,
+          status: 'failed',
+          message,
+          renderer: sessionRef.current.renderer,
+          sourceType: recoverySourceType,
+        },
+      });
+
+      if (isCatchUpSourceSession(sessionRef.current)) {
+        switchToCatchUpFallbackIfAvailable('RUNTIME_RECOVERY_LOAD_FAILED');
+      }
+    });
+
+    return true;
+  }, [
+    clearRuntimePauseRecovery,
+    clearStartupAutoplayRecovery,
+    switchToCatchUpFallbackIfAvailable,
+  ]);
 
   useImperativeHandle(ref, () => ({
     play: () => adapterRef.current?.play(),
@@ -736,6 +1048,8 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
 
       if (state === 'playing') {
         clearStartupAutoplayRecovery();
+        clearRuntimePauseRecovery();
+        startupPipelineRecoveryAttemptsRef.current = 0;
         pendingAutoplaySourceUrlRef.current = null;
         setError(null);
         setIsPlaying(true);
@@ -762,6 +1076,11 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
       }
 
       if (state === 'paused') {
+        const isCatchUpSource = isCatchUpSourceSession(currentSession);
+        const startupRecoveryMaxRetries = isCatchUpSource
+          ? STARTUP_AUTOPLAY_RECOVERY_CATCH_UP_MAX_RETRIES
+          : STARTUP_AUTOPLAY_RECOVERY_MAX_RETRIES;
+
         if (shouldHoldPauseSyncOnSourceStartup(
           currentSession,
           pendingAutoplaySourceUrlRef.current
@@ -771,7 +1090,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
               currentSession,
               pendingAutoplaySourceUrlRef.current,
               startupAutoplayRecoveryAttemptsRef.current,
-              STARTUP_AUTOPLAY_RECOVERY_MAX_RETRIES
+              startupRecoveryMaxRetries
             )
           ) {
             if (startupAutoplayRecoveryTimerRef.current !== null) {
@@ -796,7 +1115,17 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
             return;
           }
 
+          if (recoverStartupPlaybackPipeline('STARTUP_PAUSED')) {
+            return;
+          }
+
+          if (isCatchUpSource &&
+            switchToCatchUpFallbackIfAvailable('STARTUP_PAUSED')) {
+            return;
+          }
+
           clearStartupAutoplayRecovery();
+          clearRuntimePauseRecovery();
           pendingAutoplaySourceUrlRef.current = null;
           setIsPlaying(false);
           setIsLoading(false);
@@ -810,13 +1139,67 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
         setIsLoading(false);
 
         if (currentSession.source && sessionWantsPlayback(currentSession)) {
-          commands.pause();
+          if (runtimePauseRecoveryAttemptsRef.current < RUNTIME_PAUSE_RECOVERY_MAX_RETRIES) {
+            if (runtimePauseRecoveryTimerRef.current !== null) {
+              clearTimeout(runtimePauseRecoveryTimerRef.current);
+            }
+
+            runtimePauseRecoveryAttemptsRef.current += 1;
+            const recoveryAttempt = runtimePauseRecoveryAttemptsRef.current;
+            const retryDelayMs = RUNTIME_PAUSE_RECOVERY_BASE_DELAY_MS * recoveryAttempt;
+            emitWebObservabilityEvent({
+              name: 'playback.runtime_recovery',
+              severity: 'warn',
+              metadata: {
+                reason: 'RUNTIME_PAUSED',
+                strategy: 'play-retry',
+                attempt: recoveryAttempt,
+                renderer: currentSession.renderer,
+                sourceType: currentSession.source.type,
+              },
+            });
+
+            runtimePauseRecoveryTimerRef.current = setTimeout(() => {
+              runtimePauseRecoveryTimerRef.current = null;
+              const nextSession = sessionRef.current;
+              if (!nextSession.source || !sessionWantsPlayback(nextSession)) {
+                return;
+              }
+
+              if (shouldHoldPauseSyncOnSourceStartup(
+                nextSession,
+                pendingAutoplaySourceUrlRef.current
+              )) {
+                return;
+              }
+
+              adapterRef.current?.play();
+            }, retryDelayMs);
+            return;
+          }
+
+          if (isCatchUpSource && recoverRuntimePlaybackPipeline('RUNTIME_PAUSED')) {
+            return;
+          }
+
+          if (isCatchUpSource && switchToCatchUpFallbackIfAvailable('RUNTIME_PAUSED')) {
+            return;
+          }
+
+          clearRuntimePauseRecovery();
+          if (!isCatchUpSource) {
+            commands.pause();
+          }
+          return;
         }
+
+        clearRuntimePauseRecovery();
         return;
       }
 
       if (state === 'ended') {
         clearStartupAutoplayRecovery();
+        clearRuntimePauseRecovery();
         pendingAutoplaySourceUrlRef.current = null;
         setIsPlaying(false);
         setIsLoading(false);
@@ -826,6 +1209,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
 
       if (state === 'idle') {
         clearStartupAutoplayRecovery();
+        clearRuntimePauseRecovery();
         if (!shouldKeepPendingAutoplayOnIdle(
           currentSession,
           pendingAutoplaySourceUrlRef.current
@@ -838,6 +1222,37 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
     });
 
     const unsubscribeError = adapter.onError((playbackError) => {
+      if (shouldAttemptMediaElementStartupRecovery(
+        playbackError,
+        sessionRef.current,
+        pendingAutoplaySourceUrlRef.current,
+        startupPipelineRecoveryAttemptsRef.current,
+        STARTUP_PIPELINE_RECOVERY_MAX_RETRIES
+      ) && recoverStartupPlaybackPipeline(playbackError.code)) {
+        return;
+      }
+
+      if (playbackError.code === 'MEDIA_ELEMENT_3' && !playbackError.fatal) {
+        const currentSession = sessionRef.current;
+        const didRecoverRuntime = (
+          isCatchUpSourceSession(currentSession) &&
+          sessionWantsPlayback(currentSession) &&
+          !shouldHoldPauseSyncOnSourceStartup(
+            currentSession,
+            pendingAutoplaySourceUrlRef.current
+          ) &&
+          recoverRuntimePlaybackPipeline(playbackError.code)
+        );
+        if (didRecoverRuntime) {
+          return;
+        }
+
+        if (isCatchUpSourceSession(currentSession) &&
+          switchToCatchUpFallbackIfAvailable('MEDIA_ELEMENT_3_RUNTIME')) {
+          return;
+        }
+      }
+
       if (shouldAttemptCatchUpFallback(playbackError) &&
         switchToCatchUpFallbackIfAvailable(playbackError.code)) {
         return;
@@ -904,24 +1319,232 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
       commands.seek(currentPositionMs);
     });
 
+    const runtimeStallWatchdogTimer = setInterval(() => {
+      const currentSession = sessionRef.current;
+      const source = currentSession.source;
+      if (!source || !sessionWantsPlayback(currentSession)) {
+        runtimeStallSampleRef.current = null;
+        return;
+      }
+
+      if (!isCatchUpSourceSession(currentSession)) {
+        runtimeStallSampleRef.current = null;
+        return;
+      }
+
+      if (
+        shouldHoldPauseSyncOnSourceStartup(
+          currentSession,
+          pendingAutoplaySourceUrlRef.current
+        ) ||
+        isApplyingSessionSeekRef.current
+      ) {
+        runtimeStallSampleRef.current = null;
+        return;
+      }
+
+      const currentTime = adapterRef.current?.getCurrentTime() ?? 0;
+      const nowMs = Date.now();
+      const previousSample = runtimeStallSampleRef.current;
+      if (!previousSample || previousSample.sourceUrl !== source.url) {
+        runtimeStallSampleRef.current = {
+          sourceUrl: source.url,
+          currentTime,
+          observedAtMs: nowMs,
+          stalledForMs: 0,
+          consecutiveRecoveryFailures: 0,
+          recoveryExhausted: false,
+        };
+        return;
+      }
+
+      const wallDeltaMs = Math.max(0, nowMs - previousSample.observedAtMs);
+      const timeDelta = Math.abs(currentTime - previousSample.currentTime);
+      if (timeDelta > RUNTIME_STALL_PROGRESS_EPSILON_SECONDS) {
+        runtimeStallSampleRef.current = {
+          sourceUrl: source.url,
+          currentTime,
+          observedAtMs: nowMs,
+          stalledForMs: 0,
+          consecutiveRecoveryFailures: 0,
+          recoveryExhausted: false,
+        };
+        return;
+      }
+
+      const stalledForMs = previousSample.stalledForMs + wallDeltaMs;
+      runtimeStallSampleRef.current = {
+        sourceUrl: source.url,
+        currentTime,
+        observedAtMs: nowMs,
+        stalledForMs,
+        consecutiveRecoveryFailures: previousSample.consecutiveRecoveryFailures,
+        recoveryExhausted: previousSample.recoveryExhausted,
+      };
+
+      if (stalledForMs < RUNTIME_STALL_WATCHDOG_THRESHOLD_MS) {
+        return;
+      }
+
+      if (previousSample.recoveryExhausted) {
+        return;
+      }
+
+      const recoveryAttempt = previousSample.consecutiveRecoveryFailures + 1;
+      runtimeStallSampleRef.current = {
+        sourceUrl: source.url,
+        currentTime,
+        observedAtMs: nowMs,
+        stalledForMs: 0,
+        consecutiveRecoveryFailures: previousSample.consecutiveRecoveryFailures,
+        recoveryExhausted: false,
+      };
+      emitWebObservabilityEvent({
+        name: 'playback.runtime_recovery',
+        severity: 'warn',
+        metadata: {
+          reason: 'RUNTIME_STALLED_PROGRESS',
+          strategy: 'progress-watchdog',
+          attempt: recoveryAttempt,
+          renderer: currentSession.renderer,
+          sourceType: source.type,
+        },
+      });
+
+      if (recoverRuntimePlaybackPipeline('RUNTIME_STALLED_PROGRESS')) {
+        return;
+      }
+
+      if (switchToCatchUpFallbackIfAvailable('RUNTIME_STALLED_PROGRESS')) {
+        return;
+      }
+
+      if (
+        typeof source.metadata === 'object' &&
+        source.metadata !== null &&
+        isCatchUpRuntimeFallbackBudgetExhausted(
+          runtimeCatchUpFallbackBudgetRef.current,
+          source.metadata as Record<string, unknown>,
+          source.url
+        )
+      ) {
+        const message = (
+          'TV unazad je nestabilan za izabranu emisiju. '
+          + 'Pokušajte drugu emisiju ili povratak na live.'
+        );
+        if (onCatchUpRecoveryExhausted?.('runtime-fallback-budget') === true) {
+          return;
+        }
+        runtimeStallSampleRef.current = {
+          sourceUrl: source.url,
+          currentTime,
+          observedAtMs: nowMs,
+          stalledForMs,
+          consecutiveRecoveryFailures: recoveryAttempt,
+          recoveryExhausted: true,
+        };
+        clearStartupAutoplayRecovery();
+        clearRuntimePauseRecovery();
+        pendingAutoplaySourceUrlRef.current = null;
+        commands.pause();
+        setIsLoading(false);
+        setError({
+          type: 'network',
+          message: 'TV unazad je zastao',
+          details: message,
+        });
+        emitWebObservabilityEvent({
+          name: 'playback.runtime_recovery',
+          severity: 'error',
+          metadata: {
+            reason: 'RUNTIME_CATCHUP_RETRY_BUDGET_EXHAUSTED',
+            strategy: 'progress-watchdog',
+            attempt: recoveryAttempt,
+            renderer: currentSession.renderer,
+            sourceType: source.type,
+            runtimeFallbackBudget: CATCH_UP_RUNTIME_FALLBACK_MAX_ATTEMPTS,
+          },
+        });
+        onError?.(message);
+        return;
+      }
+
+      if (recoveryAttempt >= RUNTIME_STALL_WATCHDOG_MAX_RECOVERY_FAILURES) {
+        const message = (
+          'Reprodukcija je zastala i automatski oporavak nije uspeo. '
+          + 'Pokušajte drugi sadržaj ili povratak na live.'
+        );
+        if (onCatchUpRecoveryExhausted?.('runtime-stall-retries') === true) {
+          return;
+        }
+        runtimeStallSampleRef.current = {
+          sourceUrl: source.url,
+          currentTime,
+          observedAtMs: nowMs,
+          stalledForMs,
+          consecutiveRecoveryFailures: recoveryAttempt,
+          recoveryExhausted: true,
+        };
+        clearStartupAutoplayRecovery();
+        clearRuntimePauseRecovery();
+        pendingAutoplaySourceUrlRef.current = null;
+        commands.pause();
+        setIsLoading(false);
+        setError({
+          type: 'network',
+          message: 'Reprodukcija je zastala',
+          details: message,
+        });
+        emitWebObservabilityEvent({
+          name: 'playback.runtime_recovery',
+          severity: 'error',
+          metadata: {
+            reason: 'RUNTIME_STALLED_PROGRESS_EXHAUSTED',
+            strategy: 'progress-watchdog',
+            attempt: recoveryAttempt,
+            renderer: currentSession.renderer,
+            sourceType: source.type,
+          },
+        });
+        onError?.(message);
+        return;
+      }
+
+      runtimeStallSampleRef.current = {
+        sourceUrl: source.url,
+        currentTime,
+        observedAtMs: nowMs,
+        stalledForMs: 0,
+        consecutiveRecoveryFailures: recoveryAttempt,
+        recoveryExhausted: false,
+      };
+      adapterRef.current?.play();
+    }, RUNTIME_STALL_WATCHDOG_INTERVAL_MS);
+
     return () => {
       unsubscribeState();
       unsubscribeError();
       unsubscribeTime();
+      clearInterval(runtimeStallWatchdogTimer);
       clearStartupAutoplayRecovery();
+      clearRuntimePauseRecovery();
       adapter.destroy();
       if (adapterRef.current === adapter) {
         adapterRef.current = null;
       }
     };
   }, [
+    clearRuntimePauseRecovery,
     clearStartupAutoplayRecovery,
     commands,
     mapPlaybackError,
     onCanPlay,
+    onCatchUpRecoveryExhausted,
     onEnded,
     onError,
     preferNativeHls,
+    recoverRuntimePlaybackPipeline,
+    recoverStartupPlaybackPipeline,
     shouldAttemptCatchUpFallback,
     switchToCatchUpFallbackIfAvailable,
   ]);
@@ -938,6 +1561,9 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
     if (!src || !isLocalRenderer) {
       void exitPictureInPicture();
       clearStartupAutoplayRecovery();
+      clearRuntimePauseRecovery();
+      startupPipelineRecoveryAttemptsRef.current = 0;
+      runtimePipelineRecoveryAttemptsRef.current = 0;
       pendingAutoplaySourceUrlRef.current = null;
       setError(null);
       setIsLoading(false);
@@ -950,7 +1576,13 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
     setError(null);
     setIsLoading(true);
     clearStartupAutoplayRecovery();
+    clearRuntimePauseRecovery();
+    startupPipelineRecoveryAttemptsRef.current = 0;
+    runtimePipelineRecoveryAttemptsRef.current = 0;
     lastStartedSourceRef.current = null;
+    if (!isCatchUpSourceSession(sessionRef.current)) {
+      runtimeCatchUpFallbackBudgetRef.current = null;
+    }
     pendingAutoplaySourceUrlRef.current = autoPlay && sessionWantsPlayback(sessionRef.current)
       ? src
       : null;
@@ -980,6 +1612,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
 
       setIsLoading(false);
       clearStartupAutoplayRecovery();
+      clearRuntimePauseRecovery();
       pendingAutoplaySourceUrlRef.current = null;
       emitWebObservabilityEvent({
         name: 'playback.error',
@@ -1008,6 +1641,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
     };
   }, [
     autoPlay,
+    clearRuntimePauseRecovery,
     clearStartupAutoplayRecovery,
     exitPictureInPicture,
     isLocalRenderer,

@@ -177,9 +177,43 @@ Reporter note for this batch:
 - Status:
   - converted-to `QAF-034` (pending-review, awaiting Reptile validation)
 
+### BUG-20260304-01
+- Environment:
+  - `http://localhost:8080/player`
+  - Xtream account `fica`, RTS1 (`stream_id=112`)
+  - local proxy debug enabled: `VITE_XUI_PROXY_DEBUG=1`
+- Steps:
+  1. Open RTS1 live playback.
+  2. Start catch-up item `13:15 Građanin`.
+  3. Switch to older catch-up item (`03:00 Takovska 10`) and observe runtime.
+- Expected:
+  - Catch-up/live transitions should keep continuous video/audio playback without freeze.
+- Actual:
+  - Runtime enters spinner/static-frame states after catch-up switches:
+    - transient state `paused=false`, `readyState=0`, `currentTime=15`, `videoWidth=0`;
+    - then stale paused frame (`paused=true`, `readyState=4`, `currentTime` not progressing).
+  - Observability emits `playback.error` `MEDIA_ELEMENT_3` while media plane still serves `200` segments.
+  - `/xui-api` middleware still returns expected `302/200` and shows no proxy-level errors in this flow.
+- Evidence:
+  - Playwright runtime repro + proxy debug traces from 2026-03-04 session.
+- Reporter:
+  - Filip
+- Timestamp:
+  - 2026-03-04
+- Severity (initial):
+  - P0
+- Status:
+  - converted-to `QAF-035` (in-progress)
+
 ## Intake triage snapshots
 
 Add dated triage tables here (one snapshot block per triage session).
+
+### Intake triage snapshot (2026-03-04, live/catch-up runtime regression)
+
+| Intake ID | Lane | Severity | Converted to | Notes |
+|---|---|---|---|---|
+| BUG-20260304-01 | Bugfix/Playback Runtime | P0 | QAF-035 | `/xui-api` is healthy (`302/200`, no proxy error); failure is runtime freeze/stall after catch-up transition |
 
 ### Intake triage snapshot (2026-02-21, reopen batch)
 
@@ -216,6 +250,8 @@ Add dated triage tables here (one snapshot block per triage session).
 Current snapshot:
 - `QAF-001..QAF-023` are completed (see `docs/V2-QA-FIX-BACKLOG.md`).
 - `QAF-024..QAF-033` are completed in V3 (merged on 2026-02-21).
+- `QAF-034` and `QAF-035` are active (`in-progress`) pending stable real-runtime playback pass.
+- `QAF-035` first anti-loop runtime stabilization was implemented on branch `codex/disable-demo-fallback-xui` (not merged to `main` yet); additional user-reported edge cases remain for closure.
 
 | ID | Title | Area | Severity | Status |
 |---|---|---|---|---|
@@ -230,14 +266,17 @@ Current snapshot:
 | QAF-032 | Remove static helper copy `Klikni traku za TV unazad` and keep only context-aware cues | Player Copy/UX Clarity | P3 | done |
 | QAF-033 | Align VOD/Series playback overlay controls with live player and make loading spinner non-blocking/short-lived | On-demand Player UX | P1 | done |
 | QAF-034 | Reopened catch-up runtime failure: provider timeshift returns intermittent `404/502`, playback still fails in real user flow | Catch-up Playback/Provider Compatibility | P1 | in-progress |
+| QAF-035 | Runtime payload gate + retry/fallback stabilization: prevent spinner/static-frame freeze on catch-up/live transitions without live regression | Player Runtime/Recovery | P0 | in-progress |
 
 ## Next ready queue (strict order)
 
-1. `QAF-034` TiviMate comparative iteration:
-   - capture native tuple (`request -> 302 -> final host`) for live and catch-up
-   - replay equivalent tuple in web runtime and classify mismatch
-2. Build catch-up transport matrix (`http/http`, `http/https`, `https/http`, `https/https`) and log startup/failure behavior per tuple
-3. Apply minimal patch only on verified mismatch class (redirect handling, host affinity, proxy transport), then run Reptile verification
+1. `QAF-035` runtime freeze recovery patch:
+   - keep strict runtime-only scope (no proxy contract changes);
+   - continue hardening edge-case behavior after first anti-loop pass (`runtime pipeline-reload disabled`, skip-ahead retry/fallback active).
+2. Execute mandatory manual verification flow (RTS1):
+   - first program -> wait start -> seek -> switch to 2-3 older programs;
+   - hard pass requires continuous playback >=90s with increasing `currentTime`, stable seek/switch, and no live regression.
+3. Keep `QAF-034` parity evidence in sync (redirect/token matrix and host-affinity notes) and run final Greptile validation once runtime pass is green.
 
 ## Execution completion snapshot (2026-02-21)
 
@@ -392,6 +431,51 @@ User executed an additional run with HTTPS-oriented profile settings to compare 
 4. Interpretation:
    - switching profile to HTTPS does not eliminate provider-side host/protocol switching;
    - player compatibility still depends on robust redirect/token handling and mixed transport support (`http` control + `https` media).
+
+## QAF-035 Attempt Log (2026-03-04, runtime regression reproduced)
+
+Focused runtime diagnosis was executed to separate proxy middleware issues from player-state issues:
+
+1. Reproduction setup:
+   - local dev run with `VITE_XUI_PROXY_DEBUG=1`;
+   - Playwright scenario on RTS1 (`13:15 Građanin` -> older catch-up item `03:00 Takovska 10` -> back to live).
+2. Proxy middleware observations:
+   - `/xui-api` requests for catch-up and live return expected `302` redirects to provider token hosts;
+   - follow-up requests continue and segments are fetched (`200`);
+   - no proxy error signal was observed in debug output (`xui-proxy:error` absent).
+3. Runtime failure observations:
+   - problematic catch-up switch repeatedly enters `paused=false`, `readyState=0`, `currentTime=15`, `videoWidth=0` (spinner/no decode);
+   - then converges to stale paused frame: `paused=true`, `readyState=4`, `currentTime` frozen near `~42s`;
+   - observability warns `playback.error` with `MEDIA_ELEMENT_3` during affected transitions.
+4. Interpretation:
+   - transport/proxy path is not the primary blocker in this repro;
+   - failure is runtime state/recovery behavior after catch-up transition.
+5. Status:
+   - `QAF-035` remains `in-progress` until freeze recovery is implemented and hard-pass manual runtime verification is completed.
+
+## QAF-035 Attempt Log (2026-03-05, first anti-loop stabilization)
+
+First runtime recovery stabilization pass was implemented and validated in repeated local browser runs (branch `codex/disable-demo-fallback-xui`):
+
+1. Implemented runtime changes (player logic only):
+   - disabled catch-up runtime `pipeline-reload` loop path (`RUNTIME_PIPELINE_RECOVERY_MAX_RETRIES = 0`);
+   - added bounded runtime catch-up retry/fallback skip-ahead (`+5s`) to avoid re-entering the same failing segment after recovery.
+2. Gate and test verification:
+   - `pnpm --filter @lumen/web lint` -> pass
+   - `pnpm --filter @lumen/web typecheck` -> pass
+   - `pnpm --filter @lumen/web exec vitest run src/components/player/videoPlaybackSync.test.ts src/adapters/HlsPlayerAdapter.test.ts` -> pass
+   - `pnpm lint` -> pass
+   - `pnpm typecheck` -> pass
+3. Runtime evidence before/after:
+   - pre-fix freeze sample (`RTS1`, `Takovska 10 03:00`, 100s):
+     - `currentTime 42.283 -> 42.286`, `readyState=0`, `paused=true`, `videoWidth=0`, spinner active for entire run.
+   - post-fix samples:
+     - `RTS1`, `Takovska 10 03:00`, 100s: `progressedSeconds=97.732`, `jumps=0`, `spinnerSamples=11`.
+     - `NOVA S`, `DNEVNIK NOVA 19:30`, 100s: `progressedSeconds=94.519`, `jumps=0`.
+     - `NOVA S live`, 100s: `progressedSeconds=99.282`, `jumps=0`, spinner not observed.
+4. Status:
+   - improvement is significant and loop severity is reduced;
+   - `QAF-035` remains `in-progress` until user-side edge-case behavior is fully confirmed and final review is completed.
 
 ## Reopened task clarifications (historical acceptance deltas)
 

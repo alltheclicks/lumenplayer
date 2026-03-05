@@ -88,6 +88,7 @@ import { hasLiveCatchUpEntries, shouldShowLiveCatchUpSection } from '@/pages/liv
 import { resolveCatchUpClockActionTarget } from '@/pages/liveCatchUpDiscoverability';
 import { resolveXtreamCanonicalServer } from '@/config/xtream';
 import { buildCatchUpTransportPlan } from '@/components/player/catchupTransport';
+import { resolveNextCatchUpProgram } from '@/pages/catchUpAutoAdvance';
 
 type SessionSourceMetadata = {
   channelId?: string;
@@ -498,9 +499,7 @@ const Player = () => {
       }
 
       const credentials = await loadXtreamCredentials();
-      if (!credentials ||
-          credentials.username === 'demo' ||
-          credentials.server.includes('your-server.com')) {
+      if (!credentials) {
         return currentChannel.epg;
       }
 
@@ -659,14 +658,6 @@ const Player = () => {
       }
 
       if (!credentials || isCancelled) {
-        return;
-      }
-
-      if (
-        credentials.username === 'demo' ||
-        credentials.server.includes('your-server.com')
-      ) {
-        setXtreamUserInfo(null);
         return;
       }
 
@@ -932,6 +923,47 @@ const Player = () => {
     commands.setSource(source, CATCH_UP_INITIAL_POSITION_GUARD_MS);
     commands.play();
   }, [commands, currentCatchUpFallbackStreamIds, currentChannelWithEPG]);
+
+  const advanceToNextCatchUpProgram = useCallback((
+    reason: 'segment-ended' | 'recovery-exhausted'
+  ): boolean => {
+    if (!currentChannelWithEPG || sessionSourceMetadata.mode !== 'catchup') {
+      return false;
+    }
+
+    const nextProgram = resolveNextCatchUpProgram(
+      currentChannelWithEPG.epg,
+      sessionSourceMetadata.catchUpProgramId,
+    );
+    if (nextProgram) {
+      playCatchUpProgram(nextProgram);
+      toast({
+        title: 'Nastavak TV unazad',
+        description: `Prelazimo na: ${nextProgram.title}`,
+      });
+      return true;
+    }
+
+    if (reason === 'segment-ended') {
+      return false;
+    }
+
+    return false;
+  }, [
+    currentChannelWithEPG,
+    playCatchUpProgram,
+    sessionSourceMetadata.catchUpProgramId,
+    sessionSourceMetadata.mode,
+    toast,
+  ]);
+
+  const handleVideoPlayerEnded = useCallback(() => {
+    void advanceToNextCatchUpProgram('segment-ended');
+  }, [advanceToNextCatchUpProgram]);
+
+  const handleCatchUpRecoveryExhausted = useCallback(() => (
+    advanceToNextCatchUpProgram('recovery-exhausted')
+  ), [advanceToNextCatchUpProgram]);
 
   const goToPlayerHome = useCallback(() => {
     if (isOnDemandSource) {
@@ -1771,6 +1803,8 @@ const Player = () => {
                 autoPlay={shouldAutoplayCurrentSource}
                 preferNativeHls={appSettings.player.preferNativeHls}
                 loadingOverlayMaxMs={isOnDemandSource ? ON_DEMAND_LOADING_OVERLAY_MAX_MS : undefined}
+                onEnded={handleVideoPlayerEnded}
+                onCatchUpRecoveryExhausted={handleCatchUpRecoveryExhausted}
               />
             )}
 
