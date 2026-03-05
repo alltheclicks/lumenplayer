@@ -34,6 +34,9 @@ export interface VideoPlayerProps {
   preferNativeHls?: boolean;
   loadingOverlayMaxMs?: number;
   onError?: (error: string) => void;
+  onCatchUpRecoveryExhausted?: (
+    reason: 'runtime-fallback-budget' | 'runtime-stall-retries'
+  ) => boolean | void;
   onEnded?: () => void;
   onCanPlay?: () => void;
   className?: string;
@@ -360,6 +363,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
   preferNativeHls = false,
   loadingOverlayMaxMs,
   onError,
+  onCatchUpRecoveryExhausted,
   onEnded,
   onCanPlay,
   className = '',
@@ -1428,6 +1432,9 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
           'TV unazad je nestabilan za izabranu emisiju. '
           + 'Pokušajte drugu emisiju ili povratak na live.'
         );
+        if (onCatchUpRecoveryExhausted?.('runtime-fallback-budget') === true) {
+          return;
+        }
         runtimeStallSampleRef.current = {
           sourceUrl: source.url,
           currentTime,
@@ -1467,6 +1474,9 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
           'Reprodukcija je zastala i automatski oporavak nije uspeo. '
           + 'Pokušajte drugi sadržaj ili povratak na live.'
         );
+        if (onCatchUpRecoveryExhausted?.('runtime-stall-retries') === true) {
+          return;
+        }
         runtimeStallSampleRef.current = {
           sourceUrl: source.url,
           currentTime,
@@ -1529,6 +1539,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
     commands,
     mapPlaybackError,
     onCanPlay,
+    onCatchUpRecoveryExhausted,
     onEnded,
     onError,
     preferNativeHls,
