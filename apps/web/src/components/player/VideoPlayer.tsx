@@ -1093,6 +1093,9 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
           }
 
           clearRuntimePauseRecovery();
+          if (!isCatchUpSource) {
+            commands.pause();
+          }
           return;
         }
 
