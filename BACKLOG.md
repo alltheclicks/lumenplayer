@@ -4,6 +4,7 @@
 > Poslednji audit: Opus 4.6 deep codebase analysis
 > Vizija: `VISION.md` (V1/V1.5/V2)
 > Roadmap alignment: Phase 0A → V1 (Content/Cast/AirPlay/PWA/Perf) → Phase 1 (Dashboard) → Phase 2 (Native)
+> Docs sync: 5. mart 2026 (`QAF-035` first anti-loop runtime stabilization)
 
 ## Legend
 
@@ -50,6 +51,7 @@
 | QAF-032 | Remove static helper copy `Klikni traku za TV unazad` and keep only context-aware cues | S | done | QAF-027 |
 | QAF-033 | Align VOD/Series playback overlay controls with live player and make loading spinner non-blocking/short-lived | M | done | QAF-032 |
 | QAF-034 | Reopened catch-up runtime failure: provider redirect/token flow works in native players but web flow is still unstable in real user scenarios (`404/502`, long startup) | M | in-progress | QAF-030, QAF-003 |
+| QAF-035 | Runtime payload gate + retry/fallback stabilizacija za catch-up/live (bez live regresije); first anti-loop fix implementiran na `codex/disable-demo-fallback-xui`, ostaju dodatne korisničke primedbe za završnu stabilizaciju | M | in-progress | QAF-034 |
 | QAF-010 | Fix player control overlay auto-hide behavior on idle | S | done | — |
 | QAF-012 | Prevent desktop player page vertical scroll drift/dead-space | S | done | — |
 | QAF-011 | Fix EPG gibberish regression in live program blocks | S | done | — |
@@ -93,6 +95,15 @@ Completion notes (2026-02-19 .. 2026-02-21):
 - QAF-032 merged via PR #209 (Greptile `5/5` after follow-up remediation commit).
 - QAF-033 merged via PR #210 (Greptile `5/5`).
 - QAF-034 is active again (`in-progress`) with comparative TiviMate traffic analysis and web-runtime parity hardening (redirect/token/retry strategy).
+- QAF-035 opened (`in-progress`) after 2026-03-04 reproducible runtime regression: `/xui-api` request plane returns expected `302/200`, but player can end in static frame/spinner (`MEDIA_ELEMENT_3`, `readyState=0 -> paused+stale frame`) during catch-up switches; live can recover after explicit channel/live reset.
+- QAF-035 first anti-loop recovery pass (2026-03-05, branch `codex/disable-demo-fallback-xui`):
+  - runtime catch-up `pipeline-reload` loop path disabled (`RUNTIME_PIPELINE_RECOVERY_MAX_RETRIES=0`);
+  - runtime catch-up retry/fallback adds bounded skip-ahead (`+5s`) to avoid replaying same bad segment;
+  - local evidence improved:
+    - `RTS1 Takovska 03:00` 100s run: `progressedSeconds=97.732` (pre-fix freeze run was ~`0.003s`);
+    - `NOVA S Dnevnik 19:30` 100s run: `progressedSeconds=94.519`;
+    - `NOVA S live` 100s run: `progressedSeconds=99.282`.
+  - task remains `in-progress` pending final user-side confirmation and follow-up edge-case cleanup.
 - Manual intake triage (`BUG-20260219-01..06`) converted into `QAF-010..QAF-014` follow-up tasks in `docs/V2-QA-FIX-BACKLOG.md`.
 - Follow-up intake tasks (`BUG-20260220-01..03`) are now closed through `QAF-015..QAF-017`.
 - Follow-up intake tasks (`BUG-20260220-04..07`) are now closed through `QAF-018..QAF-020`.
@@ -442,6 +453,7 @@ Template:
 | LP-1508 | Implement optional ingest/cache middleware in dashboard backend (feature-flagged, non-blocking for direct mode) | L | idea | LP-1507 |
 | LP-1509 | Add parser/normalization pipeline for large Xtream payloads (channels, VOD, series, EPG) with incremental refresh | L | idea | LP-1508 |
 | LP-1510 | Define middleware activation criteria + SLO gates (enable when direct mode exceeds latency/memory/error thresholds) | S | idea | LP-1507, LP-0327, LP-0328 |
+| LP-1511 | Extract `apps/proxy` as dedicated monorepo service and keep `/xui-api` route contract compatible with real Xtream hosts (no demo-source fallback) | M | in-progress | LP-1507 |
 
 ---
 

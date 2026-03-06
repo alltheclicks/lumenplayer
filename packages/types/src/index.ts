@@ -236,6 +236,7 @@ export interface DRMConfig {
 export type PlaybackState =
   | "idle"
   | "loading"
+  | "ready"
   | "playing"
   | "paused"
   | "buffering"

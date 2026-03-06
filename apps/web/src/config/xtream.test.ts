@@ -32,6 +32,16 @@ describe("resolveXtreamApiServer", () => {
       }),
     ).toBe("https://gw.castcdn.net:443");
   });
+
+  it("prefers configured proxy origin in production-like environments", () => {
+    expect(
+      resolveXtreamApiServer("https://gw.castcdn.net:443", {
+        isDev: false,
+        origin: "http://localhost:8080",
+        proxyOrigin: "http://localhost:8788/",
+      }),
+    ).toBe("http://localhost:8788/xui-api/https%3A%2F%2Fgw.castcdn.net%3A443");
+  });
 });
 
 describe("resolveXtreamRuntimeCredentials", () => {
@@ -70,6 +80,26 @@ describe("resolveXtreamRuntimeCredentials", () => {
       ),
     ).toEqual({
       server: "https://gw.castcdn.net:443",
+      username: "demo-user",
+      password: "demo-pass",
+    });
+  });
+
+  it("routes credentials through configured proxy origin when available", () => {
+    expect(
+      resolveXtreamRuntimeCredentials(
+        {
+          server: "https://gw.castcdn.net:443/",
+          username: "demo-user",
+          password: "demo-pass",
+        },
+        {
+          isDev: false,
+          proxyOrigin: "http://localhost:8788/",
+        },
+      ),
+    ).toEqual({
+      server: "http://localhost:8788/xui-api/https%3A%2F%2Fgw.castcdn.net%3A443",
       username: "demo-user",
       password: "demo-pass",
     });

@@ -46,6 +46,7 @@ import { useSessionContext } from '@/context/session-context';
 import { useGoogleCastSender } from '@/hooks/useGoogleCastSender';
 import { NumericChannelInput, WebKeyCodes } from '@lumen/input';
 import { filterChannels, formatDuration, formatTime, getCurrentProgram, getProgramProgress } from '@lumen/core';
+import type { SessionSource } from '@lumen/session-core';
 import type { PlayerChannel, XtreamUserInfo } from '@lumen/types';
 import {
   loadXtreamCredentials,
@@ -87,56 +88,15 @@ import { resolveCatchUpEmptyStateReason } from '@/components/player/catchUpEmpty
 import { hasLiveCatchUpEntries, shouldShowLiveCatchUpSection } from '@/pages/liveCatchUpVisibility';
 import { resolveCatchUpClockActionTarget } from '@/pages/liveCatchUpDiscoverability';
 import { resolveXtreamCanonicalServer } from '@/config/xtream';
-import { buildCatchUpTransportPlan } from '@/components/player/catchupTransport';
-
-type SessionSourceMetadata = {
-  channelId?: string;
-  streamId?: number;
-  mode?: 'live' | 'catchup' | 'vod' | 'series-episode';
-  vodId?: string;
-  catchUpProgramId?: string;
-  seriesId?: string;
-  seasonNumber?: number;
-  episodeId?: string;
-  backPath?: string;
-};
-
-const parseSessionSourceMetadata = (
-  metadata: Record<string, unknown> | undefined
-): SessionSourceMetadata => {
-  if (!metadata) {
-    return {};
-  }
-
-  return {
-    channelId: typeof metadata.channelId === 'string' ? metadata.channelId : undefined,
-    streamId: typeof metadata.streamId === 'number'
-      ? metadata.streamId
-      : typeof metadata.streamId === 'string' && !Number.isNaN(Number(metadata.streamId))
-        ? Number(metadata.streamId)
-        : undefined,
-    mode: metadata.mode === 'live' ||
-      metadata.mode === 'catchup' ||
-      metadata.mode === 'vod' ||
-      metadata.mode === 'series-episode'
-      ? metadata.mode
-      : undefined,
-    vodId: typeof metadata.vodId === 'string' ? metadata.vodId : undefined,
-    catchUpProgramId: typeof metadata.catchUpProgramId === 'string' ? metadata.catchUpProgramId : undefined,
-    seriesId: typeof metadata.seriesId === 'string' ? metadata.seriesId : undefined,
-    seasonNumber: typeof metadata.seasonNumber === 'number'
-      ? metadata.seasonNumber
-      : typeof metadata.seasonNumber === 'string' && !Number.isNaN(Number(metadata.seasonNumber))
-        ? Number(metadata.seasonNumber)
-        : undefined,
-    episodeId: typeof metadata.episodeId === 'string'
-      ? metadata.episodeId
-      : typeof metadata.episodeId === 'number' && Number.isFinite(metadata.episodeId)
-        ? String(metadata.episodeId)
-        : undefined,
-    backPath: typeof metadata.backPath === 'string' ? metadata.backPath : undefined,
-  };
-};
+import {
+  buildCatchUpSessionSourceFromMetadata,
+  buildLiveSessionSource,
+  isCatchUpSessionSourceMetadata,
+  parseSessionSourceMetadata,
+} from '@/components/player/sessionSources';
+import { resolveCatchUpSessionSource } from '@/components/player/catchupGateway';
+import { resolveNextCatchUpProgram } from '@/pages/catchUpAutoAdvance';
+import { normalizeRestoredSessionSource } from '@/pages/restoreSessionSource';
 
 const isTypingTarget = (target: EventTarget | null): boolean => {
   if (!(target instanceof HTMLElement)) {
@@ -287,7 +247,6 @@ const buildCatchUpFallbackStreamIdsByChannelId = (
 
 const PICTURE_IN_PICTURE_KEY_CODE = 80; // Keyboard "P"
 const ON_DEMAND_LOADING_OVERLAY_MAX_MS = 2500;
-const CATCH_UP_INITIAL_POSITION_GUARD_MS = 15_000;
 
 const clampVolumePercent = (value: number): number => Math.max(0, Math.min(100, Math.round(value)));
 const DEFAULT_ON_DEMAND_VOLUME = clampVolumePercent(getDefaultAppSettings().player.defaultVolume);
@@ -349,6 +308,27 @@ const MediaEntryGrid = ({
     })}
   </div>
 );
+
+const isSameSessionSource = (
+  left: SessionSource | null,
+  right: SessionSource | null,
+): boolean => {
+  if (left === right) {
+    return true;
+  }
+
+  if (!left || !right) {
+    return false;
+  }
+
+  return (
+    left.url === right.url &&
+    left.type === right.type &&
+    left.title === right.title &&
+    left.channelId === right.channelId &&
+    JSON.stringify(left.metadata ?? null) === JSON.stringify(right.metadata ?? null)
+  );
+};
 
 const PlayerSurfaceState = ({
   icon: Icon,
@@ -415,7 +395,11 @@ const Player = () => {
   const tvUnazadHighlightTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const livePauseStartedAtRef = useRef<number | null>(null);
   const startupLiveRestoreAppliedRef = useRef(false);
+  const playbackBootstrapAppliedRef = useRef(false);
+  const restoreNoticeRef = useRef<string | null>(null);
   const [isTvUnazadHighlighted, setIsTvUnazadHighlighted] = useState(false);
+  const [isPlaybackBootstrapReady, setIsPlaybackBootstrapReady] = useState(false);
+  const [playerReloadToken, setPlayerReloadToken] = useState(0);
   const [onDemandDurationMs, setOnDemandDurationMs] = useState(0);
   const [onDemandVolume, setOnDemandVolume] = useState(DEFAULT_ON_DEMAND_VOLUME);
   const [isOnDemandMuted, setIsOnDemandMuted] = useState(DEFAULT_ON_DEMAND_VOLUME === 0);
@@ -498,9 +482,7 @@ const Player = () => {
       }
 
       const credentials = await loadXtreamCredentials();
-      if (!credentials ||
-          credentials.username === 'demo' ||
-          credentials.server.includes('your-server.com')) {
+      if (!credentials) {
         return currentChannel.epg;
       }
 
@@ -540,10 +522,14 @@ const Player = () => {
       : [],
     [catchUpFallbackStreamIdsByChannelId, currentChannelWithEPG]
   );
+  const resolveLiveSourceUrl = useCallback(
+    (channel: PlayerChannel) => channel.streamUrl ?? xtreamCodesService.getLiveStreamUrl(channel.streamId),
+    [],
+  );
 
   const switchToLiveChannel = useCallback(
     (channel: PlayerChannel, options?: { forceAutoplay?: boolean }) => {
-      const sourceUrl = channel.streamUrl ?? xtreamCodesService.getLiveStreamUrl(channel.streamId);
+      const sourceUrl = resolveLiveSourceUrl(channel);
       emitWebObservabilityEvent({
         name: 'playback.source-selected',
         severity: 'info',
@@ -554,18 +540,10 @@ const Player = () => {
         },
       });
 
-      const source = {
-        url: sourceUrl,
-        type: 'hls' as const,
-        title: channel.name,
-        channelId: channel.id,
-        metadata: {
-          channelId: channel.id,
-          streamId: channel.streamId,
-          mode: 'live',
-          source: channel.source,
-        },
-      };
+      const source = buildLiveSessionSource({
+        channel,
+        sourceUrl,
+      });
 
       commands.setSource(source, 0);
 
@@ -573,7 +551,7 @@ const Player = () => {
         commands.play();
       }
     },
-    [commands, shouldAutoplayLiveOnSelect]
+    [commands, resolveLiveSourceUrl, shouldAutoplayLiveOnSelect]
   );
 
   useEffect(() => {
@@ -662,14 +640,6 @@ const Player = () => {
         return;
       }
 
-      if (
-        credentials.username === 'demo' ||
-        credentials.server.includes('your-server.com')
-      ) {
-        setXtreamUserInfo(null);
-        return;
-      }
-
       try {
         xtreamCodesService.setCredentials(credentials);
         const authResponse = await xtreamCodesService.authenticate();
@@ -723,13 +693,19 @@ const Player = () => {
     };
   }, []);
 
-  // Restore last watched live channel when possible, then fall back to first channel.
   useEffect(() => {
-    if (startupLiveRestoreAppliedRef.current) {
+    if (playbackBootstrapAppliedRef.current) {
       return;
     }
 
     if (!isSettingsHydrated) {
+      return;
+    }
+
+    if (isOnDemandSource) {
+      playbackBootstrapAppliedRef.current = true;
+      startupLiveRestoreAppliedRef.current = true;
+      setIsPlaybackBootstrapReady(true);
       return;
     }
 
@@ -738,9 +714,79 @@ const Player = () => {
     }
 
     let isCancelled = false;
-    const shouldSnapPersistedLiveSource = shouldSnapSessionRestoreToLiveEdge(session.source);
+    const parsedMetadata = parseSessionSourceMetadata(session.source?.metadata);
+    const showRestoreNotice = (title: string, description: string) => {
+      const noticeKey = `${title}:${description}`;
+      if (restoreNoticeRef.current === noticeKey) {
+        return;
+      }
 
-    const restoreStartupChannel = async () => {
+      restoreNoticeRef.current = noticeKey;
+      toast({
+        title,
+        description,
+      });
+    };
+
+    const bootstrapPlayback = async () => {
+      if (session.source) {
+        const rawMetadataMode = (
+          session.source.metadata &&
+          typeof session.source.metadata === 'object' &&
+          session.source.metadata !== null &&
+          'mode' in session.source.metadata
+        )
+          ? (session.source.metadata as { mode?: unknown }).mode
+          : undefined;
+        const shouldNormalizePersistedSource = (
+          rawMetadataMode === 'catchup' ||
+          isCatchUpSessionSourceMetadata(parsedMetadata) ||
+          shouldSnapSessionRestoreToLiveEdge(session.source)
+        );
+
+        if (shouldNormalizePersistedSource) {
+          const normalizedRestore = normalizeRestoredSessionSource({
+            source: session.source,
+            positionMs: session.positionMs,
+            channels,
+            fallbackStreamIdsByChannelId: catchUpFallbackStreamIdsByChannelId,
+            urlBuilder: xtreamCodesService,
+            resolveLiveSourceUrl,
+          });
+          const normalizedPositionMs = normalizedRestore.normalizedPositionMs ?? 0;
+          const isSameSource = isSameSessionSource(session.source, normalizedRestore.normalizedSource);
+          const isSamePosition = (session.positionMs ?? null) === normalizedRestore.normalizedPositionMs;
+
+          if (normalizedRestore.notice) {
+            showRestoreNotice(normalizedRestore.notice.title, normalizedRestore.notice.description);
+          }
+
+          if (!normalizedRestore.normalizedSource) {
+            commands.stop();
+            return;
+          }
+
+          if (!isSameSource || !isSamePosition) {
+            commands.setSource(normalizedRestore.normalizedSource, normalizedPositionMs);
+            if (
+              session.playback === 'playing' ||
+              shouldAutoplaySource(parsedMetadata.mode, appSettings)
+            ) {
+              commands.play();
+            }
+            return;
+          }
+
+          if (isCatchUpSessionSourceMetadata(parsedMetadata)) {
+            playbackBootstrapAppliedRef.current = true;
+            startupLiveRestoreAppliedRef.current = true;
+            setIsPlaybackBootstrapReady(true);
+            return;
+          }
+        }
+      }
+
+      const shouldSnapPersistedLiveSource = shouldSnapSessionRestoreToLiveEdge(session.source);
       const lastWatchedChannelId = await loadLastWatchedChannelId();
       if (isCancelled) {
         return;
@@ -749,6 +795,8 @@ const Player = () => {
       const shouldApplyStartupRestore = shouldSnapPersistedLiveSource || (!currentChannel && !session.source);
       if (!shouldApplyStartupRestore) {
         startupLiveRestoreAppliedRef.current = true;
+        playbackBootstrapAppliedRef.current = true;
+        setIsPlaybackBootstrapReady(true);
         return;
       }
 
@@ -759,21 +807,37 @@ const Player = () => {
           ? (currentChannel?.id ?? session.source?.channelId ?? null)
           : null
       );
-      if (!startupChannel) {
-        startupLiveRestoreAppliedRef.current = true;
-        return;
+      if (startupChannel) {
+        switchToLiveChannel(startupChannel, {
+          forceAutoplay: shouldSnapPersistedLiveSource,
+        });
       }
 
-      switchToLiveChannel(startupChannel);
       startupLiveRestoreAppliedRef.current = true;
+      playbackBootstrapAppliedRef.current = true;
+      setIsPlaybackBootstrapReady(true);
     };
 
-    void restoreStartupChannel();
+    void bootstrapPlayback();
 
     return () => {
       isCancelled = true;
     };
-  }, [channels, currentChannel, isSettingsHydrated, session.source, switchToLiveChannel]);
+  }, [
+    appSettings,
+    catchUpFallbackStreamIdsByChannelId,
+    channels,
+    commands,
+    currentChannel,
+    isOnDemandSource,
+    isSettingsHydrated,
+    resolveLiveSourceUrl,
+    session.playback,
+    session.positionMs,
+    session.source,
+    switchToLiveChannel,
+    toast,
+  ]);
 
   const currentChannelId = currentChannel?.id;
 
@@ -869,25 +933,18 @@ const Player = () => {
     switchToLiveChannel(channels[prevIndex]);
   }, [currentChannel, channels, switchToLiveChannel]);
 
-  const playCatchUpProgram = useCallback((program: PlayerChannel['epg'][number]) => {
+  const playCatchUpProgram = useCallback(async (program: PlayerChannel['epg'][number]) => {
     if (!currentChannelWithEPG) {
       return;
     }
 
-    const startTimestamp = Math.floor(program.startTime.getTime() / 1000);
-    const duration = Math.floor(
-      (program.endTime.getTime() - program.startTime.getTime()) / 1000
-    );
-    const catchUpTransportPlan = buildCatchUpTransportPlan({
+    const catchUpSource = await resolveCatchUpSessionSource({
+      channel: currentChannelWithEPG,
+      program,
       urlBuilder: xtreamCodesService,
-      streamId: currentChannelWithEPG.streamId,
-      startTimestamp,
-      durationSeconds: duration,
       fallbackStreamIds: currentCatchUpFallbackStreamIds,
     });
-    const catchUpUrl = catchUpTransportPlan.initialAttempt.url;
-    const catchUpFallbackUrls = catchUpTransportPlan.fallbackAttempts.map((attempt) => attempt.url);
-    const catchUpFallbackUrl = catchUpFallbackUrls[0] ?? '';
+    const catchUpFallbackUrls = catchUpSource.transportPlan.fallbackAttempts.map((attempt) => attempt.url);
     emitWebObservabilityEvent({
       name: 'catchup.requested',
       severity: 'info',
@@ -895,43 +952,59 @@ const Player = () => {
         channelId: currentChannelWithEPG.id,
         streamId: currentChannelWithEPG.streamId,
         programId: program.id,
-        start: startTimestamp,
-        duration,
+        serverId: catchUpSource.metadata.gateway?.serverId ?? null,
+        assetKey: catchUpSource.metadata.gateway?.assetKey ?? null,
+        transportMode: catchUpSource.metadata.gateway?.transportMode ?? null,
+        hotStart: catchUpSource.metadata.gateway?.hotStart ?? null,
+        fallbackReason: catchUpSource.metadata.gateway?.fallbackReason ?? null,
+        start: catchUpSource.metadata.startTimestamp,
+        duration: catchUpSource.metadata.durationSeconds,
         attempt: 1,
         status: 'requested',
         finalHost: null,
         errorCode: null,
-        initialStrategy: catchUpTransportPlan.initialAttempt.strategy,
-        initialStartTs: catchUpTransportPlan.initialAttempt.startTimestamp,
+        initialStrategy: catchUpSource.transportPlan.initialAttempt.strategy,
+        initialStartTs: catchUpSource.transportPlan.initialAttempt.startTimestamp,
         fallbackStreamIds: currentCatchUpFallbackStreamIds,
         fallbackCount: catchUpFallbackUrls.length,
       },
     });
-    const source = {
-      url: catchUpUrl,
-      type: 'hls' as const,
-      title: `${currentChannelWithEPG.name} - ${program.title}`,
-      channelId: currentChannelWithEPG.id,
-      metadata: {
-        channelId: currentChannelWithEPG.id,
-        streamId: currentChannelWithEPG.streamId,
-        mode: 'catchup' as const,
-        catchUpProgramId: program.id,
-        catchUpDurationSeconds: duration,
-        catchUpStartTimestamp: catchUpTransportPlan.initialAttempt.startTimestamp,
-        catchUpAttemptPlan: catchUpTransportPlan.allAttempts,
-        catchUpAttemptIndex: 0,
-        catchUpAttemptStrategy: catchUpTransportPlan.initialAttempt.strategy,
-        catchUpFallbackUrl,
-        catchUpFallbackUrls,
-        catchUpFallbackIndex: -1,
-        catchUpFallbackUsed: false,
-      },
-    };
 
-    commands.setSource(source, CATCH_UP_INITIAL_POSITION_GUARD_MS);
+    commands.setSource(catchUpSource.source, catchUpSource.initialPositionMs);
     commands.play();
   }, [commands, currentCatchUpFallbackStreamIds, currentChannelWithEPG]);
+
+  const advanceToNextCatchUpProgram = useCallback((
+    reason: 'segment-ended'
+  ): boolean => {
+    if (!currentChannelWithEPG || !isCatchUpSessionSourceMetadata(sessionSourceMetadata)) {
+      return false;
+    }
+
+    const nextProgram = resolveNextCatchUpProgram(
+      currentChannelWithEPG.epg,
+      sessionSourceMetadata.programId,
+    );
+    if (nextProgram) {
+      void playCatchUpProgram(nextProgram);
+      toast({
+        title: 'Nastavak TV unazad',
+        description: `Prelazimo na: ${nextProgram.title}`,
+      });
+      return true;
+    }
+
+    return false;
+  }, [
+    currentChannelWithEPG,
+    playCatchUpProgram,
+    sessionSourceMetadata,
+    toast,
+  ]);
+
+  const handleVideoPlayerEnded = useCallback(() => {
+    void advanceToNextCatchUpProgram('segment-ended');
+  }, [advanceToNextCatchUpProgram]);
 
   const goToPlayerHome = useCallback(() => {
     if (isOnDemandSource) {
@@ -1082,9 +1155,95 @@ const Player = () => {
       return;
     }
 
+    if (isCatchUpSessionSourceMetadata(sessionSourceMetadata) && currentChannelWithEPG) {
+      const rebuiltCatchUp = buildCatchUpSessionSourceFromMetadata({
+        channel: currentChannelWithEPG,
+        metadata: {
+          ...sessionSourceMetadata,
+          fallbackStreamIds: (
+            sessionSourceMetadata.fallbackStreamIds.length > 0
+              ? sessionSourceMetadata.fallbackStreamIds
+              : currentCatchUpFallbackStreamIds
+          ),
+        },
+        channelTitle: currentChannelWithEPG.name,
+        urlBuilder: xtreamCodesService,
+      });
+
+      commands.setSource(
+        rebuiltCatchUp.source,
+        Math.max(0, Math.min(session.positionMs ?? 0, sessionSourceMetadata.durationSeconds * 1000)),
+      );
+      setPlayerReloadToken((currentToken) => currentToken + 1);
+      commands.play();
+      return;
+    }
+
+    if (isLiveSourcePlayback && currentChannel) {
+      commands.setSource(buildLiveSessionSource({
+        channel: currentChannel,
+        sourceUrl: resolveLiveSourceUrl(currentChannel),
+      }), 0);
+      setPlayerReloadToken((currentToken) => currentToken + 1);
+      commands.play();
+      return;
+    }
+
+    setPlayerReloadToken((currentToken) => currentToken + 1);
     commands.setSource({ ...session.source }, onDemandPositionMs);
     commands.play();
-  }, [commands, onDemandPositionMs, session.source]);
+  }, [
+    commands,
+    currentCatchUpFallbackStreamIds,
+    currentChannel,
+    currentChannelWithEPG,
+    isLiveSourcePlayback,
+    onDemandPositionMs,
+    resolveLiveSourceUrl,
+    session.positionMs,
+    session.source,
+    sessionSourceMetadata,
+  ]);
+  const videoPlayerErrorActions = useMemo(() => {
+    if (!session.source) {
+      return [];
+    }
+
+    if (isCatchUpSessionSourceMetadata(sessionSourceMetadata)) {
+      return [
+        {
+          label: 'Pokušaj ponovo',
+          onClick: retryCurrentPlayback,
+        },
+        {
+          label: 'UŽIVO',
+          variant: 'secondary' as const,
+          onClick: () => {
+            if (currentChannel) {
+              switchToLiveChannel(currentChannel, { forceAutoplay: true });
+              return;
+            }
+
+            switchToLiveMode();
+          },
+        },
+      ];
+    }
+
+    return [
+      {
+        label: 'Pokušaj ponovo',
+        onClick: retryCurrentPlayback,
+      },
+    ];
+  }, [
+    currentChannel,
+    retryCurrentPlayback,
+    session.source,
+    sessionSourceMetadata,
+    switchToLiveChannel,
+    switchToLiveMode,
+  ]);
 
   useEffect(() => {
     const defaultVolume = clampVolumePercent(appSettings.player.defaultVolume);
@@ -1397,8 +1556,8 @@ const Player = () => {
 
     return resolveCatchUpEmptyStateReason(currentChannelWithEPG);
   }, [currentChannelWithEPG]);
-  const activeCatchUpProgramId = sessionSourceMetadata.mode === 'catchup'
-    ? sessionSourceMetadata.catchUpProgramId
+  const activeCatchUpProgramId = isCatchUpSessionSourceMetadata(sessionSourceMetadata)
+    ? sessionSourceMetadata.programId
     : undefined;
   const desktopCategoryItems = useMemo(
     () => [
@@ -1765,12 +1924,21 @@ const Player = () => {
               </div>
             )}
 
-            {session.source && usesLocalRenderer && (
+            {session.source && usesLocalRenderer && !isPlaybackBootstrapReady && (
+              <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/70">
+                <Loader2 className="h-10 w-10 animate-spin text-primary" />
+              </div>
+            )}
+
+            {session.source && usesLocalRenderer && isPlaybackBootstrapReady && (
               <VideoPlayer
                 ref={playerRef}
                 autoPlay={shouldAutoplayCurrentSource}
                 preferNativeHls={appSettings.player.preferNativeHls}
                 loadingOverlayMaxMs={isOnDemandSource ? ON_DEMAND_LOADING_OVERLAY_MAX_MS : undefined}
+                reloadToken={playerReloadToken}
+                errorActions={videoPlayerErrorActions}
+                onEnded={handleVideoPlayerEnded}
               />
             )}
 
@@ -2178,7 +2346,7 @@ const Player = () => {
                                     <button
                                       key={program.id}
                                       type="button"
-                                      onClick={() => playCatchUpProgram(program)}
+                                      onClick={() => { void playCatchUpProgram(program); }}
                                       className={`w-full flex items-center gap-4 p-3 rounded-xl transition-all group text-left ${
                                         isActiveCatchUp
                                           ? 'bg-emerald-500/20 border-2 border-emerald-500/50'
@@ -2230,7 +2398,7 @@ const Player = () => {
                                         <button
                                           key={program.id}
                                           type="button"
-                                          onClick={() => playCatchUpProgram(program)}
+                                          onClick={() => { void playCatchUpProgram(program); }}
                                           className={`w-full flex items-center gap-4 p-3 rounded-xl transition-all group text-left ${
                                             isActiveCatchUp
                                               ? 'bg-emerald-500/20 border-2 border-emerald-500/50'

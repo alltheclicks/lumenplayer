@@ -41,7 +41,12 @@ import {
   resolveLiveTimeshiftPositionSeconds,
 } from './liveTimeshift';
 import { emitWebObservabilityEvent } from '@/services/observability';
-import { buildCatchUpTransportPlan } from './catchupTransport';
+import {
+  buildLiveSessionSource,
+  isCatchUpSessionSourceMetadata,
+  parseSessionSourceMetadata,
+} from './sessionSources';
+import { resolveCatchUpSessionSource } from './catchupGateway';
 
 interface PlayerControlsProps {
   channel: PlayerChannel;
@@ -65,12 +70,6 @@ interface PlayerControlsProps {
   };
 }
 
-type SessionSourceMetadata = {
-  mode?: 'live' | 'catchup';
-  catchUpProgramId?: string;
-  catchUpDurationSeconds?: number;
-};
-
 interface PendingSeekInteraction {
   direction: SeekDirection;
   tapStepSeconds: number;
@@ -81,24 +80,6 @@ const CONTROLS_IDLE_TIMEOUT_MS = 3000;
 const CONTROLS_IDLE_GRACE_MS = 1000;
 const CATCH_UP_REASON_REFRESH_MS = 60_000;
 const CATCH_UP_INITIAL_POSITION_GUARD_SECONDS = 15;
-
-const parseSessionSourceMetadata = (
-  metadata: Record<string, unknown> | undefined
-): SessionSourceMetadata => {
-  if (!metadata) {
-    return {};
-  }
-
-  return {
-    mode: metadata.mode === 'live' || metadata.mode === 'catchup' ? metadata.mode : undefined,
-    catchUpProgramId: typeof metadata.catchUpProgramId === 'string' ? metadata.catchUpProgramId : undefined,
-    catchUpDurationSeconds: typeof metadata.catchUpDurationSeconds === 'number'
-      ? metadata.catchUpDurationSeconds
-      : typeof metadata.catchUpDurationSeconds === 'string' && !Number.isNaN(Number(metadata.catchUpDurationSeconds))
-        ? Number(metadata.catchUpDurationSeconds)
-        : undefined,
-  };
-};
 
 const groupProgramsByDate = (programs: Program[]): Map<string, Program[]> => {
   const grouped = new Map<string, Program[]>();
@@ -183,16 +164,11 @@ const PlayerControls = ({
     [session.source?.metadata]
   );
   const catchUpProgram = useMemo(() => {
-    if (sessionSourceMetadata.mode !== 'catchup') {
+    if (!isCatchUpSessionSourceMetadata(sessionSourceMetadata)) {
       return null;
     }
 
-    const catchUpProgramId = sessionSourceMetadata.catchUpProgramId;
-    if (!catchUpProgramId) {
-      return null;
-    }
-
-    return channel.epg.find(program => program.id === catchUpProgramId) ?? null;
+    return channel.epg.find(program => program.id === sessionSourceMetadata.programId) ?? null;
   }, [channel.epg, sessionSourceMetadata]);
   const catchUpPosition = catchUpProgram
     ? Math.max(0, (session.positionMs ?? 0) / 1000)
@@ -200,8 +176,8 @@ const PlayerControls = ({
   const isPlaying = session.playback === 'playing' || session.playback === 'buffering';
 
   const catchUpDuration = catchUpProgram
-    ? sessionSourceMetadata.catchUpDurationSeconds && sessionSourceMetadata.catchUpDurationSeconds > 0
-      ? sessionSourceMetadata.catchUpDurationSeconds
+    ? isCatchUpSessionSourceMetadata(sessionSourceMetadata) && sessionSourceMetadata.durationSeconds > 0
+      ? sessionSourceMetadata.durationSeconds
       : (catchUpProgram.endTime.getTime() - catchUpProgram.startTime.getTime()) / 1000
     : 0;
   const effectiveCatchUpPosition = catchUpProgram
@@ -558,27 +534,19 @@ const PlayerControls = ({
   };
 
   const switchToLive = useCallback(() => {
-    const source = {
-      url: xtreamCodesService.getLiveStreamUrl(channel.streamId),
-      type: 'hls' as const,
-      title: channel.name,
-      channelId: channel.id,
-      metadata: {
-        channelId: channel.id,
-        streamId: channel.streamId,
-        mode: 'live',
-      },
-    };
+    const source = buildLiveSessionSource({
+      channel,
+      sourceUrl: xtreamCodesService.getLiveStreamUrl(channel.streamId),
+    });
 
     commands.setSource(source, 0);
     commands.play();
-  }, [channel.id, channel.name, channel.streamId, commands]);
+  }, [channel, commands]);
 
   const switchToCatchUpProgram = useCallback((
     program: Program,
     preferredPositionSeconds = 0,
-  ): number => {
-    const startTimestamp = Math.floor(program.startTime.getTime() / 1000);
+  ): Promise<number> => {
     const fullDuration = Math.floor(
       (program.endTime.getTime() - program.startTime.getTime()) / 1000
     );
@@ -593,64 +561,48 @@ const PlayerControls = ({
         0,
         Math.min(duration, CATCH_UP_INITIAL_POSITION_GUARD_SECONDS)
       );
-    const catchUpTransportPlan = buildCatchUpTransportPlan({
+    return resolveCatchUpSessionSource({
       urlBuilder: xtreamCodesService,
-      streamId: channel.streamId,
-      startTimestamp,
-      durationSeconds: duration,
+      channel,
+      program,
       fallbackStreamIds: catchUpFallbackStreamIds,
-    });
-    const catchUpUrl = catchUpTransportPlan.initialAttempt.url;
-    const catchUpFallbackUrls = catchUpTransportPlan.fallbackAttempts.map((attempt) => attempt.url);
-    const catchUpFallbackUrl = catchUpFallbackUrls[0] ?? '';
-    const source = {
-      url: catchUpUrl,
-      type: 'hls' as const,
-      title: `${channel.name} - ${program.title}`,
-      channelId: channel.id,
-      metadata: {
-        channelId: channel.id,
-        streamId: channel.streamId,
-        mode: 'catchup',
-        catchUpProgramId: program.id,
-        catchUpDurationSeconds: duration,
-        catchUpStartTimestamp: catchUpTransportPlan.initialAttempt.startTimestamp,
-        catchUpAttemptPlan: catchUpTransportPlan.allAttempts,
-        catchUpAttemptIndex: 0,
-        catchUpAttemptStrategy: catchUpTransportPlan.initialAttempt.strategy,
-        catchUpFallbackUrl,
-        catchUpFallbackUrls,
-        catchUpFallbackIndex: -1,
-        catchUpFallbackUsed: false,
-      },
-    };
+      durationSeconds: duration,
+      preferredPositionSeconds: initialPositionSeconds,
+    }).then((catchUpSource) => {
+      const catchUpFallbackUrls = catchUpSource.transportPlan.fallbackAttempts.map((attempt) => attempt.url);
 
-    emitWebObservabilityEvent({
-      name: 'catchup.requested',
-      severity: 'info',
-      metadata: {
-        channelId: channel.id,
-        streamId: channel.streamId,
-        programId: program.id,
-        start: startTimestamp,
-        duration,
-        attempt: 1,
-        status: 'requested',
-        finalHost: null,
-        errorCode: null,
-        fullDurationSeconds: fullDuration,
-        initialStrategy: catchUpTransportPlan.initialAttempt.strategy,
-        initialStartTs: catchUpTransportPlan.initialAttempt.startTimestamp,
-        fallbackStreamIds: catchUpFallbackStreamIds,
-        fallbackCount: catchUpFallbackUrls.length,
-        initialPositionSeconds,
-      },
-    });
+      emitWebObservabilityEvent({
+        name: 'catchup.requested',
+        severity: 'info',
+        metadata: {
+          channelId: channel.id,
+          streamId: channel.streamId,
+          programId: program.id,
+          serverId: catchUpSource.metadata.gateway?.serverId ?? null,
+          assetKey: catchUpSource.metadata.gateway?.assetKey ?? null,
+          transportMode: catchUpSource.metadata.gateway?.transportMode ?? null,
+          hotStart: catchUpSource.metadata.gateway?.hotStart ?? null,
+          fallbackReason: catchUpSource.metadata.gateway?.fallbackReason ?? null,
+          start: catchUpSource.metadata.startTimestamp,
+          duration,
+          attempt: 1,
+          status: 'requested',
+          finalHost: null,
+          errorCode: null,
+          fullDurationSeconds: fullDuration,
+          initialStrategy: catchUpSource.transportPlan.initialAttempt.strategy,
+          initialStartTs: catchUpSource.transportPlan.initialAttempt.startTimestamp,
+          fallbackStreamIds: catchUpFallbackStreamIds,
+          fallbackCount: catchUpFallbackUrls.length,
+          initialPositionSeconds,
+        },
+      });
 
-    commands.setSource(source, Math.floor(initialPositionSeconds * 1000));
-    commands.play();
-    return initialPositionSeconds;
-  }, [catchUpFallbackStreamIds, channel.id, channel.name, channel.streamId, commands]);
+      commands.setSource(catchUpSource.source, catchUpSource.initialPositionMs);
+      commands.play();
+      return initialPositionSeconds;
+    });
+  }, [catchUpFallbackStreamIds, channel, commands]);
 
   const updateCatchUpPosition = useCallback((positionSeconds: number) => {
     if (!catchUpProgram) {
@@ -673,7 +625,7 @@ const PlayerControls = ({
   }, [commands, isPlaying, playerRef]);
 
   const handleSelectProgram = (program: Program) => {
-    switchToCatchUpProgram(program);
+    void switchToCatchUpProgram(program);
     setShowCatchUp(false);
   };
 
@@ -682,7 +634,7 @@ const PlayerControls = ({
       return;
     }
 
-    switchToCatchUpProgram(currentProgram, resolveLiveTimeshiftPositionSeconds(currentProgram, ratio));
+    void switchToCatchUpProgram(currentProgram, resolveLiveTimeshiftPositionSeconds(currentProgram, ratio));
   }, [canTimeshiftFromLiveBar, currentProgram, switchToCatchUpProgram]);
 
   const handleLiveProgressClick = useCallback((event: React.MouseEvent<HTMLDivElement>) => {

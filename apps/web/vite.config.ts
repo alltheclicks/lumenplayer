@@ -5,53 +5,59 @@ import { VitePWA } from "vite-plugin-pwa";
 
 const pwaWorkboxMode = process.env.LUMEN_PWA_SW_MODE === "production" ? "production" : "development";
 const XTREAM_DEV_PROXY_BASE_PATH = "/xui-api";
-const LOCAL_PROXY_FALLBACK_TARGET = "http://localhost";
-
-const resolveProxyTargetFromRequestPath = (requestPath: string): string | null => {
-  const match = requestPath.match(new RegExp(`^${XTREAM_DEV_PROXY_BASE_PATH}/([^/?#]+)`));
-  if (!match || !match[1]) {
-    return null;
-  }
-
-  try {
-    const decodedTarget = decodeURIComponent(match[1]).trim().replace(/\/+$/, "");
-    if (decodedTarget.startsWith("http://") || decodedTarget.startsWith("https://")) {
-      return decodedTarget;
-    }
-  } catch {
-    // Ignore malformed encoded targets and fall back to default proxy target.
-  }
-
-  return null;
-};
+const CATCHUP_GATEWAY_BASE_PATH = "/catchup-gateway";
+const LOCAL_PROXY_FALLBACK_TARGET = "http://localhost:8788";
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
-  const xtreamServerTarget = env.VITE_XTREAM_SERVER?.trim().replace(/\/+$/, "");
+  const xuiProxyDebugEnabled = env.VITE_XUI_PROXY_DEBUG === "1";
+  const proxyTarget = env.VITE_XUI_PROXY_ORIGIN?.trim().replace(/\/+$/, "") || LOCAL_PROXY_FALLBACK_TARGET;
 
   return {
     server: {
       host: "::",
       port: 8080,
-      proxy: xtreamServerTarget
-        ? {
-            [XTREAM_DEV_PROXY_BASE_PATH]: {
-              target: xtreamServerTarget || LOCAL_PROXY_FALLBACK_TARGET,
-              changeOrigin: true,
-              secure: false,
-              router: (request) => (
-                resolveProxyTargetFromRequestPath(request.url || "") ||
-                xtreamServerTarget ||
-                LOCAL_PROXY_FALLBACK_TARGET
-              ),
-              rewrite: (requestPath: string) => (
-                requestPath
-                  .replace(new RegExp(`^${XTREAM_DEV_PROXY_BASE_PATH}/[^/?#]+`), "")
-                  .replace(new RegExp(`^${XTREAM_DEV_PROXY_BASE_PATH}`), "")
-              ),
-            },
-          }
-        : undefined,
+      proxy: {
+        [XTREAM_DEV_PROXY_BASE_PATH]: {
+          target: proxyTarget,
+          changeOrigin: true,
+          secure: false,
+          configure: (proxyServer) => {
+            if (!xuiProxyDebugEnabled) {
+              return;
+            }
+
+            proxyServer.on("proxyReq", (proxyReq, req) => {
+              const method = req.method || "GET";
+              const path = req.url || "";
+              console.log(`[xui-proxy:req] ${method} ${path}`);
+            });
+
+            proxyServer.on("proxyRes", (proxyRes, req) => {
+              const method = req.method || "GET";
+              const path = req.url || "";
+              const statusCode = proxyRes.statusCode || 0;
+              const location = proxyRes.headers.location;
+              const locationSuffix = typeof location === "string"
+                ? ` location=${location}`
+                : "";
+              console.log(`[xui-proxy:res] ${statusCode} ${method} ${path}${locationSuffix}`);
+            });
+
+            proxyServer.on("error", (error, req) => {
+              const method = req.method || "GET";
+              const path = req.url || "";
+              const message = error instanceof Error ? error.message : String(error);
+              console.error(`[xui-proxy:error] ${method} ${path} ${message}`);
+            });
+          },
+        },
+        [CATCHUP_GATEWAY_BASE_PATH]: {
+          target: proxyTarget,
+          changeOrigin: true,
+          secure: false,
+        },
+      },
     },
     plugins: [
       react(),

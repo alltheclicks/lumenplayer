@@ -9,6 +9,8 @@ import type {
 } from '@lumen/types';
 
 const HLS_MIME_TYPE = 'application/vnd.apple.mpegurl';
+const MEDIA_ERR_DECODE = 3;
+const MEDIA_ERR_SRC_NOT_SUPPORTED = 4;
 
 type StateListener = (state: PlaybackState) => void;
 type ErrorListener = (error: PlaybackError) => void;
@@ -57,7 +59,14 @@ interface NativeTextTrackListLike {
   removeEventListener?: (event: string, handler: () => void) => void;
 }
 
+const isTimeshiftHlsUrl = (url: string): boolean => (
+  url.includes('/timeshift/')
+  || url.includes('streaming/timeshift.php')
+);
+
 export class HlsPlayerAdapter implements PlayerAdapter {
+  private static readonly MAX_MEDIA_ELEMENT_RECOVERY_ATTEMPTS = 2;
+
   private readonly video: HTMLVideoElement;
   private readonly preferNativeHls: boolean;
   private hls: Hls | null = null;
@@ -73,6 +82,7 @@ export class HlsPlayerAdapter implements PlayerAdapter {
   private readonly subtitleTracksListeners = new Set<SubtitleTracksListener>();
   private readonly removeVideoListeners: () => void;
   private readonly onManifestResolved?: (event: ManifestResolvedEvent) => void;
+  private mediaElementRecoveryAttempts = 0;
 
   constructor(video: HTMLVideoElement, options: HlsPlayerAdapterOptions = {}) {
     this.video = video;
@@ -82,8 +92,10 @@ export class HlsPlayerAdapter implements PlayerAdapter {
   }
 
   async load(source: MediaSource): Promise<void> {
+    const shouldFlushPreviousSource = this.hasActiveMediaSource();
     this.clearHls();
-    this.resetPlaybackState(false);
+    this.resetPlaybackState(shouldFlushPreviousSource);
+    this.mediaElementRecoveryAttempts = 0;
     this.updateState('loading');
 
     if (this.isMixedContentBlocked(source.url)) {
@@ -103,7 +115,7 @@ export class HlsPlayerAdapter implements PlayerAdapter {
 
     this.video.src = source.url;
     this.video.load();
-    this.updateState('paused');
+    this.updateState('ready');
   }
 
   play(): void {
@@ -297,19 +309,21 @@ export class HlsPlayerAdapter implements PlayerAdapter {
       this.video.load();
       this.syncNativeAudioTracks();
       this.syncNativeSubtitleTracks();
-      this.updateState('paused');
+      this.updateState('ready');
       return;
     }
 
     if (Hls.isSupported()) {
+      const isTimeshiftSource = isTimeshiftHlsUrl(url);
       const hls = new Hls({
         enableWorker: true,
-        lowLatencyMode: true,
-        backBufferLength: 90,
-        maxBufferLength: 30,
+        lowLatencyMode: !isTimeshiftSource,
+        backBufferLength: isTimeshiftSource ? 0 : 90,
+        maxBufferLength: isTimeshiftSource ? 120 : 30,
         maxMaxBufferLength: 600,
         maxBufferSize: 60 * 1000 * 1000,
-        maxBufferHole: 0.5,
+        maxBufferHole: isTimeshiftSource ? 2 : 0.5,
+        nudgeMaxRetry: isTimeshiftSource ? 8 : 3,
         startLevel: -1,
       });
       this.hls = hls;
@@ -320,7 +334,7 @@ export class HlsPlayerAdapter implements PlayerAdapter {
             this.syncHlsAudioTracks(hls.audioTrack);
             this.syncHlsSubtitleTracks(hls.subtitleTrack);
             cleanup();
-            this.updateState('paused');
+            this.updateState('ready');
             resolve();
           };
 
@@ -404,7 +418,7 @@ export class HlsPlayerAdapter implements PlayerAdapter {
       this.video.load();
       this.syncNativeAudioTracks();
       this.syncNativeSubtitleTracks();
-      this.updateState('paused');
+      this.updateState('ready');
       return;
     }
 
@@ -441,11 +455,22 @@ export class HlsPlayerAdapter implements PlayerAdapter {
 
   private attachVideoListeners(): () => void {
     const handlePlay = () => this.updateState('playing');
-    const handlePause = () => this.updateState('paused');
+    const handlePause = () => {
+      if (this.state === 'ready') {
+        return;
+      }
+      this.updateState('paused');
+    };
     const handleWaiting = () => this.updateState('buffering');
     const handleEnded = () => this.updateState('ended');
     const handleSeeking = () => this.updateState('seeking');
-    const handleSeeked = () => this.updateState(this.video.paused ? 'paused' : 'playing');
+    const handleSeeked = () => {
+      if (this.video.paused) {
+        this.updateState(this.state === 'ready' ? 'ready' : 'paused');
+        return;
+      }
+      this.updateState('playing');
+    };
     const handleTimeUpdate = () => {
       this.timeListeners.forEach((listener) => listener(this.video.currentTime));
     };
@@ -455,8 +480,26 @@ export class HlsPlayerAdapter implements PlayerAdapter {
         return;
       }
 
-      const isSrcNotSupported = mediaError.code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED;
+      const isSrcNotSupported = mediaError.code === MEDIA_ERR_SRC_NOT_SUPPORTED;
+      const isDecodeError = mediaError.code === MEDIA_ERR_DECODE;
       const isManagedByHls = this.hls !== null;
+
+      if (
+        isManagedByHls &&
+        isDecodeError &&
+        this.hls &&
+        this.mediaElementRecoveryAttempts < HlsPlayerAdapter.MAX_MEDIA_ELEMENT_RECOVERY_ATTEMPTS
+      ) {
+        this.mediaElementRecoveryAttempts += 1;
+        try {
+          this.hls.recoverMediaError();
+          this.updateState('buffering');
+          void this.video.play().catch(() => {});
+          return;
+        } catch {
+          // Fall through to normal error emission if recovery throws.
+        }
+      }
 
       this.emitError({
         code: `MEDIA_ELEMENT_${mediaError.code}`,
@@ -520,12 +563,30 @@ export class HlsPlayerAdapter implements PlayerAdapter {
     if (!this.hls) {
       return;
     }
-    this.hls.destroy();
+    const hls = this.hls;
+    try {
+      hls.stopLoad();
+    } catch {
+      // No-op: stopLoad can throw while instance is mid-teardown.
+    }
+    try {
+      hls.detachMedia();
+    } catch {
+      // No-op: detach can throw when media is already detached.
+    }
+    hls.destroy();
     this.hls = null;
   }
 
   private resetPlaybackState(flushMediaElement: boolean): void {
+    this.mediaElementRecoveryAttempts = 0;
     this.video.pause();
+    const mediaElementWithSrcObject = this.video as HTMLVideoElement & {
+      srcObject?: unknown;
+    };
+    if ('srcObject' in mediaElementWithSrcObject) {
+      mediaElementWithSrcObject.srcObject = null;
+    }
     this.video.removeAttribute('src');
     if (flushMediaElement) {
       this.video.load();
@@ -537,6 +598,20 @@ export class HlsPlayerAdapter implements PlayerAdapter {
     this.emitAudioTracksChange();
     this.emitSubtitleTracksChange();
     this.updateState('idle');
+  }
+
+  private hasActiveMediaSource(): boolean {
+    if (this.hls) {
+      return true;
+    }
+
+    const currentSrc = this.video.currentSrc?.trim() ?? '';
+    if (currentSrc.length > 0) {
+      return true;
+    }
+
+    const configuredSrc = this.video.src?.trim() ?? '';
+    return configuredSrc.length > 0;
   }
 
   private mapHlsError(data: ErrorData): PlaybackError {
