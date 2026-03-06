@@ -19,6 +19,87 @@ describe("parseAllowedHosts", () => {
 });
 
 describe("createProxyServer", () => {
+  it("exposes catch-up gateway resolve contract with stable asset identity", async () => {
+    const app = createProxyServer({
+      allowedHosts: ["*"],
+      logger: false,
+      sweepIntervalMs: 0,
+    });
+
+    const requestBody = {
+      platform: "web",
+      channelId: "channel-1",
+      programId: "program-1",
+      streamId: 112,
+      startTimestamp: 1_772_000_000,
+      durationSeconds: 1_800,
+      sourceCandidates: {
+        redirectUrls: [
+          "https://edge.example/streaming/timeshift.php?token=abc123",
+        ],
+        queryUrls: [],
+        legacyUrls: [],
+      },
+      channelCapability: {
+        hasCatchup: true,
+        archiveWindowHours: 72,
+        epgCoverageState: "available",
+      },
+    };
+
+    const first = await app.inject({
+      method: "POST",
+      url: "/catchup-gateway/resolve",
+      payload: requestBody,
+    });
+    const second = await app.inject({
+      method: "POST",
+      url: "/catchup-gateway/resolve",
+      payload: requestBody,
+    });
+
+    expect(first.statusCode).toBe(200);
+    expect(second.statusCode).toBe(200);
+    expect(first.json()).toMatchObject({
+      channelId: "channel-1",
+      programId: "program-1",
+      transportMode: "provider-direct",
+      hotStart: false,
+    });
+    expect(second.json()).toMatchObject({
+      channelId: "channel-1",
+      programId: "program-1",
+      transportMode: "provider-direct",
+      hotStart: true,
+    });
+    expect(second.json().assetKey).toBe(first.json().assetKey);
+
+    await app.close();
+  });
+
+  it("rejects invalid catch-up gateway resolve requests", async () => {
+    const app = createProxyServer({
+      allowedHosts: ["*"],
+      logger: false,
+      sweepIntervalMs: 0,
+    });
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/catchup-gateway/resolve",
+      payload: {
+        channelId: "channel-1",
+      },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toMatchObject({
+      error: "invalid_resolve_request",
+    });
+
+    await app.close();
+  });
+
   it("returns missing_target when encoded target is invalid", async () => {
     const fetchMock = vi.fn();
     const app = createProxyServer({
