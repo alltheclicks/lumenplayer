@@ -1,9 +1,9 @@
 import type { XtreamCredentials, XtreamServerInfo } from "@lumen/types";
 
 const XTREAM_DEV_PROXY_BASE_PATH = "/xui-api";
-
 const trimTrailingSlash = (value: string): string => value.trim().replace(/\/+$/, "");
 const trimLeadingSlash = (value: string): string => value.replace(/^\/+/, "");
+export const XUI_PROXY_ORIGIN = trimTrailingSlash(import.meta.env.VITE_XUI_PROXY_ORIGIN || "");
 const isDefaultPort = (protocol: string, port: string): boolean => (
   (protocol === "http" && port === "80") ||
   (protocol === "https" && port === "443")
@@ -90,10 +90,17 @@ export const resolveXtreamApiServer = (
   options: {
     isDev?: boolean;
     origin?: string | null;
+    proxyOrigin?: string | null;
   } = {},
 ): string => {
   const normalizedServer = trimTrailingSlash(serverUrl);
   const isDevMode = options.isDev ?? import.meta.env.DEV;
+  const configuredProxyOrigin = trimTrailingSlash(options.proxyOrigin ?? XUI_PROXY_ORIGIN ?? "");
+  if (configuredProxyOrigin) {
+    const encodedTarget = encodeXtreamProxyTarget(normalizedServer);
+    return `${configuredProxyOrigin}${XTREAM_DEV_PROXY_BASE_PATH}/${trimLeadingSlash(encodedTarget)}`;
+  }
+
   const runtimeOrigin = options.origin ?? (typeof window === "undefined" ? null : window.location.origin);
 
   if (!isDevMode || !runtimeOrigin) {
@@ -109,6 +116,7 @@ export const resolveXtreamRuntimeCredentials = (
   options: {
     isDev?: boolean;
     origin?: string | null;
+    proxyOrigin?: string | null;
   } = {},
 ): XtreamCredentials => ({
   ...credentials,

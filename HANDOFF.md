@@ -1,5 +1,34 @@
 # Handoff — Lumen Player
 
+## Session 2026-03-06 — QAF-035 catch-up gateway Option B prep (`codex/qaf-035-catchup-gateway`)
+
+- Context:
+  - `QAF-035` remains active after first anti-loop stabilization; next ask was to move catch-up recovery out of player-core assumptions and test an optional gateway-first transport layer that can pre-classify/proxy/remux assets without live regression.
+  - Scope stayed inside `apps/proxy` + web catch-up adapter boundaries; `@lumen/session-core` remained unchanged.
+- Done:
+  - introduced an optional catch-up gateway control-plane in `apps/proxy`:
+    - locked resolve contract (`serverId`, `channelId`, `programId`, `assetKey`, `transportMode`, `playbackUrl`, `assetState`, `fallbackReason`, `hotStart`);
+    - added in-memory `ServerRegistry`, `ArchiveDiscovery`, `ProgramWindowIndex`, `AssetClassifier`, `AssetStore`, `PreparationCoordinator`, `HotPathCache`, and media URL helpers;
+    - exposed `POST /catchup-gateway/resolve` and reused existing remux session cache for deduped background prewarm.
+  - wired web catch-up selection through a gateway-first adapter with local fallback in:
+    - `apps/web/src/components/player/catchupGateway.ts`
+    - `apps/web/src/components/player/sessionSources.ts`
+    - `apps/web/src/components/player/catchupTransport.ts`
+    - `apps/web/src/components/player/PlayerControls.tsx`
+    - `apps/web/src/components/player/VideoPlayer.tsx`
+    - `apps/web/src/pages/Player.tsx`
+    - `apps/web/vite.config.ts`
+  - persisted gateway playback metadata (`assetKey`, `serverId`, `transportMode`, `hotStart`, `fallbackReason`) in catch-up session metadata so retry/restore paths reuse resolved gateway playback when available.
+- Local validation:
+  - `pnpm --filter @lumen/proxy typecheck`
+  - `pnpm --filter @lumen/web typecheck`
+  - `pnpm exec vitest run apps/proxy/src/catchup-gateway.test.ts apps/web/src/components/player/catchupGateway.test.ts apps/web/src/components/player/sessionSources.test.ts apps/web/src/components/player/catchupTransport.test.ts apps/web/src/pages/restoreSessionSource.test.ts`
+- Status:
+  - gateway-first resolve, asset-key dedupe, and remux prewarm are in place;
+  - deep chunk-aware seek preparation is still future work, so `seek_prepare_*` lifecycle and true chunk-indexed remux seek remain open under `QAF-035`.
+
+---
+
 ## Session 2026-03-05 — QAF-035 first runtime anti-loop stabilization (`codex/disable-demo-fallback-xui`)
 
 - Context:
