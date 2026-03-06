@@ -129,10 +129,10 @@ Krajnji cilj: **jedan player koji radi svuda** — od browsera na laptopu, preko
 
 ## Cross-Platform Playback Core (V1 -> Phase 2)
 
-> Ažurirano: 23. februar 2026 (na osnovu live TiviMate traffic analize)
+> Ažurirano: 6. mart 2026 (QAF-034 / QAF-035 catch-up arhitekturno razdvajanje)
 
-Osnova treba da bude ista na svim platformama: isti session model, isti Xtream domain model, isti fallback algoritmi.  
-Razlika po platformi treba da bude samo u "transport adapteru" (web vs native), ne u poslovnoj logici player-a.
+Osnova treba da bude ista na svim platformama: isti session model, isti Xtream domain model, isti playback observability ugovor.  
+Razlika po platformi sme da postoji u transport sloju, ali provider/browser-specifični repair ne sme da zarobi shared player core.
 
 ### Potvrđeni runtime obrazac (TiviMate)
 - Live: login host (`iptvmedia.pro:8080`) vraća `302` na edge/archive host (`l2.mediaking.fi`) sa tokenom.
@@ -142,19 +142,31 @@ Razlika po platformi treba da bude samo u "transport adapteru" (web vs native), 
 
 ### Arhitekturna pravila koja važe za sve klijente
 - `@lumen/session-core` ostaje jedini source of truth za playback state i komande.
-- Xtream URL builder i catch-up fallback pravila ostaju u deljenom core sloju (ne duplirati po app-ovima).
+- Deljeni core drži source/session model i neutralni playback contract, ali ne sme da postane XUI repair engine.
 - Svaki klijent mora da podrži:
   - 302 redirect chain bez gubitka auth/token parametara
   - host affinity (login host -> final edge/archive host)
-  - catch-up retry sa start offset fallback-om (minute alignment + pomeraji)
   - fallback nazad na live kada archive ne postoji
+
+### Catch-up gateway boundary (Option B)
+- Provider-specific catch-up workaround logika (`PTS/DTS` surgery, continuity repair, FFmpeg/remux odluke, browser/container workarounds) ne ulazi u `@lumen/session-core`.
+- Catch-up gateway je opcioni sloj izvan shared core-a:
+  - može da se uključi ili isključi po platformi, serveru, kanalu i programu
+  - može da odluči `provider-direct | proxy-normalized | proxy-remuxed`
+  - može da radi asset-based preparation/cache bez vezivanja za korisničku sesiju
+- Web i budući native klijenti treba da vide samo:
+  - `transportMode`
+  - `playbackUrl`
+  - observability metadata
+- Live i standardni VOD ostaju na najjeftinijem postojećem putu dok catch-up gateway nije potreban.
 
 ### Platform-specific transport (adapter-only razlike)
 - Web/PWA:
   - mora imati same-origin proxy kada browser ograničenja to zahtevaju (CORS/mixed-content).
   - `https` app + `http` stream je browser-level rizik; mora postojati kontrolisan fallback/proxy put.
+  - kada provider-direct nije browser-safe ili nije dovoljno stabilan za catch-up, web može da koristi opcioni gateway sloj bez curenja te logike u core.
 - Native (Android TV, Tizen, WebOS, tvOS, iOS/Android):
-  - nema browser CORS model, ali isti redirect/token/fallback algoritam ostaje obavezan.
+  - nema browser CORS model, ali isti redirect/token/fallback semantički ugovor ostaje obavezan.
   - platformski player adapter može direktno da prati 302 i preuzima segmente.
 
 ### HTTP + HTTPS kompatibilnost (production requirement)

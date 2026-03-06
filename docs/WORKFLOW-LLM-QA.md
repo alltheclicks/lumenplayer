@@ -1,7 +1,7 @@
 # WORKFLOW LLM + QA (Operational Guide)
 
-> Version: 1.2  
-> Date: 2026-02-23  
+> Version: 1.3  
+> Date: 2026-03-06  
 > Scope: Lumen Player ongoing delivery with parallel LLM agents.
 
 Current QA backlog: `docs/V3-QA-FIX-BACKLOG.md`
@@ -49,6 +49,32 @@ Before selecting "next tasks", always do this in order:
 5. Only after steps 1-4, pick next ready tasks.
 
 Never choose next work from chat memory alone when source-of-truth files disagree or are incomplete.
+
+### 2.2 Experimental branch stack reset rule (mandatory when a task drifts)
+
+If one task is spread across multiple unmerged `codex/` branches, do not keep stacking feature work blindly.
+
+Required reset sequence:
+
+1. Map actual lineage:
+   - `git log --oneline --decorate --graph --all --simplify-by-decoration`
+   - identify which branches are:
+     - already merged on `main`
+     - open but cleanly based on `main`
+     - stacked on top of other experimental branches
+2. Update source-of-truth docs first:
+   - `BACKLOG.md`
+   - active QA backlog
+   - `HANDOFF.md`
+   - `VISION.md` if architecture boundary changed
+3. Recreate a clean continuation point from `origin/main`.
+4. Carry forward only validated commits/ideas:
+   - cherry-pick or reimplement selectively
+   - never assume the newest stacked branch is the new baseline
+5. Open the next implementation PR from that clean continuation branch.
+
+Operational rule:
+- A stacked experimental branch is reference material, not source of truth, until its relevant changes are rebuilt or cleanly replayed on top of `origin/main`.
 
 ## 3) Parallel agent model (hour-based, not day-based)
 
@@ -154,6 +180,11 @@ For each task ID:
 7. Wait for Greptile review start confirmation (seen/check-run).
 8. Merge only when task gate is satisfied.
 9. Update `HANDOFF.md`.
+
+If review reveals the PR is polluted by older experimental history:
+- stop adding more fixes on top of the polluted stack unless it is the only safe short-term option
+- create a docs-sync reconciliation step
+- restart the task from a clean branch based on `origin/main`
 
 ## 9) QA gate after each bugfix batch
 

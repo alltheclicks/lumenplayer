@@ -1,5 +1,50 @@
 # Handoff — Lumen Player
 
+## Session 2026-03-06 — QAF-035 branch reconciliation + clean continuation baseline
+
+- Context:
+  - Catch-up work for `QAF-035` had spread across several experimental `codex/` branches over ~10 days, and source-of-truth docs no longer matched the real git graph.
+  - Goal of this session was to collapse project state into one documented baseline before continuing more proxy/gateway work.
+- Verified git state:
+  - `main` / `origin/main` are at `a825816` (after merged `QAF-034` batch state).
+  - active experimental branches relevant to current catch-up work:
+    - `codex/lp-1511-xtream-gateway`
+    - `codex/qaf-035-runtime-payload-gate`
+    - `codex/qaf-035-catchup-runtime-gate`
+    - `codex/disable-demo-fallback-xui`
+    - `codex/qaf-035-catchup-gateway`
+  - latest gateway branch is stacked on prior experimental history:
+    - `codex/qaf-035-catchup-gateway` (`66a608a`) sits on top of `codex/disable-demo-fallback-xui` (`017e9a6`), not directly on `main`
+- Accepted carry-forward direction:
+  - keep `LP-1511` proxy groundwork as useful foundation
+  - keep `QAF-035` Option B gateway direction as target architecture
+  - do not carry forward the old stacked branch chain as the new baseline
+  - future code work should selectively port validated pieces onto a clean branch from `origin/main`
+- Architecture decision locked:
+  - catch-up gateway remains optional and outside `@lumen/session-core`
+  - shared core keeps session/state/neutral playback contract only
+  - provider/browser-specific repair stays in gateway or platform transport layer
+- Documentation updates made in this session:
+  - `BACKLOG.md`
+    - added explicit `QAF-035` active track and noted clean-baseline reset
+  - `docs/V3-QA-FIX-BACKLOG.md`
+    - added branch reconciliation snapshot, updated next-ready queue, and logged the baseline reset
+  - `docs/WORKFLOW-LLM-QA.md`
+    - added mandatory experimental-branch stack reset rule
+  - `VISION.md`
+    - clarified Option B boundary between shared core and optional catch-up gateway
+- Clean continuation setup:
+  - created clean worktree from `origin/main`:
+    - `/Users/filip/Documents/Lumen-Player-qaf035-sync`
+  - created clean docs branch for this reconciliation step:
+    - `codex/docs-sync-qaf-035-baseline`
+- Immediate known follow-up blockers before reusing gateway code:
+  - periodic cache sweep in proxy service
+  - async catch-up switch error handling in UI
+  - PiP cleanup regression
+  - stricter gateway response validation
+  - `pnpm-lock.yaml` parity for CI
+
 ## Session 2026-02-23 — QAF-034 provider catch-up compatibility hardening
 
 - Context:
