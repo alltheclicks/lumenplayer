@@ -41,7 +41,7 @@ import {
   resolveLiveTimeshiftPositionSeconds,
 } from './liveTimeshift';
 import { emitWebObservabilityEvent } from '@/services/observability';
-import { buildCatchUpTransportPlan } from './catchupTransport';
+import { resolveCatchUpPlaybackSource } from './catchupSource';
 
 interface PlayerControlsProps {
   channel: PlayerChannel;
@@ -574,10 +574,10 @@ const PlayerControls = ({
     commands.play();
   }, [channel.id, channel.name, channel.streamId, commands]);
 
-  const switchToCatchUpProgram = useCallback((
+  const switchToCatchUpProgram = useCallback(async (
     program: Program,
     preferredPositionSeconds = 0,
-  ): number => {
+  ): Promise<number | null> => {
     const startTimestamp = Math.floor(program.startTime.getTime() / 1000);
     const fullDuration = Math.floor(
       (program.endTime.getTime() - program.startTime.getTime()) / 1000
@@ -587,70 +587,62 @@ const PlayerControls = ({
       1,
       Math.min(fullDuration, availableDuration > 0 ? availableDuration : fullDuration)
     );
-    const initialPositionSeconds = preferredPositionSeconds > 0
-      ? Math.max(0, Math.min(duration, preferredPositionSeconds))
-      : Math.max(
-        0,
-        Math.min(duration, CATCH_UP_INITIAL_POSITION_GUARD_SECONDS)
-      );
-    const catchUpTransportPlan = buildCatchUpTransportPlan({
-      urlBuilder: xtreamCodesService,
-      streamId: channel.streamId,
-      startTimestamp,
-      durationSeconds: duration,
-      fallbackStreamIds: catchUpFallbackStreamIds,
-    });
-    const catchUpUrl = catchUpTransportPlan.initialAttempt.url;
-    const catchUpFallbackUrls = catchUpTransportPlan.fallbackAttempts.map((attempt) => attempt.url);
-    const catchUpFallbackUrl = catchUpFallbackUrls[0] ?? '';
-    const source = {
-      url: catchUpUrl,
-      type: 'hls' as const,
-      title: `${channel.name} - ${program.title}`,
-      channelId: channel.id,
-      metadata: {
-        channelId: channel.id,
-        streamId: channel.streamId,
-        mode: 'catchup',
-        catchUpProgramId: program.id,
-        catchUpDurationSeconds: duration,
-        catchUpStartTimestamp: catchUpTransportPlan.initialAttempt.startTimestamp,
-        catchUpAttemptPlan: catchUpTransportPlan.allAttempts,
-        catchUpAttemptIndex: 0,
-        catchUpAttemptStrategy: catchUpTransportPlan.initialAttempt.strategy,
-        catchUpFallbackUrl,
-        catchUpFallbackUrls,
-        catchUpFallbackIndex: -1,
-        catchUpFallbackUsed: false,
-      },
-    };
-
-    emitWebObservabilityEvent({
-      name: 'catchup.requested',
-      severity: 'info',
-      metadata: {
-        channelId: channel.id,
-        streamId: channel.streamId,
-        programId: program.id,
-        start: startTimestamp,
-        duration,
-        attempt: 1,
-        status: 'requested',
-        finalHost: null,
-        errorCode: null,
-        fullDurationSeconds: fullDuration,
-        initialStrategy: catchUpTransportPlan.initialAttempt.strategy,
-        initialStartTs: catchUpTransportPlan.initialAttempt.startTimestamp,
+    try {
+      const resolved = await resolveCatchUpPlaybackSource({
+        channel,
+        program,
+        urlBuilder: xtreamCodesService,
         fallbackStreamIds: catchUpFallbackStreamIds,
-        fallbackCount: catchUpFallbackUrls.length,
-        initialPositionSeconds,
-      },
-    });
+        durationSeconds: duration,
+        preferredPositionSeconds,
+        initialPositionGuardSeconds: CATCH_UP_INITIAL_POSITION_GUARD_SECONDS,
+      });
 
-    commands.setSource(source, Math.floor(initialPositionSeconds * 1000));
-    commands.play();
-    return initialPositionSeconds;
-  }, [catchUpFallbackStreamIds, channel.id, channel.name, channel.streamId, commands]);
+      const catchUpFallbackUrls = resolved.transportPlan.fallbackAttempts.map((attempt) => attempt.url);
+      emitWebObservabilityEvent({
+        name: 'catchup.requested',
+        severity: 'info',
+        metadata: {
+          channelId: channel.id,
+          streamId: channel.streamId,
+          programId: program.id,
+          start: startTimestamp,
+          duration,
+          attempt: 1,
+          status: 'requested',
+          finalHost: null,
+          errorCode: null,
+          fullDurationSeconds: fullDuration,
+          initialStrategy: resolved.transportPlan.initialAttempt.strategy,
+          initialStartTs: resolved.transportPlan.initialAttempt.startTimestamp,
+          fallbackStreamIds: catchUpFallbackStreamIds,
+          fallbackCount: catchUpFallbackUrls.length,
+          initialPositionSeconds: resolved.initialPositionSeconds,
+          transportMode: resolved.gateway?.transportMode ?? 'provider-direct',
+          assetKey: resolved.gateway?.assetKey ?? null,
+          hotStart: resolved.gateway?.hotStart ?? false,
+          fallbackReason: resolved.gateway?.fallbackReason ?? null,
+        },
+      });
+
+      commands.setSource(resolved.source, Math.floor(resolved.initialPositionSeconds * 1000));
+      commands.play();
+      return resolved.initialPositionSeconds;
+    } catch (error) {
+      emitWebObservabilityEvent({
+        name: 'playback.error',
+        severity: 'error',
+        metadata: {
+          channelId: channel.id,
+          streamId: channel.streamId,
+          programId: program.id,
+          status: 'catchup_resolve_failed',
+          errorCode: error instanceof Error ? error.message : 'unknown_error',
+        },
+      });
+      return null;
+    }
+  }, [catchUpFallbackStreamIds, channel, commands]);
 
   const updateCatchUpPosition = useCallback((positionSeconds: number) => {
     if (!catchUpProgram) {
@@ -673,7 +665,7 @@ const PlayerControls = ({
   }, [commands, isPlaying, playerRef]);
 
   const handleSelectProgram = (program: Program) => {
-    switchToCatchUpProgram(program);
+    void switchToCatchUpProgram(program);
     setShowCatchUp(false);
   };
 
@@ -682,7 +674,7 @@ const PlayerControls = ({
       return;
     }
 
-    switchToCatchUpProgram(currentProgram, resolveLiveTimeshiftPositionSeconds(currentProgram, ratio));
+    void switchToCatchUpProgram(currentProgram, resolveLiveTimeshiftPositionSeconds(currentProgram, ratio));
   }, [canTimeshiftFromLiveBar, currentProgram, switchToCatchUpProgram]);
 
   const handleLiveProgressClick = useCallback((event: React.MouseEvent<HTMLDivElement>) => {

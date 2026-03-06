@@ -87,7 +87,7 @@ import { resolveCatchUpEmptyStateReason } from '@/components/player/catchUpEmpty
 import { hasLiveCatchUpEntries, shouldShowLiveCatchUpSection } from '@/pages/liveCatchUpVisibility';
 import { resolveCatchUpClockActionTarget } from '@/pages/liveCatchUpDiscoverability';
 import { resolveXtreamCanonicalServer } from '@/config/xtream';
-import { buildCatchUpTransportPlan } from '@/components/player/catchupTransport';
+import { resolveCatchUpPlaybackSource } from '@/components/player/catchupSource';
 
 type SessionSourceMetadata = {
   channelId?: string;
@@ -869,7 +869,7 @@ const Player = () => {
     switchToLiveChannel(channels[prevIndex]);
   }, [currentChannel, channels, switchToLiveChannel]);
 
-  const playCatchUpProgram = useCallback((program: PlayerChannel['epg'][number]) => {
+  const playCatchUpProgram = useCallback(async (program: PlayerChannel['epg'][number]) => {
     if (!currentChannelWithEPG) {
       return;
     }
@@ -878,59 +878,56 @@ const Player = () => {
     const duration = Math.floor(
       (program.endTime.getTime() - program.startTime.getTime()) / 1000
     );
-    const catchUpTransportPlan = buildCatchUpTransportPlan({
-      urlBuilder: xtreamCodesService,
-      streamId: currentChannelWithEPG.streamId,
-      startTimestamp,
-      durationSeconds: duration,
-      fallbackStreamIds: currentCatchUpFallbackStreamIds,
-    });
-    const catchUpUrl = catchUpTransportPlan.initialAttempt.url;
-    const catchUpFallbackUrls = catchUpTransportPlan.fallbackAttempts.map((attempt) => attempt.url);
-    const catchUpFallbackUrl = catchUpFallbackUrls[0] ?? '';
-    emitWebObservabilityEvent({
-      name: 'catchup.requested',
-      severity: 'info',
-      metadata: {
-        channelId: currentChannelWithEPG.id,
-        streamId: currentChannelWithEPG.streamId,
-        programId: program.id,
-        start: startTimestamp,
-        duration,
-        attempt: 1,
-        status: 'requested',
-        finalHost: null,
-        errorCode: null,
-        initialStrategy: catchUpTransportPlan.initialAttempt.strategy,
-        initialStartTs: catchUpTransportPlan.initialAttempt.startTimestamp,
+    try {
+      const resolved = await resolveCatchUpPlaybackSource({
+        channel: currentChannelWithEPG,
+        program,
+        urlBuilder: xtreamCodesService,
         fallbackStreamIds: currentCatchUpFallbackStreamIds,
-        fallbackCount: catchUpFallbackUrls.length,
-      },
-    });
-    const source = {
-      url: catchUpUrl,
-      type: 'hls' as const,
-      title: `${currentChannelWithEPG.name} - ${program.title}`,
-      channelId: currentChannelWithEPG.id,
-      metadata: {
-        channelId: currentChannelWithEPG.id,
-        streamId: currentChannelWithEPG.streamId,
-        mode: 'catchup' as const,
-        catchUpProgramId: program.id,
-        catchUpDurationSeconds: duration,
-        catchUpStartTimestamp: catchUpTransportPlan.initialAttempt.startTimestamp,
-        catchUpAttemptPlan: catchUpTransportPlan.allAttempts,
-        catchUpAttemptIndex: 0,
-        catchUpAttemptStrategy: catchUpTransportPlan.initialAttempt.strategy,
-        catchUpFallbackUrl,
-        catchUpFallbackUrls,
-        catchUpFallbackIndex: -1,
-        catchUpFallbackUsed: false,
-      },
-    };
+        durationSeconds: duration,
+        initialPositionGuardSeconds: CATCH_UP_INITIAL_POSITION_GUARD_MS / 1000,
+      });
+      const catchUpFallbackUrls = resolved.transportPlan.fallbackAttempts.map((attempt) => attempt.url);
 
-    commands.setSource(source, CATCH_UP_INITIAL_POSITION_GUARD_MS);
-    commands.play();
+      emitWebObservabilityEvent({
+        name: 'catchup.requested',
+        severity: 'info',
+        metadata: {
+          channelId: currentChannelWithEPG.id,
+          streamId: currentChannelWithEPG.streamId,
+          programId: program.id,
+          start: startTimestamp,
+          duration,
+          attempt: 1,
+          status: 'requested',
+          finalHost: null,
+          errorCode: null,
+          initialStrategy: resolved.transportPlan.initialAttempt.strategy,
+          initialStartTs: resolved.transportPlan.initialAttempt.startTimestamp,
+          fallbackStreamIds: currentCatchUpFallbackStreamIds,
+          fallbackCount: catchUpFallbackUrls.length,
+          transportMode: resolved.gateway?.transportMode ?? 'provider-direct',
+          assetKey: resolved.gateway?.assetKey ?? null,
+          hotStart: resolved.gateway?.hotStart ?? false,
+          fallbackReason: resolved.gateway?.fallbackReason ?? null,
+        },
+      });
+
+      commands.setSource(resolved.source, Math.floor(resolved.initialPositionSeconds * 1000));
+      commands.play();
+    } catch (error) {
+      emitWebObservabilityEvent({
+        name: 'playback.error',
+        severity: 'error',
+        metadata: {
+          channelId: currentChannelWithEPG.id,
+          streamId: currentChannelWithEPG.streamId,
+          programId: program.id,
+          status: 'catchup_resolve_failed',
+          errorCode: error instanceof Error ? error.message : 'unknown_error',
+        },
+      });
+    }
   }, [commands, currentCatchUpFallbackStreamIds, currentChannelWithEPG]);
 
   const goToPlayerHome = useCallback(() => {
