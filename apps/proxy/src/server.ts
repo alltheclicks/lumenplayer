@@ -1,5 +1,10 @@
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from "fastify";
 import { Writable } from "node:stream";
+import { createCatchUpGateway } from "./catchup-gateway.js";
+import {
+  isCatchUpGatewayResolveRequest,
+  type CatchUpGatewayResolveRequest,
+} from "./catchup-gateway-contracts.js";
 
 const XTREAM_PROXY_BASE_PATH = "/xui-api";
 const RETRYABLE_METHODS = new Set(["GET", "HEAD"]);
@@ -21,6 +26,7 @@ export interface ProxyServerOptions {
   allowedHosts?: string[];
   timeoutMs?: number;
   retryCount?: number;
+  sweepIntervalMs?: number;
   fetchImpl?: typeof fetch;
   logger?: boolean;
 }
@@ -276,10 +282,36 @@ export const createProxyServer = (options: ProxyServerOptions = {}): FastifyInst
   ).map(normalizeAllowedHostEntry);
   const timeoutMs = options.timeoutMs ?? parseNonNegativeInteger(process.env.XTREAM_PROXY_TIMEOUT_MS, 10_000);
   const retryCount = options.retryCount ?? parseNonNegativeInteger(process.env.XTREAM_PROXY_RETRY_COUNT, 1);
+  const sweepIntervalMs = options.sweepIntervalMs ?? parseNonNegativeInteger(
+    process.env.LUMEN_CATCHUP_GATEWAY_SWEEP_INTERVAL_MS,
+    60_000,
+  );
   const fetchImpl = options.fetchImpl ?? fetch;
 
   const app = Fastify({
     logger: options.logger ?? true,
+  });
+  const catchUpGateway = createCatchUpGateway({
+    logger: {
+      info: (event, payload) => app.log.info({ event, ...payload }),
+      warn: (event, payload) => app.log.warn({ event, ...payload }),
+      error: (event, payload) => app.log.error({ event, ...payload }),
+    },
+  });
+  const sweepTimer = sweepIntervalMs > 0
+    ? setInterval(() => {
+      catchUpGateway.sweep();
+    }, sweepIntervalMs)
+    : null;
+
+  if (sweepTimer) {
+    sweepTimer.unref?.();
+  }
+
+  app.addHook("onClose", async () => {
+    if (sweepTimer) {
+      clearInterval(sweepTimer);
+    }
   });
 
   const handleProxyRequest = async (
@@ -415,6 +447,33 @@ export const createProxyServer = (options: ProxyServerOptions = {}): FastifyInst
     ok: true,
     service: "@lumen/proxy",
   }));
+
+  app.post<{ Body: CatchUpGatewayResolveRequest }>(
+    "/catchup-gateway/resolve",
+    async (request, reply) => {
+      applyCorsHeaders(reply);
+      if (!isCatchUpGatewayResolveRequest(request.body)) {
+        reply
+          .code(400)
+          .type("application/json; charset=utf-8")
+          .send({
+            error: "invalid_resolve_request",
+            message: "Invalid catch-up gateway resolve request.",
+          });
+        return;
+      }
+
+      const response = await catchUpGateway.resolve({
+        request: request.body,
+        requestBaseUrl: request.url,
+      });
+
+      reply
+        .code(200)
+        .type("application/json; charset=utf-8")
+        .send(response);
+    },
+  );
 
   app.all(`${XTREAM_PROXY_BASE_PATH}`, async (_request, reply) => {
     applyCorsHeaders(reply);
