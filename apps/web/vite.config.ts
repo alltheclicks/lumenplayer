@@ -5,6 +5,7 @@ import { VitePWA } from "vite-plugin-pwa";
 
 const pwaWorkboxMode = process.env.LUMEN_PWA_SW_MODE === "production" ? "production" : "development";
 const XTREAM_DEV_PROXY_BASE_PATH = "/xui-api";
+const CATCHUP_GATEWAY_PROXY_PATH = "/catchup-gateway";
 const LOCAL_PROXY_FALLBACK_TARGET = "http://localhost";
 
 const resolveProxyTargetFromRequestPath = (requestPath: string): string | null => {
@@ -28,30 +29,44 @@ const resolveProxyTargetFromRequestPath = (requestPath: string): string | null =
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
   const xtreamServerTarget = env.VITE_XTREAM_SERVER?.trim().replace(/\/+$/, "");
+  const catchUpGatewayTarget = env.VITE_CATCHUP_GATEWAY_ORIGIN?.trim().replace(/\/+$/, "") ||
+    env.VITE_XUI_PROXY_ORIGIN?.trim().replace(/\/+$/, "");
+  const proxyConfig = {
+    ...(xtreamServerTarget
+      ? {
+          [XTREAM_DEV_PROXY_BASE_PATH]: {
+            target: xtreamServerTarget || LOCAL_PROXY_FALLBACK_TARGET,
+            changeOrigin: true,
+            secure: false,
+            router: (request) => (
+              resolveProxyTargetFromRequestPath(request.url || "") ||
+              xtreamServerTarget ||
+              LOCAL_PROXY_FALLBACK_TARGET
+            ),
+            rewrite: (requestPath: string) => (
+              requestPath
+                .replace(new RegExp(`^${XTREAM_DEV_PROXY_BASE_PATH}/[^/?#]+`), "")
+                .replace(new RegExp(`^${XTREAM_DEV_PROXY_BASE_PATH}`), "")
+            ),
+          },
+        }
+      : {}),
+    ...(catchUpGatewayTarget
+      ? {
+          [CATCHUP_GATEWAY_PROXY_PATH]: {
+            target: catchUpGatewayTarget,
+            changeOrigin: true,
+            secure: false,
+          },
+        }
+      : {}),
+  };
 
   return {
     server: {
       host: "::",
       port: 8080,
-      proxy: xtreamServerTarget
-        ? {
-            [XTREAM_DEV_PROXY_BASE_PATH]: {
-              target: xtreamServerTarget || LOCAL_PROXY_FALLBACK_TARGET,
-              changeOrigin: true,
-              secure: false,
-              router: (request) => (
-                resolveProxyTargetFromRequestPath(request.url || "") ||
-                xtreamServerTarget ||
-                LOCAL_PROXY_FALLBACK_TARGET
-              ),
-              rewrite: (requestPath: string) => (
-                requestPath
-                  .replace(new RegExp(`^${XTREAM_DEV_PROXY_BASE_PATH}/[^/?#]+`), "")
-                  .replace(new RegExp(`^${XTREAM_DEV_PROXY_BASE_PATH}`), "")
-              ),
-            },
-          }
-        : undefined,
+      proxy: Object.keys(proxyConfig).length > 0 ? proxyConfig : undefined,
     },
     plugins: [
       react(),
