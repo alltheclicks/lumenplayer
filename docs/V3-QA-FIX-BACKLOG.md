@@ -216,6 +216,7 @@ Add dated triage tables here (one snapshot block per triage session).
 Current snapshot:
 - `QAF-001..QAF-023` are completed (see `docs/V2-QA-FIX-BACKLOG.md`).
 - `QAF-024..QAF-033` are completed in V3 (merged on 2026-02-21).
+- `LP-1511` gateway groundwork and later `QAF-035` experiments exist on non-merged `codex/` branches; as of 2026-03-06 the accepted continuation path is a clean rebuild from `origin/main`, not further stacking on the old branch chain.
 
 | ID | Title | Area | Severity | Status |
 |---|---|---|---|---|
@@ -230,14 +231,77 @@ Current snapshot:
 | QAF-032 | Remove static helper copy `Klikni traku za TV unazad` and keep only context-aware cues | Player Copy/UX Clarity | P3 | done |
 | QAF-033 | Align VOD/Series playback overlay controls with live player and make loading spinner non-blocking/short-lived | On-demand Player UX | P1 | done |
 | QAF-034 | Reopened catch-up runtime failure: provider timeshift returns intermittent `404/502`, playback still fails in real user flow | Catch-up Playback/Provider Compatibility | P1 | in-progress |
+| QAF-035 | Option B catch-up gateway refactor: optional web gateway decides `provider-direct | proxy-normalized | proxy-remuxed` and keeps provider/browser repair outside `@lumen/session-core` | Catch-up Gateway/Transport | P1 | in-progress |
 
 ## Next ready queue (strict order)
 
-1. `QAF-034` TiviMate comparative iteration:
-   - capture native tuple (`request -> 302 -> final host`) for live and catch-up
-   - replay equivalent tuple in web runtime and classify mismatch
-2. Build catch-up transport matrix (`http/http`, `http/https`, `https/http`, `https/https`) and log startup/failure behavior per tuple
-3. Apply minimal patch only on verified mismatch class (redirect handling, host affinity, proxy transport), then run Reptile verification
+1. `QAF-035` clean continuation setup:
+   - continue only from `origin/main` baseline
+   - selectively carry forward validated work from `LP-1511` / `QAF-035` experimental branches
+   - do not stack further commits on top of `codex/qaf-035-catchup-gateway`
+2. Rebuild gateway slice in clean order:
+   - `LP-1511` shared Xtream proxy groundwork
+   - `QAF-035` gateway resolve/control-plane contract
+   - Greptile follow-up fixes (`cache sweep`, async error handling, PiP exit, enum validation, lockfile parity)
+3. Keep `QAF-034` evidence track alive:
+   - preserve TiviMate/native tuple evidence as acceptance input
+   - use it to decide when `provider-direct` is still allowed vs when gateway normalization/remux is required
+4. After clean gateway baseline is green:
+   - continue startup/warm-open improvements first
+   - then implement chunk-aware seek preparation and cancellation
+
+## QAF-035 Branch reconciliation snapshot (2026-03-06)
+
+| Branch | Role | Status | Keep / carry forward |
+|---|---|---|---|
+| `codex/lp-1511-xtream-gateway` | standalone `apps/proxy` Xtream transport groundwork | experimental, useful | yes; foundational proxy work |
+| `codex/qaf-035-runtime-payload-gate` | web runtime gate for non-playable catch-up payloads | experimental, useful | yes; selective logic/tests only |
+| `codex/qaf-035-catchup-runtime-gate` | in-progress runtime checkpoint | incomplete | no direct merge; inspect only if needed |
+| `codex/disable-demo-fallback-xui` | bounded catch-up fallback/recovery behavior | experimental, partially useful | yes; selective carry-forward candidates |
+| `codex/qaf-035-catchup-gateway` | Option B gateway resolve path + web adapter | experimental, stacked on prior branches | yes, but rebuild on clean baseline and fix review blockers before reuse |
+
+Working rule:
+- `origin/main` is the only clean baseline.
+- Experimental QAF-035 branches are reference material, not the new source of truth.
+- New continuation starts from a fresh `codex/` branch and ports only validated behavior.
+
+## QAF-035 Attempt Log (2026-03-04, experimental)
+
+1. `LP-1511` added standalone `apps/proxy` groundwork for Xtream transport mediation:
+   - `/xui-api/{encoded-target}/...` compatibility path
+   - host allowlist, timeout/retry, redirect-safe rewrite, structured proxy logging
+2. `QAF-035` runtime payload gate branch added web-side protection against non-playable `200 video/mp2t` payloads:
+   - runtime gate classification
+   - enriched catch-up retry/fallback metadata
+   - startup-time fallback continuation
+3. `QAF-035` gateway branch added Option B resolve flow:
+   - asset identity / resolve contract
+   - optional gateway transport adapter in web
+   - gateway-first catch-up source resolution
+4. Current state of those branches:
+   - useful direction is confirmed
+   - implementation stack is not clean because later branches were built on top of earlier experimental history rather than directly on `origin/main`
+   - latest gateway PR also still has valid follow-up fixes before it is safe to treat as carry-forward baseline
+
+## QAF-035 Attempt Log (2026-03-06, baseline reset)
+
+1. Reconciled actual git state:
+   - `main` / `origin/main` are at `a825816`
+   - `codex/qaf-035-catchup-gateway` (`66a608a`) is stacked on top of `codex/disable-demo-fallback-xui` (`017e9a6`), not directly on `main`
+2. Accepted architecture direction:
+   - Option B remains the target
+   - catch-up gateway stays outside `@lumen/session-core`
+   - live/VOD should not regress and are not part of gateway scope by default
+3. Accepted process decision:
+   - stop extending the old stacked branch chain
+   - continue from clean `origin/main` baseline with docs synced first
+   - selectively port validated code/tests into the next clean continuation branch
+4. Immediate carry-forward blockers already known from review/runtime:
+   - periodic cache sweep in proxy service
+   - async error handling for catch-up program switching
+   - PiP cleanup restore
+   - stricter gateway response enum validation
+   - `pnpm-lock.yaml` parity for CI
 
 ## Execution completion snapshot (2026-02-21)
 
