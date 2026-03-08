@@ -2,6 +2,11 @@ import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest }
 import { Writable } from "node:stream";
 import { createCatchUpGateway } from "./catchup-gateway.js";
 import {
+  createCatchUpRemuxController,
+  type CatchUpRemuxAssetRequest,
+  type CatchUpRemuxController,
+} from "./catchup-remux.js";
+import {
   isCatchUpGatewayResolveRequest,
   type CatchUpGatewayResolveRequest,
 } from "./catchup-gateway-contracts.js";
@@ -29,12 +34,21 @@ export interface ProxyServerOptions {
   sweepIntervalMs?: number;
   fetchImpl?: typeof fetch;
   logger?: boolean;
+  env?: NodeJS.ProcessEnv;
+  remuxController?: CatchUpRemuxController;
 }
 
 type ParsedTarget = {
   baseUrl: URL;
   host: string;
 };
+
+type ProxyHandlerRequest = FastifyRequest<{
+  Params: {
+    encodedTarget: string;
+    "*": string;
+  };
+}>;
 
 const trimTrailingSlash = (value: string): string => value.trim().replace(/\/+$/, "");
 
@@ -137,9 +151,12 @@ const buildForwardHeaders = (requestHeaders: Record<string, string | string[] | 
   return headers;
 };
 
-const applyCorsHeaders = (reply: FastifyReply): void => {
+const applyCorsHeaders = (
+  reply: FastifyReply,
+  allowedMethods = "GET,HEAD,OPTIONS",
+): void => {
   reply.header("access-control-allow-origin", "*");
-  reply.header("access-control-allow-methods", "GET,HEAD,OPTIONS");
+  reply.header("access-control-allow-methods", allowedMethods);
   reply.header("access-control-allow-headers", "*");
   reply.header("access-control-expose-headers", "*");
 };
@@ -219,6 +236,20 @@ const sendProxyError = (
     })
 );
 
+const sendRemuxError = (
+  reply: FastifyReply,
+  statusCode: number,
+  message: string,
+): FastifyReply => (
+  reply
+    .code(statusCode)
+    .type("application/json; charset=utf-8")
+    .send({
+      error: "remux_unavailable",
+      message,
+    })
+);
+
 const rewriteRedirectLocation = (
   locationValue: string,
   upstreamUrl: URL,
@@ -254,13 +285,6 @@ const rewriteRedirectLocation = (
   };
 };
 
-type ProxyHandlerRequest = FastifyRequest<{
-  Params: {
-    encodedTarget: string;
-    "*": string;
-  };
-}>;
-
 const createRequestLoggerPayload = (
   request: FastifyRequest,
   upstreamUrl: URL,
@@ -275,21 +299,76 @@ const createRequestLoggerPayload = (
   ...payload,
 });
 
+const isCatchUpRequestUrl = (upstreamUrl: URL): boolean => {
+  const pathname = upstreamUrl.pathname.toLowerCase();
+  return pathname.startsWith("/timeshift/") || pathname === "/streaming/timeshift.php";
+};
+
+const buildRequestBaseUrl = (request: FastifyRequest): string => {
+  const host = request.headers.host ?? "localhost";
+  return `${request.protocol}://${host}${request.url}`;
+};
+
+const buildRemuxAssetResponse = async ({
+  request,
+  reply,
+  remuxController,
+  assetRequest,
+}: {
+  request: FastifyRequest;
+  reply: FastifyReply;
+  remuxController: CatchUpRemuxController;
+  assetRequest: CatchUpRemuxAssetRequest;
+}): Promise<void> => {
+  applyCorsHeaders(reply);
+
+  if (request.method === "OPTIONS") {
+    reply.code(204).send();
+    return;
+  }
+
+  try {
+    const assetBody = await remuxController.getAsset(assetRequest);
+    reply.code(200).type("video/mp4");
+    if (request.method === "HEAD") {
+      reply.send();
+      return;
+    }
+    reply.send(assetBody);
+  } catch (error) {
+    const message = toErrorMessage(error, "Remux asset is unavailable.");
+    sendRemuxError(reply, 502, message);
+  }
+};
+
 export const createProxyServer = (options: ProxyServerOptions = {}): FastifyInstance => {
+  const env = options.env ?? process.env;
   const allowedHosts = (
     options.allowedHosts ??
-    parseAllowedHosts(process.env.XTREAM_PROXY_ALLOWED_HOSTS)
+    parseAllowedHosts(env.XTREAM_PROXY_ALLOWED_HOSTS)
   ).map(normalizeAllowedHostEntry);
-  const timeoutMs = options.timeoutMs ?? parseNonNegativeInteger(process.env.XTREAM_PROXY_TIMEOUT_MS, 10_000);
-  const retryCount = options.retryCount ?? parseNonNegativeInteger(process.env.XTREAM_PROXY_RETRY_COUNT, 1);
+  const timeoutMs = options.timeoutMs ?? parseNonNegativeInteger(env.XTREAM_PROXY_TIMEOUT_MS, 10_000);
+  const retryCount = options.retryCount ?? parseNonNegativeInteger(env.XTREAM_PROXY_RETRY_COUNT, 1);
   const sweepIntervalMs = options.sweepIntervalMs ?? parseNonNegativeInteger(
-    process.env.LUMEN_CATCHUP_GATEWAY_SWEEP_INTERVAL_MS,
+    env.LUMEN_CATCHUP_GATEWAY_SWEEP_INTERVAL_MS,
     60_000,
+  );
+  const remuxPerServerConcurrency = Math.max(
+    1,
+    parseNonNegativeInteger(env.LUMEN_CATCHUP_GATEWAY_PER_SERVER_CONCURRENCY, 2),
   );
   const fetchImpl = options.fetchImpl ?? fetch;
 
   const app = Fastify({
     logger: options.logger ?? true,
+  });
+  const remuxController = options.remuxController ?? createCatchUpRemuxController({
+    logger: {
+      info: (event, payload) => app.log.info({ event, ...payload }),
+      warn: (event, payload) => app.log.warn({ event, ...payload }),
+      error: (event, payload) => app.log.error({ event, ...payload }),
+    },
+    env,
   });
   const catchUpGateway = createCatchUpGateway({
     logger: {
@@ -297,6 +376,8 @@ export const createProxyServer = (options: ProxyServerOptions = {}): FastifyInst
       warn: (event, payload) => app.log.warn({ event, ...payload }),
       error: (event, payload) => app.log.error({ event, ...payload }),
     },
+    remuxController,
+    env,
   });
   const sweepTimer = sweepIntervalMs > 0
     ? setInterval(() => {
@@ -312,6 +393,7 @@ export const createProxyServer = (options: ProxyServerOptions = {}): FastifyInst
     if (sweepTimer) {
       clearInterval(sweepTimer);
     }
+    await remuxController.close();
   });
 
   const handleProxyRequest = async (
@@ -347,6 +429,35 @@ export const createProxyServer = (options: ProxyServerOptions = {}): FastifyInst
     const upstreamUrl = buildUpstreamUrl(parsedTarget.baseUrl, suffixPath, requestUrl.search);
     const requestHeaders = buildForwardHeaders(request.headers);
     const requestMethod = request.method.toUpperCase();
+
+    if (
+      RETRYABLE_METHODS.has(requestMethod) &&
+      isCatchUpRequestUrl(upstreamUrl) &&
+      remuxController.isRemuxPlaybackRequest(upstreamUrl)
+    ) {
+      try {
+        const manifest = await remuxController.getManifest({
+          upstreamUrl,
+          serverKey: parsedTarget.host,
+          perServerConcurrency: remuxPerServerConcurrency,
+        });
+        reply.code(200).type(manifest.contentType);
+        if (requestMethod === "HEAD") {
+          reply.send();
+          return;
+        }
+        reply.send(manifest.body);
+      } catch (error) {
+        request.log.warn({
+          event: "catchup.remux_manifest_failed",
+          upstreamUrl: upstreamUrl.toString(),
+          message: toErrorMessage(error, "Catch-up remux manifest is unavailable."),
+        });
+        sendRemuxError(reply, 502, toErrorMessage(error, "Catch-up remux manifest is unavailable."));
+      }
+      return;
+    }
+
     const maxAttempts = RETRYABLE_METHODS.has(requestMethod) ? retryCount + 1 : 1;
     const startedAt = performance.now();
 
@@ -448,10 +559,15 @@ export const createProxyServer = (options: ProxyServerOptions = {}): FastifyInst
     service: "@lumen/proxy",
   }));
 
+  app.options("/catchup-gateway/resolve", async (_request, reply) => {
+    applyCorsHeaders(reply, "GET,HEAD,OPTIONS,POST");
+    reply.code(204).send();
+  });
+
   app.post<{ Body: CatchUpGatewayResolveRequest }>(
     "/catchup-gateway/resolve",
     async (request, reply) => {
-      applyCorsHeaders(reply);
+      applyCorsHeaders(reply, "GET,HEAD,OPTIONS,POST");
       if (!isCatchUpGatewayResolveRequest(request.body)) {
         reply
           .code(400)
@@ -465,13 +581,55 @@ export const createProxyServer = (options: ProxyServerOptions = {}): FastifyInst
 
       const response = await catchUpGateway.resolve({
         request: request.body,
-        requestBaseUrl: request.url,
+        requestBaseUrl: buildRequestBaseUrl(request),
       });
 
       reply
         .code(200)
         .type("application/json; charset=utf-8")
         .send(response);
+    },
+  );
+
+  app.all(
+    "/xui-api/__remux__/session/:sessionId/init.mp4",
+    async (request, reply) => {
+      applyCorsHeaders(reply);
+      const assetRequest = remuxController.parseAssetRequest(
+        new URL(request.raw.url ?? "/", "http://lumen-proxy.local"),
+      );
+      if (!assetRequest) {
+        sendRemuxError(reply, 404, "Remux asset not found.");
+        return;
+      }
+
+      await buildRemuxAssetResponse({
+        request,
+        reply,
+        remuxController,
+        assetRequest,
+      });
+    },
+  );
+
+  app.all(
+    "/xui-api/__remux__/session/:sessionId/segment/:index.m4s",
+    async (request, reply) => {
+      applyCorsHeaders(reply);
+      const assetRequest = remuxController.parseAssetRequest(
+        new URL(request.raw.url ?? "/", "http://lumen-proxy.local"),
+      );
+      if (!assetRequest) {
+        sendRemuxError(reply, 404, "Remux asset not found.");
+        return;
+      }
+
+      await buildRemuxAssetResponse({
+        request,
+        reply,
+        remuxController,
+        assetRequest,
+      });
     },
   );
 

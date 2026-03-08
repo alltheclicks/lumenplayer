@@ -1,15 +1,15 @@
 import type { SessionSource } from '@lumen/session-core';
 import type { PlayerChannel, Program } from '@lumen/types';
-import {
-  buildCatchUpTransportPlan,
-  type CatchUpTransportPlan,
-  type CatchUpUrlBuilder,
-} from './catchupTransport';
+import type { CatchUpTransportPlan, CatchUpUrlBuilder } from './catchupTransport';
 import {
   resolveCatchUpGatewayPlayback,
   type CatchUpGatewayClientOptions,
   type CatchUpGatewayPlaybackMetadata,
 } from './catchupGateway';
+import {
+  buildCatchUpMetadata,
+  buildCatchUpSessionSourceFromMetadata,
+} from './sessionSources';
 
 export interface CatchUpPlaybackSourceResult {
   source: SessionSource;
@@ -53,6 +53,12 @@ export const resolveCatchUpPlaybackSource = async ({
   const resolvedDurationSeconds = typeof durationSeconds === 'number' && Number.isFinite(durationSeconds)
     ? Math.max(1, Math.floor(durationSeconds))
     : fullDurationSeconds;
+  const metadata = buildCatchUpMetadata({
+    channel,
+    program,
+    fallbackStreamIds,
+    durationSeconds: resolvedDurationSeconds,
+  });
   const minuteAlignedStartTimestamp = alignTimestampToMinute(startTimestamp);
   const initialPositionSeconds = preferredPositionSeconds > 0
     ? Math.max(0, Math.min(resolvedDurationSeconds, preferredPositionSeconds))
@@ -60,14 +66,6 @@ export const resolveCatchUpPlaybackSource = async ({
       0,
       Math.min(resolvedDurationSeconds, initialPositionGuardSeconds),
     );
-
-  const transportPlan = buildCatchUpTransportPlan({
-    urlBuilder,
-    streamId: channel.streamId,
-    startTimestamp,
-    durationSeconds: resolvedDurationSeconds,
-    fallbackStreamIds: [...fallbackStreamIds],
-  });
 
   const sourceCandidates = {
     redirectUrls: urlBuilder.getCatchUpRedirectUrlVariants(
@@ -96,52 +94,18 @@ export const resolveCatchUpPlaybackSource = async ({
     sourceCandidates,
     gatewayOptions,
   });
-
-  const initialAttempt = gateway
-    ? {
-      ...transportPlan.initialAttempt,
-      url: gateway.playbackUrl,
-      startTimestamp: minuteAlignedStartTimestamp,
-      durationSeconds: resolvedDurationSeconds,
-    }
-    : transportPlan.initialAttempt;
-
-  const allAttempts = [
-    initialAttempt,
-    ...transportPlan.fallbackAttempts,
-  ];
-  const catchUpFallbackUrls = allAttempts.slice(1).map((attempt) => attempt.url);
-  const catchUpFallbackUrl = catchUpFallbackUrls[0] ?? '';
+  const resolvedSource = buildCatchUpSessionSourceFromMetadata({
+    channel,
+    metadata: gateway ? { ...metadata, gateway } : metadata,
+    channelTitle,
+    urlBuilder,
+    preferredPositionSeconds,
+    initialPositionGuardSeconds,
+  });
 
   return {
-    source: {
-      url: initialAttempt.url,
-      type: 'hls',
-      title: `${channelTitle ?? channel.name} - ${program.title}`,
-      channelId: channel.id,
-      metadata: {
-        channelId: channel.id,
-        streamId: channel.streamId,
-        source: channel.source,
-        mode: 'catchup',
-        catchUpProgramId: program.id,
-        catchUpDurationSeconds: resolvedDurationSeconds,
-        catchUpStartTimestamp: initialAttempt.startTimestamp,
-        catchUpAttemptPlan: allAttempts,
-        catchUpAttemptIndex: 0,
-        catchUpAttemptStrategy: initialAttempt.strategy,
-        catchUpFallbackUrl,
-        catchUpFallbackUrls,
-        catchUpFallbackIndex: -1,
-        catchUpFallbackUsed: false,
-        gateway,
-      },
-    },
-    transportPlan: {
-      initialAttempt,
-      fallbackAttempts: transportPlan.fallbackAttempts,
-      allAttempts,
-    },
+    source: resolvedSource.source,
+    transportPlan: resolvedSource.transportPlan,
     initialPositionSeconds,
     fullDurationSeconds,
     gateway,

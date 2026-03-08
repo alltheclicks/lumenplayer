@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { createCatchUpGateway } from "./catchup-gateway.js";
+import { createCatchUpRemuxController, type CatchUpRemuxController } from "./catchup-remux.js";
 
 const createLogger = () => ({
   info: vi.fn(),
@@ -16,9 +17,12 @@ const createRequest = () => ({
   durationSeconds: 1_800,
   sourceCandidates: {
     redirectUrls: [
-      "https://edge.example/streaming/timeshift.php?token=abc123",
+      "https://login.example/timeshift/user/pass/1800/2026-03-08:08-30/112.m3u8",
+      "https://login.example/timeshift/user/pass/1800/2026-03-08:08-30/112.ts",
     ],
-    queryUrls: [],
+    queryUrls: [
+      "https://login.example/streaming/timeshift.php?stream=112&start=1772000000&duration=1800&extension=m3u8",
+    ],
     legacyUrls: [],
   },
   channelCapability: {
@@ -28,10 +32,44 @@ const createRequest = () => ({
   },
 });
 
+const createStubRemuxController = (
+  overrides: Partial<CatchUpRemuxController> = {},
+): CatchUpRemuxController => ({
+  matchesFeatureGate: () => false,
+  isRemuxPlaybackRequest: () => false,
+  prepareSession: async () => ({
+    sessionId: "session-1",
+    requestKey: "request-key",
+    upstreamUrl: "https://login.example/timeshift/user/pass/1800/2026-03-08:08-30/112.ts",
+    tempDir: "/tmp/lumen-catchup-remux/session-1",
+    status: "ready",
+    processHandle: null,
+    playlistPath: "/tmp/lumen-catchup-remux/session-1/index.m3u8",
+    initPath: "/tmp/lumen-catchup-remux/session-1/init.mp4",
+    segmentDir: "/tmp/lumen-catchup-remux/session-1/segment",
+    createdAtMs: 0,
+    lastAccessAtMs: 0,
+    errorMessage: null,
+  }),
+  getManifest: async () => ({
+    body: "#EXTM3U",
+    contentType: "application/vnd.apple.mpegurl; charset=utf-8",
+    sessionId: "session-1",
+  }),
+  getAsset: async () => Buffer.from("asset"),
+  parseAssetRequest: () => null,
+  sweep: () => {},
+  close: async () => {},
+  ...overrides,
+});
+
 describe("createCatchUpGateway", () => {
-  it("returns a stable cached asset response on repeated resolve", async () => {
+  it("returns a stable cached normalized response on repeated resolve", async () => {
     const logger = createLogger();
-    const gateway = createCatchUpGateway({ logger });
+    const gateway = createCatchUpGateway({
+      logger,
+      remuxController: createStubRemuxController(),
+    });
 
     const first = await gateway.resolve({
       request: createRequest(),
@@ -43,36 +81,103 @@ describe("createCatchUpGateway", () => {
     });
 
     expect(first.assetKey).toBe(second.assetKey);
-    expect(first.transportMode).toBe("provider-direct");
+    expect(first.transportMode).toBe("proxy-normalized");
     expect(first.hotStart).toBe(false);
     expect(second.hotStart).toBe(true);
-    expect(second.playbackUrl).toBe(first.playbackUrl);
+    expect(first.playbackUrl).toContain("/xui-api/");
+    expect(first.playbackUrl).toContain("__lumenTransport=normalized");
   });
 
-  it("supports debug override into proxy-normalized mode", async () => {
+  it("chooses the raw redirect .ts candidate for remux mode and bootstraps it before resolve", async () => {
     const logger = createLogger();
-    const gateway = createCatchUpGateway({ logger });
+    const prepareSession = vi.fn().mockResolvedValue({
+      sessionId: "session-1",
+      requestKey: "request-key",
+      upstreamUrl: "https://login.example/timeshift/user/pass/1800/2026-03-08:08-30/112.ts",
+      tempDir: "/tmp/lumen-catchup-remux/session-1",
+      status: "ready",
+      processHandle: null,
+      playlistPath: "/tmp/lumen-catchup-remux/session-1/index.m3u8",
+      initPath: "/tmp/lumen-catchup-remux/session-1/init.mp4",
+      segmentDir: "/tmp/lumen-catchup-remux/session-1/segment",
+      createdAtMs: 0,
+      lastAccessAtMs: 0,
+      errorMessage: null,
+    });
+    const gateway = createCatchUpGateway({
+      logger,
+      remuxController: createStubRemuxController({
+        matchesFeatureGate: () => true,
+        prepareSession,
+      }),
+    });
 
     const result = await gateway.resolve({
-      request: {
-        ...createRequest(),
-        debugOverride: {
-          enabled: true,
-          transportMode: "proxy-normalized",
-        },
+      request: createRequest(),
+      requestBaseUrl: "http://localhost:8788/catchup-gateway/resolve",
+    });
+
+    expect(result.transportMode).toBe("proxy-remuxed");
+    expect(result.playbackUrl).toContain("/timeshift/user/pass/1800/2026-03-08:08-30/112.ts");
+    expect(result.playbackUrl).toContain("__lumenTransport=remux-hls");
+    expect(result.playbackUrl).not.toContain("/streaming/timeshift.php");
+    expect(prepareSession).toHaveBeenCalledTimes(1);
+    const preparedUpstreamUrl = prepareSession.mock.calls[0]?.[0]?.upstreamUrl;
+    expect(preparedUpstreamUrl).toBeInstanceOf(URL);
+    expect((preparedUpstreamUrl as URL).pathname).toBe("/timeshift/user/pass/1800/2026-03-08:08-30/112.ts");
+  });
+
+  it("downgrades to proxy-normalized when remux binaries are unavailable", async () => {
+    const logger = createLogger();
+    const remuxController = createCatchUpRemuxController({
+      logger,
+      env: {
+        LUMEN_PROXY_REMUX_ENABLED: "1",
       },
+      checkBinary: () => false,
+    });
+    const gateway = createCatchUpGateway({
+      logger,
+      remuxController,
+    });
+
+    const result = await gateway.resolve({
+      request: createRequest(),
       requestBaseUrl: "http://localhost:8788/catchup-gateway/resolve",
     });
 
     expect(result.transportMode).toBe("proxy-normalized");
-    expect(result.playbackUrl).toContain("/xui-api/");
     expect(result.playbackUrl).toContain("__lumenTransport=normalized");
+    expect(result.fallbackReason).toBe("remux-binaries-missing");
+  });
+
+  it("downgrades cleanly when remux bootstrap fails", async () => {
+    const logger = createLogger();
+    const gateway = createCatchUpGateway({
+      logger,
+      remuxController: createStubRemuxController({
+        matchesFeatureGate: () => true,
+        prepareSession: async () => {
+          throw new Error("ffmpeg exploded");
+        },
+      }),
+    });
+
+    const result = await gateway.resolve({
+      request: createRequest(),
+      requestBaseUrl: "http://localhost:8788/catchup-gateway/resolve",
+    });
+
+    expect(result.transportMode).toBe("proxy-normalized");
+    expect(result.playbackUrl).toContain("__lumenTransport=normalized");
+    expect(result.fallbackReason).toBe("remux-unavailable");
   });
 
   it("returns failed when platform is disabled by policy", async () => {
     const logger = createLogger();
     const gateway = createCatchUpGateway({
       logger,
+      remuxController: createStubRemuxController(),
       env: {
         LUMEN_CATCHUP_GATEWAY_PLATFORMS: "android-tv",
       },

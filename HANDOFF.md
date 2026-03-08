@@ -1,5 +1,128 @@
 # Handoff — Lumen Player
 
+## Session 2026-03-08 — QAF-035 proxy-side raw archive remux (`codex/qaf-035-catchup-remux`)
+
+- Context:
+  - Continued from clean continuation worktree `/Users/filip/Documents/Lumen-Player-qaf035-sync` after re-running the mandatory context check:
+    - `git fetch origin --prune`
+    - confirmed `origin/main` is still docs-sync baseline `c9ac171` (merged PR `#221`)
+    - re-read `BACKLOG.md`, `docs/V3-QA-FIX-BACKLOG.md`, `HANDOFF.md`, `docs/WORKFLOW-LLM-QA.md`, `VISION.md`
+    - re-read the raw archive analyses in:
+      - `docs/catchup-player-analysis.md`
+      - `docs/smarters-archive-raw-analysis-short.md`
+  - Locked direction for this slice stayed the same:
+    - failing web archive path is a splice-boundary/decode robustness problem, not an HLS refresh problem
+    - browser-safe fix belongs in optional proxy/gateway remux, outside `@lumen/session-core`
+- Done:
+  - implemented ffmpeg-based raw archive remux subsystem in:
+    - `apps/proxy/src/catchup-remux.ts`
+  - remux subsystem behavior:
+    - chooses raw redirect-style catch-up `.ts` as remux upstream, preferring `/timeshift/{user}/{pass}/{duration}/{start}/{stream}.ts`
+    - strips local `__lumen*` metadata from the remux request key
+    - spawns one ffmpeg job per sanitized catch-up request key
+    - writes EVENT HLS + fMP4 assets to `${os.tmpdir()}/lumen-catchup-remux/<sessionId>/`
+    - exposes stable proxy asset paths under `/xui-api/__remux__/session/...`
+    - sweeps stale sessions by TTL, kills lingering ffmpeg processes, and removes temp dirs
+  - rebuilt gateway transport selection in:
+    - `apps/proxy/src/catchup-gateway.ts`
+  - gateway behavior now:
+    - attempts `proxy-remuxed` first only when remux gate matches and bootstrap succeeds
+    - downgrades same resolve call to `proxy-normalized` on remux bootstrap/binary failure with specific fallback reason
+    - keeps `provider-direct` only as final fallback
+    - preserves resolve contract shape while decorating proxy playback URLs with existing metadata params:
+      - `__lumenTransport`
+      - `__lumenProgramId`
+      - `__lumenStreamId`
+      - `__lumenStart`
+      - `__lumenDuration`
+      - optional `__lumenFallbackReason`
+  - adapted Fastify proxy integration in:
+    - `apps/proxy/src/server.ts`
+  - Fastify changes:
+    - instantiated shared remux controller alongside catch-up gateway
+    - added remux asset handlers before generic `/xui-api/:encodedTarget/*` pass-through
+    - intercepts proxied catch-up requests carrying `__lumenTransport=remux-hls` and returns generated HLS manifest body directly
+    - keeps existing redirect rewriting, allowlist checks, CORS behavior, and live/non-remux pass-through intact
+    - gateway resolve now builds playback URLs from the real request origin instead of fallback `http://localhost`
+  - added/updated proxy tests in:
+    - `apps/proxy/src/catchup-remux.test.ts`
+    - `apps/proxy/src/catchup-gateway.test.ts`
+    - `apps/proxy/src/server.test.ts`
+- Local validation:
+  - `pnpm --filter @lumen/proxy typecheck`
+  - `pnpm --filter @lumen/proxy lint`
+  - `pnpm --filter @lumen/proxy exec vitest run src/catchup-remux.test.ts src/catchup-gateway.test.ts src/server.test.ts`
+  - `pnpm --filter @lumen/web typecheck`
+  - `pnpm --filter @lumen/web exec vitest run src/components/player/catchupGateway.test.ts src/components/player/catchupSource.test.ts src/components/player/catchupTransport.test.ts src/components/player/sessionSources.test.ts src/pages/restoreSessionSource.test.ts`
+- Status:
+  - proxy/gateway now has a clean ffmpeg remux path for flagged web catch-up requests, with same-call downgrade when remux is unavailable
+  - live playback logic and current web restore/session metadata slice stayed untouched beyond compatibility validation
+  - manual runtime verification with real provider credentials is still pending for this PR before any merge decision
+
+## Session 2026-03-06 — QAF-035 runtime catch-up stall triage (`codex/qaf-035-clean-continuation`)
+
+- Context:
+  - Followed up on user-reported RTS 1 catch-up runtime failure: selected `08:30 Jutarnji program` started around `0:15` and reproducibly stalled around `0:40`.
+  - Debugged against real local stack (`web` on `:8080`, `proxy` on `:8788`) with Playwright/browser network traces and provider-backed `fica` credentials.
+- Done:
+  - confirmed the `0:15` start offset came from the existing catch-up guard, but proved it was not the root cause by replaying the same program from `0:00`; decode still failed at ~`0:41`.
+  - fixed browser preflight for the gateway resolve contract in `apps/proxy/src/server.ts`:
+    - added explicit `OPTIONS /catchup-gateway/resolve`
+    - widened catch-up gateway CORS allow-methods to include `POST`
+  - changed catch-up startup candidate priority to prefer canonical query-based catch-up URLs ahead of redirect token manifests:
+    - `apps/web/src/components/player/catchupTransport.ts`
+    - `apps/proxy/src/catchup-gateway.ts`
+  - aligned tests for the new query-first behavior:
+    - `apps/web/src/components/player/catchupTransport.test.ts`
+    - `apps/web/src/components/player/sessionSources.test.ts`
+    - `apps/proxy/src/server.test.ts`
+    - `apps/proxy/src/catchup-gateway.test.ts`
+- Runtime findings:
+  - before the proxy fix, browser `POST http://localhost:8788/catchup-gateway/resolve` failed on CORS preflight and web silently fell back to direct transport planning.
+  - after the fix, gateway resolve succeeds and web now starts catch-up from the query path (`/streaming/timeshift.php?...extension=m3u8`) instead of choosing redirect token manifests first.
+  - despite that improvement, RTS 1 catch-up still reproducibly fails with `MEDIA_ELEMENT_3` / `PIPELINE_ERROR_DECODE` at ~`0:41`.
+  - network traces show catch-up playback reaches provider token manifest + first two `seg=` requests successfully, then the browser decode pipeline fails before playback can continue.
+  - this points to a provider media/decode issue in the current provider-direct catch-up chain, not a simple restore/session-state bug.
+- Local validation:
+  - `pnpm --filter @lumen/web typecheck`
+  - `pnpm --filter @lumen/web exec vitest run src/components/player/catchupGateway.test.ts src/components/player/catchupSource.test.ts src/components/player/catchupTransport.test.ts src/components/player/sessionSources.test.ts src/pages/restoreSessionSource.test.ts`
+  - `pnpm --filter @lumen/proxy exec vitest run src/server.test.ts src/catchup-gateway.test.ts`
+- Status:
+  - gateway/browser integration is cleaner now: no preflight failure, and canonical query-first startup is in place.
+  - the user-visible 40s catch-up stall is **not** fully resolved yet; the remaining blocker appears to require real transport normalization/remux work rather than more metadata/restore tweaks.
+
+## Session 2026-03-06 — QAF-035 restore/session metadata continuity (`codex/qaf-035-clean-continuation`)
+
+- Context:
+  - Continued clean PR `#222` slice on top of `codex/qaf-035-clean-continuation` after confirming `origin/main` is on docs-sync baseline `c9ac171` (merged PR `#221`).
+  - Scope stayed inside web catch-up gateway/session restore wiring; no seek/chunk-aware preparation or old stacked remux diff was reintroduced.
+- Done:
+  - introduced canonical session-source helpers in:
+    - `apps/web/src/components/player/sessionSources.ts`
+    - `apps/web/src/pages/restoreSessionSource.ts`
+  - catch-up session metadata now preserves canonical restore fields (`programId`, `startTimestamp`, `durationSeconds`, `fallbackStreamIds`, optional `gateway`) while still carrying runtime attempt metadata needed by current `VideoPlayer`.
+  - startup bootstrap on `Player` now normalizes persisted live/catch-up session sources before rendering local playback:
+    - stale live restore snaps back to canonical live URL;
+    - persisted catch-up rebuilds a fresh transport plan from canonical metadata and reuses gateway playback when available;
+    - invalid/stale catch-up restore falls back safely with user notice instead of replaying stale token URLs.
+  - retry path now rebuilds live/catch-up sources from canonical metadata instead of cloning stale session URLs.
+  - carried forward valid transport follow-ups from old stacked gateway work without remux/chunk-aware scope:
+    - manifest-first catch-up startup ordering when both manifest and transport redirects exist;
+    - capped catch-up transport plan length to keep persisted session metadata bounded;
+    - rebuild path can prepend persisted gateway playback as the first attempt.
+  - updated tests:
+    - `apps/web/src/components/player/sessionSources.test.ts`
+    - `apps/web/src/pages/restoreSessionSource.test.ts`
+    - `apps/web/src/components/player/catchupTransport.test.ts`
+- Local validation:
+  - `pnpm --filter @lumen/web typecheck`
+  - `pnpm --filter @lumen/web lint`
+  - `pnpm --filter @lumen/web exec vitest run src/components/player/catchupGateway.test.ts src/components/player/catchupSource.test.ts src/components/player/catchupTransport.test.ts src/components/player/sessionSources.test.ts src/pages/restoreSessionSource.test.ts`
+  - `pnpm --filter @lumen/proxy typecheck`
+- Status:
+  - restore/session metadata continuity for gateway-backed catch-up is now wired on the clean continuation branch;
+  - live remains on canonical direct rebuild path and gateway stays optional fallback metadata, outside `@lumen/session-core`.
+
 ## Session 2026-03-06 — QAF-035 branch reconciliation + clean continuation baseline
 
 - Context:
