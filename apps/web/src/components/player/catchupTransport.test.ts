@@ -13,6 +13,7 @@ const createUrlBuilder = () => ({
     startTimestamp: number,
     durationSeconds: number,
   ) => [
+    `https://login.example/timeshift/user/pass/${durationSeconds}/${startTimestamp}/${streamId}.m3u8`,
     `https://login.example/timeshift/user/pass/${durationSeconds}/${startTimestamp}/${streamId}.ts`,
   ],
   getCatchUpUrlVariants: (
@@ -36,21 +37,23 @@ describe('catch-up transport plan', () => {
     clearCatchUpHostAffinityMemory();
   });
 
-  it('prioritizes redirect-first startup with aggressive retries before minute-step fallback', () => {
+  it('prioritizes query startup ahead of redirect manifests and keeps minute-step fallback ahead of stream fallback', () => {
     const plan = buildCatchUpTransportPlan({
       urlBuilder: createUrlBuilder(),
       streamId: 112,
       startTimestamp: 1_771_617_623,
       durationSeconds: 1800,
       fallbackStreamIds: [2927],
-      primaryRetries: 2,
+      primaryRetries: 1,
       minuteStepOffsets: [-1, 1],
       streamFallbackOffsets: [0],
     });
 
-    expect(plan.initialAttempt.strategy).toBe('redirect-primary');
+    expect(plan.initialAttempt.strategy).toBe('primary-query');
+    expect(plan.initialAttempt.url).toContain('/streaming/timeshift.php');
     expect(plan.allAttempts[1]?.strategy).toBe('primary-retry');
-    expect(plan.allAttempts[2]?.strategy).toBe('primary-retry');
+    expect(plan.allAttempts[2]?.strategy).toBe('redirect-primary');
+    expect(plan.allAttempts[2]?.url.endsWith('.m3u8')).toBe(true);
 
     const startOffsetIndex = plan.allAttempts.findIndex((attempt) => attempt.strategy === 'start-offset');
     const streamFallbackIndex = plan.allAttempts.findIndex((attempt) => attempt.strategy === 'stream-fallback');
@@ -60,6 +63,77 @@ describe('catch-up transport plan', () => {
 
     const startOffsetAttempt = plan.allAttempts[startOffsetIndex];
     expect(startOffsetAttempt?.offsetMinutes).toBe(-1);
+  });
+
+  it('keeps transport redirects behind query variants when no manifest is available', () => {
+    const tsOnlyBuilder = {
+      getCatchUpRedirectUrlVariants: (
+        streamId: number,
+        startTimestamp: number,
+        durationSeconds: number,
+      ) => [
+        `https://login.example/timeshift/user/pass/${durationSeconds}/${startTimestamp}/${streamId}.ts`,
+      ],
+      getCatchUpUrlVariants: (
+        streamId: number,
+        startTimestamp: number,
+        durationSeconds: number,
+      ) => [
+        `https://login.example/streaming/timeshift.php?stream=${streamId}&start=${startTimestamp}&duration=${durationSeconds}`,
+      ],
+      getLegacyCatchUpUrlVariants: () => [],
+    };
+
+    const plan = buildCatchUpTransportPlan({
+      urlBuilder: tsOnlyBuilder,
+      streamId: 112,
+      startTimestamp: 1_771_617_623,
+      durationSeconds: 1800,
+      fallbackStreamIds: [],
+      primaryRetries: 1,
+      minuteStepOffsets: [],
+      streamFallbackOffsets: [],
+    });
+
+    expect(plan.initialAttempt.strategy).toBe('primary-query');
+    expect(plan.allAttempts[1]?.strategy).toBe('primary-retry');
+    expect(plan.allAttempts[2]?.strategy).toBe('redirect-primary');
+    expect(plan.allAttempts).toHaveLength(3);
+  });
+
+  it('caps the transport plan at sixteen attempts while preserving deeper fallback coverage', () => {
+    const plan = buildCatchUpTransportPlan({
+      urlBuilder: createUrlBuilder(),
+      streamId: 112,
+      startTimestamp: 1_771_617_623,
+      durationSeconds: 1800,
+      fallbackStreamIds: [2927, 2928, 2929, 2930],
+    });
+
+    expect(plan.allAttempts.length).toBeLessThanOrEqual(16);
+    expect(plan.allAttempts.some((attempt) => attempt.strategy === 'start-offset')).toBe(true);
+  });
+
+  it('prepends persisted gateway playback when rebuilding a restore transport plan', () => {
+    const plan = buildCatchUpTransportPlan({
+      urlBuilder: createUrlBuilder(),
+      streamId: 112,
+      startTimestamp: 1_771_617_623,
+      durationSeconds: 1800,
+      fallbackStreamIds: [2927],
+      gatewaySelection: {
+        serverId: 'server-1',
+        assetKey: 'asset-1',
+        transportMode: 'proxy-normalized',
+        playbackUrl: 'http://localhost:8788/xui-api/https%3A%2F%2Fedge.example/streaming/timeshift.php?token=abc',
+        assetState: 'ready',
+        fallbackReason: 'gateway-normalized',
+        hotStart: true,
+      },
+    });
+
+    expect(plan.initialAttempt.strategy).toBe('gateway-resolved');
+    expect(plan.initialAttempt.url).toContain('token=abc');
   });
 
   it('stores host affinity and rewrites direct catch-up requests to preferred edge host', () => {

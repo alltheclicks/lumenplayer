@@ -42,6 +42,11 @@ import {
 } from './liveTimeshift';
 import { emitWebObservabilityEvent } from '@/services/observability';
 import { resolveCatchUpPlaybackSource } from './catchupSource';
+import {
+  buildLiveSessionSource,
+  isCatchUpSessionSourceMetadata,
+  parseSessionSourceMetadata,
+} from './sessionSources';
 
 interface PlayerControlsProps {
   channel: PlayerChannel;
@@ -65,12 +70,6 @@ interface PlayerControlsProps {
   };
 }
 
-type SessionSourceMetadata = {
-  mode?: 'live' | 'catchup';
-  catchUpProgramId?: string;
-  catchUpDurationSeconds?: number;
-};
-
 interface PendingSeekInteraction {
   direction: SeekDirection;
   tapStepSeconds: number;
@@ -81,24 +80,6 @@ const CONTROLS_IDLE_TIMEOUT_MS = 3000;
 const CONTROLS_IDLE_GRACE_MS = 1000;
 const CATCH_UP_REASON_REFRESH_MS = 60_000;
 const CATCH_UP_INITIAL_POSITION_GUARD_SECONDS = 15;
-
-const parseSessionSourceMetadata = (
-  metadata: Record<string, unknown> | undefined
-): SessionSourceMetadata => {
-  if (!metadata) {
-    return {};
-  }
-
-  return {
-    mode: metadata.mode === 'live' || metadata.mode === 'catchup' ? metadata.mode : undefined,
-    catchUpProgramId: typeof metadata.catchUpProgramId === 'string' ? metadata.catchUpProgramId : undefined,
-    catchUpDurationSeconds: typeof metadata.catchUpDurationSeconds === 'number'
-      ? metadata.catchUpDurationSeconds
-      : typeof metadata.catchUpDurationSeconds === 'string' && !Number.isNaN(Number(metadata.catchUpDurationSeconds))
-        ? Number(metadata.catchUpDurationSeconds)
-        : undefined,
-  };
-};
 
 const groupProgramsByDate = (programs: Program[]): Map<string, Program[]> => {
   const grouped = new Map<string, Program[]>();
@@ -183,16 +164,11 @@ const PlayerControls = ({
     [session.source?.metadata]
   );
   const catchUpProgram = useMemo(() => {
-    if (sessionSourceMetadata.mode !== 'catchup') {
+    if (!isCatchUpSessionSourceMetadata(sessionSourceMetadata)) {
       return null;
     }
 
-    const catchUpProgramId = sessionSourceMetadata.catchUpProgramId;
-    if (!catchUpProgramId) {
-      return null;
-    }
-
-    return channel.epg.find(program => program.id === catchUpProgramId) ?? null;
+    return channel.epg.find(program => program.id === sessionSourceMetadata.programId) ?? null;
   }, [channel.epg, sessionSourceMetadata]);
   const catchUpPosition = catchUpProgram
     ? Math.max(0, (session.positionMs ?? 0) / 1000)
@@ -200,8 +176,8 @@ const PlayerControls = ({
   const isPlaying = session.playback === 'playing' || session.playback === 'buffering';
 
   const catchUpDuration = catchUpProgram
-    ? sessionSourceMetadata.catchUpDurationSeconds && sessionSourceMetadata.catchUpDurationSeconds > 0
-      ? sessionSourceMetadata.catchUpDurationSeconds
+    ? isCatchUpSessionSourceMetadata(sessionSourceMetadata) && sessionSourceMetadata.durationSeconds > 0
+      ? sessionSourceMetadata.durationSeconds
       : (catchUpProgram.endTime.getTime() - catchUpProgram.startTime.getTime()) / 1000
     : 0;
   const effectiveCatchUpPosition = catchUpProgram
@@ -558,21 +534,14 @@ const PlayerControls = ({
   };
 
   const switchToLive = useCallback(() => {
-    const source = {
-      url: xtreamCodesService.getLiveStreamUrl(channel.streamId),
-      type: 'hls' as const,
-      title: channel.name,
-      channelId: channel.id,
-      metadata: {
-        channelId: channel.id,
-        streamId: channel.streamId,
-        mode: 'live',
-      },
-    };
+    const source = buildLiveSessionSource({
+      channel,
+      sourceUrl: xtreamCodesService.getLiveStreamUrl(channel.streamId),
+    });
 
     commands.setSource(source, 0);
     commands.play();
-  }, [channel.id, channel.name, channel.streamId, commands]);
+  }, [channel, commands]);
 
   const switchToCatchUpProgram = useCallback(async (
     program: Program,
