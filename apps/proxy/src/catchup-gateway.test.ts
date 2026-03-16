@@ -173,6 +173,28 @@ describe("createCatchUpGateway", () => {
     expect(result.fallbackReason).toBe("remux-unavailable");
   });
 
+  it("disables provider-direct for mediaking hosts and keeps normalized proxy as floor", async () => {
+    const logger = createLogger();
+    const gateway = createCatchUpGateway({
+      logger,
+      remuxController: createStubRemuxController({
+        matchesFeatureGate: () => false,
+      }),
+    });
+
+    const result = await gateway.resolve({
+      request: {
+        ...createRequest(),
+        serverUrl: "http://smart.mediaking.fi:8080",
+      },
+      requestBaseUrl: "http://localhost:8788/catchup-gateway/resolve",
+    });
+
+    expect(result.transportMode).toBe("proxy-normalized");
+    expect(result.playbackUrl).toContain("__lumenTransport=normalized");
+    expect(result.playbackUrl).not.toContain("/timeshift/user/pass/");
+  });
+
   it("returns failed when platform is disabled by policy", async () => {
     const logger = createLogger();
     const gateway = createCatchUpGateway({

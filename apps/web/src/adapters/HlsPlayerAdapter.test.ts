@@ -1,4 +1,71 @@
 import { describe, expect, it, vi } from 'vitest';
+
+const hlsMockState = vi.hoisted(() => {
+  const instances: MockHls[] = [];
+
+  class MockHls {
+    static readonly Events = {
+      MANIFEST_PARSED: 'manifestParsed',
+      MANIFEST_LOADED: 'manifestLoaded',
+      ERROR: 'error',
+      AUDIO_TRACKS_UPDATED: 'audioTracksUpdated',
+      AUDIO_TRACK_SWITCHED: 'audioTrackSwitched',
+      SUBTITLE_TRACKS_UPDATED: 'subtitleTracksUpdated',
+      SUBTITLE_TRACK_SWITCH: 'subtitleTrackSwitch',
+    } as const;
+
+    static readonly ErrorTypes = {
+      NETWORK_ERROR: 'networkError',
+      MEDIA_ERROR: 'mediaError',
+      OTHER_ERROR: 'otherError',
+    } as const;
+
+    static isSupported(): boolean {
+      return true;
+    }
+
+    readonly on = vi.fn((event: string, handler: (...args: unknown[]) => void) => {
+      const handlers = this.handlers.get(event) ?? [];
+      handlers.push(handler);
+      this.handlers.set(event, handlers);
+    });
+
+    readonly off = vi.fn((event: string, handler: (...args: unknown[]) => void) => {
+      const handlers = this.handlers.get(event) ?? [];
+      this.handlers.set(event, handlers.filter((entry) => entry !== handler));
+    });
+
+    readonly loadSource = vi.fn();
+    readonly attachMedia = vi.fn();
+    readonly recoverMediaError = vi.fn();
+    readonly destroy = vi.fn();
+    readonly audioTracks: Array<{ name?: string; lang?: string; default?: boolean }> = [];
+    readonly subtitleTracks: Array<{ name?: string; lang?: string; default?: boolean }> = [];
+    audioTrack = -1;
+    subtitleTrack = -1;
+
+    private readonly handlers = new Map<string, Array<(...args: unknown[]) => void>>();
+
+    constructor(_config?: unknown) {
+      instances.push(this);
+    }
+
+    emit(event: string, data?: unknown): void {
+      for (const handler of this.handlers.get(event) ?? []) {
+        handler(event, data);
+      }
+    }
+  }
+
+  return { MockHls, instances };
+});
+
+vi.mock('hls.js', () => ({
+  __esModule: true,
+  default: hlsMockState.MockHls,
+  ErrorTypes: hlsMockState.MockHls.ErrorTypes,
+}));
+
 import { HlsPlayerAdapter } from './HlsPlayerAdapter';
 
 const buildSource = (url: string) => ({
@@ -53,5 +120,32 @@ describe('HlsPlayerAdapter', () => {
 
     adapter.stop();
     expect(loadSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it('recovers fatal HLS media errors instead of destroying playback immediately', async () => {
+    const video = createMockVideoElement();
+    const adapter = new HlsPlayerAdapter(video);
+    const source = {
+      url: 'https://example.com/archive.m3u8',
+      type: 'hls' as const,
+      title: 'Archive',
+    };
+
+    const loadPromise = adapter.load(source);
+    const hls = hlsMockState.instances.at(-1);
+    expect(hls).toBeDefined();
+
+    hls?.emit(hlsMockState.MockHls.Events.MANIFEST_LOADED, { url: source.url });
+    hls?.emit(hlsMockState.MockHls.Events.MANIFEST_PARSED);
+    await loadPromise;
+
+    hls?.emit(hlsMockState.MockHls.Events.ERROR, {
+      fatal: true,
+      type: hlsMockState.MockHls.ErrorTypes.MEDIA_ERROR,
+      details: 'bufferStalledError',
+    });
+
+    expect(hls?.recoverMediaError).toHaveBeenCalledTimes(1);
+    expect(hls?.destroy).not.toHaveBeenCalled();
   });
 });

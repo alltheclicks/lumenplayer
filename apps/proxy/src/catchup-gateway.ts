@@ -23,6 +23,12 @@ const LOCAL_PROXY_START_PARAM = "__lumenStart";
 const LOCAL_PROXY_DURATION_PARAM = "__lumenDuration";
 const LOCAL_PROXY_TRANSPORT_PARAM = "__lumenTransport";
 const LOCAL_PROXY_FALLBACK_REASON_PARAM = "__lumenFallbackReason";
+const PROVIDER_DIRECT_DISABLED_HOSTS = new Set([
+  "smart.mediaking.fi",
+  "serv2.mediaking.fi",
+  "edge6.castcdn.net",
+  "79.137.99.121",
+]);
 
 const dedupeUrls = (urls: readonly string[]): string[] => {
   const deduplicated: string[] = [];
@@ -67,6 +73,15 @@ const deriveServerUrl = (request: CatchUpGatewayResolveRequest): string => {
 
   const parsedProxy = parseProxyTargetUrl(candidateUrl);
   return parsedProxy?.upstreamUrl.origin ?? "unknown-server";
+};
+
+const isProviderDirectDisabledServer = (serverUrl: string): boolean => {
+  try {
+    const parsed = new URL(serverUrl.includes("://") ? serverUrl : `http://${serverUrl}`);
+    return PROVIDER_DIRECT_DISABLED_HOSTS.has(parsed.hostname.toLowerCase());
+  } catch {
+    return PROVIDER_DIRECT_DISABLED_HOSTS.has(serverUrl.trim().toLowerCase());
+  }
 };
 
 const normalizeChannelCapability = (
@@ -344,6 +359,7 @@ export const createCatchUpGateway = (options: {
       const debugMode = request.debugOverride?.enabled === true
         ? request.debugOverride.transportMode
         : undefined;
+      const providerDirectAllowedForServer = !isProviderDirectDisabledServer(serverUrl);
       const remuxCandidateUrl = selectCatchUpRemuxCandidate(request.sourceCandidates);
       const canUseRemux = (
         remuxCandidateUrl !== null &&
@@ -398,7 +414,12 @@ export const createCatchUpGateway = (options: {
         }
       }
 
-      if (!resolvedTransportMode && debugMode === "provider-direct" && isModeAllowed("provider-direct", policy.allowedModes)) {
+      if (
+        !resolvedTransportMode &&
+        providerDirectAllowedForServer &&
+        debugMode === "provider-direct" &&
+        isModeAllowed("provider-direct", policy.allowedModes)
+      ) {
         resolvedTransportMode = "provider-direct";
         playbackUrl = buildPlaybackUrl({
           selectedCandidateUrl: selectedNonRemuxCandidateUrl,
@@ -431,7 +452,11 @@ export const createCatchUpGateway = (options: {
         fallbackReason = normalizedFallbackReason;
       }
 
-      if (!resolvedTransportMode && isModeAllowed("provider-direct", policy.allowedModes)) {
+      if (
+        !resolvedTransportMode &&
+        providerDirectAllowedForServer &&
+        isModeAllowed("provider-direct", policy.allowedModes)
+      ) {
         resolvedTransportMode = "provider-direct";
         playbackUrl = buildPlaybackUrl({
           selectedCandidateUrl: selectedNonRemuxCandidateUrl,

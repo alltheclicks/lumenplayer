@@ -6,6 +6,7 @@ import { VitePWA } from "vite-plugin-pwa";
 const pwaWorkboxMode = process.env.LUMEN_PWA_SW_MODE === "production" ? "production" : "development";
 const XTREAM_DEV_PROXY_BASE_PATH = "/xui-api";
 const CATCHUP_GATEWAY_PROXY_PATH = "/catchup-gateway";
+const XTREAM_HLS_ROOT_PROXY_PATH = "/hlsr";
 const LOCAL_PROXY_FALLBACK_TARGET = "http://localhost";
 
 const resolveProxyTargetFromRequestPath = (requestPath: string): string | null => {
@@ -29,10 +30,19 @@ const resolveProxyTargetFromRequestPath = (requestPath: string): string | null =
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
   const xtreamServerTarget = env.VITE_XTREAM_SERVER?.trim().replace(/\/+$/, "");
+  const xuiProxyTarget = env.VITE_XUI_PROXY_ORIGIN?.trim().replace(/\/+$/, "");
   const catchUpGatewayTarget = env.VITE_CATCHUP_GATEWAY_ORIGIN?.trim().replace(/\/+$/, "") ||
-    env.VITE_XUI_PROXY_ORIGIN?.trim().replace(/\/+$/, "");
+    xuiProxyTarget;
   const proxyConfig = {
-    ...(xtreamServerTarget
+    ...(xuiProxyTarget
+      ? {
+          [XTREAM_DEV_PROXY_BASE_PATH]: {
+            target: xuiProxyTarget,
+            changeOrigin: true,
+            secure: false,
+          },
+        }
+      : xtreamServerTarget
       ? {
           [XTREAM_DEV_PROXY_BASE_PATH]: {
             target: xtreamServerTarget || LOCAL_PROXY_FALLBACK_TARGET,
@@ -48,6 +58,15 @@ export default defineConfig(({ mode }) => {
                 .replace(new RegExp(`^${XTREAM_DEV_PROXY_BASE_PATH}/[^/?#]+`), "")
                 .replace(new RegExp(`^${XTREAM_DEV_PROXY_BASE_PATH}`), "")
             ),
+          },
+        }
+      : {}),
+    ...(xtreamServerTarget
+      ? {
+          [XTREAM_HLS_ROOT_PROXY_PATH]: {
+            target: xtreamServerTarget,
+            changeOrigin: true,
+            secure: false,
           },
         }
       : {}),

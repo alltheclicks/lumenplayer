@@ -233,6 +233,34 @@ Current snapshot:
 | QAF-034 | Reopened catch-up runtime failure: provider timeshift returns intermittent `404/502`, playback still fails in real user flow | Catch-up Playback/Provider Compatibility | P1 | in-progress |
 | QAF-035 | Option B catch-up gateway refactor: optional web gateway decides `provider-direct | proxy-normalized | proxy-remuxed` and keeps provider/browser repair outside `@lumen/session-core` | Catch-up Gateway/Transport | P1 | in-progress |
 
+Current runtime note (2026-03-09):
+- `QAF-034`:
+  - provider introduced `timeshift_hls` browser path
+  - one Lumen-side startup bug was confirmed and fixed locally: web must not start on direct login-host `serv2/timeshift_hls/...` because that path returns `404`; the valid flow remains `serv2 /streaming/timeshift.php?... -> 302 -> archive-host /timeshift_hls/...`
+  - after that fix, the remaining failures are still provider-media failures, not route construction:
+    - `RTS 1` decode stop around `~2:00`
+    - `PINK` decode stop around `~1:00`
+  - provider-backed CLI evidence with real credentials (`smart.mediaking.fi`, `2026-03-09 17:28 CET`) now strengthens that conclusion:
+    - `RTS 1` (`stream_id=112`) and `PINK` (`stream_id=105`) both follow the valid query-first startup chain `serv2 /streaming/timeshift.php?...extension=m3u8 -> 302 -> edge6 /streaming/timeshift.php?token=...`
+    - `ffprobe` / `ffmpeg` on sampled token-manifest segments at `0s`, `60s`, and `120s` already report repeated `non-existing PPS 0 referenced` / `no frame!`
+    - later sampled segment `seg=90` is invalid on both channels (`Invalid data found when processing input`)
+    - requested `duration=240` returned a `91`-segment / `5460s` manifest on both channels, so provider duration/window semantics also look suspect
+- `QAF-035`:
+  - optional gateway/remux path is still the fallback architecture if provider `timeshift_hls` cannot become fully browser-safe
+  - the provider evidence loop is now strong enough to justify targeted remux fallback validation for this provider without reopening the old startup-routing investigation
+
+Current workaround note (2026-03-16):
+- `QAF-035`:
+  - real browser runtime is now confirmed on the optional gateway path for this provider:
+    - `catchup-gateway/resolve -> proxy /xui-api/...__lumenTransport=remux-hls -> /xui-api/__remux__/session/...`
+  - validated with real credentials on:
+    - `RTS 1`: stable past earlier stops at `~0:58` and `~2:00`
+    - `PINK`: stable past earlier stop at `~1:00`
+  - this means we now have one working browser workaround for the provider-media problem
+  - important caveat:
+    - the current `proxy-remuxed` implementation is FFmpeg transcode (`libx264` video + `aac` audio to browser-safe fMP4/HLS), not packet-copy remux
+    - it should be treated as a confirmed compatibility workaround, but CPU cost is likely too high to accept unchanged for small-production VPS hosting
+
 ## Next ready queue (strict order)
 
 1. `QAF-035` clean continuation setup:
@@ -246,6 +274,7 @@ Current snapshot:
 3. Keep `QAF-034` evidence track alive:
    - preserve TiviMate/native tuple evidence as acceptance input
    - use it to decide when `provider-direct` is still allowed vs when gateway normalization/remux is required
+   - latest required evidence is specifically on the new provider `timeshift_hls` path reached through the real `serv2 -> 302 -> archive-host` flow, not direct archive-host login
 4. After clean gateway baseline is green:
    - continue startup/warm-open improvements first
    - then implement chunk-aware seek preparation and cancellation

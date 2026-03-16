@@ -328,6 +328,69 @@ describe("createProxyServer", () => {
     await app.close();
   });
 
+  it("upgrades catch-up m3u8 redirects onto the archive host timeshift_hls path", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(null, {
+        status: 302,
+        headers: {
+          location: "https://edge.example/streaming/timeshift.php?token=abc123",
+        },
+      }),
+    );
+
+    const app = createProxyServer({
+      allowedHosts: ["login.example", "edge.example"],
+      fetchImpl: fetchMock as typeof fetch,
+      logger: false,
+      remuxController: createTestRemuxController(),
+    });
+
+    const response = await app.inject({
+      method: "GET",
+      url: `/xui-api/${encodeTarget("https://login.example:8080")}/streaming/timeshift.php?username=demo&password=secret&stream=112&start=2026-03-04:20-10&duration=60&extension=m3u8`,
+    });
+
+    expect(response.statusCode).toBe(302);
+    expect(response.headers.location).toBe(
+      `/xui-api/${encodeTarget("https://edge.example")}/timeshift_hls/demo/secret/60/2026-03-04%3A20-10/112.m3u8`,
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    await app.close();
+  });
+
+  it("rewrites root-relative timeshift_hls manifest assets back through the proxy contract", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response([
+      "#EXTM3U",
+      "#EXT-X-PLAYLIST-TYPE:VOD",
+      "#EXTINF:6.000,",
+      "/timeshift_hls/demo/secret/60/2026-03-04:20-10/112_0_0.ts",
+      "#EXT-X-ENDLIST",
+    ].join("\n"), {
+      status: 200,
+      headers: {
+        "content-type": "application/x-mpegurl",
+      },
+    }));
+
+    const app = createProxyServer({
+      allowedHosts: ["edge.example"],
+      fetchImpl: fetchMock as typeof fetch,
+      logger: false,
+      remuxController: createTestRemuxController(),
+    });
+
+    const response = await app.inject({
+      method: "GET",
+      url: `/xui-api/${encodeTarget("https://edge.example")}/timeshift_hls/demo/secret/60/2026-03-04:20-10/112.m3u8`,
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.payload).toContain(
+      `/xui-api/${encodeTarget("https://edge.example")}/timeshift_hls/demo/secret/60/2026-03-04:20-10/112_0_0.ts`,
+    );
+    await app.close();
+  });
+
   it("retries once on transport failure for GET and then returns upstream payload", async () => {
     const fetchMock = vi.fn()
       .mockRejectedValueOnce(new TypeError("fetch failed"))

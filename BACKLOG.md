@@ -96,6 +96,12 @@ Completion notes (2026-02-19 .. 2026-02-21):
 - QAF-034 is active again (`in-progress`) with comparative TiviMate traffic analysis and web-runtime parity hardening (redirect/token/retry strategy).
 - QAF-035 became the active catch-up continuation track after `LP-1511` gateway groundwork and multiple experimental web/proxy branches (`codex/qaf-035-runtime-payload-gate`, `codex/qaf-035-catchup-runtime-gate`, `codex/disable-demo-fallback-xui`, `codex/qaf-035-catchup-gateway`).
 - On 2026-03-06 the continuation baseline was reset back to `origin/main`; future QAF-035 code work should be rebuilt or selectively cherry-picked onto a clean `codex/` branch instead of stacking more commits on top of the experimental branch chain.
+- On 2026-03-09 Chromium/runtime validation against the provider's new `timeshift_hls` endpoint confirmed one Lumen-side startup bug and one still-open provider media bug:
+  - fixed locally: web had started on direct `serv2/timeshift_hls/...` URLs that return `404`; startup is now back on the valid `serv2 /streaming/timeshift.php?... -> 302 -> archive-host /timeshift_hls/...` flow.
+  - still open outside Lumen routing: provider `timeshift_hls` playback reaches real HLS/segments but still decode-fails later in playback (`RTS 1` around `~2:00`, `PINK` around `~1:00`).
+- On 2026-03-16 one browser-safe workaround was confirmed locally for that same provider:
+  - Lumen web catch-up now plays successfully through `proxy-remuxed` gateway playback on both `RTS 1` and `PINK`, including the previously failing `~0:58`, `~1:00`, and `~2:00` points.
+  - important caveat: the currently confirmed workaround is proxy-side FFmpeg transcode (`libx264` + `aac` to browser-safe fMP4/HLS), not a cheap packet-copy remux, so production CPU impact still needs a follow-up solution.
 - Manual intake triage (`BUG-20260219-01..06`) converted into `QAF-010..QAF-014` follow-up tasks in `docs/V2-QA-FIX-BACKLOG.md`.
 - Follow-up intake tasks (`BUG-20260220-01..03`) are now closed through `QAF-015..QAF-017`.
 - Follow-up intake tasks (`BUG-20260220-04..07`) are now closed through `QAF-018..QAF-020`.

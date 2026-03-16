@@ -319,7 +319,7 @@ export class HlsPlayerAdapter implements PlayerAdapter {
           const onManifestParsed = () => {
             this.syncHlsAudioTracks(hls.audioTrack);
             this.syncHlsSubtitleTracks(hls.subtitleTrack);
-            cleanup();
+            cleanupStartupListeners();
             this.updateState('paused');
             resolve();
           };
@@ -345,6 +345,11 @@ export class HlsPlayerAdapter implements PlayerAdapter {
           };
 
           const onHlsError = (_event: string, data: ErrorData) => {
+            if (data.fatal && data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+              hls.recoverMediaError();
+              return;
+            }
+
             const mappedError = this.mapHlsError(data);
             this.emitError(mappedError);
 
@@ -352,7 +357,7 @@ export class HlsPlayerAdapter implements PlayerAdapter {
               return;
             }
 
-            cleanup();
+            cleanupStartupListeners();
             hls.destroy();
             reject(new Error(mappedError.message));
           };
@@ -373,10 +378,9 @@ export class HlsPlayerAdapter implements PlayerAdapter {
             this.syncHlsSubtitleTracks(hls.subtitleTrack);
           };
 
-          const cleanup = () => {
+          const cleanupStartupListeners = () => {
             hls.off(Hls.Events.MANIFEST_PARSED, onManifestParsed);
             hls.off(Hls.Events.MANIFEST_LOADED, onManifestLoaded);
-            hls.off(Hls.Events.ERROR, onHlsError);
           };
 
           hls.on(Hls.Events.MANIFEST_LOADED, onManifestLoaded);

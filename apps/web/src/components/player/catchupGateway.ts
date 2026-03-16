@@ -60,6 +60,12 @@ const DEFAULT_GATEWAY_PLATFORM = import.meta.env.VITE_CATCHUP_GATEWAY_PLATFORM?.
 const GATEWAY_RESOLVE_PATH = '/catchup-gateway/resolve';
 const CATCHUP_GATEWAY_ENABLED = import.meta.env.VITE_CATCHUP_GATEWAY_ENABLED === '1';
 const CATCHUP_GATEWAY_DEBUG_OVERRIDE = import.meta.env.VITE_CATCHUP_GATEWAY_DEBUG_OVERRIDE === '1';
+const AUTO_GATEWAY_SERVER_HOSTS = new Set([
+  'smart.mediaking.fi',
+  'serv2.mediaking.fi',
+  'edge6.castcdn.net',
+  '79.137.99.121',
+]);
 
 const parseStringFilter = (value: string | undefined): Set<string> | null => {
   if (!value) {
@@ -97,11 +103,45 @@ const resolveGatewayOrigin = (explicitOrigin?: string | null): string | null => 
   return resolveRuntimeOrigin().replace(/\/+$/, '');
 };
 
+const normalizeGatewayPlaybackUrl = (
+  playbackUrl: string,
+  gatewayOrigin: string,
+): string => {
+  try {
+    const parsedPlaybackUrl = new URL(playbackUrl);
+    if (!parsedPlaybackUrl.pathname.startsWith('/xui-api/')) {
+      return playbackUrl;
+    }
+
+    const parsedGatewayOrigin = new URL(gatewayOrigin);
+    parsedPlaybackUrl.protocol = parsedGatewayOrigin.protocol;
+    parsedPlaybackUrl.username = parsedGatewayOrigin.username;
+    parsedPlaybackUrl.password = parsedGatewayOrigin.password;
+    parsedPlaybackUrl.hostname = parsedGatewayOrigin.hostname;
+    parsedPlaybackUrl.port = parsedGatewayOrigin.port;
+    return parsedPlaybackUrl.toString();
+  } catch {
+    return playbackUrl;
+  }
+};
+
 const extractServerOrigin = (
   candidates: CatchUpGatewayResolveRequest['sourceCandidates'],
 ): string | null => {
   const firstCandidate = candidates.redirectUrls[0] ?? candidates.queryUrls[0] ?? candidates.legacyUrls[0] ?? null;
   return firstCandidate ? resolveCatchUpTargetOrigin(firstCandidate) : null;
+};
+
+const isAutoGatewayServerOrigin = (serverOrigin: string | null): boolean => {
+  if (!serverOrigin) {
+    return false;
+  }
+
+  try {
+    return AUTO_GATEWAY_SERVER_HOSTS.has(new URL(serverOrigin).hostname.toLowerCase());
+  } catch {
+    return false;
+  }
 };
 
 export const shouldUseCatchUpGateway = ({
@@ -115,11 +155,13 @@ export const shouldUseCatchUpGateway = ({
   programId: string;
   serverOrigin: string | null;
 }): boolean => {
+  const gatewayOrigin = resolveGatewayOrigin(gatewayOptions?.origin);
   const enabled = gatewayOptions?.enabled ?? CATCHUP_GATEWAY_ENABLED;
   const debugOverride = gatewayOptions?.debugOverride ?? CATCHUP_GATEWAY_DEBUG_OVERRIDE;
   const platform = gatewayOptions?.platform ?? DEFAULT_GATEWAY_PLATFORM;
+  const autoEnabled = Boolean(gatewayOrigin) && isAutoGatewayServerOrigin(serverOrigin);
 
-  if (!enabled) {
+  if (!enabled && !autoEnabled) {
     return false;
   }
 
@@ -243,11 +285,13 @@ export const resolveCatchUpGatewayPlayback = async ({
       return null;
     }
 
+    const playbackUrl = normalizeGatewayPlaybackUrl(payload.playbackUrl, gatewayOrigin);
+
     return {
       serverId: payload.serverId,
       assetKey: payload.assetKey,
       transportMode: payload.transportMode,
-      playbackUrl: payload.playbackUrl,
+      playbackUrl,
       assetState: payload.assetState,
       fallbackReason: payload.fallbackReason,
       hotStart: payload.hotStart,

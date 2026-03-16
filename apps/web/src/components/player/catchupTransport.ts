@@ -3,6 +3,16 @@ import type { CatchUpGatewayPlaybackMetadata } from './catchupGateway';
 const XTREAM_PROXY_BASE_PATH = '/xui-api/';
 const DEFAULT_BASE_ORIGIN = 'http://localhost';
 const MAX_CATCH_UP_ATTEMPTS = 16;
+const XTREAM_CATCH_UP_STREAMING_PATHS = new Set([
+  '/streaming/timeshift.php',
+  '/streaming/timeshift_hls.php',
+]);
+const GATEWAY_ONLY_LEGACY_HOSTS = new Set([
+  'smart.mediaking.fi',
+  'serv2.mediaking.fi',
+  'edge6.castcdn.net',
+  '79.137.99.121',
+]);
 
 export const CATCH_UP_MINUTE_STEP_OFFSETS = [-1, -2, -3, 1, -5, 2, -10, -15, 5] as const;
 export const CATCH_UP_STREAM_FALLBACK_OFFSETS = [0, -1, -2, 1, -5] as const;
@@ -129,6 +139,28 @@ const parseTargetUrl = (value: string): ParsedTargetUrl | null => {
   };
 };
 
+const isCatchUpHostAffinityEligibleUrl = (url: string): boolean => {
+  const parsedTarget = parseTargetUrl(url);
+  if (!parsedTarget) {
+    return false;
+  }
+
+  const pathname = (
+    parsedTarget.encodedProxyTarget && parsedTarget.proxySuffixPath.length > 0
+      ? parsedTarget.proxySuffixPath
+      : parsedTarget.targetServerUrl.pathname
+  ).toLowerCase();
+  if (pathname.startsWith('/hlsr/')) {
+    return true;
+  }
+
+  if (!XTREAM_CATCH_UP_STREAMING_PATHS.has(pathname)) {
+    return false;
+  }
+
+  return parsedTarget.requestUrl.searchParams.has('token');
+};
+
 const alignTimestampToMinute = (timestampSeconds: number): number => {
   const normalized = Math.max(1, Math.floor(timestampSeconds));
   return Math.floor(normalized / 60) * 60;
@@ -189,6 +221,7 @@ const appendPrioritizedCatchUpAttemptGroup = ({
   durationSeconds: number;
   offsetMinutes: number;
 }): void => {
+  const [primaryManifestUrl, ...fallbackManifestUrls] = redirectUrls.manifestUrls;
   const appendUrl = (url: string) => {
     attempts.push({
       url,
@@ -200,11 +233,15 @@ const appendPrioritizedCatchUpAttemptGroup = ({
     });
   };
 
+  if (primaryManifestUrl) {
+    appendUrl(primaryManifestUrl);
+  }
+
   for (const url of queryUrls) {
     appendUrl(url);
   }
 
-  for (const url of redirectUrls.manifestUrls) {
+  for (const url of fallbackManifestUrls) {
     appendUrl(url);
   }
 
@@ -240,6 +277,23 @@ const dedupeAttempts = (attempts: CatchUpTransportAttempt[]): CatchUpTransportAt
   }
 
   return uniqueAttempts;
+};
+
+const shouldSuppressLegacyCatchUpFallback = (queryUrls: readonly string[]): boolean => {
+  const firstQueryUrl = queryUrls[0];
+  if (!firstQueryUrl) {
+    return false;
+  }
+
+  const parsed = parseUrl(firstQueryUrl);
+  if (!parsed) {
+    return false;
+  }
+
+  return (
+    GATEWAY_ONLY_LEGACY_HOSTS.has(parsed.hostname.toLowerCase()) &&
+    parsed.pathname.toLowerCase().startsWith('/timeshift_hls/')
+  );
 };
 
 export const clearCatchUpHostAffinityMemory = (): void => {
@@ -331,6 +385,10 @@ export const rewriteCatchUpUrlTargetOrigin = (
 };
 
 export const applyKnownCatchUpHostAffinity = (url: string): string => {
+  if (!isCatchUpHostAffinityEligibleUrl(url)) {
+    return url;
+  }
+
   const preferredOrigin = resolveCatchUpHostAffinity(url);
   if (!preferredOrigin) {
     return url;
@@ -409,17 +467,22 @@ export const buildCatchUpTransportPlan = ({
   ));
   const [primaryRedirectManifestUrl, ...fallbackManifestUrls] = primaryRedirectUrls.manifestUrls;
   const [primaryRedirectTransportUrl, ...fallbackTransportUrls] = primaryRedirectUrls.transportUrls;
-  const primaryRedirectUrl = primaryRedirectManifestUrl ?? primaryRedirectTransportUrl ?? null;
   const primaryQueryUrls = urlBuilder.getCatchUpUrlVariants(
     streamId,
     minuteAlignedStartTimestamp,
     normalizedDurationSeconds,
   );
   const [primaryQueryUrl, ...fallbackQueryUrls] = primaryQueryUrls;
-  const primaryStartupUrl = primaryQueryUrl ?? primaryRedirectUrl;
-  const primaryStartupStrategy: CatchUpTransportAttemptStrategy = primaryQueryUrl
-    ? 'primary-query'
-    : 'redirect-primary';
+  const primaryStartupUrl = primaryQueryUrl ?? primaryRedirectManifestUrl ?? primaryRedirectTransportUrl ?? null;
+  const primaryStartupStrategy: CatchUpTransportAttemptStrategy = (
+    primaryStartupUrl === primaryRedirectManifestUrl ||
+    (
+      !primaryQueryUrl &&
+      primaryStartupUrl === primaryRedirectTransportUrl
+    )
+  )
+    ? 'redirect-primary'
+    : 'primary-query';
   if (primaryStartupUrl) {
     attempts.push({
       url: primaryStartupUrl,
@@ -446,23 +509,59 @@ export const buildCatchUpTransportPlan = ({
       strategy: 'primary-retry',
     });
   }
-  appendPrioritizedCatchUpAttemptGroup({
-    attempts,
-    redirectUrls: {
-      manifestUrls: primaryQueryUrl
-        ? primaryRedirectUrls.manifestUrls
-        : fallbackManifestUrls,
-      transportUrls: primaryQueryUrl
-        ? primaryRedirectUrls.transportUrls
-        : (primaryRedirectManifestUrl ? primaryRedirectUrls.transportUrls : fallbackTransportUrls),
-    },
-    queryUrls: fallbackQueryUrls,
-    strategy: primaryQueryUrl ? 'redirect-primary' : 'primary-query',
-    streamId,
-    startTimestamp: minuteAlignedStartTimestamp,
-    durationSeconds: normalizedDurationSeconds,
-    offsetMinutes: 0,
-  });
+  if (primaryStartupUrl === primaryRedirectManifestUrl) {
+    appendUrls(
+      primaryQueryUrls,
+      'primary-query',
+      streamId,
+      minuteAlignedStartTimestamp,
+      0,
+    );
+    appendUrls(
+      fallbackManifestUrls,
+      'redirect-primary',
+      streamId,
+      minuteAlignedStartTimestamp,
+      0,
+    );
+    appendUrls(
+      primaryRedirectUrls.transportUrls,
+      'redirect-primary',
+      streamId,
+      minuteAlignedStartTimestamp,
+      0,
+    );
+  } else if (primaryStartupUrl === primaryQueryUrl) {
+    appendUrls(
+      fallbackQueryUrls,
+      'primary-query',
+      streamId,
+      minuteAlignedStartTimestamp,
+      0,
+    );
+    appendUrls(
+      primaryRedirectUrls.manifestUrls,
+      'redirect-primary',
+      streamId,
+      minuteAlignedStartTimestamp,
+      0,
+    );
+    appendUrls(
+      primaryRedirectUrls.transportUrls,
+      'redirect-primary',
+      streamId,
+      minuteAlignedStartTimestamp,
+      0,
+    );
+  } else {
+    appendUrls(
+      fallbackTransportUrls,
+      'redirect-primary',
+      streamId,
+      minuteAlignedStartTimestamp,
+      0,
+    );
+  }
 
   for (const offsetMinutes of minuteStepOffsets) {
     if (offsetMinutes === 0) {
@@ -524,18 +623,20 @@ export const buildCatchUpTransportPlan = ({
     }
   }
 
-  for (const candidateStreamId of streamCandidates) {
-    appendUrls(
-      urlBuilder.getLegacyCatchUpUrlVariants(
+  if (!shouldSuppressLegacyCatchUpFallback(primaryQueryUrls)) {
+    for (const candidateStreamId of streamCandidates) {
+      appendUrls(
+        urlBuilder.getLegacyCatchUpUrlVariants(
+          candidateStreamId,
+          minuteAlignedStartTimestamp,
+          normalizedDurationSeconds,
+        ),
+        'legacy',
         candidateStreamId,
         minuteAlignedStartTimestamp,
-        normalizedDurationSeconds,
-      ),
-      'legacy',
-      candidateStreamId,
-      minuteAlignedStartTimestamp,
-      0,
-    );
+        0,
+      );
+    }
   }
 
   const deduplicatedAttempts = dedupeAttempts(attempts);
