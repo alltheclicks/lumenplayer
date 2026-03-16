@@ -13,6 +13,10 @@ const logger = {
   error: () => {},
 };
 
+const createTempRootDir = (label: string): string => (
+  path.join(process.cwd(), ".tmp-remux-tests", `${label}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
+);
+
 const extractSessionId = (manifestBody: string): string => {
   const match = manifestBody.match(/\/session\/([^/]+)\//);
   if (!match?.[1]) {
@@ -24,6 +28,7 @@ const extractSessionId = (manifestBody: string): string => {
 
 const createCompletedSpawn = () => {
   const calls: Array<{
+    profile: "copy" | "transcode";
     upstreamUrl: string;
     playlistPath: string;
     segmentDir: string;
@@ -33,16 +38,19 @@ const createCompletedSpawn = () => {
   return {
     calls,
     spawnProcess: ({
+      profile,
       upstreamUrl,
       playlistPath,
       segmentDir,
     }: {
+      profile: "copy" | "transcode";
       upstreamUrl: string;
       playlistPath: string;
       segmentDir: string;
     }) => {
       const kill = vi.fn();
       calls.push({
+        profile,
         upstreamUrl,
         playlistPath,
         segmentDir,
@@ -89,6 +97,7 @@ const createCompletedSpawn = () => {
 
 const createLongRunningSpawn = () => {
   const calls: Array<{
+    profile: "copy" | "transcode";
     upstreamUrl: string;
     playlistPath: string;
     segmentDir: string;
@@ -98,16 +107,19 @@ const createLongRunningSpawn = () => {
   return {
     calls,
     spawnProcess: ({
+      profile,
       upstreamUrl,
       playlistPath,
       segmentDir,
     }: {
+      profile: "copy" | "transcode";
       upstreamUrl: string;
       playlistPath: string;
       segmentDir: string;
     }) => {
       const kill = vi.fn();
       calls.push({
+        profile,
         upstreamUrl,
         playlistPath,
         segmentDir,
@@ -190,6 +202,7 @@ describe("catch-up remux controller", () => {
       },
       checkBinary: () => true,
       spawnProcess: createCompletedSpawn().spawnProcess,
+      tempRootDir: createTempRootDir("feature-gate"),
     });
 
     expect(controller.matchesFeatureGate({
@@ -236,6 +249,7 @@ describe("catch-up remux controller", () => {
       },
       checkBinary: () => true,
       spawnProcess: spawn.spawnProcess,
+      tempRootDir: createTempRootDir("reuse"),
     });
 
     const first = await controller.getManifest({
@@ -257,6 +271,211 @@ describe("catch-up remux controller", () => {
     expect(extractSessionId(first.body)).toBe(extractSessionId(second.body));
   });
 
+  it("falls back from copy bootstrap to transcode when strategy is copy-then-transcode", async () => {
+    const calls: Array<{
+      profile: "copy" | "transcode";
+      upstreamUrl: string;
+      playlistPath: string;
+      segmentDir: string;
+    }> = [];
+    const controller = createCatchUpRemuxController({
+      logger,
+      env: {
+        LUMEN_PROXY_REMUX_ENABLED: "1",
+        LUMEN_PROXY_REMUX_STRATEGY: "copy-then-transcode",
+      },
+      checkBinary: () => true,
+      tempRootDir: createTempRootDir("copy-fallback"),
+      spawnProcess: ({
+        profile,
+        upstreamUrl,
+        playlistPath,
+        segmentDir,
+      }: {
+        profile: "copy" | "transcode";
+        upstreamUrl: string;
+        playlistPath: string;
+        segmentDir: string;
+      }) => {
+        const kill = vi.fn();
+        calls.push({
+          profile,
+          upstreamUrl,
+          playlistPath,
+          segmentDir,
+        });
+
+        if (profile === "copy") {
+          return {
+            handle: {
+              kill,
+              pid: 3001,
+            },
+            completion: Promise.resolve({
+              code: 1,
+              signal: null,
+              stderrMessage: "copy bootstrap failed",
+            }),
+          };
+        }
+
+        const completion = (async () => {
+          await mkdir(segmentDir, {
+            recursive: true,
+          });
+          await writeFile(path.join(path.dirname(playlistPath), "init.mp4"), "init-body");
+          await writeFile(path.join(segmentDir, "00000.m4s"), "segment-zero");
+          await writeFile(playlistPath, [
+            "#EXTM3U",
+            "#EXT-X-VERSION:7",
+            "#EXT-X-PLAYLIST-TYPE:EVENT",
+            "#EXT-X-MAP:URI=\"init.mp4\"",
+            "#EXTINF:6.000,",
+            "segment/00000.m4s",
+            "#EXT-X-ENDLIST",
+          ].join("\n"));
+
+          return {
+            code: 0,
+            signal: null,
+            stderrMessage: null,
+          } as const;
+        })();
+
+        return {
+          handle: {
+            kill,
+            pid: 3002,
+          },
+          completion,
+        };
+      },
+    });
+
+    const manifest = await controller.getManifest({
+      upstreamUrl: new URL(
+        "https://login.example/timeshift/user/pass/1800/2026-03-08:08-30/112.ts?__lumenTransport=remux-hls",
+      ),
+      serverKey: "server-1",
+      perServerConcurrency: 1,
+    });
+
+    expect(calls.map((call) => call.profile)).toEqual(["copy", "transcode"]);
+    expect(manifest.body).toContain("/xui-api/__remux__/session/");
+  });
+
+  it("falls back to transcode when copy emits initial assets but fails before bootstrap is stable", async () => {
+    const calls: Array<{
+      profile: "copy" | "transcode";
+      upstreamUrl: string;
+      playlistPath: string;
+      segmentDir: string;
+    }> = [];
+    const controller = createCatchUpRemuxController({
+      logger,
+      env: {
+        LUMEN_PROXY_REMUX_ENABLED: "1",
+        LUMEN_PROXY_REMUX_STRATEGY: "copy-then-transcode",
+      },
+      checkBinary: () => true,
+      tempRootDir: createTempRootDir("copy-race-fallback"),
+      spawnProcess: ({
+        profile,
+        upstreamUrl,
+        playlistPath,
+        segmentDir,
+      }: {
+        profile: "copy" | "transcode";
+        upstreamUrl: string;
+        playlistPath: string;
+        segmentDir: string;
+      }) => {
+        const kill = vi.fn();
+        calls.push({
+          profile,
+          upstreamUrl,
+          playlistPath,
+          segmentDir,
+        });
+
+        if (profile === "copy") {
+          const completion = (async () => {
+            await mkdir(segmentDir, {
+              recursive: true,
+            });
+            await writeFile(path.join(path.dirname(playlistPath), "init.mp4"), "init-body");
+            await writeFile(path.join(segmentDir, "00000.m4s"), "segment-zero");
+            await writeFile(playlistPath, [
+              "#EXTM3U",
+              "#EXT-X-VERSION:7",
+              "#EXT-X-PLAYLIST-TYPE:EVENT",
+              "#EXT-X-MAP:URI=\"init.mp4\"",
+              "#EXTINF:0.000,",
+              "segment/00000.m4s",
+              "#EXT-X-ENDLIST",
+            ].join("\n"));
+
+            return {
+              code: 1,
+              signal: null,
+              stderrMessage: "copy emitted invalid bootstrap output",
+            } as const;
+          })();
+
+          return {
+            handle: {
+              kill,
+              pid: 3003,
+            },
+            completion,
+          };
+        }
+
+        const completion = (async () => {
+          await mkdir(segmentDir, {
+            recursive: true,
+          });
+          await writeFile(path.join(path.dirname(playlistPath), "init.mp4"), "init-body");
+          await writeFile(path.join(segmentDir, "00000.m4s"), "segment-zero");
+          await writeFile(playlistPath, [
+            "#EXTM3U",
+            "#EXT-X-VERSION:7",
+            "#EXT-X-PLAYLIST-TYPE:EVENT",
+            "#EXT-X-MAP:URI=\"init.mp4\"",
+            "#EXTINF:6.000,",
+            "segment/00000.m4s",
+            "#EXT-X-ENDLIST",
+          ].join("\n"));
+
+          return {
+            code: 0,
+            signal: null,
+            stderrMessage: null,
+          } as const;
+        })();
+
+        return {
+          handle: {
+            kill,
+            pid: 3004,
+          },
+          completion,
+        };
+      },
+    });
+
+    const manifest = await controller.getManifest({
+      upstreamUrl: new URL(
+        "https://login.example/timeshift/user/pass/1800/2026-03-08:08-30/112.ts?__lumenTransport=remux-hls",
+      ),
+      serverKey: "server-1",
+      perServerConcurrency: 1,
+    });
+
+    expect(calls.map((call) => call.profile)).toEqual(["copy", "transcode"]);
+    expect(manifest.body).toContain("#EXTINF:6.000");
+  });
+
   it("serves rewritten manifest, init, and segment assets", async () => {
     const spawn = createCompletedSpawn();
     const controller = createCatchUpRemuxController({
@@ -266,6 +485,7 @@ describe("catch-up remux controller", () => {
       },
       checkBinary: () => true,
       spawnProcess: spawn.spawnProcess,
+      tempRootDir: createTempRootDir("assets"),
     });
 
     const manifest = await controller.getManifest({
@@ -301,6 +521,41 @@ describe("catch-up remux controller", () => {
     expect((await controller.getAsset(segmentAsset ?? { sessionId: "", kind: "segment", segmentIndex: 0 })).toString()).toBe("segment-zero");
   });
 
+  it("rejects new remux sessions when active capacity is exhausted and queue wait timeout elapses", async () => {
+    const spawn = createLongRunningSpawn();
+    const controller = createCatchUpRemuxController({
+      logger,
+      env: {
+        LUMEN_PROXY_REMUX_ENABLED: "1",
+        LUMEN_PROXY_REMUX_GLOBAL_CONCURRENCY: "1",
+        LUMEN_PROXY_REMUX_QUEUE_WAIT_TIMEOUT_MS: "10",
+      },
+      checkBinary: () => true,
+      spawnProcess: spawn.spawnProcess,
+      tempRootDir: createTempRootDir("capacity"),
+    });
+
+    const first = await controller.prepareSession({
+      upstreamUrl: new URL(
+        "https://login.example/timeshift/user/pass/1800/2026-03-08:08-30/112.ts?__lumenTransport=remux-hls",
+      ),
+      serverKey: "server-1",
+      perServerConcurrency: 2,
+    });
+
+    await expect(controller.prepareSession({
+      upstreamUrl: new URL(
+        "https://login.example/timeshift/user/pass/1800/2026-03-08:09-00/113.ts?__lumenTransport=remux-hls",
+      ),
+      serverKey: "server-2",
+      perServerConcurrency: 2,
+    })).rejects.toThrow("queue timed out");
+
+    expect(spawn.calls).toHaveLength(1);
+    first.processHandle?.kill("SIGKILL");
+    await controller.close();
+  });
+
   it("kills stale sessions and removes temp dirs on sweep", async () => {
     let nowMs = 1_000;
     const spawn = createLongRunningSpawn();
@@ -313,6 +568,7 @@ describe("catch-up remux controller", () => {
       now: () => nowMs,
       checkBinary: () => true,
       spawnProcess: spawn.spawnProcess,
+      tempRootDir: createTempRootDir("sweep"),
     });
 
     const session = await controller.prepareSession({
