@@ -1,11 +1,24 @@
+import type { CatchUpGatewayPlaybackMetadata } from './catchupGateway';
+
 const XTREAM_PROXY_BASE_PATH = '/xui-api/';
 const DEFAULT_BASE_ORIGIN = 'http://localhost';
-const MAX_CATCH_UP_ATTEMPTS = 48;
+const MAX_CATCH_UP_ATTEMPTS = 16;
+const XTREAM_CATCH_UP_STREAMING_PATHS = new Set([
+  '/streaming/timeshift.php',
+  '/streaming/timeshift_hls.php',
+]);
+const GATEWAY_ONLY_LEGACY_HOSTS = new Set([
+  'smart.mediaking.fi',
+  'serv2.mediaking.fi',
+  'edge6.castcdn.net',
+  '79.137.99.121',
+]);
 
 export const CATCH_UP_MINUTE_STEP_OFFSETS = [-1, -2, -3, 1, -5, 2, -10, -15, 5] as const;
 export const CATCH_UP_STREAM_FALLBACK_OFFSETS = [0, -1, -2, 1, -5] as const;
 
 export type CatchUpTransportAttemptStrategy =
+  | 'gateway-resolved'
   | 'redirect-primary'
   | 'primary-query'
   | 'primary-retry'
@@ -55,6 +68,7 @@ interface BuildCatchUpTransportPlanInput {
   primaryRetries?: number;
   minuteStepOffsets?: readonly number[];
   streamFallbackOffsets?: readonly number[];
+  gatewaySelection?: CatchUpGatewayPlaybackMetadata;
 }
 
 interface ParsedTargetUrl {
@@ -125,9 +139,115 @@ const parseTargetUrl = (value: string): ParsedTargetUrl | null => {
   };
 };
 
+const isCatchUpHostAffinityEligibleUrl = (url: string): boolean => {
+  const parsedTarget = parseTargetUrl(url);
+  if (!parsedTarget) {
+    return false;
+  }
+
+  const pathname = (
+    parsedTarget.encodedProxyTarget && parsedTarget.proxySuffixPath.length > 0
+      ? parsedTarget.proxySuffixPath
+      : parsedTarget.targetServerUrl.pathname
+  ).toLowerCase();
+  if (pathname.startsWith('/hlsr/')) {
+    return true;
+  }
+
+  if (!XTREAM_CATCH_UP_STREAMING_PATHS.has(pathname)) {
+    return false;
+  }
+
+  return parsedTarget.requestUrl.searchParams.has('token');
+};
+
 const alignTimestampToMinute = (timestampSeconds: number): number => {
   const normalized = Math.max(1, Math.floor(timestampSeconds));
   return Math.floor(normalized / 60) * 60;
+};
+
+const getCatchUpStartupUrlPriority = (url: string): number => {
+  const parsed = parseUrl(url);
+  if (!parsed) {
+    return 3;
+  }
+
+  const pathname = parsed.pathname.toLowerCase();
+  const extension = parsed.searchParams.get('extension')?.toLowerCase() ?? '';
+  if (pathname.endsWith('.m3u8') || extension === 'm3u8') {
+    return 0;
+  }
+
+  if (pathname.endsWith('.ts') || extension === 'ts') {
+    return 1;
+  }
+
+  return 2;
+};
+
+const splitCatchUpStartupUrls = (urls: string[]): {
+  manifestUrls: string[];
+  transportUrls: string[];
+} => {
+  const orderedUrls = [...urls].sort((left, right) => (
+    getCatchUpStartupUrlPriority(left) - getCatchUpStartupUrlPriority(right)
+  ));
+
+  return {
+    manifestUrls: orderedUrls.filter((url) => getCatchUpStartupUrlPriority(url) === 0),
+    transportUrls: orderedUrls.filter((url) => getCatchUpStartupUrlPriority(url) !== 0),
+  };
+};
+
+const appendPrioritizedCatchUpAttemptGroup = ({
+  attempts,
+  redirectUrls,
+  queryUrls,
+  strategy,
+  streamId,
+  startTimestamp,
+  durationSeconds,
+  offsetMinutes,
+}: {
+  attempts: CatchUpTransportAttempt[];
+  redirectUrls: {
+    manifestUrls: string[];
+    transportUrls: string[];
+  };
+  queryUrls: string[];
+  strategy: CatchUpTransportAttemptStrategy;
+  streamId: number;
+  startTimestamp: number;
+  durationSeconds: number;
+  offsetMinutes: number;
+}): void => {
+  const [primaryManifestUrl, ...fallbackManifestUrls] = redirectUrls.manifestUrls;
+  const appendUrl = (url: string) => {
+    attempts.push({
+      url,
+      streamId,
+      startTimestamp,
+      durationSeconds,
+      offsetMinutes,
+      strategy,
+    });
+  };
+
+  if (primaryManifestUrl) {
+    appendUrl(primaryManifestUrl);
+  }
+
+  for (const url of queryUrls) {
+    appendUrl(url);
+  }
+
+  for (const url of fallbackManifestUrls) {
+    appendUrl(url);
+  }
+
+  for (const url of redirectUrls.transportUrls) {
+    appendUrl(url);
+  }
 };
 
 const buildRetryUrl = (url: string, retryAttempt: number): string => {
@@ -136,7 +256,6 @@ const buildRetryUrl = (url: string, retryAttempt: number): string => {
     return url;
   }
   parsed.searchParams.set('_retry', String(retryAttempt));
-  parsed.searchParams.set('_ts', String(Date.now() + retryAttempt));
   return parsed.toString();
 };
 
@@ -155,13 +274,26 @@ const dedupeAttempts = (attempts: CatchUpTransportAttempt[]): CatchUpTransportAt
       ...attempt,
       url: rewrittenUrl,
     });
-
-    if (uniqueAttempts.length >= MAX_CATCH_UP_ATTEMPTS) {
-      break;
-    }
   }
 
   return uniqueAttempts;
+};
+
+const shouldSuppressLegacyCatchUpFallback = (queryUrls: readonly string[]): boolean => {
+  const firstQueryUrl = queryUrls[0];
+  if (!firstQueryUrl) {
+    return false;
+  }
+
+  const parsed = parseUrl(firstQueryUrl);
+  if (!parsed) {
+    return false;
+  }
+
+  return (
+    GATEWAY_ONLY_LEGACY_HOSTS.has(parsed.hostname.toLowerCase()) &&
+    parsed.pathname.toLowerCase().startsWith('/timeshift_hls/')
+  );
 };
 
 export const clearCatchUpHostAffinityMemory = (): void => {
@@ -253,6 +385,10 @@ export const rewriteCatchUpUrlTargetOrigin = (
 };
 
 export const applyKnownCatchUpHostAffinity = (url: string): string => {
+  if (!isCatchUpHostAffinityEligibleUrl(url)) {
+    return url;
+  }
+
   const preferredOrigin = resolveCatchUpHostAffinity(url);
   if (!preferredOrigin) {
     return url;
@@ -294,6 +430,7 @@ export const buildCatchUpTransportPlan = ({
   primaryRetries = 3,
   minuteStepOffsets = CATCH_UP_MINUTE_STEP_OFFSETS,
   streamFallbackOffsets = CATCH_UP_STREAM_FALLBACK_OFFSETS,
+  gatewaySelection,
 }: BuildCatchUpTransportPlanInput): CatchUpTransportPlan => {
   const normalizedDurationSeconds = Math.max(1, Math.floor(durationSeconds));
   const minuteAlignedStartTimestamp = alignTimestampToMinute(startTimestamp);
@@ -323,25 +460,41 @@ export const buildCatchUpTransportPlan = ({
     }
   };
 
-  const primaryRedirectUrls = urlBuilder.getCatchUpRedirectUrlVariants(
+  const primaryRedirectUrls = splitCatchUpStartupUrls(urlBuilder.getCatchUpRedirectUrlVariants(
     streamId,
     minuteAlignedStartTimestamp,
     normalizedDurationSeconds,
-  );
-  appendUrls(
-    primaryRedirectUrls,
-    'redirect-primary',
-    streamId,
-    minuteAlignedStartTimestamp,
-    0,
-  );
-
+  ));
+  const [primaryRedirectManifestUrl, ...fallbackManifestUrls] = primaryRedirectUrls.manifestUrls;
+  const [primaryRedirectTransportUrl, ...fallbackTransportUrls] = primaryRedirectUrls.transportUrls;
   const primaryQueryUrls = urlBuilder.getCatchUpUrlVariants(
     streamId,
     minuteAlignedStartTimestamp,
     normalizedDurationSeconds,
   );
-  const primaryRetryBaseUrl = primaryRedirectUrls[0] ?? primaryQueryUrls[0] ?? '';
+  const [primaryQueryUrl, ...fallbackQueryUrls] = primaryQueryUrls;
+  const primaryStartupUrl = primaryQueryUrl ?? primaryRedirectManifestUrl ?? primaryRedirectTransportUrl ?? null;
+  const primaryStartupStrategy: CatchUpTransportAttemptStrategy = (
+    primaryStartupUrl === primaryRedirectManifestUrl ||
+    (
+      !primaryQueryUrl &&
+      primaryStartupUrl === primaryRedirectTransportUrl
+    )
+  )
+    ? 'redirect-primary'
+    : 'primary-query';
+  if (primaryStartupUrl) {
+    attempts.push({
+      url: primaryStartupUrl,
+      streamId,
+      startTimestamp: minuteAlignedStartTimestamp,
+      durationSeconds: normalizedDurationSeconds,
+      offsetMinutes: 0,
+      strategy: primaryStartupStrategy,
+    });
+  }
+
+  const primaryRetryBaseUrl = primaryStartupUrl ?? '';
   for (let retryAttempt = 1; retryAttempt <= primaryRetries; retryAttempt += 1) {
     if (!primaryRetryBaseUrl) {
       break;
@@ -356,13 +509,59 @@ export const buildCatchUpTransportPlan = ({
       strategy: 'primary-retry',
     });
   }
-  appendUrls(
-    primaryQueryUrls,
-    'primary-query',
-    streamId,
-    minuteAlignedStartTimestamp,
-    0,
-  );
+  if (primaryStartupUrl === primaryRedirectManifestUrl) {
+    appendUrls(
+      primaryQueryUrls,
+      'primary-query',
+      streamId,
+      minuteAlignedStartTimestamp,
+      0,
+    );
+    appendUrls(
+      fallbackManifestUrls,
+      'redirect-primary',
+      streamId,
+      minuteAlignedStartTimestamp,
+      0,
+    );
+    appendUrls(
+      primaryRedirectUrls.transportUrls,
+      'redirect-primary',
+      streamId,
+      minuteAlignedStartTimestamp,
+      0,
+    );
+  } else if (primaryStartupUrl === primaryQueryUrl) {
+    appendUrls(
+      fallbackQueryUrls,
+      'primary-query',
+      streamId,
+      minuteAlignedStartTimestamp,
+      0,
+    );
+    appendUrls(
+      primaryRedirectUrls.manifestUrls,
+      'redirect-primary',
+      streamId,
+      minuteAlignedStartTimestamp,
+      0,
+    );
+    appendUrls(
+      primaryRedirectUrls.transportUrls,
+      'redirect-primary',
+      streamId,
+      minuteAlignedStartTimestamp,
+      0,
+    );
+  } else {
+    appendUrls(
+      fallbackTransportUrls,
+      'redirect-primary',
+      streamId,
+      minuteAlignedStartTimestamp,
+      0,
+    );
+  }
 
   for (const offsetMinutes of minuteStepOffsets) {
     if (offsetMinutes === 0) {
@@ -374,28 +573,25 @@ export const buildCatchUpTransportPlan = ({
       continue;
     }
 
-    appendUrls(
-      urlBuilder.getCatchUpRedirectUrlVariants(
+    const offsetRedirectUrls = splitCatchUpStartupUrls(urlBuilder.getCatchUpRedirectUrlVariants(
+      streamId,
+      candidateStartTimestamp,
+      normalizedDurationSeconds,
+    ));
+    appendPrioritizedCatchUpAttemptGroup({
+      attempts,
+      redirectUrls: offsetRedirectUrls,
+      queryUrls: urlBuilder.getCatchUpUrlVariants(
         streamId,
         candidateStartTimestamp,
         normalizedDurationSeconds,
       ),
-      'start-offset',
+      strategy: 'start-offset',
       streamId,
-      candidateStartTimestamp,
+      startTimestamp: candidateStartTimestamp,
+      durationSeconds: normalizedDurationSeconds,
       offsetMinutes,
-    );
-    appendUrls(
-      urlBuilder.getCatchUpUrlVariants(
-        streamId,
-        candidateStartTimestamp,
-        normalizedDurationSeconds,
-      ),
-      'start-offset',
-      streamId,
-      candidateStartTimestamp,
-      offsetMinutes,
-    );
+    });
   }
 
   for (const candidateStreamId of uniqueFallbackStreamIds) {
@@ -405,54 +601,86 @@ export const buildCatchUpTransportPlan = ({
         continue;
       }
 
-      appendUrls(
-        urlBuilder.getCatchUpRedirectUrlVariants(
+      const streamFallbackRedirectUrls = splitCatchUpStartupUrls(urlBuilder.getCatchUpRedirectUrlVariants(
+        candidateStreamId,
+        candidateStartTimestamp,
+        normalizedDurationSeconds,
+      ));
+      appendPrioritizedCatchUpAttemptGroup({
+        attempts,
+        redirectUrls: streamFallbackRedirectUrls,
+        queryUrls: urlBuilder.getCatchUpUrlVariants(
           candidateStreamId,
           candidateStartTimestamp,
           normalizedDurationSeconds,
         ),
-        'stream-fallback',
-        candidateStreamId,
-        candidateStartTimestamp,
+        strategy: 'stream-fallback',
+        streamId: candidateStreamId,
+        startTimestamp: candidateStartTimestamp,
+        durationSeconds: normalizedDurationSeconds,
         offsetMinutes,
-      );
+      });
+    }
+  }
+
+  if (!shouldSuppressLegacyCatchUpFallback(primaryQueryUrls)) {
+    for (const candidateStreamId of streamCandidates) {
       appendUrls(
-        urlBuilder.getCatchUpUrlVariants(
+        urlBuilder.getLegacyCatchUpUrlVariants(
           candidateStreamId,
-          candidateStartTimestamp,
+          minuteAlignedStartTimestamp,
           normalizedDurationSeconds,
         ),
-        'stream-fallback',
+        'legacy',
         candidateStreamId,
-        candidateStartTimestamp,
-        offsetMinutes,
+        minuteAlignedStartTimestamp,
+        0,
       );
     }
   }
 
-  for (const candidateStreamId of streamCandidates) {
-    appendUrls(
-      urlBuilder.getLegacyCatchUpUrlVariants(
-        candidateStreamId,
-        minuteAlignedStartTimestamp,
-        normalizedDurationSeconds,
-      ),
-      'legacy',
-      candidateStreamId,
-      minuteAlignedStartTimestamp,
-      0,
-    );
-  }
-
   const deduplicatedAttempts = dedupeAttempts(attempts);
-  const initialAttempt = deduplicatedAttempts[0];
+  const firstLegacyIndex = deduplicatedAttempts.findIndex((attempt) => attempt.strategy === 'legacy');
+  const initialCappedAttempts = (
+    deduplicatedAttempts.length <= MAX_CATCH_UP_ATTEMPTS ||
+    firstLegacyIndex < 0 ||
+    firstLegacyIndex < MAX_CATCH_UP_ATTEMPTS
+  )
+    ? deduplicatedAttempts.slice(0, MAX_CATCH_UP_ATTEMPTS)
+    : [
+      ...deduplicatedAttempts.slice(0, MAX_CATCH_UP_ATTEMPTS - 1),
+      deduplicatedAttempts[firstLegacyIndex],
+    ];
+  const cappedAttempts = (
+    firstLegacyIndex >= 0 &&
+    initialCappedAttempts.every((attempt) => attempt.strategy !== 'legacy')
+  )
+    ? [
+      ...initialCappedAttempts.slice(0, Math.max(0, MAX_CATCH_UP_ATTEMPTS - 1)),
+      deduplicatedAttempts[firstLegacyIndex],
+    ]
+    : initialCappedAttempts;
+  const gatewayAttempts = gatewaySelection?.playbackUrl
+    ? dedupeAttempts([
+      {
+        url: gatewaySelection.playbackUrl,
+        streamId,
+        startTimestamp: minuteAlignedStartTimestamp,
+        durationSeconds: normalizedDurationSeconds,
+        offsetMinutes: 0,
+        strategy: 'gateway-resolved',
+      },
+      ...cappedAttempts,
+    ]).slice(0, MAX_CATCH_UP_ATTEMPTS)
+    : cappedAttempts;
+  const initialAttempt = gatewayAttempts[0];
   if (!initialAttempt) {
     throw new Error('Unable to build catch-up transport plan');
   }
 
   return {
     initialAttempt,
-    fallbackAttempts: deduplicatedAttempts.slice(1),
-    allAttempts: deduplicatedAttempts,
+    fallbackAttempts: gatewayAttempts.slice(1),
+    allAttempts: gatewayAttempts,
   };
 };

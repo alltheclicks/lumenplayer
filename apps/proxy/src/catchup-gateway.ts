@@ -1,6 +1,11 @@
 import { createHash } from "node:crypto";
 import { buildCatchUpAssetKey } from "./asset-key.js";
 import { AssetStore } from "./asset-store.js";
+import {
+  getCatchUpRemuxFallbackReason,
+  selectCatchUpRemuxCandidate,
+  type CatchUpRemuxController,
+} from "./catchup-remux.js";
 import type {
   CatchUpGatewayChannelCapabilityRecord,
   CatchUpGatewayResolveRequest,
@@ -12,10 +17,45 @@ import { buildProxyUrlForAbsoluteUrl, isProxyTargetUrl, parseProxyTargetUrl } fr
 import { createDefaultServerPolicy, type GatewayLogger, ServerRegistry } from "./server-registry.js";
 
 const DEFAULT_REQUEST_ORIGIN = "http://localhost";
+const LOCAL_PROXY_PROGRAM_ID_PARAM = "__lumenProgramId";
+const LOCAL_PROXY_STREAM_ID_PARAM = "__lumenStreamId";
+const LOCAL_PROXY_START_PARAM = "__lumenStart";
+const LOCAL_PROXY_DURATION_PARAM = "__lumenDuration";
+const LOCAL_PROXY_TRANSPORT_PARAM = "__lumenTransport";
+const LOCAL_PROXY_FALLBACK_REASON_PARAM = "__lumenFallbackReason";
+const PROVIDER_DIRECT_DISABLED_HOSTS = new Set([
+  "smart.mediaking.fi",
+  "serv2.mediaking.fi",
+  "edge6.castcdn.net",
+  "79.137.99.121",
+]);
+
+const dedupeUrls = (urls: readonly string[]): string[] => {
+  const deduplicated: string[] = [];
+  const seen = new Set<string>();
+
+  for (const url of urls) {
+    const trimmed = url.trim();
+    if (!trimmed || seen.has(trimmed)) {
+      continue;
+    }
+
+    seen.add(trimmed);
+    deduplicated.push(trimmed);
+  }
+
+  return deduplicated;
+};
+
+const flattenSourceCandidates = (request: CatchUpGatewayResolveRequest): string[] => dedupeUrls([
+  ...request.sourceCandidates.queryUrls,
+  ...request.sourceCandidates.redirectUrls,
+  ...request.sourceCandidates.legacyUrls,
+]);
 
 const firstCandidateUrl = (request: CatchUpGatewayResolveRequest): string | null => (
-  request.sourceCandidates.redirectUrls[0] ??
   request.sourceCandidates.queryUrls[0] ??
+  request.sourceCandidates.redirectUrls[0] ??
   request.sourceCandidates.legacyUrls[0] ??
   null
 );
@@ -33,6 +73,15 @@ const deriveServerUrl = (request: CatchUpGatewayResolveRequest): string => {
 
   const parsedProxy = parseProxyTargetUrl(candidateUrl);
   return parsedProxy?.upstreamUrl.origin ?? "unknown-server";
+};
+
+const isProviderDirectDisabledServer = (serverUrl: string): boolean => {
+  try {
+    const parsed = new URL(serverUrl.includes("://") ? serverUrl : `http://${serverUrl}`);
+    return PROVIDER_DIRECT_DISABLED_HOSTS.has(parsed.hostname.toLowerCase());
+  } catch {
+    return PROVIDER_DIRECT_DISABLED_HOSTS.has(serverUrl.trim().toLowerCase());
+  }
 };
 
 const normalizeChannelCapability = (
@@ -69,51 +118,61 @@ const isModeAllowed = (
   allowedModes: CatchUpGatewayTransportMode[],
 ): boolean => allowedModes.includes(mode);
 
-const selectTransportMode = ({
-  request,
-  channelCapability,
-  allowedModes,
-}: {
-  request: CatchUpGatewayResolveRequest;
-  channelCapability: CatchUpGatewayChannelCapabilityRecord;
-  allowedModes: CatchUpGatewayTransportMode[];
-}): CatchUpGatewayTransportMode => {
-  const debugMode = request.debugOverride?.enabled === true
-    ? request.debugOverride.transportMode
-    : undefined;
-  if (debugMode && isModeAllowed(debugMode, allowedModes)) {
-    return debugMode;
+const absolutizeUrl = (value: string, requestOrigin: string): string => {
+  try {
+    return new URL(value, requestOrigin).toString();
+  } catch {
+    return value;
   }
-
-  const preferredMode = channelCapability.preferredModeHint;
-  if (preferredMode && isModeAllowed(preferredMode, allowedModes)) {
-    return preferredMode;
-  }
-
-  if (isModeAllowed("provider-direct", allowedModes)) {
-    return "provider-direct";
-  }
-
-  if (isModeAllowed("proxy-normalized", allowedModes)) {
-    return "proxy-normalized";
-  }
-
-  return "proxy-remuxed";
 };
 
-const appendTransportHint = (
-  playbackUrl: string,
-  transportMode: CatchUpGatewayTransportMode,
-): string => {
-  if (transportMode === "provider-direct") {
+const buildSourceSignature = (candidateUrls: readonly string[]): string => {
+  const normalized = candidateUrls.map((url) => {
+    const parsedProxy = parseProxyTargetUrl(url);
+    return parsedProxy?.upstreamUrl.toString() ?? url;
+  });
+
+  return createHash("sha1")
+    .update(JSON.stringify(normalized))
+    .digest("hex")
+    .slice(0, 16);
+};
+
+const decorateProxyPlaybackUrl = ({
+  playbackUrl,
+  transportMode,
+  programId,
+  streamId,
+  startTimestamp,
+  durationSeconds,
+  fallbackReason,
+}: {
+  playbackUrl: string;
+  transportMode: CatchUpGatewayTransportMode;
+  programId: string;
+  streamId: number;
+  startTimestamp: number;
+  durationSeconds: number;
+  fallbackReason: string | null;
+}): string => {
+  if (!isProxyTargetUrl(playbackUrl)) {
     return playbackUrl;
   }
 
-  const parsed = new URL(playbackUrl, DEFAULT_REQUEST_ORIGIN);
+  const parsed = new URL(playbackUrl);
+  parsed.searchParams.set(LOCAL_PROXY_PROGRAM_ID_PARAM, programId);
+  parsed.searchParams.set(LOCAL_PROXY_STREAM_ID_PARAM, String(streamId));
+  parsed.searchParams.set(LOCAL_PROXY_START_PARAM, String(startTimestamp));
+  parsed.searchParams.set(LOCAL_PROXY_DURATION_PARAM, String(durationSeconds));
   parsed.searchParams.set(
-    "__lumenTransport",
+    LOCAL_PROXY_TRANSPORT_PARAM,
     transportMode === "proxy-remuxed" ? "remux-hls" : "normalized",
   );
+  if (fallbackReason) {
+    parsed.searchParams.set(LOCAL_PROXY_FALLBACK_REASON_PARAM, fallbackReason);
+  } else {
+    parsed.searchParams.delete(LOCAL_PROXY_FALLBACK_REASON_PARAM);
+  }
   return parsed.toString();
 };
 
@@ -121,31 +180,53 @@ const buildPlaybackUrl = ({
   selectedCandidateUrl,
   transportMode,
   requestOrigin,
+  programId,
+  streamId,
+  startTimestamp,
+  durationSeconds,
+  fallbackReason,
 }: {
   selectedCandidateUrl: string;
   transportMode: CatchUpGatewayTransportMode;
   requestOrigin: string;
+  programId: string;
+  streamId: number;
+  startTimestamp: number;
+  durationSeconds: number;
+  fallbackReason: string | null;
 }): string => {
   if (transportMode === "provider-direct") {
-    return selectedCandidateUrl;
+    const directCandidate = parseProxyTargetUrl(selectedCandidateUrl)?.upstreamUrl.toString() ?? selectedCandidateUrl;
+    return absolutizeUrl(directCandidate, requestOrigin);
   }
 
-  const proxyUrl = isProxyTargetUrl(selectedCandidateUrl)
-    ? selectedCandidateUrl
+  const proxiedUrl = isProxyTargetUrl(selectedCandidateUrl)
+    ? absolutizeUrl(selectedCandidateUrl, requestOrigin)
     : buildProxyUrlForAbsoluteUrl(selectedCandidateUrl, requestOrigin);
 
-  return appendTransportHint(proxyUrl, transportMode);
+  return decorateProxyPlaybackUrl({
+    playbackUrl: proxiedUrl,
+    transportMode,
+    programId,
+    streamId,
+    startTimestamp,
+    durationSeconds,
+    fallbackReason,
+  });
 };
 
-const buildSourceSignature = (candidateUrl: string | null): string => {
-  if (!candidateUrl) {
-    return "no-source";
+const resolveRemuxUpstreamUrl = (playbackUrl: string): URL => {
+  const proxied = parseProxyTargetUrl(playbackUrl);
+  if (proxied?.upstreamUrl) {
+    return proxied.upstreamUrl;
   }
 
-  const parsed = parseProxyTargetUrl(candidateUrl);
-  const fingerprint = parsed?.upstreamUrl.toString() ?? candidateUrl;
-  return createHash("sha1").update(fingerprint).digest("hex").slice(0, 12);
+  return new URL(playbackUrl);
 };
+
+const resolveRemuxFallbackReason = (
+  remuxFailureReason: string | null,
+): string => remuxFailureReason ?? "gateway-normalized";
 
 export interface CatchUpGatewayResolveOptions {
   request: CatchUpGatewayResolveRequest;
@@ -159,6 +240,7 @@ export interface CatchUpGateway {
 
 export const createCatchUpGateway = (options: {
   logger: GatewayLogger;
+  remuxController: CatchUpRemuxController;
   env?: NodeJS.ProcessEnv;
 }): CatchUpGateway => {
   const defaultPolicy = createDefaultServerPolicy(options.env);
@@ -206,8 +288,9 @@ export const createCatchUpGateway = (options: {
         };
       }
 
-      const selectedCandidateUrl = firstCandidateUrl(request);
-      if (!selectedCandidateUrl) {
+      const orderedCandidates = flattenSourceCandidates(request);
+      const selectedNonRemuxCandidateUrl = firstCandidateUrl(request);
+      if (!selectedNonRemuxCandidateUrl || orderedCandidates.length === 0) {
         return {
           serverId: server.id,
           channelId: request.channelId,
@@ -221,12 +304,7 @@ export const createCatchUpGateway = (options: {
         };
       }
 
-      const transportMode = selectTransportMode({
-        request,
-        channelCapability,
-        allowedModes: policy.allowedModes,
-      });
-      const sourceSignature = buildSourceSignature(selectedCandidateUrl);
+      const sourceSignature = buildSourceSignature(orderedCandidates);
       const assetKey = buildCatchUpAssetKey({
         serverId: server.id,
         channelId: request.channelId,
@@ -277,16 +355,134 @@ export const createCatchUpGateway = (options: {
         assetKey,
       });
 
-      const playbackUrl = buildPlaybackUrl({
-        selectedCandidateUrl,
-        transportMode,
-        requestOrigin: resolveRequestOrigin(requestBaseUrl),
-      });
-      const fallbackReason = transportMode === "provider-direct"
-        ? null
-        : transportMode === "proxy-remuxed"
-          ? "gateway-remux"
-          : "gateway-normalized";
+      const requestOrigin = resolveRequestOrigin(requestBaseUrl);
+      const debugMode = request.debugOverride?.enabled === true
+        ? request.debugOverride.transportMode
+        : undefined;
+      const providerDirectAllowedForServer = !isProviderDirectDisabledServer(serverUrl);
+      const remuxCandidateUrl = selectCatchUpRemuxCandidate(request.sourceCandidates);
+      const canUseRemux = (
+        remuxCandidateUrl !== null &&
+        isModeAllowed("proxy-remuxed", policy.allowedModes) &&
+        (
+          debugMode === "proxy-remuxed" ||
+          (
+            debugMode === undefined &&
+            options.remuxController.matchesFeatureGate({
+              request,
+              candidateUrl: remuxCandidateUrl,
+            })
+          )
+        )
+      );
+      let resolvedTransportMode: CatchUpGatewayTransportMode | null = null;
+      let playbackUrl = "";
+      let fallbackReason: string | null = null;
+
+      if (canUseRemux && remuxCandidateUrl) {
+        const remuxPlaybackUrl = buildPlaybackUrl({
+          selectedCandidateUrl: remuxCandidateUrl,
+          transportMode: "proxy-remuxed",
+          requestOrigin,
+          programId: request.programId,
+          streamId: request.streamId,
+          startTimestamp: request.startTimestamp,
+          durationSeconds: request.durationSeconds,
+          fallbackReason: "gateway-remux",
+        });
+
+        try {
+          await options.remuxController.prepareSession({
+            upstreamUrl: resolveRemuxUpstreamUrl(remuxPlaybackUrl),
+            serverKey: server.id,
+            perServerConcurrency: policy.perServerConcurrency,
+          });
+          resolvedTransportMode = "proxy-remuxed";
+          playbackUrl = remuxPlaybackUrl;
+          fallbackReason = "gateway-remux";
+        } catch (error) {
+          fallbackReason = getCatchUpRemuxFallbackReason(error);
+          options.logger.warn("gateway.remux_downgraded", {
+            serverId: server.id,
+            channelId: request.channelId,
+            programId: request.programId,
+            assetKey,
+            selectedCandidateUrl: remuxCandidateUrl,
+            fallbackReason,
+            message: error instanceof Error ? error.message : "Catch-up remux bootstrap failed.",
+          });
+        }
+      }
+
+      if (
+        !resolvedTransportMode &&
+        providerDirectAllowedForServer &&
+        debugMode === "provider-direct" &&
+        isModeAllowed("provider-direct", policy.allowedModes)
+      ) {
+        resolvedTransportMode = "provider-direct";
+        playbackUrl = buildPlaybackUrl({
+          selectedCandidateUrl: selectedNonRemuxCandidateUrl,
+          transportMode: "provider-direct",
+          requestOrigin,
+          programId: request.programId,
+          streamId: request.streamId,
+          startTimestamp: request.startTimestamp,
+          durationSeconds: request.durationSeconds,
+          fallbackReason,
+        });
+      }
+
+      if (
+        !resolvedTransportMode &&
+        isModeAllowed("proxy-normalized", policy.allowedModes)
+      ) {
+        resolvedTransportMode = "proxy-normalized";
+        const normalizedFallbackReason = resolveRemuxFallbackReason(fallbackReason);
+        playbackUrl = buildPlaybackUrl({
+          selectedCandidateUrl: selectedNonRemuxCandidateUrl,
+          transportMode: "proxy-normalized",
+          requestOrigin,
+          programId: request.programId,
+          streamId: request.streamId,
+          startTimestamp: request.startTimestamp,
+          durationSeconds: request.durationSeconds,
+          fallbackReason: normalizedFallbackReason,
+        });
+        fallbackReason = normalizedFallbackReason;
+      }
+
+      if (
+        !resolvedTransportMode &&
+        providerDirectAllowedForServer &&
+        isModeAllowed("provider-direct", policy.allowedModes)
+      ) {
+        resolvedTransportMode = "provider-direct";
+        playbackUrl = buildPlaybackUrl({
+          selectedCandidateUrl: selectedNonRemuxCandidateUrl,
+          transportMode: "provider-direct",
+          requestOrigin,
+          programId: request.programId,
+          streamId: request.streamId,
+          startTimestamp: request.startTimestamp,
+          durationSeconds: request.durationSeconds,
+          fallbackReason,
+        });
+      }
+
+      if (!resolvedTransportMode) {
+        return {
+          serverId: server.id,
+          channelId: request.channelId,
+          programId: request.programId,
+          assetKey,
+          transportMode: "proxy-normalized",
+          playbackUrl: "",
+          assetState: "failed",
+          fallbackReason: fallbackReason ?? "gateway-unavailable",
+          hotStart: false,
+        };
+      }
 
       assetStore.upsert({
         assetKey,
@@ -294,7 +490,7 @@ export const createCatchUpGateway = (options: {
         channelId: request.channelId,
         programId: request.programId,
         sourceSignature,
-        transportMode,
+        transportMode: resolvedTransportMode,
         playbackUrl,
         assetState: "ready",
         fallbackReason,
@@ -309,7 +505,7 @@ export const createCatchUpGateway = (options: {
         channelId: request.channelId,
         programId: request.programId,
         assetKey,
-        transportMode,
+        transportMode: resolvedTransportMode,
         assetState: "ready",
         hotStart: false,
         fallbackReason,
@@ -320,7 +516,7 @@ export const createCatchUpGateway = (options: {
         channelId: request.channelId,
         programId: request.programId,
         assetKey,
-        transportMode,
+        transportMode: resolvedTransportMode,
         playbackUrl,
         assetState: "ready",
         fallbackReason,
@@ -330,6 +526,7 @@ export const createCatchUpGateway = (options: {
     sweep: () => {
       assetStore.sweep();
       hotPathCache.sweep();
+      options.remuxController.sweep();
     },
   };
 };

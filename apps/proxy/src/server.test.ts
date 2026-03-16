@@ -1,8 +1,73 @@
 import { createServer } from "node:http";
+import path from "node:path";
+import { mkdir, writeFile } from "node:fs/promises";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { createCatchUpRemuxController } from "./catchup-remux.js";
 import { createProxyServer, parseAllowedHosts } from "./server.js";
 
 const encodeTarget = (value: string): string => encodeURIComponent(value);
+
+const logger = {
+  info: () => {},
+  warn: () => {},
+  error: () => {},
+};
+
+const createCompletedSpawn = () => ({
+  spawnProcess: ({
+    playlistPath,
+    segmentDir,
+  }: {
+    ffmpegBin: string;
+    upstreamUrl: string;
+    playlistPath: string;
+    segmentDir: string;
+  }) => {
+    const kill = vi.fn();
+    const completion = (async () => {
+      await mkdir(segmentDir, {
+        recursive: true,
+      });
+      await writeFile(path.join(path.dirname(playlistPath), "init.mp4"), "init-body");
+      await writeFile(path.join(segmentDir, "00000.m4s"), "segment-zero");
+      await writeFile(path.join(segmentDir, "00001.m4s"), "segment-one");
+      await writeFile(playlistPath, [
+        "#EXTM3U",
+        "#EXT-X-VERSION:7",
+        "#EXT-X-PLAYLIST-TYPE:EVENT",
+        "#EXT-X-MAP:URI=\"init.mp4\"",
+        "#EXTINF:6.000,",
+        "segment/00000.m4s",
+        "#EXTINF:6.000,",
+        "segment/00001.m4s",
+        "#EXT-X-ENDLIST",
+      ].join("\n"));
+
+      return {
+        code: 0,
+        signal: null,
+        stderrMessage: null,
+      } as const;
+    })();
+
+    return {
+      handle: {
+        kill,
+        pid: 1001,
+      },
+      completion,
+    };
+  },
+});
+
+const createTestRemuxController = () => createCatchUpRemuxController({
+  logger,
+  env: {
+    LUMEN_PROXY_REMUX_ENABLED: "1",
+  },
+  checkBinary: () => true,
+  spawnProcess: createCompletedSpawn().spawnProcess,
+});
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -19,11 +84,12 @@ describe("parseAllowedHosts", () => {
 });
 
 describe("createProxyServer", () => {
-  it("exposes catch-up gateway resolve contract with stable asset identity", async () => {
+  it("returns proxy-remuxed from gateway resolve only after remux bootstrap succeeds", async () => {
     const app = createProxyServer({
       allowedHosts: ["*"],
       logger: false,
       sweepIntervalMs: 0,
+      remuxController: createTestRemuxController(),
     });
 
     const requestBody = {
@@ -35,9 +101,12 @@ describe("createProxyServer", () => {
       durationSeconds: 1_800,
       sourceCandidates: {
         redirectUrls: [
-          "https://edge.example/streaming/timeshift.php?token=abc123",
+          "https://login.example/timeshift/user/pass/1800/2026-03-08:08-30/112.m3u8",
+          "https://login.example/timeshift/user/pass/1800/2026-03-08:08-30/112.ts",
         ],
-        queryUrls: [],
+        queryUrls: [
+          "https://login.example/streaming/timeshift.php?stream=112&start=1772000000&duration=1800&extension=m3u8",
+        ],
         legacyUrls: [],
       },
       channelCapability: {
@@ -59,20 +128,22 @@ describe("createProxyServer", () => {
     });
 
     expect(first.statusCode).toBe(200);
-    expect(second.statusCode).toBe(200);
     expect(first.json()).toMatchObject({
       channelId: "channel-1",
       programId: "program-1",
-      transportMode: "provider-direct",
+      transportMode: "proxy-remuxed",
       hotStart: false,
+      assetState: "ready",
     });
     expect(second.json()).toMatchObject({
       channelId: "channel-1",
       programId: "program-1",
-      transportMode: "provider-direct",
+      transportMode: "proxy-remuxed",
       hotStart: true,
+      assetState: "ready",
     });
-    expect(second.json().assetKey).toBe(first.json().assetKey);
+    expect(first.json().playbackUrl).toContain("__lumenTransport=remux-hls");
+    expect(first.json().playbackUrl).toContain("/timeshift/user/pass/1800/2026-03-08:08-30/112.ts");
 
     await app.close();
   });
@@ -82,6 +153,7 @@ describe("createProxyServer", () => {
       allowedHosts: ["*"],
       logger: false,
       sweepIntervalMs: 0,
+      remuxController: createTestRemuxController(),
     });
 
     const response = await app.inject({
@@ -100,12 +172,95 @@ describe("createProxyServer", () => {
     await app.close();
   });
 
+  it("responds to catch-up gateway preflight with POST CORS allowance", async () => {
+    const app = createProxyServer({
+      allowedHosts: ["*"],
+      logger: false,
+      sweepIntervalMs: 0,
+      remuxController: createTestRemuxController(),
+    });
+
+    const response = await app.inject({
+      method: "OPTIONS",
+      url: "/catchup-gateway/resolve",
+    });
+
+    expect(response.statusCode).toBe(204);
+    expect(response.headers["access-control-allow-origin"]).toBe("*");
+    expect(response.headers["access-control-allow-methods"]).toContain("POST");
+
+    await app.close();
+  });
+
+  it("returns remux manifest bodies for remux-hls catch-up proxy requests", async () => {
+    const app = createProxyServer({
+      allowedHosts: ["*"],
+      logger: false,
+      sweepIntervalMs: 0,
+      remuxController: createTestRemuxController(),
+    });
+
+    const response = await app.inject({
+      method: "GET",
+      url: `/xui-api/${encodeTarget("https://login.example")}/timeshift/user/pass/1800/2026-03-08:08-30/112.ts?__lumenTransport=remux-hls&__lumenProgramId=program-1`,
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.headers["content-type"]).toContain("application/vnd.apple.mpegurl");
+    expect(response.payload).toContain("#EXTM3U");
+    expect(response.payload).toContain("/xui-api/__remux__/session/");
+    expect(response.payload).toContain("/segment/0.m4s");
+
+    await app.close();
+  });
+
+  it("serves remux asset endpoints as video/mp4 with CORS headers", async () => {
+    const app = createProxyServer({
+      allowedHosts: ["*"],
+      logger: false,
+      sweepIntervalMs: 0,
+      remuxController: createTestRemuxController(),
+    });
+
+    const manifest = await app.inject({
+      method: "GET",
+      url: `/xui-api/${encodeTarget("https://login.example")}/timeshift/user/pass/1800/2026-03-08:08-30/112.ts?__lumenTransport=remux-hls&__lumenProgramId=program-1`,
+    });
+    const initPath = manifest.payload.match(/URI="([^"]+)"/)?.[1];
+    const segmentPath = manifest.payload
+      .split("\n")
+      .find((line) => line.includes("/segment/0.m4s"));
+
+    expect(initPath).toBeTruthy();
+    expect(segmentPath).toBeTruthy();
+
+    const initResponse = await app.inject({
+      method: "GET",
+      url: initPath ?? "",
+    });
+    const segmentResponse = await app.inject({
+      method: "GET",
+      url: segmentPath ?? "",
+    });
+
+    expect(initResponse.statusCode).toBe(200);
+    expect(initResponse.headers["content-type"]).toContain("video/mp4");
+    expect(initResponse.headers["access-control-allow-origin"]).toBe("*");
+    expect(initResponse.payload).toBe("init-body");
+    expect(segmentResponse.statusCode).toBe(200);
+    expect(segmentResponse.headers["content-type"]).toContain("video/mp4");
+    expect(segmentResponse.payload).toBe("segment-zero");
+
+    await app.close();
+  });
+
   it("returns missing_target when encoded target is invalid", async () => {
     const fetchMock = vi.fn();
     const app = createProxyServer({
       allowedHosts: ["*"],
       fetchImpl: fetchMock as typeof fetch,
       logger: false,
+      remuxController: createTestRemuxController(),
     });
 
     const response = await app.inject({
@@ -127,6 +282,7 @@ describe("createProxyServer", () => {
       allowedHosts: ["allowed.example"],
       fetchImpl: fetchMock as typeof fetch,
       logger: false,
+      remuxController: createTestRemuxController(),
     });
 
     const response = await app.inject({
@@ -156,6 +312,7 @@ describe("createProxyServer", () => {
       allowedHosts: ["login.example", "edge.example"],
       fetchImpl: fetchMock as typeof fetch,
       logger: false,
+      remuxController: createTestRemuxController(),
     });
 
     const response = await app.inject({
@@ -168,6 +325,69 @@ describe("createProxyServer", () => {
       `/xui-api/${encodeTarget("https://edge.example")}/streaming/timeshift.php?token=abc123`,
     );
     expect(fetchMock).toHaveBeenCalledTimes(1);
+    await app.close();
+  });
+
+  it("upgrades catch-up m3u8 redirects onto the archive host timeshift_hls path", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(null, {
+        status: 302,
+        headers: {
+          location: "https://edge.example/streaming/timeshift.php?token=abc123",
+        },
+      }),
+    );
+
+    const app = createProxyServer({
+      allowedHosts: ["login.example", "edge.example"],
+      fetchImpl: fetchMock as typeof fetch,
+      logger: false,
+      remuxController: createTestRemuxController(),
+    });
+
+    const response = await app.inject({
+      method: "GET",
+      url: `/xui-api/${encodeTarget("https://login.example:8080")}/streaming/timeshift.php?username=demo&password=secret&stream=112&start=2026-03-04:20-10&duration=60&extension=m3u8`,
+    });
+
+    expect(response.statusCode).toBe(302);
+    expect(response.headers.location).toBe(
+      `/xui-api/${encodeTarget("https://edge.example")}/timeshift_hls/demo/secret/60/2026-03-04%3A20-10/112.m3u8`,
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    await app.close();
+  });
+
+  it("rewrites root-relative timeshift_hls manifest assets back through the proxy contract", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response([
+      "#EXTM3U",
+      "#EXT-X-PLAYLIST-TYPE:VOD",
+      "#EXTINF:6.000,",
+      "/timeshift_hls/demo/secret/60/2026-03-04:20-10/112_0_0.ts",
+      "#EXT-X-ENDLIST",
+    ].join("\n"), {
+      status: 200,
+      headers: {
+        "content-type": "application/x-mpegurl",
+      },
+    }));
+
+    const app = createProxyServer({
+      allowedHosts: ["edge.example"],
+      fetchImpl: fetchMock as typeof fetch,
+      logger: false,
+      remuxController: createTestRemuxController(),
+    });
+
+    const response = await app.inject({
+      method: "GET",
+      url: `/xui-api/${encodeTarget("https://edge.example")}/timeshift_hls/demo/secret/60/2026-03-04:20-10/112.m3u8`,
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.payload).toContain(
+      `/xui-api/${encodeTarget("https://edge.example")}/timeshift_hls/demo/secret/60/2026-03-04:20-10/112_0_0.ts`,
+    );
     await app.close();
   });
 
@@ -186,6 +406,7 @@ describe("createProxyServer", () => {
       retryCount: 1,
       fetchImpl: fetchMock as typeof fetch,
       logger: false,
+      remuxController: createTestRemuxController(),
     });
 
     const response = await app.inject({
@@ -212,6 +433,7 @@ describe("createProxyServer", () => {
       retryCount: 1,
       fetchImpl: fetchMock as typeof fetch,
       logger: false,
+      remuxController: createTestRemuxController(),
     });
 
     const response = await app.inject({
@@ -234,6 +456,7 @@ describe("createProxyServer", () => {
       timeoutMs: 5,
       fetchImpl: fetchMock as typeof fetch,
       logger: false,
+      remuxController: createTestRemuxController(),
     });
 
     const response = await app.inject({
@@ -269,6 +492,7 @@ describe("createProxyServer", () => {
     const app = createProxyServer({
       allowedHosts: ["127.0.0.1"],
       logger: false,
+      remuxController: createTestRemuxController(),
     });
 
     await app.listen({
