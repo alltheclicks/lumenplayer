@@ -18,6 +18,7 @@ const REMUX_SESSION_ROOT = path.join(os.tmpdir(), "lumen-catchup-remux");
 const DEFAULT_REMUX_SESSION_TTL_MS = 2 * 60 * 60 * 1000;
 const DEFAULT_REMUX_GLOBAL_CONCURRENCY = 4;
 const DEFAULT_REMUX_WAIT_TIMEOUT_MS = 20_000;
+const DEFAULT_REMUX_QUEUE_WAIT_TIMEOUT_MS = 0;
 const DEFAULT_REMUX_POLL_INTERVAL_MS = 150;
 const DEFAULT_REMUX_EXTRA_PREWARM_SEGMENTS = 2;
 const PLAYLIST_FILENAME = "index.m3u8";
@@ -28,6 +29,9 @@ const GENERIC_TS_PATH_PATTERN = /\.ts$/i;
 const GENERIC_M4S_PATH_PATTERN = /(\d+)\.m4s(?:\?.*)?$/i;
 const DEFAULT_FFMPEG_BIN = "ffmpeg";
 const DEFAULT_FFPROBE_BIN = "ffprobe";
+
+type CatchUpRemuxProfile = "copy" | "transcode";
+type CatchUpRemuxStrategy = "transcode" | "copy" | "copy-then-transcode";
 
 type RemuxSessionStatus =
   | "starting"
@@ -44,6 +48,11 @@ interface CatchUpRemuxFeatureGate {
   ffmpegBin: string;
   ffprobeBin: string;
   sessionTtlMs: number;
+  globalConcurrency: number;
+  queueWaitTimeoutMs: number;
+  extraPrewarmSegments: number;
+  waitTimeoutMs: number;
+  strategy: CatchUpRemuxStrategy;
 }
 
 export interface CatchUpRemuxSessionRecord {
@@ -87,6 +96,7 @@ interface SpawnCatchUpRemuxProcessOptions {
   upstreamUrl: string;
   playlistPath: string;
   segmentDir: string;
+  profile: CatchUpRemuxProfile;
 }
 
 interface SpawnCatchUpRemuxProcessResult {
@@ -111,12 +121,14 @@ interface PendingPreparationTask<TValue> {
   serverKey: string;
   perServerConcurrency: number;
   run: () => void;
-  resolve: (value: TValue | PromiseLike<TValue>) => void;
   reject: (reason?: unknown) => void;
+  timeoutHandle: NodeJS.Timeout | null;
 }
 
 interface InternalSessionRecord extends CatchUpRemuxSessionRecord {
   completionPromise: Promise<void> | null;
+  releaseCapacity: (() => void) | null;
+  releaseCapacityOnFailure: boolean;
 }
 
 export interface CatchUpRemuxController {
@@ -188,6 +200,18 @@ const parseNonNegativeInteger = (value: string | undefined, fallback: number): n
   return parsed;
 };
 
+const parseRemuxStrategy = (value: string | undefined): CatchUpRemuxStrategy => {
+  switch (value?.trim().toLowerCase()) {
+    case "copy":
+      return "copy";
+    case "copy-then-transcode":
+      return "copy-then-transcode";
+    case "transcode":
+    default:
+      return "transcode";
+  }
+};
+
 const createCatchUpRemuxFeatureGate = (
   env: NodeJS.ProcessEnv = process.env,
 ): CatchUpRemuxFeatureGate => ({
@@ -201,6 +225,23 @@ const createCatchUpRemuxFeatureGate = (
     1_000,
     parseNonNegativeInteger(env.LUMEN_PROXY_REMUX_SESSION_TTL_MS, DEFAULT_REMUX_SESSION_TTL_MS),
   ),
+  globalConcurrency: Math.max(
+    1,
+    parseNonNegativeInteger(env.LUMEN_PROXY_REMUX_GLOBAL_CONCURRENCY, DEFAULT_REMUX_GLOBAL_CONCURRENCY),
+  ),
+  queueWaitTimeoutMs: Math.max(
+    0,
+    parseNonNegativeInteger(env.LUMEN_PROXY_REMUX_QUEUE_WAIT_TIMEOUT_MS, DEFAULT_REMUX_QUEUE_WAIT_TIMEOUT_MS),
+  ),
+  extraPrewarmSegments: Math.max(
+    0,
+    parseNonNegativeInteger(env.LUMEN_PROXY_REMUX_EXTRA_PREWARM_SEGMENTS, DEFAULT_REMUX_EXTRA_PREWARM_SEGMENTS),
+  ),
+  waitTimeoutMs: Math.max(
+    1_000,
+    parseNonNegativeInteger(env.LUMEN_PROXY_REMUX_WAIT_TIMEOUT_MS, DEFAULT_REMUX_WAIT_TIMEOUT_MS),
+  ),
+  strategy: parseRemuxStrategy(env.LUMEN_PROXY_REMUX_STRATEGY),
 });
 
 const parseCandidateUpstreamUrl = (value: string): URL | null => {
@@ -315,65 +356,138 @@ const defaultBinaryChecker: BinaryChecker = (binary) => {
   return !result.error && result.status === 0;
 };
 
+const buildCopyProfileArgs = ({
+  upstreamUrl,
+  playlistPath,
+  segmentDir,
+}: {
+  upstreamUrl: string;
+  playlistPath: string;
+  segmentDir: string;
+}): string[] => ([
+  "-hide_banner",
+  "-loglevel",
+  "warning",
+  "-y",
+  "-fflags",
+  "+genpts+igndts+discardcorrupt",
+  "-i",
+  upstreamUrl,
+  "-map",
+  "0:v:0",
+  "-map",
+  "0:a:0?",
+  "-c:v",
+  "copy",
+  "-c:a",
+  "copy",
+  "-copyinkf",
+  "-f",
+  "hls",
+  "-hls_time",
+  "6",
+  "-hls_list_size",
+  "0",
+  "-hls_playlist_type",
+  "event",
+  "-hls_segment_type",
+  "fmp4",
+  "-hls_flags",
+  "independent_segments+temp_file",
+  "-hls_fmp4_init_filename",
+  INIT_FILENAME,
+  "-hls_segment_filename",
+  path.join(segmentDir, "%05d.m4s"),
+  playlistPath,
+]);
+
+const buildTranscodeProfileArgs = ({
+  upstreamUrl,
+  playlistPath,
+  segmentDir,
+}: {
+  upstreamUrl: string;
+  playlistPath: string;
+  segmentDir: string;
+}): string[] => ([
+  "-hide_banner",
+  "-loglevel",
+  "warning",
+  "-y",
+  "-fflags",
+  "+genpts+igndts+discardcorrupt",
+  "-i",
+  upstreamUrl,
+  "-map",
+  "0:v:0",
+  "-map",
+  "0:a:0?",
+  "-c:v",
+  "libx264",
+  "-preset",
+  "veryfast",
+  "-profile:v",
+  "main",
+  "-level",
+  "4.0",
+  "-g",
+  "48",
+  "-keyint_min",
+  "48",
+  "-sc_threshold",
+  "0",
+  "-force_key_frames",
+  "expr:gte(t,n_forced*6)",
+  "-c:a",
+  "aac",
+  "-b:a",
+  "128k",
+  "-ac",
+  "2",
+  "-f",
+  "hls",
+  "-hls_time",
+  "6",
+  "-hls_list_size",
+  "0",
+  "-hls_playlist_type",
+  "event",
+  "-hls_segment_type",
+  "fmp4",
+  "-hls_flags",
+  "independent_segments+temp_file",
+  "-hls_fmp4_init_filename",
+  INIT_FILENAME,
+  "-hls_segment_filename",
+  path.join(segmentDir, "%05d.m4s"),
+  playlistPath,
+]);
+
+const buildFfmpegArgsForProfile = (
+  profile: CatchUpRemuxProfile,
+  options: {
+    upstreamUrl: string;
+    playlistPath: string;
+    segmentDir: string;
+  },
+): string[] => (
+  profile === "copy"
+    ? buildCopyProfileArgs(options)
+    : buildTranscodeProfileArgs(options)
+);
+
 const defaultSpawnProcess: SpawnCatchUpRemuxProcess = ({
   ffmpegBin,
   upstreamUrl,
   playlistPath,
   segmentDir,
+  profile,
 }) => {
-  const args = [
-    "-hide_banner",
-    "-loglevel",
-    "warning",
-    "-y",
-    "-fflags",
-    "+genpts+igndts+discardcorrupt",
-    "-i",
+  const args = buildFfmpegArgsForProfile(profile, {
     upstreamUrl,
-    "-map",
-    "0:v:0",
-    "-map",
-    "0:a:0?",
-    "-c:v",
-    "libx264",
-    "-preset",
-    "veryfast",
-    "-profile:v",
-    "main",
-    "-level",
-    "4.0",
-    "-g",
-    "48",
-    "-keyint_min",
-    "48",
-    "-sc_threshold",
-    "0",
-    "-force_key_frames",
-    "expr:gte(t,n_forced*6)",
-    "-c:a",
-    "aac",
-    "-b:a",
-    "128k",
-    "-ac",
-    "2",
-    "-f",
-    "hls",
-    "-hls_time",
-    "6",
-    "-hls_list_size",
-    "0",
-    "-hls_playlist_type",
-    "event",
-    "-hls_segment_type",
-    "fmp4",
-    "-hls_flags",
-    "independent_segments+temp_file",
-    "-hls_fmp4_init_filename",
-    INIT_FILENAME,
-    "-hls_segment_filename",
-    path.join(segmentDir, "%05d.m4s"),
     playlistPath,
-  ];
+    segmentDir,
+  });
 
   const child = spawn(ffmpegBin, args, {
     stdio: ["ignore", "ignore", "pipe"],
@@ -457,7 +571,7 @@ export const createCatchUpRemuxController = (options: {
   const spawnProcess = options.spawnProcess ?? defaultSpawnProcess;
   const checkBinary = options.checkBinary ?? defaultBinaryChecker;
   const tempRootDir = options.tempRootDir ?? REMUX_SESSION_ROOT;
-  const globalConcurrency = Math.max(1, options.globalConcurrency ?? DEFAULT_REMUX_GLOBAL_CONCURRENCY);
+  const globalConcurrency = Math.max(1, options.globalConcurrency ?? featureGate.globalConcurrency);
   const sessionsById = new Map<string, InternalSessionRecord>();
   const sessionIdByRequestKey = new Map<string, string>();
   const inFlightPreparations = new Map<string, Promise<CatchUpRemuxSessionRecord>>();
@@ -544,6 +658,10 @@ export const createCatchUpRemuxController = (options: {
       recursive: true,
       force: true,
     });
+    session.processHandle = null;
+    session.completionPromise = null;
+    session.releaseCapacity?.();
+    session.releaseCapacity = null;
   };
 
   const resolveServerKey = (input: CatchUpRemuxPrepareInput): string => (
@@ -556,6 +674,18 @@ export const createCatchUpRemuxController = (options: {
     1,
     Math.floor(input.perServerConcurrency ?? 2),
   );
+
+  const resolveStrategyProfiles = (): CatchUpRemuxProfile[] => {
+    switch (featureGate.strategy) {
+      case "copy":
+        return ["copy"];
+      case "copy-then-transcode":
+        return ["copy", "transcode"];
+      case "transcode":
+      default:
+        return ["transcode"];
+    }
+  };
 
   const canRun = (serverKey: string, perServerConcurrency: number): boolean => (
     activeGlobalCount < globalConcurrency &&
@@ -570,34 +700,34 @@ export const createCatchUpRemuxController = (options: {
       }
 
       pendingTasks.splice(index, 1);
+      if (pendingTask.timeoutHandle) {
+        clearTimeout(pendingTask.timeoutHandle);
+        pendingTask.timeoutHandle = null;
+      }
       pendingTask.run();
       index -= 1;
     }
   };
 
-  const runWithLimits = (
-    input: CatchUpRemuxPrepareInput,
-    task: () => Promise<CatchUpRemuxSessionRecord>,
-  ): Promise<CatchUpRemuxSessionRecord> => new Promise((resolve, reject) => {
+  const acquireCapacity = (input: CatchUpRemuxPrepareInput): Promise<() => void> => new Promise((resolve, reject) => {
       const serverKey = resolveServerKey(input);
       const perServerConcurrency = resolvePerServerConcurrency(input);
+
+      const release = () => {
+        activeGlobalCount = Math.max(0, activeGlobalCount - 1);
+        const nextServerCount = Math.max(0, (activeByServer.get(serverKey) ?? 1) - 1);
+        if (nextServerCount === 0) {
+          activeByServer.delete(serverKey);
+        } else {
+          activeByServer.set(serverKey, nextServerCount);
+        }
+        flushPending();
+      };
 
       const start = () => {
         activeGlobalCount += 1;
         activeByServer.set(serverKey, (activeByServer.get(serverKey) ?? 0) + 1);
-
-        void task()
-          .then(resolve, reject)
-          .finally(() => {
-            activeGlobalCount = Math.max(0, activeGlobalCount - 1);
-            const nextServerCount = Math.max(0, (activeByServer.get(serverKey) ?? 1) - 1);
-            if (nextServerCount === 0) {
-              activeByServer.delete(serverKey);
-            } else {
-              activeByServer.set(serverKey, nextServerCount);
-            }
-            flushPending();
-          });
+        resolve(release);
       };
 
       if (canRun(serverKey, perServerConcurrency)) {
@@ -605,19 +735,35 @@ export const createCatchUpRemuxController = (options: {
         return;
       }
 
-      pendingTasks.push({
+      const pendingTask: PendingPreparationTask<CatchUpRemuxSessionRecord> = {
         serverKey,
         perServerConcurrency,
         run: start,
-        resolve,
         reject,
-      });
+        timeoutHandle: null,
+      };
+
+      if (featureGate.queueWaitTimeoutMs > 0) {
+        pendingTask.timeoutHandle = setTimeout(() => {
+          const pendingIndex = pendingTasks.indexOf(pendingTask);
+          if (pendingIndex >= 0) {
+            pendingTasks.splice(pendingIndex, 1);
+          }
+          pendingTask.reject(new CatchUpRemuxError(
+            "remux-capacity-exhausted",
+            `Catch-up remux queue timed out after ${featureGate.queueWaitTimeoutMs}ms.`,
+          ));
+        }, featureGate.queueWaitTimeoutMs);
+        pendingTask.timeoutHandle.unref?.();
+      }
+
+      pendingTasks.push(pendingTask);
     });
 
   const waitForFile = async (
     session: InternalSessionRecord,
     filePath: string,
-    timeoutMs = DEFAULT_REMUX_WAIT_TIMEOUT_MS,
+    timeoutMs = featureGate.waitTimeoutMs ?? DEFAULT_REMUX_WAIT_TIMEOUT_MS,
   ): Promise<void> => {
     const startedAtMs = Date.now();
 
@@ -654,6 +800,8 @@ export const createCatchUpRemuxController = (options: {
     session: InternalSessionRecord,
     completion: SpawnCatchUpRemuxProcessResult["completion"],
   ): Promise<void> => {
+    let shouldReleaseCapacity = true;
+
     try {
       const result = await completion;
       session.processHandle = null;
@@ -668,6 +816,7 @@ export const createCatchUpRemuxController = (options: {
         return;
       }
 
+      shouldReleaseCapacity = session.releaseCapacityOnFailure;
       session.status = "failed";
       session.errorMessage = result.stderrMessage ??
         `ffmpeg exited with code ${result.code ?? "unknown"}${result.signal ? ` (${result.signal})` : ""}.`;
@@ -683,6 +832,7 @@ export const createCatchUpRemuxController = (options: {
         error,
         "Catch-up remux process failed to start.",
       );
+      shouldReleaseCapacity = session.releaseCapacityOnFailure;
       session.processHandle = null;
       session.status = "failed";
       session.errorMessage = normalizedError.message;
@@ -692,24 +842,93 @@ export const createCatchUpRemuxController = (options: {
         upstreamUrl: session.upstreamUrl,
         message: session.errorMessage,
       });
+    } finally {
+      if (shouldReleaseCapacity) {
+        session.releaseCapacity?.();
+        session.releaseCapacity = null;
+      }
     }
   };
 
   const startSession = async (session: InternalSessionRecord): Promise<void> => {
-    await mkdir(session.segmentDir, {
-      recursive: true,
-    });
+    const cleanupOutputs = async (): Promise<void> => {
+      await rm(session.tempDir, {
+        recursive: true,
+        force: true,
+      });
+      await mkdir(session.segmentDir, {
+        recursive: true,
+      });
+    };
 
-    session.status = "preparing";
-    const spawned = spawnProcess({
-      ffmpegBin: featureGate.ffmpegBin,
-      upstreamUrl: session.upstreamUrl,
-      playlistPath: session.playlistPath,
-      segmentDir: session.segmentDir,
-    });
+    const stopActiveProcess = async (): Promise<void> => {
+      try {
+        session.processHandle?.kill("SIGKILL");
+      } catch {
+        // ignore kill failures during retry
+      }
 
-    session.processHandle = spawned.handle;
-    session.completionPromise = handleProcessCompletion(session, spawned.completion);
+      if (session.completionPromise) {
+        try {
+          await session.completionPromise;
+        } catch {
+          // ignore completion failures during retry
+        }
+      }
+
+      session.processHandle = null;
+      session.completionPromise = null;
+    };
+
+    let lastError: CatchUpRemuxError | null = null;
+    const profiles = resolveStrategyProfiles();
+    for (const [profileIndex, profile] of profiles.entries()) {
+      await cleanupOutputs();
+      session.status = "preparing";
+      session.errorMessage = null;
+      session.releaseCapacityOnFailure = profileIndex === profiles.length - 1;
+
+      const spawned = spawnProcess({
+        ffmpegBin: featureGate.ffmpegBin,
+        upstreamUrl: session.upstreamUrl,
+        playlistPath: session.playlistPath,
+        segmentDir: session.segmentDir,
+        profile,
+      });
+
+      session.processHandle = spawned.handle;
+      session.completionPromise = handleProcessCompletion(session, spawned.completion);
+
+      try {
+        await waitForBootstrapAssets(session);
+        options.logger.info("catchup.remux_profile_selected", {
+          sessionId: session.sessionId,
+          requestKey: session.requestKey,
+          upstreamUrl: session.upstreamUrl,
+          profile,
+        });
+        return;
+      } catch (error) {
+        lastError = toRemuxError(
+          "remux-bootstrap-failed",
+          error,
+          "Catch-up remux bootstrap failed.",
+        );
+        options.logger.warn("catchup.remux_profile_failed", {
+          sessionId: session.sessionId,
+          requestKey: session.requestKey,
+          upstreamUrl: session.upstreamUrl,
+          profile,
+          message: lastError.message,
+        });
+        await stopActiveProcess();
+      }
+    }
+
+    throw lastError ?? new CatchUpRemuxError(
+      "remux-bootstrap-failed",
+      "Catch-up remux bootstrap failed.",
+    );
   };
 
   const waitForBootstrapAssets = async (session: InternalSessionRecord): Promise<void> => {
@@ -717,13 +936,20 @@ export const createCatchUpRemuxController = (options: {
     await waitForFile(session, session.initPath);
     await waitForFile(session, path.join(session.segmentDir, buildSegmentFilename(0)));
 
+    if (session.status === "failed") {
+      throw new CatchUpRemuxError(
+        "remux-bootstrap-failed",
+        session.errorMessage ?? "Catch-up remux session failed.",
+      );
+    }
+
     if (session.status === "preparing" || session.status === "starting") {
       session.status = "ready";
     }
   };
 
   const prewarmAdditionalSegments = async (session: InternalSessionRecord): Promise<void> => {
-    for (let segmentIndex = 1; segmentIndex <= DEFAULT_REMUX_EXTRA_PREWARM_SEGMENTS; segmentIndex += 1) {
+    for (let segmentIndex = 1; segmentIndex <= featureGate.extraPrewarmSegments; segmentIndex += 1) {
       if (session.status === "failed") {
         return;
       }
@@ -736,7 +962,10 @@ export const createCatchUpRemuxController = (options: {
     }
   };
 
-  const createSession = (sanitizedUpstreamUrl: URL): InternalSessionRecord => {
+  const createSession = (
+    sanitizedUpstreamUrl: URL,
+    releaseCapacity: () => void,
+  ): InternalSessionRecord => {
     const sessionId = randomUUID();
     const tempDir = path.join(tempRootDir, sessionId);
     const session: InternalSessionRecord = {
@@ -753,6 +982,8 @@ export const createCatchUpRemuxController = (options: {
       lastAccessAtMs: now(),
       errorMessage: null,
       completionPromise: null,
+      releaseCapacity,
+      releaseCapacityOnFailure: true,
     };
 
     sessionsById.set(session.sessionId, session);
@@ -782,11 +1013,11 @@ export const createCatchUpRemuxController = (options: {
       return existingPreparation;
     }
 
-    const preparation = runWithLimits(input, async () => {
-      const session = createSession(sanitizedUpstreamUrl);
+    const preparation = (async () => {
+      const releaseCapacity = await acquireCapacity(input);
+      const session = createSession(sanitizedUpstreamUrl, releaseCapacity);
       try {
         await startSession(session);
-        await waitForBootstrapAssets(session);
         touchSession(session);
         void prewarmAdditionalSegments(session);
         options.logger.info("catchup.remux_prepared", {
@@ -807,7 +1038,7 @@ export const createCatchUpRemuxController = (options: {
         deleteSession(session);
         throw normalizedError;
       }
-    }).finally(() => {
+    })().finally(() => {
       inFlightPreparations.delete(requestKey);
     });
 

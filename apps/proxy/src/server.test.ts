@@ -13,12 +13,17 @@ const logger = {
   error: () => {},
 };
 
+const createTempRootDir = (label: string): string => (
+  path.join(process.cwd(), ".tmp-remux-tests", `${label}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
+);
+
 const createCompletedSpawn = () => ({
   spawnProcess: ({
     playlistPath,
     segmentDir,
   }: {
     ffmpegBin: string;
+    profile: "copy" | "transcode";
     upstreamUrl: string;
     playlistPath: string;
     segmentDir: string;
@@ -67,6 +72,7 @@ const createTestRemuxController = () => createCatchUpRemuxController({
   },
   checkBinary: () => true,
   spawnProcess: createCompletedSpawn().spawnProcess,
+  tempRootDir: createTempRootDir("server"),
 });
 
 afterEach(() => {
