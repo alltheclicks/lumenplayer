@@ -13,6 +13,23 @@ import type { HttpClient } from "./http-client";
 
 export class XtreamCodesService {
   private static readonly VOD_CATEGORY_FETCH_CONCURRENCY = 8;
+  private static readonly MEDIAKING_BROWSER_SAFE_CATCH_UP_ORIGIN = "http://edge6.castcdn.net:8080";
+  private static readonly MEDIAKING_BROWSER_SAFE_CATCH_UP_HOSTS = new Set([
+    "smart.mediaking.fi",
+    "serv2.mediaking.fi",
+    "edge6.castcdn.net",
+    "79.137.99.121",
+  ]);
+  private static readonly CATCH_UP_REDIRECT_PATHS = [
+    {
+      basePath: "/timeshift_hls",
+      extensions: ["m3u8"],
+    },
+    {
+      basePath: "/timeshift",
+      extensions: ["m3u8", "ts"],
+    },
+  ] as const;
   private credentials: XtreamCredentials | null = null;
   private http: HttpClient;
   private readonly resolveCredentials: (credentials: XtreamCredentials) => XtreamCredentials;
@@ -258,6 +275,17 @@ export class XtreamCodesService {
     if (!this.credentials) {
       throw new Error("Credentials not set");
     }
+
+    const directCatchUpOrigin = this.resolvePreferredDirectCatchUpHlsOrigin();
+    if (directCatchUpOrigin) {
+      return this.buildTimeshiftPathCatchUpVariants(streamId, startTimestamp, duration, {
+        serverOrigin: directCatchUpOrigin,
+        basePath: "/timeshift_hls",
+        extensions: ["m3u8"],
+        includeEpochStart: false,
+      });
+    }
+
     const credentials = this.credentials;
 
     const startCandidates = XtreamCodesService.resolveTimeshiftStartCandidates(startTimestamp);
@@ -297,10 +325,26 @@ export class XtreamCodesService {
     startTimestamp: number,
     duration: number,
   ): string[] {
-    return this.buildTimeshiftPathCatchUpVariants(streamId, startTimestamp, duration, {
-      extensions: ["ts", "m3u8"],
-      includeEpochStart: false,
-    });
+    const directCatchUpOrigin = this.resolvePreferredDirectCatchUpHlsOrigin();
+    if (directCatchUpOrigin) {
+      return this.buildTimeshiftPathCatchUpVariants(streamId, startTimestamp, duration, {
+        serverOrigin: directCatchUpOrigin,
+        basePath: "/timeshift_hls",
+        extensions: ["m3u8"],
+        includeEpochStart: false,
+      });
+    }
+
+    const urls = XtreamCodesService.CATCH_UP_REDIRECT_PATHS.flatMap((candidate) => (
+      this.buildTimeshiftPathCatchUpVariants(streamId, startTimestamp, duration, {
+        serverOrigin: this.credentials?.server ?? "",
+        basePath: candidate.basePath,
+        extensions: [...candidate.extensions],
+        includeEpochStart: false,
+      })
+    ));
+
+    return XtreamCodesService.filterUniqueUrls(urls);
   }
 
   getLegacyCatchUpUrl(
@@ -320,7 +364,18 @@ export class XtreamCodesService {
     startTimestamp: number,
     duration: number,
   ): string[] {
+    if (this.resolvePreferredDirectCatchUpHlsOrigin()) {
+      return this.buildTimeshiftPathCatchUpVariants(streamId, startTimestamp, duration, {
+        serverOrigin: this.credentials?.server ?? "",
+        basePath: "/timeshift",
+        extensions: ["ts"],
+        includeEpochStart: false,
+      });
+    }
+
     return this.buildTimeshiftPathCatchUpVariants(streamId, startTimestamp, duration, {
+      serverOrigin: this.credentials?.server ?? "",
+      basePath: "/timeshift",
       extensions: ["m3u8"],
       includeEpochStart: true,
     });
@@ -331,6 +386,8 @@ export class XtreamCodesService {
     startTimestamp: number,
     duration: number,
     options: {
+      serverOrigin: string;
+      basePath: string;
       extensions: string[];
       includeEpochStart: boolean;
     },
@@ -355,13 +412,46 @@ export class XtreamCodesService {
       for (const startCandidate of startCandidates) {
         for (const durationCandidate of durationCandidates) {
           urls.push(
-            `${this.credentials.server}/timeshift/${this.credentials.username}/${this.credentials.password}/${durationCandidate}/${startCandidate}/${streamId}.${extension}`,
+            `${options.serverOrigin}${options.basePath}/${this.credentials.username}/${this.credentials.password}/${durationCandidate}/${startCandidate}/${streamId}.${extension}`,
           );
         }
       }
     }
 
     return XtreamCodesService.filterUniqueUrls(urls);
+  }
+
+  private resolvePreferredDirectCatchUpHlsOrigin(): string | null {
+    if (!this.credentials) {
+      return null;
+    }
+
+    const upstreamUrl = XtreamCodesService.resolveUpstreamServerUrl(this.credentials.server);
+    const upstreamHost = upstreamUrl?.hostname.trim().toLowerCase() ?? "";
+    if (!XtreamCodesService.MEDIAKING_BROWSER_SAFE_CATCH_UP_HOSTS.has(upstreamHost)) {
+      return null;
+    }
+
+    return XtreamCodesService.MEDIAKING_BROWSER_SAFE_CATCH_UP_ORIGIN;
+  }
+
+  private static resolveUpstreamServerUrl(server: string): URL | null {
+    try {
+      const parsed = new URL(server);
+      const proxiedTargetMatch = parsed.pathname.match(/^\/xui-api\/([^/?#]+)/);
+      if (!proxiedTargetMatch?.[1]) {
+        return parsed;
+      }
+
+      const decodedTarget = decodeURIComponent(proxiedTargetMatch[1]).trim();
+      if (!decodedTarget) {
+        return parsed;
+      }
+
+      return new URL(decodedTarget.includes("://") ? decodedTarget : `http://${decodedTarget}`);
+    } catch {
+      return null;
+    }
   }
 
   getArchiveUrl(

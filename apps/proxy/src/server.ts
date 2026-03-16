@@ -12,8 +12,16 @@ import {
 } from "./catchup-gateway-contracts.js";
 
 const XTREAM_PROXY_BASE_PATH = "/xui-api";
+const XTREAM_HLS_ROOT_PATH = "/hlsr/";
+const XTREAM_STREAMING_ROOT_PATH = "/streaming/";
+const XTREAM_TIMESHIFT_ROOT_PATH = "/timeshift/";
+const XTREAM_TIMESHIFT_HLS_ROOT_PATH = "/timeshift_hls/";
 const RETRYABLE_METHODS = new Set(["GET", "HEAD"]);
 const REDIRECT_STATUS_CODES = new Set([301, 302, 307, 308]);
+const HLS_MANIFEST_CONTENT_TYPES = new Set([
+  "application/vnd.apple.mpegurl",
+  "application/x-mpegurl",
+]);
 const HOP_BY_HOP_HEADERS = new Set([
   "connection",
   "keep-alive",
@@ -41,6 +49,14 @@ export interface ProxyServerOptions {
 type ParsedTarget = {
   baseUrl: URL;
   host: string;
+};
+
+type CatchUpHlsRequestDetails = {
+  username: string;
+  password: string;
+  duration: string;
+  start: string;
+  streamId: string;
 };
 
 type ProxyHandlerRequest = FastifyRequest<{
@@ -131,6 +147,28 @@ const buildUpstreamUrl = (baseUrl: URL, suffixPath: string, search: string): URL
   return nextUrl;
 };
 
+const isHlsManifestResponse = (upstreamUrl: URL, headers: Headers): boolean => {
+  const contentType = headers.get("content-type")?.split(";")[0]?.trim().toLowerCase() ?? "";
+  return upstreamUrl.pathname.toLowerCase().endsWith(".m3u8") || HLS_MANIFEST_CONTENT_TYPES.has(contentType);
+};
+
+const rewriteHlsManifestBody = (manifestBody: string, encodedTarget: string): string => {
+  const normalizedEncodedTarget = encodeURIComponent(encodedTarget);
+  return manifestBody
+    .replace(/(^|["'\n\r])\/hlsr\//g, (_match, prefix: string) => (
+      `${prefix}${XTREAM_PROXY_BASE_PATH}/${normalizedEncodedTarget}${XTREAM_HLS_ROOT_PATH}`
+    ))
+    .replace(/(^|["'\n\r])\/streaming\//g, (_match, prefix: string) => (
+      `${prefix}${XTREAM_PROXY_BASE_PATH}/${normalizedEncodedTarget}${XTREAM_STREAMING_ROOT_PATH}`
+    ))
+    .replace(/(^|["'\n\r])\/timeshift_hls\//g, (_match, prefix: string) => (
+      `${prefix}${XTREAM_PROXY_BASE_PATH}/${normalizedEncodedTarget}${XTREAM_TIMESHIFT_HLS_ROOT_PATH}`
+    ))
+    .replace(/(^|["'\n\r])\/timeshift\//g, (_match, prefix: string) => (
+      `${prefix}${XTREAM_PROXY_BASE_PATH}/${normalizedEncodedTarget}${XTREAM_TIMESHIFT_ROOT_PATH}`
+    ));
+};
+
 const buildForwardHeaders = (requestHeaders: Record<string, string | string[] | undefined>): Headers => {
   const headers = new Headers();
 
@@ -207,6 +245,83 @@ const toErrorMessage = (error: unknown, fallback: string): string => {
   return fallback;
 };
 
+const parseCatchUpHlsRequestDetails = (upstreamUrl: URL): CatchUpHlsRequestDetails | null => {
+  const normalizedPath = upstreamUrl.pathname.toLowerCase();
+
+  if (normalizedPath === "/streaming/timeshift.php" || normalizedPath === "/streaming/timeshift_hls.php") {
+    const username = upstreamUrl.searchParams.get("username")?.trim() ?? "";
+    const password = upstreamUrl.searchParams.get("password")?.trim() ?? "";
+    const streamId = upstreamUrl.searchParams.get("stream")?.trim() ?? "";
+    const start = upstreamUrl.searchParams.get("start")?.trim() ?? "";
+    const duration = upstreamUrl.searchParams.get("duration")?.trim() ?? "";
+    const extension = upstreamUrl.searchParams.get("extension")?.trim().toLowerCase() ?? "";
+    const isHlsRequest = normalizedPath === "/streaming/timeshift_hls.php" || extension === "m3u8";
+
+    if (!isHlsRequest || !username || !password || !streamId || !start || !duration) {
+      return null;
+    }
+
+    return {
+      username,
+      password,
+      duration,
+      start,
+      streamId,
+    };
+  }
+
+  const pathMatch = upstreamUrl.pathname.match(
+    /^\/timeshift(?:_hls)?\/([^/]+)\/([^/]+)\/([^/]+)\/([^/]+)\/([^/.]+)\.(m3u8|ts)$/i,
+  );
+  if (!pathMatch) {
+    return null;
+  }
+
+  const [, username, password, duration, start, streamId, extension] = pathMatch;
+  const normalizedExtension = extension.trim().toLowerCase();
+  const isHlsRequest = normalizedPath.startsWith("/timeshift_hls/") || normalizedExtension === "m3u8";
+  if (!isHlsRequest) {
+    return null;
+  }
+
+  return {
+    username: decodeURIComponent(username),
+    password: decodeURIComponent(password),
+    duration: decodeURIComponent(duration),
+    start: decodeURIComponent(start),
+    streamId: decodeURIComponent(streamId),
+  };
+};
+
+const buildCatchUpHlsRedirectLocation = (upstreamUrl: URL, resolvedLocation: URL): URL | null => {
+  const requestDetails = parseCatchUpHlsRequestDetails(upstreamUrl);
+  if (!requestDetails) {
+    return null;
+  }
+
+  const normalizedLocationPath = resolvedLocation.pathname.toLowerCase();
+  if (
+    normalizedLocationPath !== "/streaming/timeshift.php" &&
+    normalizedLocationPath !== "/streaming/timeshift_hls.php"
+  ) {
+    return null;
+  }
+
+  const nextUrl = new URL(resolvedLocation.origin);
+  nextUrl.pathname = [
+    "",
+    "timeshift_hls",
+    encodeURIComponent(requestDetails.username),
+    encodeURIComponent(requestDetails.password),
+    encodeURIComponent(requestDetails.duration),
+    encodeURIComponent(requestDetails.start),
+    `${encodeURIComponent(requestDetails.streamId)}.m3u8`,
+  ].join("/");
+  nextUrl.search = "";
+  nextUrl.hash = "";
+  return nextUrl;
+};
+
 const toProxyErrorStatusCode = (errorCode: ProxyErrorCode): number => {
   switch (errorCode) {
     case "missing_target":
@@ -265,6 +380,8 @@ const rewriteRedirectLocation = (
     };
   }
 
+  resolvedLocation = buildCatchUpHlsRedirectLocation(upstreamUrl, resolvedLocation) ?? resolvedLocation;
+
   if (!isHttpProtocol(resolvedLocation.protocol)) {
     return {
       errorCode: "transport_error",
@@ -301,7 +418,12 @@ const createRequestLoggerPayload = (
 
 const isCatchUpRequestUrl = (upstreamUrl: URL): boolean => {
   const pathname = upstreamUrl.pathname.toLowerCase();
-  return pathname.startsWith("/timeshift/") || pathname === "/streaming/timeshift.php";
+  return (
+    pathname.startsWith("/timeshift/") ||
+    pathname.startsWith("/timeshift_hls/") ||
+    pathname === "/streaming/timeshift.php" ||
+    pathname === "/streaming/timeshift_hls.php"
+  );
 };
 
 const buildRequestBaseUrl = (request: FastifyRequest): string => {
@@ -502,7 +624,16 @@ export const createProxyServer = (options: ProxyServerOptions = {}): FastifyInst
           return;
         }
 
-        if (upstreamResponse.body) {
+        if (requestMethod === "GET" && isHlsManifestResponse(upstreamUrl, upstreamResponse.headers)) {
+          const manifestBody = await upstreamResponse.text();
+          const rewrittenManifestBody = rewriteHlsManifestBody(manifestBody, request.params.encodedTarget);
+          applyUpstreamHeaders(reply, upstreamResponse.headers);
+          reply.removeHeader("content-length");
+          reply.code(upstreamResponse.status).type(
+            upstreamResponse.headers.get("content-type") ?? "application/vnd.apple.mpegurl",
+          );
+          reply.send(rewrittenManifestBody);
+        } else if (upstreamResponse.body) {
           reply.hijack();
           reply.raw.statusCode = upstreamResponse.status;
           applyUpstreamHeadersToRawResponse(reply, upstreamResponse.headers);

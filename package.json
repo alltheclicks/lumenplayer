@@ -14,6 +14,8 @@
     "release:smoke-matrix:test": "vitest run scripts/release/v1-smoke-regression-matrix.test.ts",
     "release:compat-matrix": "node scripts/release/compatibility-matrix-task.mjs",
     "release:compat-matrix:test": "vitest run scripts/release/compatibility-matrix-task.test.ts",
+    "catchup:timeshift-hls:probe": "node scripts/catchup/probe-timeshift-hls.mjs",
+    "catchup:timeshift-hls:test": "vitest run scripts/catchup/probe-timeshift-hls.test.ts",
     "clean": "turbo clean",
     "tasks:run": "bash scripts/automation/run-task.sh",
     "tasks:batch": "bash scripts/automation/batch-run.sh",
