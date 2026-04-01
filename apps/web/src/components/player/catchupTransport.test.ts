@@ -180,7 +180,7 @@ describe('catch-up transport plan', () => {
       'http://localhost:8080/xui-api/http%3A%2F%2Flogin.example%3A8080/streaming/timeshift.php?token=abc',
     );
 
-    expect(rewritten).toContain('/xui-api/https%3A%2F%2Fedge6.castcdn.net/streaming/timeshift.php');
+    expect(rewritten).toContain('/xui-api/https%3A%2F%2Fedge6.castcdn.net/streaming/timeshift_shadow.php');
     expect(rewritten).toContain('token=abc');
   });
 

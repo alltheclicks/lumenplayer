@@ -1,5 +1,79 @@
 # Handoff — Lumen Player
 
+## Session 2026-04-01 — strict `shadow-only` Lumen validation wiring
+
+- Context:
+  - continued in `/Users/filip/Documents/Lumen-Player-qaf035-sync`
+  - active branch remains:
+    - `codex/qaf-035-shadow-admin-validation`
+  - goal of this slice was not to reopen the confirmed remux/transcode workaround, but to make the web app validate the provider/admin `timeshift_shadow.php` fix without silently sliding back onto `timeshift_hls` or local proxy remux
+- Important clarification captured for future continuation:
+  - there are now three distinct catch-up paths for this provider:
+    - `proxy-remuxed`
+      - Lumen workaround on branch `codex/qaf-035-remux-efficiency-tests`
+      - known-good browser fix
+      - currently FFmpeg **transcode** (`libx264` + `aac`), not cheap packet-copy remux
+      - this is the path that spikes CPU when local proxy/gateway is enabled
+    - provider `timeshift_hls`
+      - direct provider/browser-oriented HLS path on `edge6:8080`
+      - in one real Lumen UI run this was the path that got past `0:59` with a brief `~0.5-1s` visual stall before recovering
+      - there was no local `ffmpeg` or proxy remux process running in that observation
+    - provider `timeshift_shadow.php`
+      - token-based admin validation path on `https://edge6.castcdn.net/streaming/timeshift_shadow.php?token=...`
+      - standalone browser/harness evidence already looked materially better than the old provider paths
+- Done in code:
+  - finished the web-side strict shadow validation gate in:
+    - `apps/web/src/components/player/catchupSource.ts`
+  - behavior with `VITE_CATCHUP_SHADOW_VALIDATION=1`:
+    - resolves the seed request from an existing `streaming/timeshift.php?...` candidate when available
+    - otherwise reconstructs the seed generator from the existing `timeshift_hls` + legacy `/timeshift/...` candidates already produced by `XtreamCodesService`
+    - follows the real provider redirect/token flow
+    - rewrites the final edge token URL onto `timeshift_shadow.php`
+    - builds a **shadow-only** transport plan with no fallback attempts
+    - throws `catchup_shadow_validation_unavailable` instead of silently falling back to direct `timeshift_hls` or local proxy remux/gateway
+  - kept token rewrite logic in:
+    - `apps/web/src/components/player/catchupTransport.ts`
+    - edge token URLs on `edge6.castcdn.net` still rewrite from `/streaming/timeshift.php?token=...` to `/streaming/timeshift_shadow.php?token=...`
+  - added focused tests in:
+    - `apps/web/src/components/player/catchupSource.test.ts`
+    - asserts:
+      - successful shadow token resolve produces a single-attempt `shadow-only` plan
+      - failed shadow resolve throws instead of falling back
+- Local validation:
+  - `pnpm --filter @lumen/web exec vitest run src/components/player/catchupTransport.test.ts src/components/player/catchupSource.test.ts`
+  - `pnpm --filter @lumen/web typecheck`
+- Manual validation command for the next agent/user:
+  - run only the web app, with no local proxy/remux:
+    - `cd /Users/filip/Documents/Lumen-Player-qaf035-sync`
+    - `LUMEN_DEBUG_PROXY_LOG=1 VITE_XTREAM_SERVER='http://smart.mediaking.fi:8080' VITE_CATCHUP_GATEWAY_ENABLED='0' VITE_CATCHUP_SHADOW_VALIDATION='1' pnpm --filter @lumen/web dev --host 127.0.0.1 --port 8081`
+  - expected runtime signal from Lumen:
+    - startup seed may still hit `smart.../streaming/timeshift.php?...`
+    - actual playback source must become `https://edge6.castcdn.net/streaming/timeshift_shadow.php?token=...`
+    - there must be no active local `ffmpeg`/proxy remux process and no playback fallback onto `edge6:8080/timeshift_hls/...`
+- Next exact task:
+  - run one focused in-app validation from Lumen UI on:
+    - `RTS 1` around `02:00`
+    - `PINK` around `01:00`
+  - record:
+    - exact playback URL used by the app
+    - whether any brief stall remains around `~0:59-1:01`
+    - whether Chrome/WebKit still recover cleanly without local transcode
+
+## Session 2026-03-17 — split branch for XUI shadow validation
+
+- Context:
+  - continued in `/Users/filip/Documents/Lumen-Player-qaf035-sync`
+  - created a dedicated branch for testing the provider/admin `timeshift_shadow.php` fix without mixing that work into the already-confirmed remux/transcode fallback line
+- Branches:
+  - preserved confirmed remux/transcode fallback reference at:
+    - branch: `codex/qaf-035-remux-efficiency-tests`
+    - head: `cab9a41` (`Harden remux fallback and capacity controls`)
+  - opened new validation branch from that same head:
+    - branch: `codex/qaf-035-shadow-admin-validation`
+- Important note:
+  - the remux/transcode workaround is still the only locally confirmed browser-safe fallback through Lumen for the Mediaking provider
+  - the new branch exists specifically so shadow/XUI validation can proceed without losing track of that known-good fallback state
+
 ## Session 2026-03-16 — confirmed web catch-up workaround via proxy remux/transcode (`codex/qaf-035-catchup-remux`)
 
 - Context:

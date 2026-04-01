@@ -261,6 +261,27 @@ Current workaround note (2026-03-16):
     - the current `proxy-remuxed` implementation is FFmpeg transcode (`libx264` video + `aac` audio to browser-safe fMP4/HLS), not packet-copy remux
     - it should be treated as a confirmed compatibility workaround, but CPU cost is likely too high to accept unchanged for small-production VPS hosting
 
+Current shadow-validation note (2026-04-01):
+- `QAF-034` / `QAF-035`:
+  - active branch for provider-admin validation is:
+    - `codex/qaf-035-shadow-admin-validation`
+  - Lumen web now has a strict `shadow-only` gate behind:
+    - `VITE_CATCHUP_SHADOW_VALIDATION=1`
+  - strict-mode behavior:
+    - resolves the provider seed request from existing catch-up candidates
+    - follows the real provider redirect/token flow
+    - rewrites the final edge token playback onto `https://edge6.castcdn.net/streaming/timeshift_shadow.php?token=...`
+    - suppresses all local fallback attempts
+    - throws `catchup_shadow_validation_unavailable` instead of silently dropping back to `timeshift_hls` or proxy remux
+  - this was added specifically because earlier UI validation could still appear to “work” while actually hitting `edge6:8080/timeshift_hls/...`, which would not be a valid admin-shadow proof
+  - local validation for this strict mode is currently green:
+    - `pnpm --filter @lumen/web exec vitest run src/components/player/catchupTransport.test.ts src/components/player/catchupSource.test.ts`
+    - `pnpm --filter @lumen/web typecheck`
+  - still required before changing overall QAF status:
+    - one headed in-app Lumen validation on `RTS 1` near `02:00` and `PINK` near `01:00`
+    - confirm actual playback URL is `timeshift_shadow.php`
+    - record whether the previously observed brief `~0:59-1:01` visual stall still exists without any local transcode
+
 ## Next ready queue (strict order)
 
 1. `QAF-035` clean continuation setup:
