@@ -23,11 +23,35 @@ interface ManifestResolvedEvent {
   requestedUrl: string;
   manifestUrl: string;
   finalUrl: string | null;
+  httpStatus: number | null;
+  contentType: string | null;
+}
+
+export interface ManifestRuntimeGateDecision {
+  isPlayableForRuntime: boolean;
+  rejectionReason?: string | null;
+  responseContentType?: string | null;
+}
+
+export class ManifestRuntimeGateError extends Error {
+  readonly code = 'NON_PLAYABLE_PAYLOAD';
+  readonly manifestEvent: ManifestResolvedEvent;
+  readonly decision: ManifestRuntimeGateDecision;
+
+  constructor(
+    manifestEvent: ManifestResolvedEvent,
+    decision: ManifestRuntimeGateDecision,
+  ) {
+    super('Manifest response is not playable for runtime.');
+    this.name = 'ManifestRuntimeGateError';
+    this.manifestEvent = manifestEvent;
+    this.decision = decision;
+  }
 }
 
 interface HlsPlayerAdapterOptions {
   preferNativeHls?: boolean;
-  onManifestResolved?: (event: ManifestResolvedEvent) => void;
+  onManifestResolved?: (event: ManifestResolvedEvent) => ManifestRuntimeGateDecision | void;
 }
 
 interface NativeAudioTrack {
@@ -72,7 +96,9 @@ export class HlsPlayerAdapter implements PlayerAdapter {
   private readonly audioTracksListeners = new Set<AudioTracksListener>();
   private readonly subtitleTracksListeners = new Set<SubtitleTracksListener>();
   private readonly removeVideoListeners: () => void;
-  private readonly onManifestResolved?: (event: ManifestResolvedEvent) => void;
+  private readonly onManifestResolved?: (
+    event: ManifestResolvedEvent
+  ) => ManifestRuntimeGateDecision | void;
 
   constructor(video: HTMLVideoElement, options: HlsPlayerAdapterOptions = {}) {
     this.video = video;
@@ -334,14 +360,26 @@ export class HlsPlayerAdapter implements PlayerAdapter {
             const manifestUrl = typeof data.url === 'string' && data.url.length > 0
               ? data.url
               : url;
-            this.onManifestResolved?.({
+            const manifestResolvedEvent: ManifestResolvedEvent = {
               requestedUrl: url,
               manifestUrl,
               finalUrl: HlsPlayerAdapter.resolveNetworkResponseUrl(
                 data.networkDetails,
                 manifestUrl,
               ),
-            });
+              httpStatus: HlsPlayerAdapter.resolveNetworkResponseStatus(data.networkDetails),
+              contentType: HlsPlayerAdapter.resolveNetworkResponseContentType(data.networkDetails),
+            };
+
+            const runtimeGateDecision = this.onManifestResolved?.(manifestResolvedEvent);
+            if (
+              runtimeGateDecision &&
+              runtimeGateDecision.isPlayableForRuntime === false
+            ) {
+              cleanup();
+              hls.destroy();
+              reject(new ManifestRuntimeGateError(manifestResolvedEvent, runtimeGateDecision));
+            }
           };
 
           const onHlsError = (_event: string, data: ErrorData) => {
@@ -437,6 +475,84 @@ export class HlsPlayerAdapter implements PlayerAdapter {
     }
 
     return fallbackUrl || null;
+  }
+
+  private static resolveNetworkResponseStatus(networkDetails: unknown): number | null {
+    if (!networkDetails || typeof networkDetails !== 'object') {
+      return null;
+    }
+
+    const details = networkDetails as {
+      status?: unknown;
+      code?: unknown;
+      response?: {
+        status?: unknown;
+      };
+    };
+
+    const statusCandidates = [
+      details.status,
+      details.code,
+      details.response?.status,
+    ];
+
+    for (const candidate of statusCandidates) {
+      if (typeof candidate === 'number' && Number.isFinite(candidate)) {
+        return Math.floor(candidate);
+      }
+
+      if (typeof candidate === 'string') {
+        const parsed = Number(candidate);
+        if (Number.isFinite(parsed)) {
+          return Math.floor(parsed);
+        }
+      }
+    }
+
+    return null;
+  }
+
+  private static resolveNetworkResponseContentType(networkDetails: unknown): string | null {
+    if (!networkDetails || typeof networkDetails !== 'object') {
+      return null;
+    }
+
+    const details = networkDetails as {
+      getResponseHeader?: (name: string) => string | null;
+      response?: {
+        headers?: {
+          get?: (name: string) => string | null;
+        };
+      };
+      headers?: Record<string, unknown>;
+    };
+
+    if (typeof details.getResponseHeader === 'function') {
+      const fromXhrHeaders = details.getResponseHeader('content-type') ??
+        details.getResponseHeader('Content-Type');
+      if (typeof fromXhrHeaders === 'string' && fromXhrHeaders.trim().length > 0) {
+        return fromXhrHeaders.trim();
+      }
+    }
+
+    if (
+      details.response?.headers &&
+      typeof details.response.headers.get === 'function'
+    ) {
+      const fromFetchHeaders = details.response.headers.get('content-type');
+      if (typeof fromFetchHeaders === 'string' && fromFetchHeaders.trim().length > 0) {
+        return fromFetchHeaders.trim();
+      }
+    }
+
+    if (details.headers && typeof details.headers === 'object') {
+      const fromHeadersMap = details.headers['content-type'] ?? details.headers['Content-Type'];
+      if (typeof fromHeadersMap === 'string' && fromHeadersMap.trim().length > 0) {
+        return fromHeadersMap.trim();
+      }
+    }
+
+    return null;
   }
 
   private attachVideoListeners(): () => void {
