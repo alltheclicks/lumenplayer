@@ -889,7 +889,6 @@ const Player = () => {
     session.source,
     switchToLiveChannel,
     toast,
-    xtreamCodesService,
   ]);
 
   const currentChannelId = currentChannel?.id;
