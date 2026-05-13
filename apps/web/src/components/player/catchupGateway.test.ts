@@ -1,0 +1,100 @@
+import { describe, expect, it, vi } from 'vitest';
+import { resolveCatchUpGatewayPlayback } from './catchupGateway';
+
+describe('resolveCatchUpGatewayPlayback', () => {
+  it('returns normalized gateway metadata for valid resolve payload', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        serverId: 'server-1',
+        channelId: 'channel-1',
+        programId: 'program-1',
+        assetKey: 'asset-1',
+        transportMode: 'proxy-normalized',
+        playbackUrl: 'http://localhost:8788/xui-api/https%3A%2F%2Fedge.example/streaming/timeshift.php?token=abc&__lumenTransport=normalized',
+        assetState: 'ready',
+        fallbackReason: 'gateway-normalized',
+        hotStart: true,
+      }),
+    });
+
+    const result = await resolveCatchUpGatewayPlayback({
+      channel: {
+        id: 'channel-1',
+        hasCatchUp: true,
+        catchUpDays: 7,
+      },
+      program: {
+        id: 'program-1',
+      },
+      streamId: 112,
+      startTimestamp: 1_772_000_000,
+      durationSeconds: 1800,
+      sourceCandidates: {
+        redirectUrls: ['https://edge.example/streaming/timeshift.php?token=abc'],
+        queryUrls: [],
+        legacyUrls: [],
+      },
+      gatewayOptions: {
+        enabled: true,
+        debugOverride: true,
+        origin: 'http://localhost:8788',
+        fetchImpl: fetchImpl as typeof fetch,
+      },
+    });
+
+    expect(result).toEqual({
+      serverId: 'server-1',
+      assetKey: 'asset-1',
+      transportMode: 'proxy-normalized',
+      playbackUrl: 'http://localhost:8788/xui-api/https%3A%2F%2Fedge.example/streaming/timeshift.php?token=abc&__lumenTransport=normalized',
+      assetState: 'ready',
+      fallbackReason: 'gateway-normalized',
+      hotStart: true,
+    });
+  });
+
+  it('rejects payloads with invalid enum values', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        serverId: 'server-1',
+        channelId: 'channel-1',
+        programId: 'program-1',
+        assetKey: 'asset-1',
+        transportMode: 'broken-mode',
+        playbackUrl: 'http://localhost:8788/play.m3u8',
+        assetState: 'ready',
+        fallbackReason: null,
+        hotStart: false,
+      }),
+    });
+
+    const result = await resolveCatchUpGatewayPlayback({
+      channel: {
+        id: 'channel-1',
+        hasCatchUp: true,
+        catchUpDays: 7,
+      },
+      program: {
+        id: 'program-1',
+      },
+      streamId: 112,
+      startTimestamp: 1_772_000_000,
+      durationSeconds: 1800,
+      sourceCandidates: {
+        redirectUrls: ['https://edge.example/streaming/timeshift.php?token=abc'],
+        queryUrls: [],
+        legacyUrls: [],
+      },
+      gatewayOptions: {
+        enabled: true,
+        debugOverride: true,
+        origin: 'http://localhost:8788',
+        fetchImpl: fetchImpl as typeof fetch,
+      },
+    });
+
+    expect(result).toBeNull();
+  });
+});
