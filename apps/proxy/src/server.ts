@@ -154,7 +154,21 @@ const isHlsManifestResponse = (upstreamUrl: URL, headers: Headers): boolean => {
 
 const rewriteHlsManifestBody = (manifestBody: string, encodedTarget: string): string => {
   const normalizedEncodedTarget = encodeURIComponent(encodedTarget);
+  const rewriteAbsoluteAssetUrl = (rawUrl: string): string => {
+    try {
+      const parsed = new URL(rawUrl);
+      return `${XTREAM_PROXY_BASE_PATH}/${encodeURIComponent(parsed.origin)}${parsed.pathname}${parsed.search}`;
+    } catch {
+      return rawUrl;
+    }
+  };
+
   return manifestBody
+    .replace(/(^|["'\n\r])(https?:\/\/[^"'\s]+\/(?:hlsr|streaming|timeshift_hls|timeshift)\/[^"'\s]*)/g, (
+      _match,
+      prefix: string,
+      rawUrl: string,
+    ) => `${prefix}${rewriteAbsoluteAssetUrl(rawUrl)}`)
     .replace(/(^|["'\n\r])\/hlsr\//g, (_match, prefix: string) => (
       `${prefix}${XTREAM_PROXY_BASE_PATH}/${normalizedEncodedTarget}${XTREAM_HLS_ROOT_PATH}`
     ))

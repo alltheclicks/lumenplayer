@@ -148,4 +148,33 @@ describe('HlsPlayerAdapter', () => {
     expect(hls?.recoverMediaError).toHaveBeenCalledTimes(1);
     expect(hls?.destroy).not.toHaveBeenCalled();
   });
+
+  it('rejects startup after a second fatal HLS media error recovery attempt', async () => {
+    const video = createMockVideoElement();
+    const adapter = new HlsPlayerAdapter(video);
+    const source = {
+      url: 'https://example.com/archive.m3u8',
+      type: 'hls' as const,
+      title: 'Archive',
+    };
+
+    const loadPromise = adapter.load(source);
+    const hls = hlsMockState.instances.at(-1);
+    expect(hls).toBeDefined();
+
+    hls?.emit(hlsMockState.MockHls.Events.ERROR, {
+      fatal: true,
+      type: hlsMockState.MockHls.ErrorTypes.MEDIA_ERROR,
+      details: 'bufferStalledError',
+    });
+    hls?.emit(hlsMockState.MockHls.Events.ERROR, {
+      fatal: true,
+      type: hlsMockState.MockHls.ErrorTypes.MEDIA_ERROR,
+      details: 'bufferStalledError',
+    });
+
+    expect(hls?.recoverMediaError).toHaveBeenCalledTimes(1);
+    expect(hls?.destroy).toHaveBeenCalledTimes(1);
+    await expect(loadPromise).rejects.toThrow('Media error while decoding stream.');
+  });
 });

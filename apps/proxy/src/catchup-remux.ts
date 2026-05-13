@@ -621,14 +621,6 @@ export const createCatchUpRemuxController = (options: {
       return binaryAvailability;
     }
 
-    if (!checkBinary(featureGate.ffprobeBin)) {
-      binaryAvailability = {
-        ok: false,
-        message: `Catch-up remux binary is unavailable: ${featureGate.ffprobeBin}`,
-      };
-      return binaryAvailability;
-    }
-
     binaryAvailability = {
       ok: true,
       message: null,
@@ -1066,13 +1058,13 @@ export const createCatchUpRemuxController = (options: {
       throw new CatchUpRemuxError("remux-asset-missing", "Remux session not found or expired.");
     }
 
-    const filePath = input.kind === "init"
-      ? session.initPath
-      : path.join(session.segmentDir, buildSegmentFilename(input.segmentIndex ?? -1));
-
     if (input.kind === "segment" && (input.segmentIndex === null || input.segmentIndex < 0)) {
       throw new CatchUpRemuxError("remux-asset-missing", "Invalid remux segment index.");
     }
+
+    const filePath = input.kind === "init"
+      ? session.initPath
+      : path.join(session.segmentDir, buildSegmentFilename(input.segmentIndex ?? -1));
 
     await waitForFile(session, filePath);
     touchSession(session);

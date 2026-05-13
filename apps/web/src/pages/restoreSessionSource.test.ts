@@ -117,7 +117,7 @@ describe('normalizeRestoredSessionSource', () => {
     });
 
     expect(result.normalizedSource?.url).toBe(
-      'http://localhost:8788/xui-api/https%3A%2F%2Fedge6.castcdn.net/streaming/timeshift.php?token=stable',
+      'http://localhost:8788/xui-api/https%3A%2F%2Fedge6.castcdn.net/streaming/timeshift_shadow.php?token=stable',
     );
     expect(result.normalizedSource?.metadata).toMatchObject({
       mode: 'catchup',

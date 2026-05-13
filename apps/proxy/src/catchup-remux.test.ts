@@ -521,6 +521,30 @@ describe("catch-up remux controller", () => {
     expect((await controller.getAsset(segmentAsset ?? { sessionId: "", kind: "segment", segmentIndex: 0 })).toString()).toBe("segment-zero");
   });
 
+  it("does not require ffprobe when ffmpeg can perform the configured remux profile", async () => {
+    const spawn = createCompletedSpawn();
+    const controller = createCatchUpRemuxController({
+      logger,
+      env: {
+        LUMEN_PROXY_REMUX_ENABLED: "1",
+      },
+      checkBinary: (binary) => binary !== "ffprobe",
+      spawnProcess: spawn.spawnProcess,
+      tempRootDir: createTempRootDir("ffmpeg-only"),
+    });
+
+    const manifest = await controller.getManifest({
+      upstreamUrl: new URL(
+        "https://login.example/timeshift/user/pass/1800/2026-03-08:08-30/112.ts?__lumenTransport=remux-hls",
+      ),
+      serverKey: "server-1",
+      perServerConcurrency: 1,
+    });
+
+    expect(manifest.body).toContain("#EXTM3U");
+    expect(spawn.calls).toHaveLength(1);
+  });
+
   it("rejects new remux sessions when active capacity is exhausted and queue wait timeout elapses", async () => {
     const spawn = createLongRunningSpawn();
     const controller = createCatchUpRemuxController({

@@ -684,15 +684,6 @@ export const buildCatchUpTransportPlan = ({
       ...deduplicatedAttempts.slice(0, MAX_CATCH_UP_ATTEMPTS - 1),
       deduplicatedAttempts[firstLegacyIndex],
     ];
-  const cappedAttempts = (
-    firstLegacyIndex >= 0 &&
-    initialCappedAttempts.every((attempt) => attempt.strategy !== 'legacy')
-  )
-    ? [
-      ...initialCappedAttempts.slice(0, Math.max(0, MAX_CATCH_UP_ATTEMPTS - 1)),
-      deduplicatedAttempts[firstLegacyIndex],
-    ]
-    : initialCappedAttempts;
   const gatewayAttempts = gatewaySelection?.playbackUrl
     ? dedupeAttempts([
       {
@@ -703,9 +694,9 @@ export const buildCatchUpTransportPlan = ({
         offsetMinutes: 0,
         strategy: 'gateway-resolved',
       },
-      ...cappedAttempts,
+      ...initialCappedAttempts,
     ]).slice(0, MAX_CATCH_UP_ATTEMPTS)
-    : cappedAttempts;
+    : initialCappedAttempts;
   const initialAttempt = gatewayAttempts[0];
   if (!initialAttempt) {
     throw new Error('Unable to build catch-up transport plan');

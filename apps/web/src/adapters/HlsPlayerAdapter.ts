@@ -316,6 +316,8 @@ export class HlsPlayerAdapter implements PlayerAdapter {
 
       try {
         await new Promise<void>((resolve, reject) => {
+          let mediaErrorRecoveryAttempted = false;
+
           const onManifestParsed = () => {
             this.syncHlsAudioTracks(hls.audioTrack);
             this.syncHlsSubtitleTracks(hls.subtitleTrack);
@@ -346,7 +348,17 @@ export class HlsPlayerAdapter implements PlayerAdapter {
 
           const onHlsError = (_event: string, data: ErrorData) => {
             if (data.fatal && data.type === Hls.ErrorTypes.MEDIA_ERROR) {
-              hls.recoverMediaError();
+              if (!mediaErrorRecoveryAttempted) {
+                mediaErrorRecoveryAttempted = true;
+                hls.recoverMediaError();
+                return;
+              }
+
+              const mappedError = this.mapHlsError(data);
+              this.emitError(mappedError);
+              cleanupStartupListeners();
+              hls.destroy();
+              reject(new Error(mappedError.message));
               return;
             }
 
