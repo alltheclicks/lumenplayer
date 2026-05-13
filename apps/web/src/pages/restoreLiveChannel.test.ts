@@ -59,6 +59,20 @@ describe('resolveStartupLiveChannel', () => {
 
     expect(resolved?.id).toBe('10');
   });
+
+  it('can prefer the first catch-up-enabled channel for validation flows', () => {
+    const channels = [
+      buildChannel('10'),
+      { ...buildChannel('20'), hasCatchUp: true },
+      { ...buildChannel('30'), hasCatchUp: true },
+    ];
+
+    const resolved = resolveStartupLiveChannel(channels, null, null, {
+      preferCatchUp: true,
+    });
+
+    expect(resolved?.id).toBe('20');
+  });
 });
 
 describe('shouldSnapSessionRestoreToLiveEdge', () => {

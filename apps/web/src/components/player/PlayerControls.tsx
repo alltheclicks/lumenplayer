@@ -42,6 +42,7 @@ import {
 } from './liveTimeshift';
 import { emitWebObservabilityEvent } from '@/services/observability';
 import { resolveCatchUpPlaybackSource } from './catchupSource';
+import { findCatchUpProgramById } from './catchupProgramNavigation';
 import {
   buildLiveSessionSource,
   isCatchUpSessionSourceMetadata,
@@ -168,7 +169,7 @@ const PlayerControls = ({
       return null;
     }
 
-    return channel.epg.find(program => program.id === sessionSourceMetadata.programId) ?? null;
+    return findCatchUpProgramById(channel.epg, sessionSourceMetadata.programId);
   }, [channel.epg, sessionSourceMetadata]);
   const catchUpPosition = catchUpProgram
     ? Math.max(0, (session.positionMs ?? 0) / 1000)

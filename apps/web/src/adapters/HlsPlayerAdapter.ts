@@ -9,6 +9,9 @@ import type {
 } from '@lumen/types';
 
 const HLS_MIME_TYPE = 'application/vnd.apple.mpegurl';
+const HLS_BUFFERING_RECOVERY_DELAY_MS = 4_000;
+const HLS_BUFFERING_PROGRESS_TOLERANCE_SECONDS = 0.25;
+const HLS_BUFFERING_MAX_RECOVERY_ATTEMPTS = 2;
 
 type StateListener = (state: PlaybackState) => void;
 type ErrorListener = (error: PlaybackError) => void;
@@ -29,6 +32,12 @@ interface HlsPlayerAdapterOptions {
   preferNativeHls?: boolean;
   onManifestResolved?: (event: ManifestResolvedEvent) => void;
 }
+
+type PlaybackMetadataCarrier = MediaSource & {
+  metadata?: {
+    mode?: unknown;
+  };
+};
 
 interface NativeAudioTrack {
   enabled?: boolean;
@@ -73,6 +82,9 @@ export class HlsPlayerAdapter implements PlayerAdapter {
   private readonly subtitleTracksListeners = new Set<SubtitleTracksListener>();
   private readonly removeVideoListeners: () => void;
   private readonly onManifestResolved?: (event: ManifestResolvedEvent) => void;
+  private bufferingRecoveryTimer: ReturnType<typeof setTimeout> | null = null;
+  private bufferingRecoveryAttempts = 0;
+  private bufferingRecoveryEnabled = false;
 
   constructor(video: HTMLVideoElement, options: HlsPlayerAdapterOptions = {}) {
     this.video = video;
@@ -85,6 +97,9 @@ export class HlsPlayerAdapter implements PlayerAdapter {
     this.clearHls();
     this.resetPlaybackState(false);
     this.updateState('loading');
+    this.bufferingRecoveryEnabled = (
+      (source as PlaybackMetadataCarrier).metadata?.mode === 'catchup'
+    );
 
     if (this.isMixedContentBlocked(source.url)) {
       const error: PlaybackError = {
@@ -318,6 +333,11 @@ export class HlsPlayerAdapter implements PlayerAdapter {
         await new Promise<void>((resolve, reject) => {
           let mediaErrorRecoveryAttempted = false;
 
+          const onMediaAttached = () => {
+            hls.off(Hls.Events.MEDIA_ATTACHED, onMediaAttached);
+            hls.loadSource(url);
+          };
+
           const onManifestParsed = () => {
             this.syncHlsAudioTracks(hls.audioTrack);
             this.syncHlsSubtitleTracks(hls.subtitleTrack);
@@ -391,10 +411,12 @@ export class HlsPlayerAdapter implements PlayerAdapter {
           };
 
           const cleanupStartupListeners = () => {
+            hls.off(Hls.Events.MEDIA_ATTACHED, onMediaAttached);
             hls.off(Hls.Events.MANIFEST_PARSED, onManifestParsed);
             hls.off(Hls.Events.MANIFEST_LOADED, onManifestLoaded);
           };
 
+          hls.on(Hls.Events.MEDIA_ATTACHED, onMediaAttached);
           hls.on(Hls.Events.MANIFEST_LOADED, onManifestLoaded);
           hls.on(Hls.Events.MANIFEST_PARSED, onManifestParsed);
           hls.on(Hls.Events.ERROR, onHlsError);
@@ -402,7 +424,6 @@ export class HlsPlayerAdapter implements PlayerAdapter {
           hls.on(Hls.Events.AUDIO_TRACK_SWITCHED, onAudioTrackSwitched);
           hls.on(Hls.Events.SUBTITLE_TRACKS_UPDATED, onSubtitleTracksUpdated);
           hls.on(Hls.Events.SUBTITLE_TRACK_SWITCH, onSubtitleTrackSwitched);
-          hls.loadSource(url);
           hls.attachMedia(this.video);
         });
       } catch (error) {
@@ -456,13 +477,32 @@ export class HlsPlayerAdapter implements PlayerAdapter {
   }
 
   private attachVideoListeners(): () => void {
-    const handlePlay = () => this.updateState('playing');
-    const handlePause = () => this.updateState('paused');
-    const handleWaiting = () => this.updateState('buffering');
-    const handleEnded = () => this.updateState('ended');
-    const handleSeeking = () => this.updateState('seeking');
-    const handleSeeked = () => this.updateState(this.video.paused ? 'paused' : 'playing');
+    const handlePlaying = () => {
+      this.resetBufferingRecovery();
+      this.updateState('playing');
+    };
+    const handlePause = () => {
+      this.clearBufferingRecoveryTimer();
+      this.updateState('paused');
+    };
+    const handleWaiting = () => {
+      this.updateState('buffering');
+      this.scheduleBufferingRecovery();
+    };
+    const handleEnded = () => {
+      this.resetBufferingRecovery();
+      this.updateState('ended');
+    };
+    const handleSeeking = () => {
+      this.clearBufferingRecoveryTimer();
+      this.updateState('seeking');
+    };
+    const handleSeeked = () => {
+      this.clearBufferingRecoveryTimer();
+      this.updateState(this.video.paused ? 'paused' : 'playing');
+    };
     const handleTimeUpdate = () => {
+      this.resetBufferingRecovery();
       this.timeListeners.forEach((listener) => listener(this.video.currentTime));
     };
     const handleError = () => {
@@ -493,7 +533,7 @@ export class HlsPlayerAdapter implements PlayerAdapter {
       this.syncNativeSubtitleTracks();
     };
 
-    this.video.addEventListener('play', handlePlay);
+    this.video.addEventListener('playing', handlePlaying);
     this.video.addEventListener('pause', handlePause);
     this.video.addEventListener('waiting', handleWaiting);
     this.video.addEventListener('ended', handleEnded);
@@ -514,7 +554,7 @@ export class HlsPlayerAdapter implements PlayerAdapter {
     nativeTextTracks?.addEventListener?.('removetrack', handleNativeTextTracksChange);
 
     return () => {
-      this.video.removeEventListener('play', handlePlay);
+      this.video.removeEventListener('playing', handlePlaying);
       this.video.removeEventListener('pause', handlePause);
       this.video.removeEventListener('waiting', handleWaiting);
       this.video.removeEventListener('ended', handleEnded);
@@ -533,6 +573,7 @@ export class HlsPlayerAdapter implements PlayerAdapter {
   }
 
   private clearHls(): void {
+    this.resetBufferingRecovery();
     if (!this.hls) {
       return;
     }
@@ -541,6 +582,7 @@ export class HlsPlayerAdapter implements PlayerAdapter {
   }
 
   private resetPlaybackState(flushMediaElement: boolean): void {
+    this.resetBufferingRecovery();
     this.video.pause();
     this.video.removeAttribute('src');
     if (flushMediaElement) {
@@ -753,6 +795,58 @@ export class HlsPlayerAdapter implements PlayerAdapter {
     this.subtitleTracksListeners.forEach((listener) => {
       listener(this.subtitleTracks, this.selectedSubtitleTrackId);
     });
+  }
+
+  private clearBufferingRecoveryTimer(): void {
+    if (this.bufferingRecoveryTimer !== null) {
+      clearTimeout(this.bufferingRecoveryTimer);
+      this.bufferingRecoveryTimer = null;
+    }
+  }
+
+  private resetBufferingRecovery(): void {
+    this.clearBufferingRecoveryTimer();
+    this.bufferingRecoveryAttempts = 0;
+  }
+
+  private scheduleBufferingRecovery(): void {
+    if (
+      !this.bufferingRecoveryEnabled ||
+      !this.hls ||
+      this.video.paused ||
+      this.bufferingRecoveryAttempts >= HLS_BUFFERING_MAX_RECOVERY_ATTEMPTS
+    ) {
+      return;
+    }
+
+    this.clearBufferingRecoveryTimer();
+    const checkpointSeconds = this.video.currentTime || 0;
+    this.bufferingRecoveryTimer = setTimeout(() => {
+      this.bufferingRecoveryTimer = null;
+
+      if (!this.hls || this.video.paused || this.state !== 'buffering') {
+        return;
+      }
+
+      const currentTime = this.video.currentTime || 0;
+      if (
+        Math.abs(currentTime - checkpointSeconds) >
+        HLS_BUFFERING_PROGRESS_TOLERANCE_SECONDS
+      ) {
+        this.resetBufferingRecovery();
+        return;
+      }
+
+      this.bufferingRecoveryAttempts += 1;
+      this.hls.recoverMediaError();
+      this.video.play().catch(() => {
+        // Ignore autoplay rejections; this recovery path is best-effort only.
+      });
+
+      if (this.bufferingRecoveryAttempts < HLS_BUFFERING_MAX_RECOVERY_ATTEMPTS) {
+        this.scheduleBufferingRecovery();
+      }
+    }, HLS_BUFFERING_RECOVERY_DELAY_MS);
   }
 }
 

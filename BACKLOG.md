@@ -108,6 +108,18 @@ Completion notes (2026-02-19 .. 2026-02-21):
   - in that mode, Lumen resolves `timeshift_shadow.php` from the real catch-up generator/token flow and throws `catchup_shadow_validation_unavailable` instead of silently falling back to `timeshift_hls` or local proxy remux
   - focused validation is green locally (`catchupTransport` + `catchupSource` tests and `@lumen/web` typecheck)
   - next manual runtime checkpoint is an in-app Lumen test proving the playback URL is really `https://edge6.castcdn.net/streaming/timeshift_shadow.php?token=...`
+- On 2026-04-03 the provider shadow path moved from TS-only failures to real `fMP4` fallback on problematic channels:
+  - fresh `HRT 1` / `RTS 1` shadow manifests now return `#EXT-X-MAP`, `init.mp4`, and `.m4s` with `no-store/no-cache` headers, and OVH logs show `manifest serve ... format=mp4`
+  - remaining open issue moved from hard decode failure to softer browser-runtime problems:
+    - `HRT 1` can still show audio/video desync
+    - occasional endless buffering can still happen even when the target `.m4s` segment exists server-side
+  - local Lumen mitigations were added on the active shadow branch:
+    - auto-advance to the next archived EPG program at catch-up end
+    - catch-up buffering watchdog in `Player.tsx`
+    - bounded HLS buffering recovery timer in `HlsPlayerAdapter.ts`
+  - latest focused local validation is green:
+    - `catchupSource` + `catchupTransport` + new `catchupProgramNavigation` + `HlsPlayerAdapter` tests
+    - `@lumen/web` typecheck
 - Manual intake triage (`BUG-20260219-01..06`) converted into `QAF-010..QAF-014` follow-up tasks in `docs/V2-QA-FIX-BACKLOG.md`.
 - Follow-up intake tasks (`BUG-20260220-01..03`) are now closed through `QAF-015..QAF-017`.
 - Follow-up intake tasks (`BUG-20260220-04..07`) are now closed through `QAF-018..QAF-020`.
@@ -520,3 +532,10 @@ Template:
 - Greptile je za #98/#99/#100 pokrenuo review check-run i validni komentari su zatvoreni, ali finalna confidence ocena nije vracena ni posle pingova; ovo je evidentirano u PR komentarima.
 - Za #111 svi obavezni lokalni checkovi su prosli (`pnpm lint`, `pnpm typecheck`, `pnpm build`) kao i task-specific checkovi (`pnpm release:readiness:validate`, `pnpm release:readiness:test`).
 - Greptile je na #111 kasnio sa finalnim odgovorom; nakon 2 pinga i obaveznog PR komentara naknadno je vracena finalna confidence ocena `5/5`.
+
+### Sync notes (2026-04-03)
+
+- Shadow validation branch (`codex/qaf-035-shadow-admin-validation`) sada ignoriše stale startup restore za live sesiju i preferira prvi catch-up-enabled kanal pri boot-u.
+- Razlog: persisted `INFO KANAL` (`stream_id=1526`) vraćao je `403` na startup-u i maskirao realan status HRT1/RTS1 shadow testova.
+- Potvrđeno posle patch-a: validation build se diže na `RTS 1` (`stream_id=112`) i live boot više ne kreće sa mrtvog `1526`.
+- Dodat je Lumen-side prefetch sledećeg catch-up programa pred kraj trenutnog, sa kratkim in-memory cache-om, da auto-prelaz ne čeka puni cold shadow build kad program istekne.

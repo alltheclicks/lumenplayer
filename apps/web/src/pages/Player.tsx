@@ -85,10 +85,24 @@ import {
 import { useSwitchToLiveMode } from '@/pages/switchToLiveMode';
 import { fetchChannelShortEpgPrograms } from '@/services/channelEpg';
 import { resolveCatchUpEmptyStateReason } from '@/components/player/catchUpEmptyState';
+import {
+  findCatchUpProgramById,
+  findNextCatchUpProgram,
+} from '@/components/player/catchupProgramNavigation';
+import {
+  buildCatchUpPrefetchKey,
+  CATCH_UP_PREFETCH_LOOKAHEAD_MS,
+  isCatchUpPrefetchFresh,
+  isCatchUpPrefetchRetryDue,
+  shouldPrefetchNextCatchUpProgram,
+} from '@/components/player/catchupPrefetch';
 import { hasLiveCatchUpEntries, shouldShowLiveCatchUpSection } from '@/pages/liveCatchUpVisibility';
 import { resolveCatchUpClockActionTarget } from '@/pages/liveCatchUpDiscoverability';
 import { resolveXtreamCanonicalServer } from '@/config/xtream';
-import { resolveCatchUpPlaybackSource } from '@/components/player/catchupSource';
+import {
+  resolveCatchUpPlaybackSource,
+  type CatchUpPlaybackSourceResult,
+} from '@/components/player/catchupSource';
 import {
   buildCatchUpSessionSourceFromMetadata,
   buildLiveSessionSource,
@@ -96,6 +110,8 @@ import {
   parseSessionSourceMetadata,
 } from '@/components/player/sessionSources';
 import { normalizeRestoredSessionSource } from '@/pages/restoreSessionSource';
+
+const SHADOW_VALIDATION_ENABLED = import.meta.env.VITE_CATCHUP_SHADOW_VALIDATION === '1';
 
 const isTypingTarget = (target: EventTarget | null): boolean => {
   if (!(target instanceof HTMLElement)) {
@@ -136,6 +152,15 @@ const formatXtreamExpDate = (expDateUnix: string): string => {
     month: '2-digit',
     year: 'numeric',
   }).format(new Date(numericValue * 1000));
+};
+
+const CATCH_UP_STALL_RECOVERY_DELAY_MS = 6_000;
+const CATCH_UP_STALL_RECOVERY_BUCKET_MS = 5_000;
+const LIVE_STARTUP_RETRY_DELAY_MS = 3_500;
+
+const withStartupRetryHash = (url: string): string => {
+  const [baseUrl] = url.split('#', 1);
+  return `${baseUrl}#__lumenStartupRetry=${Date.now()}`;
 };
 
 const groupCatchUpProgramsByDate = (programs: PlayerChannel['epg']) => {
@@ -722,6 +747,16 @@ const Player = () => {
       return;
     }
 
+    if (SHADOW_VALIDATION_ENABLED) {
+      playbackBootstrapAppliedRef.current = true;
+      startupLiveRestoreAppliedRef.current = true;
+      if (session.source) {
+        commands.stop();
+      }
+      setIsPlaybackBootstrapReady(true);
+      return;
+    }
+
     let isCancelled = false;
     const parsedMetadata = parseSessionSourceMetadata(session.source?.metadata);
     const showRestoreNotice = (title: string, description: string) => {
@@ -738,7 +773,7 @@ const Player = () => {
     };
 
     const bootstrapPlayback = async () => {
-      if (session.source) {
+      if (session.source && !SHADOW_VALIDATION_ENABLED) {
         const rawMetadataMode = (
           session.source.metadata &&
           typeof session.source.metadata === 'object' &&
@@ -795,13 +830,18 @@ const Player = () => {
         }
       }
 
-      const shouldSnapPersistedLiveSource = shouldSnapSessionRestoreToLiveEdge(session.source);
-      const lastWatchedChannelId = await loadLastWatchedChannelId();
+      const shouldSnapPersistedLiveSource = SHADOW_VALIDATION_ENABLED
+        ? false
+        : shouldSnapSessionRestoreToLiveEdge(session.source);
+      const lastWatchedChannelId = SHADOW_VALIDATION_ENABLED
+        ? null
+        : await loadLastWatchedChannelId();
       if (isCancelled) {
         return;
       }
 
-      const shouldApplyStartupRestore = shouldSnapPersistedLiveSource || (!currentChannel && !session.source);
+      const shouldApplyStartupRestore = shouldSnapPersistedLiveSource
+        || (!currentChannel && (!session.source || SHADOW_VALIDATION_ENABLED));
       if (!shouldApplyStartupRestore) {
         startupLiveRestoreAppliedRef.current = true;
         playbackBootstrapAppliedRef.current = true;
@@ -814,11 +854,14 @@ const Player = () => {
         lastWatchedChannelId,
         shouldSnapPersistedLiveSource
           ? (currentChannel?.id ?? session.source?.channelId ?? null)
-          : null
+          : null,
+        {
+          preferCatchUp: SHADOW_VALIDATION_ENABLED,
+        }
       );
       if (startupChannel) {
         switchToLiveChannel(startupChannel, {
-          forceAutoplay: shouldSnapPersistedLiveSource,
+          forceAutoplay: shouldSnapPersistedLiveSource || SHADOW_VALIDATION_ENABLED,
         });
       }
 
@@ -943,6 +986,68 @@ const Player = () => {
     switchToLiveChannel(channels[prevIndex]);
   }, [currentChannel, channels, switchToLiveChannel]);
 
+  const resolveCatchUpProgramPlayback = useCallback(async (
+    program: PlayerChannel['epg'][number],
+    options?: {
+      allowPrefetchCache?: boolean;
+      background?: boolean;
+    },
+  ): Promise<CatchUpPlaybackSourceResult | null> => {
+    if (!currentChannelWithEPG) {
+      return null;
+    }
+
+    const cacheKey = buildCatchUpPrefetchKey(currentChannelWithEPG.id, program.id);
+    const nowMs = Date.now();
+    const allowPrefetchCache = options?.allowPrefetchCache ?? true;
+
+    if (allowPrefetchCache) {
+      const cached = catchUpPrefetchCacheRef.current.get(cacheKey);
+      if (cached && isCatchUpPrefetchFresh(cached.resolvedAtMs, nowMs)) {
+        return cached.resolved;
+      }
+    }
+
+    const existingRequest = catchUpPrefetchInFlightRef.current.get(cacheKey);
+    if (existingRequest) {
+      return existingRequest;
+    }
+
+    if (options?.background) {
+      const failedAtMs = catchUpPrefetchFailureRef.current.get(cacheKey);
+      if (typeof failedAtMs === 'number' && !isCatchUpPrefetchRetryDue(failedAtMs, nowMs)) {
+        return null;
+      }
+    }
+
+    const duration = Math.floor(
+      (program.endTime.getTime() - program.startTime.getTime()) / 1000
+    );
+    const request = resolveCatchUpPlaybackSource({
+      channel: currentChannelWithEPG,
+      program,
+      urlBuilder: xtreamCodesService,
+      fallbackStreamIds: currentCatchUpFallbackStreamIds,
+      durationSeconds: duration,
+      initialPositionGuardSeconds: CATCH_UP_INITIAL_POSITION_GUARD_MS / 1000,
+    }).then((resolved) => {
+      catchUpPrefetchCacheRef.current.set(cacheKey, {
+        resolved,
+        resolvedAtMs: Date.now(),
+      });
+      catchUpPrefetchFailureRef.current.delete(cacheKey);
+      return resolved;
+    }).catch((error) => {
+      catchUpPrefetchFailureRef.current.set(cacheKey, Date.now());
+      throw error;
+    }).finally(() => {
+      catchUpPrefetchInFlightRef.current.delete(cacheKey);
+    });
+
+    catchUpPrefetchInFlightRef.current.set(cacheKey, request);
+    return request;
+  }, [currentCatchUpFallbackStreamIds, currentChannelWithEPG]);
+
   const playCatchUpProgram = useCallback(async (program: PlayerChannel['epg'][number]) => {
     if (!currentChannelWithEPG) {
       return;
@@ -953,14 +1058,13 @@ const Player = () => {
       (program.endTime.getTime() - program.startTime.getTime()) / 1000
     );
     try {
-      const resolved = await resolveCatchUpPlaybackSource({
-        channel: currentChannelWithEPG,
-        program,
-        urlBuilder: xtreamCodesService,
-        fallbackStreamIds: currentCatchUpFallbackStreamIds,
-        durationSeconds: duration,
-        initialPositionGuardSeconds: CATCH_UP_INITIAL_POSITION_GUARD_MS / 1000,
+      const resolved = await resolveCatchUpProgramPlayback(program, {
+        allowPrefetchCache: true,
       });
+      if (!resolved) {
+        throw new Error('catchup_prefetch_unavailable');
+      }
+
       const catchUpFallbackUrls = resolved.transportPlan.fallbackAttempts.map((attempt) => attempt.url);
 
       emitWebObservabilityEvent({
@@ -1002,7 +1106,7 @@ const Player = () => {
         },
       });
     }
-  }, [commands, currentCatchUpFallbackStreamIds, currentChannelWithEPG]);
+  }, [commands, currentCatchUpFallbackStreamIds, currentChannelWithEPG, resolveCatchUpProgramPlayback]);
 
   const goToPlayerHome = useCallback(() => {
     if (isOnDemandSource) {
@@ -1450,6 +1554,29 @@ const Player = () => {
   };
 
   const currentProgram = currentChannelWithEPG ? getCurrentProgram(currentChannelWithEPG as any) : undefined;
+  const currentCatchUpProgram = useMemo(() => {
+    if (!currentChannelWithEPG || !isCatchUpSessionSourceMetadata(sessionSourceMetadata)) {
+      return null;
+    }
+
+    return findCatchUpProgramById(currentChannelWithEPG.epg, sessionSourceMetadata.programId);
+  }, [currentChannelWithEPG, sessionSourceMetadata]);
+  const nextCatchUpProgram = useMemo(() => {
+    if (!currentChannelWithEPG || !currentCatchUpProgram) {
+      return null;
+    }
+
+    return findNextCatchUpProgram(currentChannelWithEPG.epg, currentCatchUpProgram);
+  }, [currentCatchUpProgram, currentChannelWithEPG]);
+  const catchUpStallRecoveryAttemptedKeysRef = useRef<Set<string>>(new Set());
+  const catchUpStallRecoverySourceUrlRef = useRef<string | null>(null);
+  const catchUpPrefetchCacheRef = useRef(
+    new Map<string, { resolved: CatchUpPlaybackSourceResult; resolvedAtMs: number }>()
+  );
+  const catchUpPrefetchInFlightRef = useRef(new Map<string, Promise<CatchUpPlaybackSourceResult | null>>());
+  const catchUpPrefetchFailureRef = useRef(new Map<string, number>());
+  const catchUpPrefetchChannelIdRef = useRef<string | null>(null);
+  const liveStartupRetryAttemptedSourceRef = useRef<string | null>(null);
   const progress = currentProgram ? getProgramProgress(currentProgram) : 0;
   const upcomingPrograms = useMemo(
     () => {
@@ -1480,6 +1607,247 @@ const Player = () => {
     () => hasLiveCatchUpEntries(catchUpProgramDays.length),
     [catchUpProgramDays.length]
   );
+  useEffect(() => {
+    if (!isCatchUpSessionSourceMetadata(sessionSourceMetadata)) {
+      catchUpStallRecoveryAttemptedKeysRef.current.clear();
+      catchUpStallRecoverySourceUrlRef.current = null;
+      return;
+    }
+
+    const sourceUrl = session.source?.url ?? '';
+    if (!sourceUrl) {
+      catchUpStallRecoveryAttemptedKeysRef.current.clear();
+      catchUpStallRecoverySourceUrlRef.current = null;
+      return;
+    }
+
+    if (catchUpStallRecoverySourceUrlRef.current !== sourceUrl) {
+      catchUpStallRecoveryAttemptedKeysRef.current.clear();
+      catchUpStallRecoverySourceUrlRef.current = sourceUrl;
+    }
+  }, [session.source?.url, sessionSourceMetadata]);
+  useEffect(() => {
+    const channelId = currentChannelWithEPG?.id ?? null;
+    const isCatchUpSession = isCatchUpSessionSourceMetadata(sessionSourceMetadata);
+    if (!isCatchUpSession || !channelId) {
+      catchUpPrefetchCacheRef.current.clear();
+      catchUpPrefetchInFlightRef.current.clear();
+      catchUpPrefetchFailureRef.current.clear();
+      catchUpPrefetchChannelIdRef.current = null;
+      return;
+    }
+
+    if (catchUpPrefetchChannelIdRef.current !== channelId) {
+      catchUpPrefetchCacheRef.current.clear();
+      catchUpPrefetchInFlightRef.current.clear();
+      catchUpPrefetchFailureRef.current.clear();
+      catchUpPrefetchChannelIdRef.current = channelId;
+    }
+  }, [currentChannelWithEPG?.id, sessionSourceMetadata]);
+  useEffect(() => {
+    if (
+      !currentChannelWithEPG ||
+      !isCatchUpSessionSourceMetadata(sessionSourceMetadata) ||
+      !currentCatchUpProgram ||
+      !nextCatchUpProgram ||
+      !shouldPrefetchNextCatchUpProgram({
+        currentProgram: currentCatchUpProgram,
+        nextProgram: nextCatchUpProgram,
+        positionMs: session.positionMs,
+        lookaheadMs: CATCH_UP_PREFETCH_LOOKAHEAD_MS,
+      })
+    ) {
+      return;
+    }
+
+    const prefetchKey = buildCatchUpPrefetchKey(currentChannelWithEPG.id, nextCatchUpProgram.id);
+    const cached = catchUpPrefetchCacheRef.current.get(prefetchKey);
+    if (cached && isCatchUpPrefetchFresh(cached.resolvedAtMs)) {
+      return;
+    }
+
+    if (catchUpPrefetchInFlightRef.current.has(prefetchKey)) {
+      return;
+    }
+
+    const failedAtMs = catchUpPrefetchFailureRef.current.get(prefetchKey);
+    if (typeof failedAtMs === 'number' && !isCatchUpPrefetchRetryDue(failedAtMs)) {
+      return;
+    }
+
+    emitWebObservabilityEvent({
+      name: 'catchup.retry',
+      severity: 'info',
+      metadata: {
+        channelId: currentChannelWithEPG.id,
+        streamId: currentChannelWithEPG.streamId,
+        programId: nextCatchUpProgram.id,
+        status: 'prefetch_requested',
+        errorCode: null,
+      },
+    });
+
+    void resolveCatchUpProgramPlayback(nextCatchUpProgram, {
+      allowPrefetchCache: true,
+      background: true,
+    }).then((resolved) => {
+      if (!resolved) {
+        return;
+      }
+
+      emitWebObservabilityEvent({
+        name: 'catchup.retry',
+        severity: 'info',
+        metadata: {
+          channelId: currentChannelWithEPG.id,
+          streamId: currentChannelWithEPG.streamId,
+          programId: nextCatchUpProgram.id,
+          status: 'prefetch_ready',
+          errorCode: null,
+          transportMode: resolved.gateway?.transportMode ?? 'provider-direct',
+          hotStart: resolved.gateway?.hotStart ?? false,
+          assetKey: resolved.gateway?.assetKey ?? null,
+        },
+      });
+    }).catch((error) => {
+      emitWebObservabilityEvent({
+        name: 'catchup.retry',
+        severity: 'warn',
+        metadata: {
+          channelId: currentChannelWithEPG.id,
+          streamId: currentChannelWithEPG.streamId,
+          programId: nextCatchUpProgram.id,
+          status: 'prefetch_failed',
+          errorCode: error instanceof Error ? error.message : 'unknown_error',
+        },
+      });
+    });
+  }, [
+    currentCatchUpProgram,
+    currentChannelWithEPG,
+    nextCatchUpProgram,
+    resolveCatchUpProgramPlayback,
+    session.positionMs,
+    sessionSourceMetadata,
+  ]);
+  useEffect(() => {
+    if (
+      !usesLocalRenderer ||
+      !session.source ||
+      !isCatchUpSessionSourceMetadata(sessionSourceMetadata) ||
+      session.playback !== 'buffering'
+    ) {
+      return;
+    }
+
+    const stallPositionMs = Math.max(0, session.positionMs ?? 0);
+    const stallKey = `${session.source.url}:${Math.floor(stallPositionMs / CATCH_UP_STALL_RECOVERY_BUCKET_MS)}`;
+    if (catchUpStallRecoveryAttemptedKeysRef.current.has(stallKey)) {
+      return;
+    }
+
+    const timeoutId = setTimeout(() => {
+      catchUpStallRecoveryAttemptedKeysRef.current.add(stallKey);
+      emitWebObservabilityEvent({
+        name: 'catchup.retry',
+        severity: 'warn',
+        metadata: {
+          channelId: sessionSourceMetadata.channelId,
+          streamId: sessionSourceMetadata.streamId,
+          programId: sessionSourceMetadata.programId,
+          status: 'buffering_watchdog_retry',
+          errorCode: 'BUFFERING_STALL',
+          positionMs: stallPositionMs,
+          sourceUrl: session.source?.url ?? null,
+        },
+      });
+      retryCurrentPlayback();
+    }, CATCH_UP_STALL_RECOVERY_DELAY_MS);
+
+    return () => {
+      clearTimeout(timeoutId);
+    };
+  }, [
+    retryCurrentPlayback,
+    session.playback,
+    session.positionMs,
+    session.source,
+    sessionSourceMetadata,
+    usesLocalRenderer,
+  ]);
+  useEffect(() => {
+    if (
+      !usesLocalRenderer ||
+      !isPlaybackBootstrapReady ||
+      !session.source ||
+      sessionSourceMetadata.mode !== 'live' ||
+      session.playback !== 'playing'
+    ) {
+      return;
+    }
+
+    const sourceUrl = session.source.url;
+    const sourceBaseUrl = sourceUrl.split('#', 1)[0] ?? sourceUrl;
+    if (liveStartupRetryAttemptedSourceRef.current !== sourceBaseUrl) {
+      liveStartupRetryAttemptedSourceRef.current = null;
+    } else {
+      return;
+    }
+
+    const timeoutId = setTimeout(() => {
+      const currentTimeSeconds = playerRef.current?.getCurrentTime() ?? 0;
+      if (currentTimeSeconds > 0.25) {
+        return;
+      }
+
+      liveStartupRetryAttemptedSourceRef.current = sourceBaseUrl;
+      emitWebObservabilityEvent({
+        name: 'playback.retry',
+        severity: 'warn',
+        metadata: {
+          channelId: session.source?.channelId ?? null,
+          streamId: sessionSourceMetadata.streamId ?? null,
+          status: 'startup_retry',
+          errorCode: 'LIVE_STARTUP_STALL',
+          sourceUrl: sourceBaseUrl,
+        },
+      });
+      commands.setSource({
+        ...session.source,
+        url: withStartupRetryHash(sourceBaseUrl),
+      }, 0);
+      commands.play();
+    }, LIVE_STARTUP_RETRY_DELAY_MS);
+
+    return () => {
+      clearTimeout(timeoutId);
+    };
+  }, [
+    commands,
+    isPlaybackBootstrapReady,
+    session.playback,
+    session.source,
+    sessionSourceMetadata,
+    usesLocalRenderer,
+  ]);
+  const handleCatchUpEnded = useCallback(() => {
+    if (!nextCatchUpProgram) {
+      return;
+    }
+
+    emitWebObservabilityEvent({
+      name: 'catchup.retry',
+      severity: 'info',
+      metadata: {
+        channelId: currentChannelWithEPG?.id ?? null,
+        streamId: currentChannelWithEPG?.streamId ?? null,
+        programId: nextCatchUpProgram.id,
+        status: 'auto_advanced_to_next_program',
+        errorCode: null,
+      },
+    });
+    void playCatchUpProgram(nextCatchUpProgram);
+  }, [currentChannelWithEPG, nextCatchUpProgram, playCatchUpProgram]);
   const triggerTvUnazadDiscoverability = useCallback(() => {
     const actionTarget = resolveCatchUpClockActionTarget(
       Boolean(tvUnazadSectionRef.current) && shouldShowTvUnazadSection
@@ -1891,6 +2259,7 @@ const Player = () => {
                 autoPlay={shouldAutoplayCurrentSource}
                 preferNativeHls={appSettings.player.preferNativeHls}
                 loadingOverlayMaxMs={isOnDemandSource ? ON_DEMAND_LOADING_OVERLAY_MAX_MS : undefined}
+                onEnded={handleCatchUpEnded}
               />
             )}
 

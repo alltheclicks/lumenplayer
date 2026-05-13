@@ -5,10 +5,15 @@ type StartupSessionSource = {
   metadata?: Record<string, unknown>;
 } | null;
 
+interface ResolveStartupLiveChannelOptions {
+  preferCatchUp?: boolean;
+}
+
 export const resolveStartupLiveChannel = (
   channels: PlayerChannel[],
   lastWatchedChannelId: string | null,
-  preferredChannelId: string | null = null
+  preferredChannelId: string | null = null,
+  options: ResolveStartupLiveChannelOptions = {},
 ): PlayerChannel | null => {
   if (channels.length === 0) {
     return null;
@@ -25,6 +30,13 @@ export const resolveStartupLiveChannel = (
     const matchedChannel = channels.find((channel) => channel.id === lastWatchedChannelId);
     if (matchedChannel) {
       return matchedChannel;
+    }
+  }
+
+  if (options.preferCatchUp) {
+    const firstCatchUpChannel = channels.find((channel) => channel.hasCatchUp);
+    if (firstCatchUpChannel) {
+      return firstCatchUpChannel;
     }
   }
 

@@ -163,7 +163,9 @@ describe('resolveCatchUpPlaybackSource', () => {
     expect(result.source.url).toBe('https://edge6.castcdn.net/streaming/timeshift_shadow.php?token=abc123');
     expect(result.transportPlan.allAttempts).toHaveLength(1);
     expect(result.transportPlan.fallbackAttempts).toHaveLength(0);
+    expect(result.transportPlan.initialAttempt.strategy).toBe('shadow-validation');
     expect((result.source.metadata as Record<string, unknown>).catchUpFallbackUrls).toEqual([]);
+    expect((result.source.metadata as Record<string, unknown>).catchUpAttemptStrategy).toBe('shadow-validation');
     expect(result.gateway).toMatchObject({
       serverId: 'shadow-validation',
       transportMode: 'provider-direct',

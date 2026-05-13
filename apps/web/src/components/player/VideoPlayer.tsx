@@ -10,6 +10,7 @@ import {
   isCatchUpFallbackStrategy,
   isCatchUpTransportAttempt,
   rememberCatchUpHostAffinity,
+  resolveCatchUpFinalHost,
   resolveCatchUpHostAffinity,
   resolveCatchUpTargetOrigin,
   rewriteCatchUpUrlTargetOrigin,
@@ -94,6 +95,7 @@ type WebKitAirPlayVideoElement = HTMLVideoElement & {
 
 const STARTUP_AUTOPLAY_RECOVERY_MAX_RETRIES = 3;
 const STARTUP_AUTOPLAY_RECOVERY_BASE_DELAY_MS = 220;
+const STARTUP_HARD_RETRY_DELAY_MS = 3_000;
 const CATCH_UP_FALLBACK_POSITION_GUARD_MS = 15_000;
 const CATCH_UP_FALLBACK_ERROR_CODES = new Set([
   'NETWORK_ERROR',
@@ -218,7 +220,7 @@ const buildCatchUpEventMetadata = (
   const streamId = attempt?.streamId ?? parseNumericMetadataValue(metadata.streamId);
   const start = attempt?.startTimestamp ?? parseNumericMetadataValue(metadata.catchUpStartTimestamp);
   const duration = attempt?.durationSeconds ?? parseNumericMetadataValue(metadata.catchUpDurationSeconds);
-  const finalHost = options.finalHost ?? resolveCatchUpHostAffinity(source.url);
+  const finalHost = options.finalHost ?? resolveCatchUpFinalHost(source.url);
 
   return {
     streamId: streamId ?? null,
@@ -301,6 +303,8 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
   const pendingAutoplaySourceUrlRef = useRef<string | null>(null);
   const startupAutoplayRecoveryAttemptsRef = useRef(0);
   const startupAutoplayRecoveryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const startupHardRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const startupHardRetrySourceUrlRef = useRef<string | null>(null);
   const playbackWantsPlaying = sessionWantsPlayback(session);
   const isLocalRenderer = session.renderer === 'local-web' || session.renderer === 'airplay';
 
@@ -445,6 +449,10 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
     if (startupAutoplayRecoveryTimerRef.current !== null) {
       clearTimeout(startupAutoplayRecoveryTimerRef.current);
       startupAutoplayRecoveryTimerRef.current = null;
+    }
+    if (startupHardRetryTimerRef.current !== null) {
+      clearTimeout(startupHardRetryTimerRef.current);
+      startupHardRetryTimerRef.current = null;
     }
     startupAutoplayRecoveryAttemptsRef.current = 0;
   }, []);
@@ -736,6 +744,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
 
       if (state === 'playing') {
         clearStartupAutoplayRecovery();
+        startupHardRetrySourceUrlRef.current = null;
         pendingAutoplaySourceUrlRef.current = null;
         setError(null);
         setIsPlaying(true);
@@ -951,60 +960,106 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
     setIsLoading(true);
     clearStartupAutoplayRecovery();
     lastStartedSourceRef.current = null;
+    startupHardRetrySourceUrlRef.current = null;
     pendingAutoplaySourceUrlRef.current = autoPlay && sessionWantsPlayback(sessionRef.current)
       ? src
       : null;
 
-    void adapter.load({
-      url: src,
-      type: sourceType,
-    }).then(() => {
-      if (cancelled) {
-        return;
-      }
+    const beginLoad = (allowHardRetry: boolean) => {
+      void adapter.load({
+        url: src,
+        type: sourceType,
+      }).then(() => {
+        if (cancelled) {
+          return;
+        }
 
-      setIsLoading(false);
-      onCanPlay?.();
-      if (autoPlay && sessionWantsPlayback(sessionRef.current)) {
-        adapter.play();
-      }
-    }).catch((loadError: unknown) => {
-      if (cancelled) {
-        return;
-      }
+        setIsLoading(false);
+        onCanPlay?.();
+        if (autoPlay && sessionWantsPlayback(sessionRef.current)) {
+          adapter.play();
+        }
 
-      const message = loadError instanceof Error ? loadError.message : 'Neuspešno učitavanje streama';
-      if (switchToCatchUpFallbackIfAvailable('LOAD_FAILED')) {
-        return;
-      }
+        if (!allowHardRetry) {
+          return;
+        }
 
-      setIsLoading(false);
-      clearStartupAutoplayRecovery();
-      pendingAutoplaySourceUrlRef.current = null;
-      emitWebObservabilityEvent({
-        name: 'playback.error',
-        severity: 'error',
-        metadata: {
-          code: 'LOAD_FAILED',
-          fatal: true,
-          message,
-          renderer: sessionRef.current.renderer,
-          ...buildCatchUpEventMetadata(sessionRef.current.source, {
-            status: 'error',
-            errorCode: 'LOAD_FAILED',
-          }),
-        },
+        if (startupHardRetryTimerRef.current !== null) {
+          clearTimeout(startupHardRetryTimerRef.current);
+        }
+        startupHardRetryTimerRef.current = setTimeout(() => {
+          startupHardRetryTimerRef.current = null;
+          if (cancelled) {
+            return;
+          }
+
+          const currentSession = sessionRef.current;
+          const mediaElement = videoRef.current;
+          if (
+            !mediaElement ||
+            !currentSession.source ||
+            currentSession.source.url !== src ||
+            !sessionWantsPlayback(currentSession) ||
+            lastStartedSourceRef.current === src ||
+            startupHardRetrySourceUrlRef.current === src
+          ) {
+            return;
+          }
+
+          const hasStartupProgress = mediaElement.currentTime > 0.25;
+          if (hasStartupProgress) {
+            return;
+          }
+
+          startupHardRetrySourceUrlRef.current = src;
+          pendingAutoplaySourceUrlRef.current = src;
+          setIsLoading(true);
+          beginLoad(false);
+        }, STARTUP_HARD_RETRY_DELAY_MS);
+      }).catch((loadError: unknown) => {
+        if (cancelled) {
+          return;
+        }
+
+        const message = loadError instanceof Error ? loadError.message : 'Neuspešno učitavanje streama';
+        if (switchToCatchUpFallbackIfAvailable('LOAD_FAILED')) {
+          return;
+        }
+
+        setIsLoading(false);
+        clearStartupAutoplayRecovery();
+        pendingAutoplaySourceUrlRef.current = null;
+        emitWebObservabilityEvent({
+          name: 'playback.error',
+          severity: 'error',
+          metadata: {
+            code: 'LOAD_FAILED',
+            fatal: true,
+            message,
+            renderer: sessionRef.current.renderer,
+            ...buildCatchUpEventMetadata(sessionRef.current.source, {
+              status: 'error',
+              errorCode: 'LOAD_FAILED',
+            }),
+          },
+        });
+        setError((prev) => prev ?? {
+          type: 'unknown',
+          message: 'Nije moguće učitati stream',
+          details: message,
+        });
+        onError?.(message);
       });
-      setError((prev) => prev ?? {
-        type: 'unknown',
-        message: 'Nije moguće učitati stream',
-        details: message,
-      });
-      onError?.(message);
-    });
+    };
+
+    beginLoad(true);
 
     return () => {
       cancelled = true;
+      if (startupHardRetryTimerRef.current !== null) {
+        clearTimeout(startupHardRetryTimerRef.current);
+        startupHardRetryTimerRef.current = null;
+      }
     };
   }, [
     autoPlay,
@@ -1021,6 +1076,16 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
   useEffect(() => {
     const adapter = adapterRef.current;
     if (!adapter || !session.source || session.positionMs === null) {
+      return;
+    }
+
+    const sourceMetadata = (
+      typeof session.source.metadata === 'object' &&
+      session.source.metadata !== null
+    )
+      ? session.source.metadata as Record<string, unknown>
+      : null;
+    if (sourceMetadata?.mode === 'live') {
       return;
     }
 

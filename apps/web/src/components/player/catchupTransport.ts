@@ -22,6 +22,7 @@ export const CATCH_UP_STREAM_FALLBACK_OFFSETS = [0, -1, -2, 1, -5] as const;
 
 export type CatchUpTransportAttemptStrategy =
   | 'gateway-resolved'
+  | 'shadow-validation'
   | 'redirect-primary'
   | 'primary-query'
   | 'primary-retry'
@@ -355,6 +356,10 @@ export const resolveCatchUpHostAffinity = (url: string): string | null => {
 
   return resolveTransitivelyPreferredOrigin(requestOrigin);
 };
+
+export const resolveCatchUpFinalHost = (url: string): string | null => (
+  resolveCatchUpHostAffinity(url) ?? resolveCatchUpTargetOrigin(url)
+);
 
 export const rewriteCatchUpUrlTargetOrigin = (
   url: string,

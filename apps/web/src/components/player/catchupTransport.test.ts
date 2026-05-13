@@ -4,6 +4,7 @@ import {
   buildCatchUpTransportPlan,
   clearCatchUpHostAffinityMemory,
   rememberCatchUpHostAffinity,
+  resolveCatchUpFinalHost,
   resolveCatchUpHostAffinity,
 } from './catchupTransport';
 
@@ -150,10 +151,22 @@ describe('catch-up transport plan', () => {
     expect(
       resolveCatchUpHostAffinity('https://login.example/timeshift/user/pass/30/2026-02-23:22-35/112.ts'),
     ).toBe('https://edge6.castcdn.net');
+    expect(
+      resolveCatchUpFinalHost('https://login.example/timeshift/user/pass/30/2026-02-23:22-35/112.ts'),
+    ).toBe('https://edge6.castcdn.net');
 
     expect(
       applyKnownCatchUpHostAffinity('https://login.example/timeshift/user/pass/30/2026-02-23:22-35/112.ts'),
     ).toBe('https://login.example/timeshift/user/pass/30/2026-02-23:22-35/112.ts');
+  });
+
+  it('resolves the direct request origin as final host when no redirect affinity was learned', () => {
+    expect(
+      resolveCatchUpHostAffinity('http://oveu.mediaking.fi:8080/streaming/timeshift_shadow.php?token=abc'),
+    ).toBeNull();
+    expect(
+      resolveCatchUpFinalHost('http://oveu.mediaking.fi:8080/streaming/timeshift_shadow.php?token=abc'),
+    ).toBe('http://oveu.mediaking.fi:8080');
   });
 
   it('keeps encoded xui proxy credentialed generator URLs on the login host', () => {

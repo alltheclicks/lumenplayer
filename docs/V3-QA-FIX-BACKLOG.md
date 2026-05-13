@@ -282,6 +282,25 @@ Current shadow-validation note (2026-04-01):
     - confirm actual playback URL is `timeshift_shadow.php`
     - record whether the previously observed brief `~0:59-1:01` visual stall still exists without any local transcode
 
+Current shadow-runtime note (2026-04-03):
+- `QAF-034` / `QAF-035`:
+  - provider `timeshift_shadow.php` now serves real `fMP4` fallback on problematic terms/channels:
+    - manifest contains `#EXT-X-MAP`
+    - media path is `init.mp4` + `.m4s`
+    - response headers are now `no-store/no-cache`
+    - OVH logs show `manifest serve ... format=mp4`
+  - this closes the older “temporary TS manifest leaked before fallback completed” issue
+  - remaining runtime problems are now softer browser-quality issues rather than hard TS decode failure:
+    - `HRT 1` may still exhibit audio/video desync
+    - browser can still occasionally sit in endless `buffering` even when the target `.m4s` segment exists server-side
+  - local Lumen mitigation slice was added on `codex/qaf-035-shadow-admin-validation`:
+    - auto-advance from one archived EPG item into the next on `ended`
+    - catch-up buffering watchdog in `Player.tsx`
+    - bounded `hls.js` buffering recovery timer in `HlsPlayerAdapter.ts`
+  - latest local validation for that slice is green:
+    - `pnpm --filter @lumen/web exec vitest run src/components/player/catchupSource.test.ts src/components/player/catchupTransport.test.ts src/components/player/catchupProgramNavigation.test.ts src/adapters/HlsPlayerAdapter.test.ts`
+    - `pnpm --filter @lumen/web typecheck`
+
 ## Next ready queue (strict order)
 
 1. `QAF-035` clean continuation setup:
@@ -540,3 +559,20 @@ User executed an additional run with HTTPS-oriented profile settings to compare 
 - VOD/series player must expose equivalent essential overlay controls as live mode (play/pause, seek timeline, audio access, fullscreen/PiP where applicable).
 - Loading spinner must not block control interaction longer than startup window.
 - If source is not ready, controls remain discoverable and user can recover (retry/back/live route).
+
+## Shadow validation note (2026-04-03)
+
+1. Validation branch: `codex/qaf-035-shadow-admin-validation`
+2. Lumen-side cleanup added for reproducible admin testing:
+   - `VITE_CATCHUP_SHADOW_VALIDATION=1` now bypasses persisted live startup restore
+   - boot prefers the first catch-up-enabled channel instead of stale watch-history/live session state
+3. Why this was needed:
+   - persisted `INFO KANAL` (`stream_id=1526`) was auto-restoring on localhost runs and returning `403`
+   - this produced false-negative “player is broken” signals before HRT1/RTS1 shadow paths were even exercised
+4. Verified post-patch:
+   - startup now lands on `RTS 1` (`stream_id=112`)
+   - live boot issues `GET /live/.../112.m3u8 -> 302 -> 200`
+   - `playback.started` is emitted on boot
+5. Additional Lumen mitigation:
+   - when a catch-up program is within ~45s of its end and a following EPG entry exists, Lumen now pre-resolves the next catch-up source in the background
+   - prefetched results are cached briefly and reused on transition to reduce cold-start delay when auto-advancing to the next program

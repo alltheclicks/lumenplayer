@@ -169,7 +169,11 @@ const buildShadowOnlyResult = ({
   result: CatchUpPlaybackSourceResult;
   gateway: CatchUpGatewayPlaybackMetadata;
 }): CatchUpPlaybackSourceResult => {
-  const initialAttempt = result.transportPlan.initialAttempt;
+  const initialAttempt = {
+    ...result.transportPlan.initialAttempt,
+    url: gateway.playbackUrl,
+    strategy: 'shadow-validation' as const,
+  };
   const sourceMetadata = {
     ...(result.source.metadata as Record<string, unknown>),
     gateway,

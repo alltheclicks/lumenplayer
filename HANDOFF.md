@@ -1,5 +1,55 @@
 # Handoff — Lumen Player
 
+## Session 2026-04-03 — shadow `fMP4` provider validation + Lumen-side mitigations
+
+- Context:
+  - continued on branch:
+    - `codex/qaf-035-shadow-admin-validation`
+  - provider/admin `timeshift_shadow.php` on `edge6.castcdn.net` now serves real `fMP4` fallback for problematic streams instead of temporarily leaking stale TS manifests
+- Provider state confirmed today:
+  - for `HRT 1` (`stream_id=75`) and `RTS 1` (`stream_id=112`), fresh shadow manifests now return:
+    - `#EXT-X-MAP`
+    - `init.mp4`
+    - `.m4s` media segments
+    - cache headers:
+      - `Cache-Control: no-store, no-cache, must-revalidate, max-age=0`
+      - `Pragma: no-cache`
+  - OVH log now shows the intended fallback path, for example:
+    - `shadow build rejected ... profile=ts reason=decode_fallback`
+    - `shadow build stream=... profile=mp4 audio=copy`
+    - `manifest serve ... format=mp4`
+- Latest runtime observations:
+  - decode-stop across old minute boundaries is materially improved:
+    - `HRT 1` now starts, seeks past `:59`, and no longer fails in the old TS-only way
+    - `RTS 1` shadow also resolves to `fMP4`
+  - remaining provider quality issue is now mostly:
+    - audio/video desync on `HRT 1`
+    - occasional non-fatal stalls/spinners in the browser despite segments existing server-side
+- Done in Lumen (local, not yet committed in this handoff slice):
+  - added catch-up program navigation helper:
+    - `apps/web/src/components/player/catchupProgramNavigation.ts`
+  - added auto-advance to the next archived EPG item when a catch-up program reaches `ended`:
+    - wired in `apps/web/src/pages/Player.tsx`
+    - `VideoPlayer` now receives `onEnded`
+  - added catch-up buffering watchdog in `Player.tsx`:
+    - if local catch-up playback sits in `buffering` on the same source/position bucket for ~`6s`, Lumen retries the current catch-up source once for that bucket
+    - this is intended to break “segment exists but Chrome spins forever” cases such as the observed `~3:49` stall
+  - added `hls.js`-side buffering recovery timer in:
+    - `apps/web/src/adapters/HlsPlayerAdapter.ts`
+    - when `waiting` persists without time progress, the adapter now does a bounded `recoverMediaError()` + `play()` attempt instead of waiting indefinitely
+  - focused tests added/updated:
+    - `apps/web/src/components/player/catchupProgramNavigation.test.ts`
+    - `apps/web/src/adapters/HlsPlayerAdapter.test.ts`
+  - local validation now green:
+    - `pnpm --filter @lumen/web exec vitest run src/components/player/catchupSource.test.ts src/components/player/catchupTransport.test.ts src/components/player/catchupProgramNavigation.test.ts src/adapters/HlsPlayerAdapter.test.ts`
+    - `pnpm --filter @lumen/web typecheck`
+- Next exact task:
+  - headed Lumen validation on `http://127.0.0.1:8081`
+  - verify:
+    - `HRT 1` no longer hangs indefinitely around `~3:49`
+    - catch-up end really advances into the next archived program instead of stopping
+    - note whether A/V desync remains even after the new watchdog
+
 ## Session 2026-04-01 — strict `shadow-only` Lumen validation wiring
 
 - Context:
@@ -2025,3 +2075,19 @@
   - Task list: `BACKLOG.md`
   - Phase plan: `ROADMAP.md`
   - Dev guide: `CLAUDE.md`
+
+## Sync note (2026-04-03, shadow validation branch)
+
+- Branch: `codex/qaf-035-shadow-admin-validation`
+- Shadow validation mode now bypasses stale live startup restore from persisted session/watch-history and prefers the first catch-up-enabled channel on boot.
+- Reason: persisted `INFO KANAL` (`stream_id=1526`) was repeatedly restoring on `127.0.0.1:8081`, returning `403`, and making the validation build look broken before HRT1/RTS1 testing even started.
+- Current verified boot after the patch:
+  - local session source initializes to `RTS 1` (`stream_id=112`)
+  - `GET /live/.../112.m3u8 -> 302 -> 200`
+  - `playback.started` is emitted
+- Current server-side shadow status:
+  - HRT1 shadow now serves `fMP4` (`#EXT-X-MAP`, `init.mp4`, `.m4s`) and crosses old `:59` boundary, but user still reports A/V desync
+  - RTS1 shadow is substantially improved but may still show minor boundary glitches depending on program window
+- Lumen-side follow-up (same branch, uncommitted as of latest session):
+  - catch-up now prefetches the next EPG program shortly before the current one ends
+  - prefetched shadow result is cached briefly and reused on transition to reduce the 5-10s cold-start delay when jumping to the next program
