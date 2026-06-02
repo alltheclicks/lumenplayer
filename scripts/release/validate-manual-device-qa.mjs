@@ -54,6 +54,10 @@ if (artifact.policy.localChromiumIsNotRealDeviceSignoff !== true) {
   fail('policy.localChromiumIsNotRealDeviceSignoff must be true.');
 }
 
+if (artifact.policy.noMediaProcessingRequired !== true) {
+  fail('policy.noMediaProcessingRequired must be true.');
+}
+
 if (!Array.isArray(artifact.policy.allowedTransportModes) || artifact.policy.allowedTransportModes.length === 0) {
   fail('policy.allowedTransportModes must be a non-empty array.');
 }
@@ -186,8 +190,14 @@ for (const target of artifact.targets) {
     if (target.mediaProcessingAudit.status === 'pending') {
       fail(`target ${target.id} mediaProcessingAudit is pending with --require-final.`);
     }
+    if (target.mediaProcessingAudit.status !== 'pass') {
+      fail(`target ${target.id} mediaProcessingAudit must pass with --require-final.`);
+    }
     if (!isNonEmptyString(target.mediaProcessingAudit.evidenceRef)) {
       fail(`target ${target.id} mediaProcessingAudit.evidenceRef must be set with --require-final.`);
+    }
+    if (!target.mediaProcessingAudit.evidenceRef.includes('release:no-media-evidence:scan')) {
+      fail(`target ${target.id} mediaProcessingAudit.evidenceRef must reference release:no-media-evidence:scan with --require-final.`);
     }
     if (target.mediaProcessingAudit.forbiddenHits.length > 0) {
       fail(`target ${target.id} mediaProcessingAudit.forbiddenHits must be empty with --require-final.`);
