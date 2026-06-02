@@ -464,6 +464,15 @@ const finalizeCommand = (args) => {
     fail('cannot finalize while there are pending cases');
   }
 
+  const missingEvidence = run.results.filter((result) => (
+    typeof result.evidence !== 'string' || result.evidence.trim() === ''
+  ));
+  if (missingEvidence.length > 0) {
+    const firstMissing = missingEvidence[0];
+    const targetLabel = firstMissing.targetId ? ` on ${firstMissing.targetId}` : '';
+    fail(`cannot finalize: ${missingEvidence.length} case(s) missing evidence; first is ${firstMissing.caseId}${targetLabel}`);
+  }
+
   if (signoffStatus === 'pass' && blockerFailures.length > 0) {
     fail(`cannot pass signoff: ${blockerFailures.length} release-blocker case(s) failed`);
   }

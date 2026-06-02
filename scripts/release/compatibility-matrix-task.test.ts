@@ -209,4 +209,72 @@ describe('compatibility-matrix-task', () => {
     expect(run.results[0]?.caseId).toBe('CASE-TWO-TAGS');
     expect(run.results[0]?.targetId).toBe('target-strict-mobile');
   });
+
+  it('requires evidence before finalizing a compatibility run', () => {
+    const repoRoot = process.cwd();
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-0342-compat-'));
+    const matrixPath = path.join(tempDir, 'matrix.json');
+    const outPath = path.join(tempDir, 'run.json');
+
+    fs.writeFileSync(matrixPath, JSON.stringify({
+      release: 'V1',
+      templateVersion: 1,
+      cases: [
+        {
+          id: 'CASE-NEEDS-EVIDENCE',
+          suite: 'smoke',
+          title: 'case needs evidence',
+          platform: 'desktop',
+          device: 'Desktop',
+          browser: 'Chrome',
+          tags: ['desktop-browser'],
+          releaseBlocker: true,
+        },
+      ],
+    }, null, 2));
+
+    const init = runTask([
+      'init',
+      '--matrix', matrixPath,
+      '--out', outPath,
+      '--run-id', 'compat-test-run-5',
+    ], repoRoot);
+    expect(init.status).toBe(0);
+
+    const setWithoutEvidence = runTask([
+      'set',
+      '--run', outPath,
+      '--case', 'CASE-NEEDS-EVIDENCE',
+      '--status', 'pass',
+      '--executor', 'ci-test',
+    ], repoRoot);
+    expect(setWithoutEvidence.status).toBe(0);
+
+    const finalizeMissingEvidence = runTask([
+      'finalize',
+      '--run', outPath,
+      '--signoff', 'pass',
+      '--approved-by', 'release-owner',
+    ], repoRoot);
+    expect(finalizeMissingEvidence.status).toBe(2);
+    expect(finalizeMissingEvidence.stderr).toContain('missing evidence');
+
+    const setWithEvidence = runTask([
+      'set',
+      '--run', outPath,
+      '--case', 'CASE-NEEDS-EVIDENCE',
+      '--status', 'pass',
+      '--executor', 'ci-test',
+      '--evidence', 'output/playwright/manual-network-audit/REPORT.md',
+    ], repoRoot);
+    expect(setWithEvidence.status).toBe(0);
+
+    const finalizeWithEvidence = runTask([
+      'finalize',
+      '--run', outPath,
+      '--signoff', 'pass',
+      '--approved-by', 'release-owner',
+    ], repoRoot);
+    expect(finalizeWithEvidence.status).toBe(0);
+  });
 });

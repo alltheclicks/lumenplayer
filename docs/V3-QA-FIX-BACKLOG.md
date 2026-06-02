@@ -624,3 +624,4 @@ Current source of truth for the production web catch-up continuation:
    - Future beta/release signoff must include valid provider auth/live-catalog and focused playback evidence, not only local unit/build gates.
    - `no-media-processing` coverage is now required too: catch-up beta signoff must prove provider/browser playback or a clear unsupported overlay without ffmpeg, remux, transcode, generated HLS, or XUI-side media processing.
    - `scripts/release/validate-beta-capacity-evidence.mjs` now gates the 300-500 user beta capacity artifact and explicitly requires `usesLocalFfmpeg=false`, `usesServerSideTranscode=false`, `usesServerSideRemux=false`, `usesGeneratedHls=false`, and `usesXuiSideTranscode=false`.
+   - `scripts/release/compatibility-matrix-task.mjs finalize` now refuses final signoff while any matrix case is missing evidence, so target/device coverage cannot be marked complete from status-only entries.
