@@ -27,6 +27,18 @@
           "description": "Episode playback starts from series detail and metadata is correct.",
           "status": "pending",
           "evidence": ""
+        },
+        {
+          "id": "provider-auth-live-catalog",
+          "description": "Provider auth succeeds and the live catalog returns non-empty release evidence for the QA account.",
+          "status": "pending",
+          "evidence": ""
+        },
+        {
+          "id": "provider-focused-playback",
+          "description": "Provider-backed focused live/catch-up browser playback smoke passes with redacted evidence.",
+          "status": "pending",
+          "evidence": ""
         }
       ]
     },
@@ -111,6 +123,12 @@
         {
           "id": "rss-cap",
           "description": "Resident memory stays below 200 MB threshold under benchmark load.",
+          "status": "pending",
+          "evidence": ""
+        },
+        {
+          "id": "beta-capacity-300-500",
+          "description": "300-500 live-user beta capacity plan is approved, including evidence that the production media path does not rely on unbounded server-side transcode/remux.",
           "status": "pending",
           "evidence": ""
         }

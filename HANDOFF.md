@@ -31,6 +31,7 @@
     - `SMK-PROVIDER-AUTH-LIVE-CATALOG`
     - `REG-PROVIDER-FOCUSED-PLAYBACK`
   - release readiness review now requires the smoke/regression matrix gate, so final signoff cannot bypass provider-backed smoke evidence
+  - go/no-go checklist now has explicit provider auth/live-catalog, provider focused playback, and 300-500-user beta capacity checks
 - Current blocker:
   - stored QA provider credentials return `user_info.auth = 0`
   - live browser playback and QA simulation cannot prove beta readiness until a valid QA provider account is available

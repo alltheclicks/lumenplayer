@@ -42,6 +42,7 @@ if (!Array.isArray(checklist.featureAreas) || checklist.featureAreas.length === 
   fail('featureAreas must be a non-empty array.');
 }
 
+let failedCheckCount = 0;
 for (const area of checklist.featureAreas) {
   if (!area || typeof area !== 'object') {
     fail('Each feature area must be an object.');
@@ -76,12 +77,24 @@ for (const area of checklist.featureAreas) {
       fail(`Check ${area.id}/${check.id} must include a description.`);
     }
 
+    if (typeof check.evidence !== 'string') {
+      fail(`Check ${area.id}/${check.id} evidence must be a string.`);
+    }
+
     if (!allowedCheckStatuses.has(check.status)) {
       fail(`Check ${area.id}/${check.id} has invalid status: ${check.status}`);
     }
 
+    if (check.status === 'fail') {
+      failedCheckCount += 1;
+    }
+
     if (requireFinal && check.status === 'pending') {
       fail(`Check ${area.id}/${check.id} is pending while --require-final is enabled.`);
+    }
+
+    if (requireFinal && check.evidence.trim() === '') {
+      fail(`Check ${area.id}/${check.id} evidence must be set with --require-final.`);
     }
   }
 }
@@ -105,6 +118,10 @@ if (requireFinal) {
 
   if (typeof checklist.decision.approvedAt !== 'string' || checklist.decision.approvedAt.trim() === '') {
     fail('decision.approvedAt must be set with --require-final.');
+  }
+
+  if (checklist.decision.status === 'pass' && failedCheckCount > 0) {
+    fail('decision.status cannot be pass while one or more checks are fail.');
   }
 }
 
