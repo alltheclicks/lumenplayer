@@ -27,6 +27,7 @@ const files = {
   runtimeMedia: 'artifacts/release/media-policy/qaf035-runtime-media-policy-20260602.json',
   betaOps: 'artifacts/release/ops/qaf035-beta-ops-signoff-20260603.json',
   runbook: 'docs/release/qaf035-beta-signoff-runbook.md',
+  prQualityGateWorkflow: '.github/workflows/pr-quality-gate.yml',
 };
 
 const readJson = (filePath) => {
@@ -77,6 +78,27 @@ const validateRunbook = () => {
   }
 };
 
+const validatePrQualityGateWorkflow = () => {
+  const workflowPath = path.resolve(repoRoot, files.prQualityGateWorkflow);
+  if (!fs.existsSync(workflowPath)) {
+    fail(`PR quality gate workflow is missing: ${files.prQualityGateWorkflow}`);
+  }
+
+  const content = fs.readFileSync(workflowPath, 'utf8');
+  const requiredSnippets = [
+    'release-gates',
+    'pnpm release:qaf035:validate',
+    'pnpm release:qaf035:test',
+    'pnpm release:no-media-evidence:test',
+  ];
+
+  for (const snippet of requiredSnippets) {
+    if (!content.includes(snippet)) {
+      fail(`Workflow ${files.prQualityGateWorkflow} must reference: ${snippet}`);
+    }
+  }
+};
+
 const checks = [];
 const expectedFinalBlockers = [];
 const failures = [];
@@ -110,6 +132,8 @@ const runNode = (label, commandArgs, options = {}) => {
 
 validateRunbook();
 checks.push('qaf035-beta-signoff-runbook');
+validatePrQualityGateWorkflow();
+checks.push('pr-quality-gate-workflow');
 
 runNode('release readiness artifact', [
   'scripts/release/validate-release-readiness.mjs',
@@ -155,6 +179,9 @@ if (failures.length > 0) {
 
 console.log(`[qaf035-release-gates] mode: ${requireFinal ? 'require-final' : 'current-open-blockers'}`);
 console.log(`[qaf035-release-gates] checks passed: ${checks.length}`);
+for (const check of checks) {
+  console.log(`- ${check}`);
+}
 if (expectedFinalBlockers.length > 0) {
   console.log('[qaf035-release-gates] expected final blockers:');
   for (const blocker of expectedFinalBlockers) {

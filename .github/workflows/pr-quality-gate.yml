@@ -77,3 +77,6 @@ jobs:
 
       - name: Test QAF-035 release gate validator
         run: pnpm release:qaf035:test
+
+      - name: Test no-media evidence scanner
+        run: pnpm release:no-media-evidence:test

@@ -17,6 +17,7 @@ describe('QAF-035 release gate aggregate validator', () => {
     expect(result.stdout).toContain('expected final blockers');
     expect(result.stdout).toContain('final provider owner signoff');
     expect(result.stdout).toContain('final manual device QA');
+    expect(result.stdout).toContain('pr-quality-gate-workflow');
   });
 
   it('fails final mode until concrete owner and device evidence is complete', () => {
