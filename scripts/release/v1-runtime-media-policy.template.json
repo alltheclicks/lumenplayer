@@ -1,0 +1,63 @@
+{
+  "release": "V1",
+  "templateVersion": 1,
+  "generatedAt": "",
+  "runOwner": "",
+  "policy": {
+    "allowedTransportModes": ["provider-direct", "proxy-normalized"],
+    "disallowedTransportModes": ["proxy-remuxed", "remux-hls"],
+    "usesLocalFfmpeg": false,
+    "usesServerSideTranscode": false,
+    "usesServerSideRemux": false,
+    "usesGeneratedHls": false,
+    "usesXuiSideTranscode": false,
+    "forbiddenRuntimeFlags": [
+      {
+        "name": "LUMEN_PROXY_REMUX_ENABLED",
+        "disallowedValues": ["1", "true"],
+        "expected": "unset or 0"
+      }
+    ],
+    "forbiddenProcesses": ["ffmpeg", "ffprobe"]
+  },
+  "checks": [
+    {
+      "id": "web-gateway-rejects-remux",
+      "description": "Web beta/prod catch-up path rejects proxy-remuxed/remux-hls gateway playback responses.",
+      "status": "pending",
+      "owner": "",
+      "evidence": "",
+      "notes": ""
+    },
+    {
+      "id": "committed-env-no-remux",
+      "description": "Committed env/example surfaces do not enable LUMEN_PROXY_REMUX_ENABLED=1 for beta/prod.",
+      "status": "pending",
+      "owner": "",
+      "evidence": "",
+      "notes": ""
+    },
+    {
+      "id": "runtime-process-no-ffmpeg",
+      "description": "Local/runtime validation observes no ffmpeg or ffprobe process during provider browser QA.",
+      "status": "pending",
+      "owner": "",
+      "evidence": "",
+      "notes": ""
+    },
+    {
+      "id": "provider-xui-no-transcode-owner",
+      "description": "Provider/XUI owner confirms catch-up failures will not be solved with XUI-side transcode/remux for beta.",
+      "status": "pending",
+      "owner": "",
+      "evidence": "",
+      "notes": ""
+    }
+  ],
+  "signoff": {
+    "status": "pending",
+    "approvedBy": "",
+    "approvedAt": "",
+    "notes": ""
+  }
+}

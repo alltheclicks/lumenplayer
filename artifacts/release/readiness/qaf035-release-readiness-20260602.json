@@ -53,6 +53,14 @@
       "notes": "Partial artifact validates non-final. no-media-processing-verification passes; provider owner, Lumen edge capacity, observability SLO, rollback/throttle plan, and final signoff remain pending."
     },
     {
+      "id": "runtime-media-policy",
+      "name": "V1 runtime no-transcode/no-remux media policy",
+      "status": "pending",
+      "evidenceRef": "artifacts/release/media-policy/qaf035-runtime-media-policy-20260602.json",
+      "checkedAt": "2026-06-02T20:59:44Z",
+      "notes": "Partial artifact validates non-final. Web gateway, committed env, and local process checks pass; provider/XUI no-transcode owner confirmation remains pending."
+    },
+    {
       "id": "observability-baseline",
       "name": "V1 production observability baseline",
       "status": "pending",

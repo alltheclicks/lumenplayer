@@ -12,6 +12,7 @@ const requiredGateIds = new Set([
   'design-parity-evidence',
   'performance-evidence',
   'beta-capacity-evidence',
+  'runtime-media-policy',
   'observability-baseline',
   'security-privacy-baseline',
 ]);

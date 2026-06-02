@@ -637,3 +637,6 @@ Current source of truth for the production web catch-up continuation:
    - Partial release-readiness rollup artifact: `artifacts/release/readiness/qaf035-release-readiness-20260602.json`.
      - It links current compatibility and capacity artifacts, records open blockers for capacity owner, target devices, and beta ops signoff, and keeps final signoff pending.
      - `--require-final` validation is expected to fail until every gate is non-pending, blockers are closed/mitigated, rollback owner/channel are set, and final approval is recorded.
+   - Partial runtime media policy artifact: `artifacts/release/media-policy/qaf035-runtime-media-policy-20260602.json`.
+     - Web gateway, committed env, and local process checks pass for the no-transcode/no-remux policy.
+     - Provider/XUI owner confirmation remains pending, and `--require-final` validation is expected to fail until that external no-transcode commitment is recorded.

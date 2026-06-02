@@ -1,0 +1,63 @@
+{
+  "release": "V1",
+  "templateVersion": 1,
+  "generatedAt": "2026-06-02T20:59:44Z",
+  "runOwner": "codex",
+  "policy": {
+    "allowedTransportModes": ["provider-direct", "proxy-normalized"],
+    "disallowedTransportModes": ["proxy-remuxed", "remux-hls"],
+    "usesLocalFfmpeg": false,
+    "usesServerSideTranscode": false,
+    "usesServerSideRemux": false,
+    "usesGeneratedHls": false,
+    "usesXuiSideTranscode": false,
+    "forbiddenRuntimeFlags": [
+      {
+        "name": "LUMEN_PROXY_REMUX_ENABLED",
+        "disallowedValues": ["1", "true"],
+        "expected": "unset or 0"
+      }
+    ],
+    "forbiddenProcesses": ["ffmpeg", "ffprobe"]
+  },
+  "checks": [
+    {
+      "id": "web-gateway-rejects-remux",
+      "description": "Web beta/prod catch-up path rejects proxy-remuxed/remux-hls gateway playback responses.",
+      "status": "pass",
+      "owner": "codex-local-qa",
+      "evidence": "pnpm --filter @lumen/web exec vitest run src/components/player/catchupGateway.test.ts src/components/player/catchupSource.test.ts",
+      "notes": "Current web resolver tests pass and prove proxy-remuxed/remux-hls responses are not used by the web beta path."
+    },
+    {
+      "id": "committed-env-no-remux",
+      "description": "Committed env/example surfaces do not enable LUMEN_PROXY_REMUX_ENABLED=1 for beta/prod.",
+      "status": "pass",
+      "owner": "codex-local-qa",
+      "evidence": "git grep -n -E 'LUMEN_PROXY_REMUX_ENABLED\\\\s*=\\\\s*1|proxy-remuxed|remux-hls' -- '*.env*' 'apps/web/.env.example'",
+      "notes": "No tracked env/example surface enables the proxy remux feature flag."
+    },
+    {
+      "id": "runtime-process-no-ffmpeg",
+      "description": "Local/runtime validation observes no ffmpeg or ffprobe process during provider browser QA.",
+      "status": "pass",
+      "owner": "codex-local-qa",
+      "evidence": "pgrep -fl 'ffmpeg|ffprobe'",
+      "notes": "No active ffmpeg or ffprobe process was observed after validation."
+    },
+    {
+      "id": "provider-xui-no-transcode-owner",
+      "description": "Provider/XUI owner confirms catch-up failures will not be solved with XUI-side transcode/remux for beta.",
+      "status": "pending",
+      "owner": "",
+      "evidence": "",
+      "notes": "Needs external provider/XUI owner confirmation. Do not infer this from local browser or repository evidence."
+    }
+  ],
+  "signoff": {
+    "status": "pending",
+    "approvedBy": "",
+    "approvedAt": "",
+    "notes": "Partial runtime media policy evidence only. Final signoff remains blocked until provider/XUI owner confirmation is recorded."
+  }
+}

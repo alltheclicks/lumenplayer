@@ -53,6 +53,14 @@
       "notes": ""
     },
     {
+      "id": "runtime-media-policy",
+      "name": "V1 runtime no-transcode/no-remux media policy",
+      "status": "pending",
+      "evidenceRef": "artifacts/release/media-policy/<run-id>.json",
+      "checkedAt": "",
+      "notes": ""
+    },
+    {
       "id": "observability-baseline",
       "name": "V1 production observability baseline",
       "status": "pending",

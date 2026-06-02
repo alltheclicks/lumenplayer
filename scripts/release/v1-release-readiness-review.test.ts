@@ -97,6 +97,7 @@ describe('V1 final release readiness review template', () => {
       'design-parity-evidence',
       'performance-evidence',
       'beta-capacity-evidence',
+      'runtime-media-policy',
       'observability-baseline',
       'security-privacy-baseline',
     ];
@@ -115,6 +116,9 @@ describe('V1 final release readiness review template', () => {
     );
     expect(gatesById.get('beta-capacity-evidence')?.evidenceRef).toBe(
       'artifacts/release/capacity/<run-id>.json',
+    );
+    expect(gatesById.get('runtime-media-policy')?.evidenceRef).toBe(
+      'artifacts/release/media-policy/<run-id>.json',
     );
   });
 
