@@ -43,6 +43,8 @@
     "release:readiness:test": "vitest run scripts/release/v1-release-readiness-review.test.ts",
     "release:evidence-links:validate": "node scripts/release/validate-release-evidence-links.mjs artifacts/release/readiness/qaf035-release-readiness-20260602.json --expect-open-blockers",
     "release:evidence-links:test": "vitest run scripts/release/validate-release-evidence-links.test.ts",
+    "release:secret-hygiene:validate": "node scripts/release/validate-release-secret-hygiene.mjs",
+    "release:secret-hygiene:test": "vitest run scripts/release/validate-release-secret-hygiene.test.ts",
     "e2e:qa:simulate": "node scripts/playwright/run-qa-user-sim.mjs",
     "e2e:provider:preflight": "node scripts/playwright/run-provider-qa-preflight.mjs",
     "e2e:playback:focused": "node scripts/playwright/run-focused-playback-smoke.mjs"
