@@ -57,6 +57,7 @@ const validateRunbook = () => {
     files.betaOps,
     'pnpm release:qaf035:validate',
     'pnpm release:qaf035:final',
+    'pnpm release:no-media-evidence:scan',
     '300-500',
     'ffmpeg',
     'ffprobe',

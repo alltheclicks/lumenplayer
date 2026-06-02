@@ -68,7 +68,14 @@ Allowed transport modes are only provider-direct and proxy-normalized. The beta 
 For every manual device target:
 
 1. Capture browser/device network evidence for the live/catch-up flow.
-2. Search the captured evidence and logs for forbidden strings: `__remux__`, `proxy-remuxed`, `remux-hls`, `ffmpeg`, `ffprobe`, `transcode`, `remux`, `generated HLS`, and `XUI-side`.
+2. Scan the captured evidence and logs:
+
+```sh
+pnpm release:no-media-evidence:scan -- <capture.har-or-json-or-log>
+```
+
+The scanner fails on forbidden strings: `__remux__`, `proxy-remuxed`, `remux-hls`, `ffmpeg`, `ffprobe`, `transcode`, `remux`, `generated HLS`, and `XUI-side`.
+
 3. Record the evidence ref in `mediaProcessingAudit.evidenceRef`.
 4. Keep `mediaProcessingAudit.forbiddenHits` empty for pass.
 5. If any forbidden hit appears, set that target or check to fail and stop beta readiness.

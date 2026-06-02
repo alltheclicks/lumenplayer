@@ -48,6 +48,8 @@
     "release:qaf035:validate": "node scripts/release/validate-qaf035-release-gates.mjs",
     "release:qaf035:final": "node scripts/release/validate-qaf035-release-gates.mjs --require-final",
     "release:qaf035:test": "vitest run scripts/release/validate-qaf035-release-gates.test.ts",
+    "release:no-media-evidence:scan": "node scripts/release/validate-no-media-processing-evidence.mjs",
+    "release:no-media-evidence:test": "vitest run scripts/release/validate-no-media-processing-evidence.test.ts",
     "e2e:qa:simulate": "node scripts/playwright/run-qa-user-sim.mjs",
     "e2e:provider:preflight": "node scripts/playwright/run-provider-qa-preflight.mjs",
     "e2e:playback:focused": "node scripts/playwright/run-focused-playback-smoke.mjs"
