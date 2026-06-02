@@ -596,3 +596,24 @@ Fresh manual/provider testing on the partner MediaKing/Xtream stack changed the 
    - `docs/catchup-stability-2026-05-15.md`
    - `docs/catchup-web-capability-preflight.md`
    - `docs/catchup-timeshift-hls-evidence.md`
+
+## QAF-035 Current PR/readiness note (2026-06-02)
+
+Current source of truth for the production web catch-up continuation:
+
+1. Preserve and continue PR #224 before any branch/worktree cleanup.
+   - Worktree: `/Users/filip/Documents/Lumen-Player-qaf035-production`
+   - Branch: `codex/qaf-035-production-web-catchup`
+   - Latest pushed head: `59e420e`
+   - PR state: draft, merge state `CLEAN`, GitHub `automation-scripts` and `web-quality` checks green.
+2. The old QA tooling blocker is no longer the active diagnosis.
+   - The earlier post-batch `Requiring @playwright/test second time` loader-conflict note is superseded for this PR.
+   - QA user simulation now reaches setup and reports the current provider-auth blocker directly.
+   - Focused playback smoke now preflights Xtream auth before starting browser work and fails fast with `auth_0` when the stored QA provider account is rejected.
+3. Current live/browser validation blocker:
+   - Stored QA provider credentials return `user_info.auth = 0`.
+   - Until a valid QA provider account is available, real browser playback and QA simulation cannot prove beta readiness for live/catch-up flows.
+4. Release matrix guard added for beta readiness:
+   - `scripts/release/v1-smoke-regression-matrix.template.json` now requires `provider-qa` coverage.
+   - `SMK-PROVIDER-AUTH-LIVE-CATALOG` and `REG-PROVIDER-FOCUSED-PLAYBACK` are release-blocking cases.
+   - Future beta/release signoff must include valid provider auth/live-catalog and focused playback evidence, not only local unit/build gates.

@@ -700,7 +700,7 @@ Requirements:
 Validation:
 - Run relevant tests and report exact pass/fail.
 - Then run:
-  E2E_XUI_USERNAME='fica' E2E_XUI_PASSWORD='fF2024BG2025' ./run-qa-simulation.sh
+  E2E_XUI_USERNAME='<redacted>' E2E_XUI_PASSWORD='<redacted>' ./run-qa-simulation.sh
 - Summarize whether "Episode Playback" still appears after TV Uživo path.
 ```
 

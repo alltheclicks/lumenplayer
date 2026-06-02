@@ -1,5 +1,45 @@
 # Handoff — Lumen Player
 
+## Session 2026-06-02 — QAF-035 production web catch-up PR alignment
+
+- Context:
+  - active preserved worktree:
+    - `/Users/filip/Documents/Lumen-Player-qaf035-production`
+  - active branch:
+    - `codex/qaf-035-production-web-catchup`
+  - active PR:
+    - #224 `[codex] Consolidate QAF-035 web catch-up production path`
+  - latest pushed head:
+    - `59e420e`
+- Current state:
+  - PR #224 is still draft, but merge state is `CLEAN`
+  - GitHub `PR Quality Gate` is green on latest head:
+    - `automation-scripts`
+    - `web-quality`
+  - local QAF worktree is clean and synced with `origin/codex/qaf-035-production-web-catchup`
+  - main checkout remains separate and must not be collapsed/pruned until QAF work is explicitly merged or otherwise preserved
+- What changed in this alignment pass:
+  - transient Xtream HTTP retry/backoff now covers `429`, `502`, `503`, and `504`, with `Retry-After` support
+  - QA network reports now include successful Xtream responses, so recovered `429` calls can be treated as warnings instead of false blockers
+  - QA global setup and focused playback smoke now fail fast when the QA provider account is rejected instead of surfacing generic `/player` or `channel-select` timeouts
+  - release smoke/regression matrix now requires `provider-qa` coverage:
+    - `SMK-PROVIDER-AUTH-LIVE-CATALOG`
+    - `REG-PROVIDER-FOCUSED-PLAYBACK`
+- Current blocker:
+  - stored QA provider credentials return `user_info.auth = 0`
+  - live browser playback and QA simulation cannot prove beta readiness until a valid QA provider account is available
+  - this blocker is now explicit in both QA tooling and release matrix expectations
+- Verification completed on latest work:
+  - `pnpm release:smoke-matrix:validate`
+  - `pnpm release:smoke-matrix:test`
+  - `pnpm exec vitest run`
+  - `pnpm exec turbo typecheck --force`
+  - `pnpm exec turbo lint --force`
+  - `pnpm exec turbo build --force`
+  - GitHub Actions run `26823936348`
+- Evidence snapshot folder:
+  - `/Users/filip/Documents/lumen-alignment-snapshot-20260602-141420`
+
 ## Session 2026-04-03 — shadow `fMP4` provider validation + Lumen-side mitigations
 
 - Context:
@@ -512,7 +552,7 @@
   - QAF-033 finalized on first review cycle with `5/5`.
 - QA gate (post-batch):
   - Executed:
-    - `E2E_XUI_USERNAME='fica' E2E_XUI_PASSWORD='fF2024BG2025' ./run-qa-simulation.sh`
+    - `E2E_XUI_USERNAME='<redacted>' E2E_XUI_PASSWORD='<redacted>' ./run-qa-simulation.sh`
   - Current result:
     - command exits `1` due Playwright loader conflict (`Requiring @playwright/test second time`), captured in:
       - `output/playwright/qa-user-sim/results.json`
@@ -779,7 +819,7 @@
   - No valid blocking review comments remained before merge.
 - QA gate run (post-batch):
   - command:
-    - `E2E_XUI_USERNAME='fica' E2E_XUI_PASSWORD='fF2024BG2025' ./run-qa-simulation.sh`
+    - `E2E_XUI_USERNAME='<redacted>' E2E_XUI_PASSWORD='<redacted>' ./run-qa-simulation.sh`
   - artifacts:
     - `output/playwright/qa-user-sim/QA-REPORT.md` (timestamp `2026-02-19T15:16:59.837Z`)
     - `output/playwright/qa-user-sim/results.json`
@@ -831,7 +871,7 @@
   - local `main` fast-forwarded to `origin/main` (`4e34f98` -> `0506862`) using `git pull --rebase --autostash origin main`
 - QA retest after alignment:
   - command:
-    - `E2E_XUI_USERNAME='fica' E2E_XUI_PASSWORD='fF2024BG2025' ./run-qa-simulation.sh`
+    - `E2E_XUI_USERNAME='<redacted>' E2E_XUI_PASSWORD='<redacted>' ./run-qa-simulation.sh`
   - report:
     - `output/playwright/qa-user-sim/QA-REPORT.md` (timestamp `2026-02-19T13:08:33.082Z`)
   - key outcome:

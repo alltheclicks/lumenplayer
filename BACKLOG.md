@@ -120,13 +120,20 @@ Completion notes (2026-02-19 .. 2026-02-21):
   - latest focused local validation is green:
     - `catchupSource` + `catchupTransport` + new `catchupProgramNavigation` + `HlsPlayerAdapter` tests
     - `@lumen/web` typecheck
+- On 2026-06-02 the active QAF-035 production continuation is preserved on PR #224:
+  - branch: `codex/qaf-035-production-web-catchup`
+  - latest head: `59e420e`
+  - PR state: draft, merge state `CLEAN`, GitHub `automation-scripts` and `web-quality` checks green
+  - local full gate on that head is green: `vitest`, `turbo typecheck --force`, `turbo lint --force`, and `turbo build --force`
+  - QAF browser/live validation is currently blocked by the stored QA provider account returning `user_info.auth = 0`; this is now surfaced by QA tooling as `Xtream credentials were rejected by the provider` rather than a Playwright loader conflict or channel-list timeout
+  - release smoke/regression matrix now requires `provider-qa` coverage with release-blocking provider auth/live-catalog and focused playback cases before beta/release signoff
 - Manual intake triage (`BUG-20260219-01..06`) converted into `QAF-010..QAF-014` follow-up tasks in `docs/V2-QA-FIX-BACKLOG.md`.
 - Follow-up intake tasks (`BUG-20260220-01..03`) are now closed through `QAF-015..QAF-017`.
 - Follow-up intake tasks (`BUG-20260220-04..07`) are now closed through `QAF-018..QAF-020`.
 - Follow-up intake tasks (`BUG-20260220-08..10`) are now closed through `QAF-021..QAF-023`.
 - New intake wave (`BUG-20260221-01..08`) is now closed through `QAF-024..QAF-031`.
 - Reopened intake wave (`BUG-20260221-09..13`) now has merged follow-up fixes through `QAF-032..QAF-033`.
-- Post-batch QA gate command (`E2E_XUI_USERNAME='fica' E2E_XUI_PASSWORD='fF2024BG2025' ./run-qa-simulation.sh`) still exits `1` because Playwright run fails with `Requiring @playwright/test second time` (`output/playwright/qa-user-sim/results.json`), and generated report remains `Scenario status: unknown` with `0` executed scenarios (`output/playwright/qa-user-sim/QA-REPORT.md`).
+- Historical post-batch QA gate note is superseded by the 2026-06-02 QAF-035 tooling update above; old inline provider credentials were redacted and the current blocker is invalid provider auth, not the earlier Playwright loader conflict.
 
 ---
 

@@ -31,21 +31,21 @@ const createShadowValidationUrlBuilder = () => ({
     startTimestamp: number,
     durationSeconds: number,
   ) => [
-    `http://edge6.castcdn.net:8080/timeshift_hls/fica/fF2024BG2025/${durationSeconds}/${startTimestamp}/${streamId}.m3u8`,
+    `http://edge6.castcdn.net:8080/timeshift_hls/user/pass/${durationSeconds}/${startTimestamp}/${streamId}.m3u8`,
   ],
   getCatchUpUrlVariants: (
     streamId: number,
     _startTimestamp: number,
     _durationSeconds: number,
   ) => [
-    `http://smart.mediaking.fi:8080/streaming/timeshift.php?username=fica&password=fF2024BG2025&stream=${streamId}&start=2026-03-06:10-00&duration=30&extension=m3u8`,
+    `http://smart.mediaking.fi:8080/streaming/timeshift.php?username=user&password=pass&stream=${streamId}&start=2026-03-06:10-00&duration=30&extension=m3u8`,
   ],
   getLegacyCatchUpUrlVariants: (
     streamId: number,
     _startTimestamp: number,
     durationSeconds: number,
   ) => [
-    `http://smart.mediaking.fi:8080/timeshift/fica/fF2024BG2025/${durationSeconds}/2026-03-06:10-00/${streamId}.ts`,
+    `http://smart.mediaking.fi:8080/timeshift/user/pass/${durationSeconds}/2026-03-06:10-00/${streamId}.ts`,
   ],
 });
 
@@ -159,7 +159,7 @@ describe('resolveCatchUpPlaybackSource', () => {
     });
 
     expect(fetchImpl).toHaveBeenCalledTimes(1);
-    expect(String(fetchImpl.mock.calls[0]?.[0])).toContain('/streaming/timeshift.php?username=fica');
+    expect(String(fetchImpl.mock.calls[0]?.[0])).toContain('/streaming/timeshift.php?username=user');
     expect(result.source.url).toBe('https://edge6.castcdn.net/streaming/timeshift_shadow.php?token=abc123');
     expect(result.transportPlan.allAttempts).toHaveLength(1);
     expect(result.transportPlan.fallbackAttempts).toHaveLength(0);
