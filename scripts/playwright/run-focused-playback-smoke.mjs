@@ -3,7 +3,6 @@ import { resolve } from 'node:path';
 import { execFileSync, spawn } from 'node:child_process';
 import { chromium } from '@playwright/test';
 import {
-  DEFAULT_PLAYBACK_SMOKE_SCENARIO_IDS,
   findUnknownScenarioIds,
   parseBrowserChannel,
   parseCpuGuardConfig,
@@ -12,6 +11,7 @@ import {
   parseSelectedScenarioIds,
   parseViewport,
   resolveCpuLoadDecision,
+  resolveXtreamAuthPreflightDecision,
   sumCpuPercentFromPs,
 } from './focusedPlaybackSmokeConfig.mjs';
 
@@ -119,6 +119,39 @@ const redact = (value) => {
 const sleep = (ms) => new Promise((resolveSleep) => {
   setTimeout(resolveSleep, ms);
 });
+
+const validateXtreamAuthPreflight = async () => {
+  const url = new URL(`${credentials.server}/player_api.php`);
+  url.searchParams.set('username', credentials.username);
+  url.searchParams.set('password', credentials.password);
+
+  let response;
+  try {
+    response = await fetch(url, { signal: AbortSignal.timeout(30_000) });
+  } catch (error) {
+    throw new Error(
+      `Focused playback smoke preflight failed: unable to reach Xtream auth endpoint (${redact(error.message)}).`
+    );
+  }
+
+  if (!response.ok) {
+    throw new Error(`Focused playback smoke preflight failed: Xtream auth endpoint HTTP ${response.status}.`);
+  }
+
+  let payload;
+  try {
+    payload = await response.json();
+  } catch {
+    throw new Error('Focused playback smoke preflight failed: Xtream auth endpoint returned invalid JSON.');
+  }
+
+  const decision = resolveXtreamAuthPreflightDecision(payload);
+  if (!decision.ok) {
+    throw new Error(
+      `Focused playback smoke preflight failed: Xtream credentials were rejected by the provider (${decision.reason}).`
+    );
+  }
+};
 
 class CpuGuardBlockedError extends Error {
   constructor({ phase, currentTotalPercent, maxTotalPercent }) {
@@ -2736,6 +2769,7 @@ try {
   }
 
   assertCpuLoadAllowsBrowserSmoke('preflight', { force: true });
+  await validateXtreamAuthPreflight();
   cleanupServer = await ensureDevServer();
   assertCpuLoadAllowsBrowserSmoke('before browser launch', { force: true });
   browser = await chromium.launch({

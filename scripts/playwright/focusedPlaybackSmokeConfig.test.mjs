@@ -10,6 +10,7 @@ import {
   parseSelectedScenarioIds,
   parseViewport,
   resolveCpuLoadDecision,
+  resolveXtreamAuthPreflightDecision,
   sumCpuPercentFromPs,
 } from './focusedPlaybackSmokeConfig.mjs';
 
@@ -88,5 +89,24 @@ describe('focused playback smoke config', () => {
   it('detects selected smoke scenarios that have no runner', () => {
     expect(findUnknownScenarioIds(['live-failure-report', 'missing'], ['live-failure-report'])).toEqual(['missing']);
     expect(findUnknownScenarioIds(['live-failure-report'], ['live-failure-report'])).toEqual([]);
+  });
+
+  it('classifies Xtream auth preflight payloads before browser smoke', () => {
+    expect(resolveXtreamAuthPreflightDecision({ user_info: { auth: 1 } })).toEqual({
+      ok: true,
+      reason: null,
+    });
+    expect(resolveXtreamAuthPreflightDecision({ user_info: { auth: '1' } })).toEqual({
+      ok: true,
+      reason: null,
+    });
+    expect(resolveXtreamAuthPreflightDecision({ user_info: { auth: 0 } })).toEqual({
+      ok: false,
+      reason: 'auth_0',
+    });
+    expect(resolveXtreamAuthPreflightDecision({ user_info: {} })).toEqual({
+      ok: false,
+      reason: 'missing_auth',
+    });
   });
 });

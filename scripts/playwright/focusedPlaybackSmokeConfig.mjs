@@ -83,3 +83,20 @@ export const findUnknownScenarioIds = (selectedIds, validIds) => {
   const validIdSet = new Set(validIds);
   return selectedIds.filter((id) => !validIdSet.has(id));
 };
+
+export const resolveXtreamAuthPreflightDecision = (payload) => {
+  const authValue = payload?.user_info?.auth;
+  const authNumber = typeof authValue === 'number' ? authValue : Number(authValue);
+
+  if (authNumber === 1) {
+    return {
+      ok: true,
+      reason: null,
+    };
+  }
+
+  return {
+    ok: false,
+    reason: authValue === undefined ? 'missing_auth' : `auth_${String(authValue)}`,
+  };
+};
