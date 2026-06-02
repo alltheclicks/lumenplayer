@@ -1,7 +1,7 @@
 {
   "runId": "qaf035-provider-local-20260602",
   "createdAt": "2026-06-02T21:14:50.724Z",
-  "updatedAt": "2026-06-02T21:15:51.032Z",
+  "updatedAt": "2026-06-02T21:24:41.164Z",
   "operator": "codex",
   "matrixSource": "scripts/release/v1-smoke-regression-matrix.template.json",
   "targetsSource": "scripts/release/v1-compatibility-targets.template.json",
@@ -330,11 +330,11 @@
         "desktop-chrome",
         "desktop-chromium-local"
       ],
-      "status": "pending",
-      "evidence": "",
-      "notes": "",
-      "executedAt": "",
-      "executor": ""
+      "status": "pass",
+      "evidence": "output/playwright/qa-user-sim/QA-REPORT.md",
+      "notes": "Fresh local QA simulation passed live startup manual/autoplay and series episode -> TV Uzivo -> live shell scenarios in Playwright Chromium with 8 pass steps, 0 blocked steps, 0 critical network failures, and no global blockers. This proves local Chromium player-state only, not Windows Chrome or Safari.",
+      "executedAt": "2026-06-02T21:24:41.163Z",
+      "executor": "codex"
     },
     {
       "caseId": "SMK-DESKTOP-CHROME-LIVE",
