@@ -1,7 +1,7 @@
 {
   "runId": "qaf035-provider-local-20260602",
-  "createdAt": "2026-06-02T20:39:29.180Z",
-  "updatedAt": "2026-06-02T20:40:02.008Z",
+  "createdAt": "2026-06-02T21:14:50.724Z",
+  "updatedAt": "2026-06-02T21:15:51.032Z",
   "operator": "codex",
   "matrixSource": "scripts/release/v1-smoke-regression-matrix.template.json",
   "targetsSource": "scripts/release/v1-compatibility-targets.template.json",
@@ -43,14 +43,27 @@
       ]
     },
     {
+      "id": "desktop-chromium-local",
+      "name": "Desktop Chromium (local Playwright)",
+      "platform": "desktop",
+      "device": "Local desktop",
+      "browser": "Playwright Chromium",
+      "matchMode": "all",
+      "requiredTags": [
+        "desktop-browser",
+        "desktop-chromium-local"
+      ]
+    },
+    {
       "id": "desktop-chrome-windows",
       "name": "Desktop Chrome (Windows 11)",
       "platform": "desktop",
       "device": "Windows 11 desktop",
       "browser": "Chrome latest",
-      "matchMode": "any",
+      "matchMode": "all",
       "requiredTags": [
-        "desktop-browser"
+        "desktop-browser",
+        "desktop-chrome"
       ]
     },
     {
@@ -59,9 +72,10 @@
       "platform": "desktop",
       "device": "macOS desktop",
       "browser": "Safari latest",
-      "matchMode": "any",
+      "matchMode": "all",
       "requiredTags": [
-        "desktop-browser"
+        "desktop-browser",
+        "desktop-safari"
       ]
     },
     {
@@ -135,8 +149,8 @@
       ],
       "status": "pass",
       "evidence": "output/playwright/provider-qa-preflight/REPORT.md",
-      "notes": "Env-backed Xtream preflight: auth HTTP 200, live catalog HTTP 200, 307 live items.",
-      "executedAt": "2026-06-02T20:39:34.233Z",
+      "notes": "Fresh provider preflight: auth HTTP 200, live catalog HTTP 200, 307 live items.",
+      "executedAt": "2026-06-02T21:15:03.103Z",
       "executor": "codex"
     },
     {
@@ -162,7 +176,7 @@
       "status": "pass",
       "evidence": "output/playwright/manual-network-audit/REPORT.md",
       "notes": "Local Playwright/Chromium provider browser audit: PINK live and catch-up attempt playing, 0 disallowed media-processing URL hits and 0 media-processing processes observed.",
-      "executedAt": "2026-06-02T20:39:40.078Z",
+      "executedAt": "2026-06-02T21:15:22.843Z",
       "executor": "codex"
     },
     {
@@ -186,8 +200,8 @@
       ],
       "status": "pass",
       "evidence": "output/playwright/focused-playback-smoke/REPORT.md",
-      "notes": "Focused playback smoke passed 7 scenarios with 0 failures using valid local provider credentials; normal CPU guard was bypassed only because local desktop CPU exceeded guard threshold.",
-      "executedAt": "2026-06-02T20:39:50.314Z",
+      "notes": "Fresh focused playback smoke passed 7 scenarios with bundled Chromium headless and 0 failures; CPU guard was disabled only for local desktop noise control.",
+      "executedAt": "2026-06-02T21:15:22.980Z",
       "executor": "codex"
     },
     {
@@ -213,7 +227,7 @@
       "status": "pass",
       "evidence": "output/playwright/manual-network-audit/REPORT.md",
       "notes": "Network/CDP/process audit captured no __remux__, remux-hls, ffmpeg, ffprobe, transcode, or proxy-remuxed activity during local provider browser flow.",
-      "executedAt": "2026-06-02T20:39:45.109Z",
+      "executedAt": "2026-06-02T21:15:22.921Z",
       "executor": "codex"
     },
     {
@@ -238,8 +252,8 @@
       ],
       "status": "pass",
       "evidence": "pnpm --filter @lumen/web exec vitest run src/components/player/catchupGateway.test.ts src/components/player/catchupSource.test.ts",
-      "notes": "Current run passed 13/13 tests and covers rejection of proxy-remuxed/remux-hls web playback responses.",
-      "executedAt": "2026-06-02T20:39:56.234Z",
+      "notes": "Web tests cover rejection of proxy-remuxed/remux-hls playback responses.",
+      "executedAt": "2026-06-02T21:15:31.513Z",
       "executor": "codex"
     },
     {
@@ -264,8 +278,8 @@
       ],
       "status": "pass",
       "evidence": "pnpm --filter @lumen/web exec vitest run src/components/player/catchupGateway.test.ts src/components/player/catchupSource.test.ts",
-      "notes": "Current run passed 13/13 tests; web resolver returns null/falls back when gateway returns proxy-remuxed playback URL.",
-      "executedAt": "2026-06-02T20:40:02.008Z",
+      "notes": "Web resolver returns null/falls back when gateway returns proxy-remuxed playback URL.",
+      "executedAt": "2026-06-02T21:15:39.340Z",
       "executor": "codex"
     },
     {
@@ -273,69 +287,48 @@
       "suite": "smoke",
       "title": "Desktop Chrome live playback",
       "platform": "desktop",
-      "device": "Windows 11 desktop",
-      "browser": "Chrome latest",
+      "device": "Local desktop",
+      "browser": "Playwright Chromium",
       "casePlatform": "desktop",
       "caseDevice": "Windows/macOS desktop",
       "caseBrowser": "Chrome latest",
-      "targetId": "desktop-chrome-windows",
-      "targetName": "Desktop Chrome (Windows 11)",
+      "targetId": "desktop-chromium-local",
+      "targetName": "Desktop Chromium (local Playwright)",
       "targetPlatform": "desktop",
-      "targetDevice": "Windows 11 desktop",
-      "targetBrowser": "Chrome latest",
+      "targetDevice": "Local desktop",
+      "targetBrowser": "Playwright Chromium",
       "releaseBlocker": true,
       "tags": [
-        "desktop-browser"
+        "desktop-browser",
+        "desktop-chrome",
+        "desktop-chromium-local"
       ],
-      "status": "pending",
-      "evidence": "",
-      "notes": "",
-      "executedAt": "",
-      "executor": ""
-    },
-    {
-      "caseId": "SMK-DESKTOP-SAFARI-VOD",
-      "suite": "smoke",
-      "title": "Desktop Safari VOD playback",
-      "platform": "desktop",
-      "device": "Windows 11 desktop",
-      "browser": "Chrome latest",
-      "casePlatform": "desktop",
-      "caseDevice": "macOS desktop",
-      "caseBrowser": "Safari latest",
-      "targetId": "desktop-chrome-windows",
-      "targetName": "Desktop Chrome (Windows 11)",
-      "targetPlatform": "desktop",
-      "targetDevice": "Windows 11 desktop",
-      "targetBrowser": "Chrome latest",
-      "releaseBlocker": true,
-      "tags": [
-        "desktop-browser"
-      ],
-      "status": "pending",
-      "evidence": "",
-      "notes": "",
-      "executedAt": "",
-      "executor": ""
+      "status": "pass",
+      "evidence": "output/playwright/focused-playback-smoke/REPORT.md",
+      "notes": "Fresh local Playwright bundled Chromium run passed focused live/rapid-zap playback scenarios with 0 failures. This proves local Chromium only, not Windows Chrome or Safari.",
+      "executedAt": "2026-06-02T21:15:51.029Z",
+      "executor": "codex"
     },
     {
       "caseId": "REG-DESKTOP-LOCAL-PLAYER-STATE",
       "suite": "regression",
-      "title": "Desktop local player preserves playback state across player navigation",
+      "title": "Desktop local player preserves startup and live-shell state across player navigation",
       "platform": "desktop",
-      "device": "Windows 11 desktop",
-      "browser": "Chrome latest",
+      "device": "Local desktop",
+      "browser": "Playwright Chromium",
       "casePlatform": "desktop",
       "caseDevice": "Windows/macOS desktop",
       "caseBrowser": "Chrome/Safari latest",
-      "targetId": "desktop-chrome-windows",
-      "targetName": "Desktop Chrome (Windows 11)",
+      "targetId": "desktop-chromium-local",
+      "targetName": "Desktop Chromium (local Playwright)",
       "targetPlatform": "desktop",
-      "targetDevice": "Windows 11 desktop",
-      "targetBrowser": "Chrome latest",
+      "targetDevice": "Local desktop",
+      "targetBrowser": "Playwright Chromium",
       "releaseBlocker": true,
       "tags": [
-        "desktop-browser"
+        "desktop-browser",
+        "desktop-chrome",
+        "desktop-chromium-local"
       ],
       "status": "pending",
       "evidence": "",
@@ -348,19 +341,48 @@
       "suite": "smoke",
       "title": "Desktop Chrome live playback",
       "platform": "desktop",
-      "device": "macOS desktop",
-      "browser": "Safari latest",
+      "device": "Windows 11 desktop",
+      "browser": "Chrome latest",
       "casePlatform": "desktop",
       "caseDevice": "Windows/macOS desktop",
       "caseBrowser": "Chrome latest",
-      "targetId": "desktop-safari-macos",
-      "targetName": "Desktop Safari (macOS)",
+      "targetId": "desktop-chrome-windows",
+      "targetName": "Desktop Chrome (Windows 11)",
       "targetPlatform": "desktop",
-      "targetDevice": "macOS desktop",
-      "targetBrowser": "Safari latest",
+      "targetDevice": "Windows 11 desktop",
+      "targetBrowser": "Chrome latest",
       "releaseBlocker": true,
       "tags": [
-        "desktop-browser"
+        "desktop-browser",
+        "desktop-chrome",
+        "desktop-chromium-local"
+      ],
+      "status": "pending",
+      "evidence": "",
+      "notes": "",
+      "executedAt": "",
+      "executor": ""
+    },
+    {
+      "caseId": "REG-DESKTOP-LOCAL-PLAYER-STATE",
+      "suite": "regression",
+      "title": "Desktop local player preserves startup and live-shell state across player navigation",
+      "platform": "desktop",
+      "device": "Windows 11 desktop",
+      "browser": "Chrome latest",
+      "casePlatform": "desktop",
+      "caseDevice": "Windows/macOS desktop",
+      "caseBrowser": "Chrome/Safari latest",
+      "targetId": "desktop-chrome-windows",
+      "targetName": "Desktop Chrome (Windows 11)",
+      "targetPlatform": "desktop",
+      "targetDevice": "Windows 11 desktop",
+      "targetBrowser": "Chrome latest",
+      "releaseBlocker": true,
+      "tags": [
+        "desktop-browser",
+        "desktop-chrome",
+        "desktop-chromium-local"
       ],
       "status": "pending",
       "evidence": "",
@@ -385,32 +407,8 @@
       "targetBrowser": "Safari latest",
       "releaseBlocker": true,
       "tags": [
-        "desktop-browser"
-      ],
-      "status": "pending",
-      "evidence": "",
-      "notes": "",
-      "executedAt": "",
-      "executor": ""
-    },
-    {
-      "caseId": "REG-DESKTOP-LOCAL-PLAYER-STATE",
-      "suite": "regression",
-      "title": "Desktop local player preserves playback state across player navigation",
-      "platform": "desktop",
-      "device": "macOS desktop",
-      "browser": "Safari latest",
-      "casePlatform": "desktop",
-      "caseDevice": "Windows/macOS desktop",
-      "caseBrowser": "Chrome/Safari latest",
-      "targetId": "desktop-safari-macos",
-      "targetName": "Desktop Safari (macOS)",
-      "targetPlatform": "desktop",
-      "targetDevice": "macOS desktop",
-      "targetBrowser": "Safari latest",
-      "releaseBlocker": true,
-      "tags": [
-        "desktop-browser"
+        "desktop-browser",
+        "desktop-safari"
       ],
       "status": "pending",
       "evidence": "",

@@ -627,8 +627,8 @@ Current source of truth for the production web catch-up continuation:
    - `scripts/release/compatibility-matrix-task.mjs finalize` now refuses final signoff while any matrix case is missing evidence, so target/device coverage cannot be marked complete from status-only entries.
    - `scripts/release/v1-compatibility-targets.template.json` now separates provider QA, no-media-processing, and web-gateway unit evidence from real desktop/mobile/Cast/AirPlay target evidence.
    - Partial compatibility run artifact: `artifacts/release/compatibility/qaf035-provider-local-20260602.json`.
-     - Current status: `in-progress`, 6 pass, 24 pending, 0 fail.
-     - Completed target slices: `provider-qa-account`, `no-media-processing-audit`, and `web-gateway-vitest`.
+     - Current status: `in-progress`, 7 pass, 22 pending, 0 fail.
+     - Completed target slices: `provider-qa-account`, `no-media-processing-audit`, and `web-gateway-vitest`; `desktop-chromium-local` has local live playback pass and one local player-state regression still pending.
      - Still pending by design: Windows/Chrome, macOS/Safari, Android Chrome, iOS Safari, Chromecast, Apple TV/AirPlay, PWA install/offline, and final owner/capacity signoff.
    - Partial 300-500 user beta capacity artifact: `artifacts/release/capacity/qaf035-beta-capacity-20260602.json`.
      - `no-media-processing-verification` is pass from local browser/network/process evidence.

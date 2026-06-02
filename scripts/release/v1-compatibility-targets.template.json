@@ -31,13 +31,22 @@
       "requiredTags": ["web-gateway"]
     },
     {
+      "id": "desktop-chromium-local",
+      "name": "Desktop Chromium (local Playwright)",
+      "platform": "desktop",
+      "device": "Local desktop",
+      "browser": "Playwright Chromium",
+      "matchMode": "all",
+      "requiredTags": ["desktop-browser", "desktop-chromium-local"]
+    },
+    {
       "id": "desktop-chrome-windows",
       "name": "Desktop Chrome (Windows 11)",
       "platform": "desktop",
       "device": "Windows 11 desktop",
       "browser": "Chrome latest",
-      "matchMode": "any",
-      "requiredTags": ["desktop-browser"]
+      "matchMode": "all",
+      "requiredTags": ["desktop-browser", "desktop-chrome"]
     },
     {
       "id": "desktop-safari-macos",
@@ -45,8 +54,8 @@
       "platform": "desktop",
       "device": "macOS desktop",
       "browser": "Safari latest",
-      "matchMode": "any",
-      "requiredTags": ["desktop-browser"]
+      "matchMode": "all",
+      "requiredTags": ["desktop-browser", "desktop-safari"]
     },
     {
       "id": "mobile-chrome-android",

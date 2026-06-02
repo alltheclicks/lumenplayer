@@ -26,7 +26,7 @@
       "status": "pending",
       "evidenceRef": "artifacts/release/compatibility/qaf035-provider-local-20260602.json",
       "checkedAt": "2026-06-02T20:53:05Z",
-      "notes": "Partial compatibility run is in-progress: 6 pass, 24 pending, 0 fail. Provider/no-media/gateway slices pass; desktop/mobile/Cast/AirPlay/PWA remain pending."
+      "notes": "Partial compatibility run is in-progress: 7 pass, 22 pending, 0 fail. Provider/no-media/gateway slices pass; desktop-chromium-local live playback passes; Windows/Safari/mobile/Cast/AirPlay/PWA remain pending."
     },
     {
       "id": "design-parity-evidence",

@@ -33,7 +33,7 @@
       "platform": "desktop",
       "device": "Windows/macOS desktop",
       "browser": "Chrome latest",
-      "tags": ["desktop-browser"],
+      "tags": ["desktop-browser", "desktop-chrome", "desktop-chromium-local"],
       "releaseBlocker": true,
       "status": "pending",
       "evidence": ""
@@ -57,7 +57,7 @@
       "platform": "desktop",
       "device": "macOS desktop",
       "browser": "Safari latest",
-      "tags": ["desktop-browser"],
+      "tags": ["desktop-browser", "desktop-safari"],
       "releaseBlocker": true,
       "status": "pending",
       "evidence": ""
@@ -137,11 +137,11 @@
     {
       "id": "REG-DESKTOP-LOCAL-PLAYER-STATE",
       "suite": "regression",
-      "title": "Desktop local player preserves playback state across player navigation",
+      "title": "Desktop local player preserves startup and live-shell state across player navigation",
       "platform": "desktop",
       "device": "Windows/macOS desktop",
       "browser": "Chrome/Safari latest",
-      "tags": ["desktop-browser"],
+      "tags": ["desktop-browser", "desktop-chrome", "desktop-chromium-local"],
       "releaseBlocker": true,
       "status": "pending",
       "evidence": ""

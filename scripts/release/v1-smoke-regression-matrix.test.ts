@@ -91,9 +91,30 @@ describe('V1 smoke/regression matrix template', () => {
     const airplayCase = template.cases.find((testCase) => testCase.id === 'REG-AIRPLAY-RETURN-LOCAL');
 
     expect(desktopRegression?.tags).toContain('desktop-browser');
+    expect(desktopRegression?.tags).toContain('desktop-chrome');
+    expect(desktopRegression?.tags).toContain('desktop-chromium-local');
     expect(desktopRegression?.tags).not.toContain('cast-flow');
     expect(desktopRegression?.tags).not.toContain('airplay-flow');
     expect(castCase?.tags).toEqual(['cast-flow']);
     expect(airplayCase?.tags).toEqual(['airplay-flow']);
+  });
+
+  it('separates Chrome, Safari, and local Chromium desktop evidence tags', () => {
+    const template = loadTemplate();
+    const chromeCase = template.cases.find((testCase) => testCase.id === 'SMK-DESKTOP-CHROME-LIVE');
+    const safariCase = template.cases.find((testCase) => testCase.id === 'SMK-DESKTOP-SAFARI-VOD');
+
+    expect(chromeCase?.tags).toEqual(expect.arrayContaining([
+      'desktop-browser',
+      'desktop-chrome',
+      'desktop-chromium-local',
+    ]));
+    expect(chromeCase?.tags).not.toContain('desktop-safari');
+    expect(safariCase?.tags).toEqual(expect.arrayContaining([
+      'desktop-browser',
+      'desktop-safari',
+    ]));
+    expect(safariCase?.tags).not.toContain('desktop-chrome');
+    expect(safariCase?.tags).not.toContain('desktop-chromium-local');
   });
 });
