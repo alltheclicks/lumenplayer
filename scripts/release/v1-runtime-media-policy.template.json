@@ -11,6 +11,7 @@
     "usesServerSideRemux": false,
     "usesGeneratedHls": false,
     "usesXuiSideTranscode": false,
+    "usesXuiSideRemux": false,
     "forbiddenRuntimeFlags": [
       {
         "name": "LUMEN_PROXY_REMUX_ENABLED",

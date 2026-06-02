@@ -15,6 +15,7 @@ interface RuntimeMediaPolicyArtifact {
     usesServerSideRemux: boolean;
     usesGeneratedHls: boolean;
     usesXuiSideTranscode: boolean;
+    usesXuiSideRemux: boolean;
     forbiddenRuntimeFlags: Array<{
       name: string;
       disallowedValues: string[];
@@ -78,6 +79,7 @@ describe('V1 runtime media policy artifact', () => {
     expect(template.policy.usesServerSideRemux).toBe(false);
     expect(template.policy.usesGeneratedHls).toBe(false);
     expect(template.policy.usesXuiSideTranscode).toBe(false);
+    expect(template.policy.usesXuiSideRemux).toBe(false);
     expect(template.policy.forbiddenRuntimeFlags).toContainEqual(expect.objectContaining({
       name: 'LUMEN_PROXY_REMUX_ENABLED',
       disallowedValues: expect.arrayContaining(['1']),
@@ -128,6 +130,21 @@ describe('V1 runtime media policy artifact', () => {
     const result = runValidator([invalidPath, '--require-final'], repoRoot);
     expect(result.status).toBe(2);
     expect(result.stderr).toContain('policy.allowedTransportModes must not include proxy-remuxed');
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('fails if XUI-side remux is enabled', () => {
+    const repoRoot = process.cwd();
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-runtime-media-'));
+    const invalidPath = path.join(tmpDir, 'xui-remux.json');
+    const artifact = finalizeArtifact();
+    artifact.policy.usesXuiSideRemux = true;
+    fs.writeFileSync(invalidPath, `${JSON.stringify(artifact, null, 2)}\n`);
+
+    const result = runValidator([invalidPath, '--require-final'], repoRoot);
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain('policy.usesXuiSideRemux must be false');
 
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });

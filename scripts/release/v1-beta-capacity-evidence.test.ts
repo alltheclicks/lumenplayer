@@ -26,6 +26,7 @@ interface BetaCapacityEvidenceArtifact {
     usesServerSideRemux: boolean;
     usesGeneratedHls: boolean;
     usesXuiSideTranscode: boolean;
+    usesXuiSideRemux: boolean;
     evidence: string;
   };
   checks: CapacityCheck[];
@@ -80,6 +81,7 @@ describe('V1 beta capacity evidence artifact', () => {
     expect(template.mediaPath.usesServerSideRemux).toBe(false);
     expect(template.mediaPath.usesGeneratedHls).toBe(false);
     expect(template.mediaPath.usesXuiSideTranscode).toBe(false);
+    expect(template.mediaPath.usesXuiSideRemux).toBe(false);
   });
 
   it('passes validator in template mode and strict mode for finalized artifact', () => {
@@ -138,6 +140,21 @@ describe('V1 beta capacity evidence artifact', () => {
     const result = runValidator([invalidPath, '--require-final'], repoRoot);
     expect(result.status).toBe(2);
     expect(result.stderr).toContain('mediaPath.usesXuiSideTranscode must be false');
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('fails strict validation if XUI-side remux is enabled', () => {
+    const repoRoot = process.cwd();
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-beta-capacity-'));
+    const invalidPath = path.join(tmpDir, 'xui-remux.json');
+    const artifact = finalizeArtifact();
+    artifact.mediaPath.usesXuiSideRemux = true;
+    fs.writeFileSync(invalidPath, `${JSON.stringify(artifact, null, 2)}\n`);
+
+    const result = runValidator([invalidPath, '--require-final'], repoRoot);
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain('mediaPath.usesXuiSideRemux must be false');
 
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });

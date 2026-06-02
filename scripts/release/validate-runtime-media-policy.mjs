@@ -72,6 +72,7 @@ for (const field of [
   'usesServerSideRemux',
   'usesGeneratedHls',
   'usesXuiSideTranscode',
+  'usesXuiSideRemux',
 ]) {
   if (artifact.policy[field] !== false) {
     fail(`policy.${field} must be false.`);

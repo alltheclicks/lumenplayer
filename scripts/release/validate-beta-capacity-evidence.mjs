@@ -91,6 +91,7 @@ for (const field of [
   'usesServerSideRemux',
   'usesGeneratedHls',
   'usesXuiSideTranscode',
+  'usesXuiSideRemux',
 ]) {
   if (artifact.mediaPath[field] !== false) {
     fail(`mediaPath.${field} must be false.`);

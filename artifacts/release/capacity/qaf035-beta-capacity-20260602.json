@@ -16,6 +16,7 @@
     "usesServerSideRemux": false,
     "usesGeneratedHls": false,
     "usesXuiSideTranscode": false,
+    "usesXuiSideRemux": false,
     "evidence": "output/playwright/manual-network-audit/REPORT.md; pnpm release:no-media-evidence:scan -- output/playwright/manual-network-audit/report.json; artifacts/release/compatibility/qaf035-provider-local-20260602.json; pnpm --filter @lumen/web exec vitest run src/components/player/catchupGateway.test.ts src/components/player/catchupSource.test.ts"
   },
   "checks": [

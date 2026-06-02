@@ -16,6 +16,7 @@
     "usesServerSideRemux": false,
     "usesGeneratedHls": false,
     "usesXuiSideTranscode": false,
+    "usesXuiSideRemux": false,
     "evidence": ""
   },
   "checks": [
