@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest';
 interface ReleaseGate {
   id: string;
   status: 'pending' | 'pass' | 'fail';
+  evidenceRef: string;
   checkedAt: string;
 }
 
@@ -103,6 +104,18 @@ describe('V1 final release readiness review template', () => {
     for (const gateId of required) {
       expect(gateIds.has(gateId), `missing release gate ${gateId}`).toBe(true);
     }
+  });
+
+  it('points compatibility and beta capacity gates at concrete run artifacts', () => {
+    const template = loadTemplate();
+    const gatesById = new Map(template.gates.map((gate) => [gate.id, gate]));
+
+    expect(gatesById.get('compatibility-matrix')?.evidenceRef).toBe(
+      'artifacts/release/compatibility/<run-id>.json',
+    );
+    expect(gatesById.get('beta-capacity-evidence')?.evidenceRef).toBe(
+      'artifacts/release/capacity/<run-id>.json',
+    );
   });
 
   it('passes validator in template mode and strict mode for finalized artifact', () => {

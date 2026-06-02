@@ -630,3 +630,7 @@ Current source of truth for the production web catch-up continuation:
      - Current status: `in-progress`, 6 pass, 24 pending, 0 fail.
      - Completed target slices: `provider-qa-account`, `no-media-processing-audit`, and `web-gateway-vitest`.
      - Still pending by design: Windows/Chrome, macOS/Safari, Android Chrome, iOS Safari, Chromecast, Apple TV/AirPlay, PWA install/offline, and final owner/capacity signoff.
+   - Partial 300-500 user beta capacity artifact: `artifacts/release/capacity/qaf035-beta-capacity-20260602.json`.
+     - `no-media-processing-verification` is pass from local browser/network/process evidence.
+     - `provider-capacity-owner`, `lumen-edge-capacity`, `observability-slo`, `rollback-throttle-plan`, and final signoff remain pending by design.
+     - `--require-final` validation is expected to fail until all owners/evidence/signoff fields are populated with real capacity approval.

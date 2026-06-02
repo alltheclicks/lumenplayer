@@ -1,0 +1,69 @@
+{
+  "release": "V1",
+  "templateVersion": 1,
+  "generatedAt": "2026-06-02T20:46:47Z",
+  "runOwner": "codex",
+  "target": {
+    "minConcurrentLiveUsers": 300,
+    "maxConcurrentLiveUsers": 500,
+    "trafficModel": "Live TV beta cohort with normal channel zapping and catch-up attempts kept on provider media bytes."
+  },
+  "mediaPath": {
+    "allowedTransportModes": ["provider-direct", "proxy-normalized"],
+    "disallowedTransportModes": ["proxy-remuxed", "remux-hls"],
+    "usesLocalFfmpeg": false,
+    "usesServerSideTranscode": false,
+    "usesServerSideRemux": false,
+    "usesGeneratedHls": false,
+    "usesXuiSideTranscode": false,
+    "evidence": "output/playwright/manual-network-audit/REPORT.md; artifacts/release/compatibility/qaf035-provider-local-20260602.json; pnpm --filter @lumen/web exec vitest run src/components/player/catchupGateway.test.ts src/components/player/catchupSource.test.ts"
+  },
+  "checks": [
+    {
+      "id": "provider-capacity-owner",
+      "description": "Provider/XUI owner confirms the QA/beta account and upstream service can support the planned 300-500 live-user beta without adding XUI-side transcode/remux.",
+      "status": "pending",
+      "owner": "",
+      "evidence": "",
+      "notes": "Needs provider/XUI owner confirmation for the actual beta account and upstream service. Do not mark pass from local browser evidence."
+    },
+    {
+      "id": "lumen-edge-capacity",
+      "description": "Lumen web/proxy path capacity is sized for the beta cohort and does not perform per-user media processing.",
+      "status": "pending",
+      "owner": "",
+      "evidence": "",
+      "notes": "Needs explicit beta sizing/load evidence for the deployed Lumen web/proxy path. Current evidence proves the intended media path does not use per-user media processing, not full 300-500 user capacity."
+    },
+    {
+      "id": "no-media-processing-verification",
+      "description": "Browser/network/process evidence shows catch-up failures are handled with provider bytes, normalized manifests, or unsupported overlays, not ffmpeg/remux/transcode/generated HLS.",
+      "status": "pass",
+      "owner": "codex-local-qa",
+      "evidence": "output/playwright/manual-network-audit/REPORT.md; artifacts/release/compatibility/qaf035-provider-local-20260602.json",
+      "notes": "Manual browser/network audit captured 0 disallowed media-processing URL hits and 0 media-processing processes. Compatibility artifact has provider/no-media/gateway slices passing and device slices still pending."
+    },
+    {
+      "id": "observability-slo",
+      "description": "Beta launch has monitored startup, playback failure, provider error, and no-media-processing signals with named owner response.",
+      "status": "pending",
+      "owner": "",
+      "evidence": "",
+      "notes": "Needs named owner, alert route, and beta SLO response evidence before final signoff."
+    },
+    {
+      "id": "rollback-throttle-plan",
+      "description": "Rollback or enrollment throttle plan is approved for provider overload, playback regressions, or capacity breach.",
+      "status": "pending",
+      "owner": "",
+      "evidence": "",
+      "notes": "Needs approved rollback/throttle owner and decision path for provider overload or playback regression during beta."
+    }
+  ],
+  "signoff": {
+    "status": "pending",
+    "approvedBy": "",
+    "approvedAt": "",
+    "notes": "Partial evidence only. This artifact must not be used as final 300-500 user beta signoff until all checks are pass/fail with owners/evidence and signoff is approved."
+  }
+}

@@ -48,7 +48,7 @@
       "id": "beta-capacity-evidence",
       "name": "V1 300-500 user beta capacity evidence",
       "status": "pending",
-      "evidenceRef": "scripts/release/v1-beta-capacity-evidence.template.json",
+      "evidenceRef": "artifacts/release/capacity/<run-id>.json",
       "checkedAt": "",
       "notes": ""
     },

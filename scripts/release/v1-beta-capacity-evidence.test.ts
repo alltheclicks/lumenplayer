@@ -100,6 +100,18 @@ describe('V1 beta capacity evidence artifact', () => {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
+  it('tracks the QAF-035 partial beta capacity artifact without allowing final signoff', () => {
+    const repoRoot = process.cwd();
+    const artifactPath = 'artifacts/release/capacity/qaf035-beta-capacity-20260602.json';
+
+    const partialResult = runValidator([artifactPath], repoRoot);
+    expect(partialResult.status).toBe(0);
+
+    const finalResult = runValidator([artifactPath, '--require-final'], repoRoot);
+    expect(finalResult.status).toBe(2);
+    expect(finalResult.stderr).toContain('check provider-capacity-owner is pending with --require-final');
+  });
+
   it('fails strict validation if proxy-remuxed is allowed', () => {
     const repoRoot = process.cwd();
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-beta-capacity-'));
