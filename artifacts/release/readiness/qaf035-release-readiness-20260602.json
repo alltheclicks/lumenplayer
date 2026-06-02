@@ -1,0 +1,132 @@
+{
+  "release": "V1",
+  "templateVersion": 1,
+  "generatedAt": "2026-06-02T20:53:05Z",
+  "reviewOwner": "codex",
+  "gates": [
+    {
+      "id": "go-no-go-checklist",
+      "name": "V1 go/no-go checklist",
+      "status": "pending",
+      "evidenceRef": "scripts/release/v1-go-no-go.template.json",
+      "checkedAt": "2026-06-02T20:53:05Z",
+      "notes": "Template validates locally, but final go/no-go remains pending until release owner signoff."
+    },
+    {
+      "id": "smoke-regression-matrix",
+      "name": "V1 smoke/regression matrix execution",
+      "status": "pending",
+      "evidenceRef": "scripts/release/v1-smoke-regression-matrix.template.json",
+      "checkedAt": "2026-06-02T20:53:05Z",
+      "notes": "Template validates locally with 18 cases. Full execution remains pending because desktop/mobile/Cast/AirPlay/PWA target evidence is not complete."
+    },
+    {
+      "id": "compatibility-matrix",
+      "name": "V1 compatibility matrix execution",
+      "status": "pending",
+      "evidenceRef": "artifacts/release/compatibility/qaf035-provider-local-20260602.json",
+      "checkedAt": "2026-06-02T20:53:05Z",
+      "notes": "Partial compatibility run is in-progress: 6 pass, 24 pending, 0 fail. Provider/no-media/gateway slices pass; desktop/mobile/Cast/AirPlay/PWA remain pending."
+    },
+    {
+      "id": "design-parity-evidence",
+      "name": "V1 UI design parity evidence review",
+      "status": "pending",
+      "evidenceRef": "scripts/release/v1-design-parity-evidence.template.json",
+      "checkedAt": "2026-06-02T20:53:05Z",
+      "notes": "Template/test coverage exists, but final rendered design parity evidence is not signed off for beta."
+    },
+    {
+      "id": "performance-evidence",
+      "name": "V1 performance evidence artifact",
+      "status": "pending",
+      "evidenceRef": "scripts/release/v1-performance-evidence.template.json",
+      "checkedAt": "2026-06-02T20:53:05Z",
+      "notes": "Local perf tests pass, but final beta capacity/performance evidence is not complete."
+    },
+    {
+      "id": "beta-capacity-evidence",
+      "name": "V1 300-500 user beta capacity evidence",
+      "status": "pending",
+      "evidenceRef": "artifacts/release/capacity/qaf035-beta-capacity-20260602.json",
+      "checkedAt": "2026-06-02T20:53:05Z",
+      "notes": "Partial artifact validates non-final. no-media-processing-verification passes; provider owner, Lumen edge capacity, observability SLO, rollback/throttle plan, and final signoff remain pending."
+    },
+    {
+      "id": "observability-baseline",
+      "name": "V1 production observability baseline",
+      "status": "pending",
+      "evidenceRef": "apps/web/src/services/observability.test.ts",
+      "checkedAt": "2026-06-02T20:53:05Z",
+      "notes": "Unit coverage exists, but beta launch alert routing, owner response, and SLO signoff remain pending."
+    },
+    {
+      "id": "security-privacy-baseline",
+      "name": "V1 security/privacy baseline review",
+      "status": "pending",
+      "evidenceRef": "scripts/release/v1-security-privacy-baseline.template.json",
+      "checkedAt": "2026-06-02T20:53:05Z",
+      "notes": "Template/test coverage exists, but final security/privacy owner signoff remains pending."
+    }
+  ],
+  "blockerTriage": {
+    "totalOpen": 3,
+    "triagedAt": "2026-06-02T20:53:05Z",
+    "owner": "codex",
+    "items": [
+      {
+        "id": "BETA-CAPACITY-OWNER",
+        "summary": "Provider/XUI owner capacity approval for 300-500 beta users is missing.",
+        "status": "open",
+        "disposition": "Needs external owner confirmation that the beta account/upstream service can support the cohort without XUI-side transcode/remux.",
+        "owner": "provider-capacity-owner",
+        "issueRef": ""
+      },
+      {
+        "id": "TARGET-MATRIX-DEVICES",
+        "summary": "Desktop/mobile/Cast/AirPlay/PWA compatibility target evidence is incomplete.",
+        "status": "open",
+        "disposition": "Run real target evidence or approved device-lab evidence before final beta signoff.",
+        "owner": "release-qa-owner",
+        "issueRef": ""
+      },
+      {
+        "id": "BETA-OPS-SIGNOFF",
+        "summary": "Observability SLO and rollback/throttle owners are not signed off.",
+        "status": "open",
+        "disposition": "Assign launch owners and record alert route, rollback/throttle decision path, and max decision time evidence.",
+        "owner": "release-ops-owner",
+        "issueRef": ""
+      }
+    ]
+  },
+  "rollback": {
+    "owner": "",
+    "notificationChannel": "",
+    "maxDecisionMinutes": 30,
+    "triggers": [
+      "Any release-blocker regression in playback, cast handoff, or data integrity.",
+      "Provider overload, 429/5xx escalation, or startup/failure SLO breach during beta enrollment.",
+      "Any evidence of catch-up playback using local ffmpeg, server-side transcode/remux, generated HLS, proxy-remuxed, remux-hls, or XUI-side media processing."
+    ],
+    "steps": [
+      "Stop beta enrollment and switch release recommendation to no-go.",
+      "Keep catch-up failures on provider-direct/proxy-normalized playback or unsupported overlay; do not enable transcode/remux workaround.",
+      "Re-deploy last known good build or roll back the PR if web regressions are introduced.",
+      "Re-run provider preflight, compatibility matrix slices, capacity artifact validation, and no-media-processing audit before resuming enrollment."
+    ],
+    "verificationChecks": [
+      "Provider auth/live catalog preflight passes.",
+      "Manual browser/network audit remains free of __remux__, remux-hls, ffmpeg, ffprobe, transcode, proxy-remuxed, and generated-HLS hits.",
+      "Compatibility matrix has no release-blocker failures and pending target evidence is explicitly triaged.",
+      "Beta capacity artifact validates and final signoff remains blocked until owner evidence is complete."
+    ],
+    "notes": "Partial rollback plan only. Final beta readiness still needs named owner and notification channel."
+  },
+  "signoff": {
+    "status": "pending",
+    "approvedBy": "",
+    "approvedAt": "",
+    "notes": "Partial readiness rollup only. This artifact must fail --require-final until all gates are non-pending, blocker triage is closed/mitigated, rollback owner/channel are set, and final signoff is approved."
+  }
+}

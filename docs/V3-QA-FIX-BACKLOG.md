@@ -634,3 +634,6 @@ Current source of truth for the production web catch-up continuation:
      - `no-media-processing-verification` is pass from local browser/network/process evidence.
      - `provider-capacity-owner`, `lumen-edge-capacity`, `observability-slo`, `rollback-throttle-plan`, and final signoff remain pending by design.
      - `--require-final` validation is expected to fail until all owners/evidence/signoff fields are populated with real capacity approval.
+   - Partial release-readiness rollup artifact: `artifacts/release/readiness/qaf035-release-readiness-20260602.json`.
+     - It links current compatibility and capacity artifacts, records open blockers for capacity owner, target devices, and beta ops signoff, and keeps final signoff pending.
+     - `--require-final` validation is expected to fail until every gate is non-pending, blockers are closed/mitigated, rollback owner/channel are set, and final approval is recorded.

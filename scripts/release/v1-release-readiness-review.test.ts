@@ -137,6 +137,18 @@ describe('V1 final release readiness review template', () => {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
+  it('tracks the QAF-035 partial release readiness artifact without allowing final signoff', () => {
+    const repoRoot = process.cwd();
+    const artifactPath = 'artifacts/release/readiness/qaf035-release-readiness-20260602.json';
+
+    const partialResult = runValidator([artifactPath], repoRoot);
+    expect(partialResult.status).toBe(0);
+
+    const finalResult = runValidator([artifactPath, '--require-final'], repoRoot);
+    expect(finalResult.status).toBe(2);
+    expect(finalResult.stderr).toContain('gate go-no-go-checklist is pending with --require-final');
+  });
+
   it('fails strict validation when a required gate is missing', () => {
     const repoRoot = process.cwd();
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-0346-readiness-'));
