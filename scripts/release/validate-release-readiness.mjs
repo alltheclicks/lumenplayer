@@ -7,6 +7,7 @@ const allowedStatus = new Set(['pending', 'pass', 'fail']);
 const allowedBlockerStatus = new Set(['open', 'mitigated', 'closed']);
 const requiredGateIds = new Set([
   'go-no-go-checklist',
+  'smoke-regression-matrix',
   'compatibility-matrix',
   'design-parity-evidence',
   'performance-evidence',

@@ -30,6 +30,7 @@
   - release smoke/regression matrix now requires `provider-qa` coverage:
     - `SMK-PROVIDER-AUTH-LIVE-CATALOG`
     - `REG-PROVIDER-FOCUSED-PLAYBACK`
+  - release readiness review now requires the smoke/regression matrix gate, so final signoff cannot bypass provider-backed smoke evidence
 - Current blocker:
   - stored QA provider credentials return `user_info.auth = 0`
   - live browser playback and QA simulation cannot prove beta readiness until a valid QA provider account is available

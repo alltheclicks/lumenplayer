@@ -13,6 +13,14 @@
       "notes": ""
     },
     {
+      "id": "smoke-regression-matrix",
+      "name": "V1 smoke/regression matrix execution",
+      "status": "pending",
+      "evidenceRef": "scripts/release/v1-smoke-regression-matrix.template.json",
+      "checkedAt": "",
+      "notes": ""
+    },
+    {
       "id": "compatibility-matrix",
       "name": "V1 compatibility matrix execution",
       "status": "pending",

@@ -91,6 +91,7 @@ describe('V1 final release readiness review template', () => {
 
     const required = [
       'go-no-go-checklist',
+      'smoke-regression-matrix',
       'compatibility-matrix',
       'design-parity-evidence',
       'performance-evidence',
@@ -134,6 +135,22 @@ describe('V1 final release readiness review template', () => {
     const result = runValidator([invalidPath, '--require-final'], repoRoot);
     expect(result.status).toBe(2);
     expect(result.stderr).toContain('required gate is missing');
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('fails strict validation when smoke/regression matrix evidence is missing', () => {
+    const repoRoot = process.cwd();
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-0346-readiness-'));
+    const invalidPath = path.join(tmpDir, 'missing-smoke-regression-matrix.json');
+
+    const invalidArtifact = finalizeReview(loadTemplate());
+    invalidArtifact.gates = invalidArtifact.gates.filter((gate) => gate.id !== 'smoke-regression-matrix');
+    fs.writeFileSync(invalidPath, `${JSON.stringify(invalidArtifact, null, 2)}\n`);
+
+    const result = runValidator([invalidPath, '--require-final'], repoRoot);
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain('required gate is missing: smoke-regression-matrix');
 
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
