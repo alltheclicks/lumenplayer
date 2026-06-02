@@ -28,6 +28,8 @@
     "release:beta-capacity:test": "vitest run scripts/release/v1-beta-capacity-evidence.test.ts",
     "release:runtime-media:validate": "node scripts/release/validate-runtime-media-policy.mjs scripts/release/v1-runtime-media-policy.template.json",
     "release:runtime-media:test": "vitest run scripts/release/v1-runtime-media-policy.test.ts",
+    "release:manual-device-qa:validate": "node scripts/release/validate-manual-device-qa.mjs scripts/release/v1-manual-device-qa.template.json",
+    "release:manual-device-qa:test": "vitest run scripts/release/v1-manual-device-qa.test.ts",
     "release:design-parity:validate": "node scripts/release/validate-design-parity-evidence.mjs scripts/release/v1-design-parity-evidence.template.json",
     "release:design-parity:test": "vitest run scripts/release/v1-design-parity-evidence.test.ts",
     "release:observability:test": "vitest run apps/web/src/services/observability.test.ts",

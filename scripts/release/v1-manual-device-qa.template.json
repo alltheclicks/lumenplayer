@@ -1,0 +1,315 @@
+{
+  "release": "V1",
+  "templateVersion": 1,
+  "generatedAt": "",
+  "runOwner": "",
+  "policy": {
+    "requiresRealDeviceEvidence": true,
+    "localChromiumIsNotRealDeviceSignoff": true,
+    "allowedTransportModes": ["provider-direct", "proxy-normalized"],
+    "disallowedTransportModes": ["proxy-remuxed", "remux-hls"],
+    "noMediaProcessingRequired": true
+  },
+  "targets": [
+    {
+      "id": "desktop-chrome-windows",
+      "name": "Desktop Chrome on Windows",
+      "platform": "desktop",
+      "expectedDevice": "Windows 11 desktop",
+      "expectedBrowser": "Chrome latest",
+      "status": "pending",
+      "owner": "",
+      "actualDevice": "",
+      "osVersion": "",
+      "browserVersion": "",
+      "evidenceRefs": [],
+      "mediaProcessingAudit": {
+        "status": "pending",
+        "evidenceRef": "",
+        "forbiddenHits": []
+      },
+      "checks": [
+        {
+          "id": "live-playback",
+          "description": "Live channel starts, renders video, and can recover from normal channel zapping.",
+          "releaseBlocker": true,
+          "status": "pending",
+          "evidence": ""
+        },
+        {
+          "id": "catchup-controls-seek",
+          "description": "Playable catch-up exposes controls and seek without switching to remux/transcode transport.",
+          "releaseBlocker": true,
+          "status": "pending",
+          "evidence": ""
+        },
+        {
+          "id": "player-state-navigation",
+          "description": "Series/VOD -> TV Uzivo restores the live shell and live startup mode behaves as configured.",
+          "releaseBlocker": true,
+          "status": "pending",
+          "evidence": ""
+        }
+      ],
+      "notes": ""
+    },
+    {
+      "id": "desktop-safari-macos",
+      "name": "Desktop Safari on macOS",
+      "platform": "desktop",
+      "expectedDevice": "macOS desktop",
+      "expectedBrowser": "Safari latest",
+      "status": "pending",
+      "owner": "",
+      "actualDevice": "",
+      "osVersion": "",
+      "browserVersion": "",
+      "evidenceRefs": [],
+      "mediaProcessingAudit": {
+        "status": "pending",
+        "evidenceRef": "",
+        "forbiddenHits": []
+      },
+      "checks": [
+        {
+          "id": "vod-playback",
+          "description": "VOD playback starts and controls remain usable under Safari media policies.",
+          "releaseBlocker": true,
+          "status": "pending",
+          "evidence": ""
+        },
+        {
+          "id": "live-playback",
+          "description": "Live channel starts, renders video, and handles Safari autoplay constraints cleanly.",
+          "releaseBlocker": true,
+          "status": "pending",
+          "evidence": ""
+        },
+        {
+          "id": "catchup-failure-overlay",
+          "description": "Broken catch-up shows provider/failure overlay and does not trigger remux/transcode.",
+          "releaseBlocker": true,
+          "status": "pending",
+          "evidence": ""
+        }
+      ],
+      "notes": ""
+    },
+    {
+      "id": "mobile-chrome-android",
+      "name": "Mobile Chrome on Android",
+      "platform": "mobile",
+      "expectedDevice": "Android phone",
+      "expectedBrowser": "Chrome latest",
+      "status": "pending",
+      "owner": "",
+      "actualDevice": "",
+      "osVersion": "",
+      "browserVersion": "",
+      "evidenceRefs": [],
+      "mediaProcessingAudit": {
+        "status": "pending",
+        "evidenceRef": "",
+        "forbiddenHits": []
+      },
+      "checks": [
+        {
+          "id": "live-playback-touch",
+          "description": "Live playback starts and touch controls/fullscreen/orientation remain usable.",
+          "releaseBlocker": true,
+          "status": "pending",
+          "evidence": ""
+        },
+        {
+          "id": "catchup-touch-controls",
+          "description": "Catch-up controls and seek work with touch input or show a clear unsupported overlay.",
+          "releaseBlocker": true,
+          "status": "pending",
+          "evidence": ""
+        },
+        {
+          "id": "background-foreground-resume",
+          "description": "Background/foreground resume does not corrupt player state or login/session state.",
+          "releaseBlocker": false,
+          "status": "pending",
+          "evidence": ""
+        }
+      ],
+      "notes": ""
+    },
+    {
+      "id": "mobile-safari-ios",
+      "name": "Mobile Safari on iOS",
+      "platform": "mobile",
+      "expectedDevice": "iPhone",
+      "expectedBrowser": "Safari latest",
+      "status": "pending",
+      "owner": "",
+      "actualDevice": "",
+      "osVersion": "",
+      "browserVersion": "",
+      "evidenceRefs": [],
+      "mediaProcessingAudit": {
+        "status": "pending",
+        "evidenceRef": "",
+        "forbiddenHits": []
+      },
+      "checks": [
+        {
+          "id": "live-playback-native-hls",
+          "description": "Live playback works with iOS native media behavior and controls remain usable.",
+          "releaseBlocker": true,
+          "status": "pending",
+          "evidence": ""
+        },
+        {
+          "id": "catchup-failure-handling",
+          "description": "Catch-up failure handling is clear and never solved via remux/transcode path.",
+          "releaseBlocker": true,
+          "status": "pending",
+          "evidence": ""
+        },
+        {
+          "id": "navigation-restore",
+          "description": "Returning from detail/player/navigation paths restores the expected live shell.",
+          "releaseBlocker": true,
+          "status": "pending",
+          "evidence": ""
+        }
+      ],
+      "notes": ""
+    },
+    {
+      "id": "cast-chromecast",
+      "name": "Google Cast to Chromecast",
+      "platform": "cast",
+      "expectedDevice": "Chrome sender plus Chromecast target",
+      "expectedBrowser": "Chrome latest sender",
+      "status": "pending",
+      "owner": "",
+      "actualDevice": "",
+      "osVersion": "",
+      "browserVersion": "",
+      "evidenceRefs": [],
+      "mediaProcessingAudit": {
+        "status": "pending",
+        "evidenceRef": "",
+        "forbiddenHits": []
+      },
+      "checks": [
+        {
+          "id": "cast-connect-play",
+          "description": "Sender connects to Chromecast receiver and starts remote playback.",
+          "releaseBlocker": true,
+          "status": "pending",
+          "evidence": ""
+        },
+        {
+          "id": "renderer-switch-return-local",
+          "description": "Switching local to cast and back to local preserves usable playback/navigation state.",
+          "releaseBlocker": true,
+          "status": "pending",
+          "evidence": ""
+        },
+        {
+          "id": "cast-error-observability",
+          "description": "Cast failures emit sanitized observability evidence and do not hide media-path violations.",
+          "releaseBlocker": false,
+          "status": "pending",
+          "evidence": ""
+        }
+      ],
+      "notes": ""
+    },
+    {
+      "id": "airplay-appletv",
+      "name": "AirPlay to Apple TV",
+      "platform": "airplay",
+      "expectedDevice": "Safari/iOS sender plus Apple TV target",
+      "expectedBrowser": "Safari latest sender",
+      "status": "pending",
+      "owner": "",
+      "actualDevice": "",
+      "osVersion": "",
+      "browserVersion": "",
+      "evidenceRefs": [],
+      "mediaProcessingAudit": {
+        "status": "pending",
+        "evidenceRef": "",
+        "forbiddenHits": []
+      },
+      "checks": [
+        {
+          "id": "airplay-connect-play",
+          "description": "Sender routes playback to Apple TV through AirPlay and playback starts.",
+          "releaseBlocker": true,
+          "status": "pending",
+          "evidence": ""
+        },
+        {
+          "id": "return-local",
+          "description": "Disconnecting AirPlay returns to local playback or a clear recoverable state.",
+          "releaseBlocker": true,
+          "status": "pending",
+          "evidence": ""
+        },
+        {
+          "id": "airplay-error-handling",
+          "description": "AirPlay failures are visible, actionable, and do not trigger remux/transcode fallback.",
+          "releaseBlocker": false,
+          "status": "pending",
+          "evidence": ""
+        }
+      ],
+      "notes": ""
+    },
+    {
+      "id": "pwa-install-offline",
+      "name": "PWA install and offline recovery",
+      "platform": "pwa",
+      "expectedDevice": "Android Chrome and/or iOS Safari installed app",
+      "expectedBrowser": "Installed PWA shell",
+      "status": "pending",
+      "owner": "",
+      "actualDevice": "",
+      "osVersion": "",
+      "browserVersion": "",
+      "evidenceRefs": [],
+      "mediaProcessingAudit": {
+        "status": "pending",
+        "evidenceRef": "",
+        "forbiddenHits": []
+      },
+      "checks": [
+        {
+          "id": "install-flow",
+          "description": "PWA can be installed or added to home screen from a supported browser/device.",
+          "releaseBlocker": true,
+          "status": "pending",
+          "evidence": ""
+        },
+        {
+          "id": "offline-shell",
+          "description": "Installed app shell opens offline to a controlled state without pretending media is playable offline.",
+          "releaseBlocker": true,
+          "status": "pending",
+          "evidence": ""
+        },
+        {
+          "id": "reconnect-recovery",
+          "description": "App recovers after reconnect and resumes provider-backed navigation/playback flows.",
+          "releaseBlocker": true,
+          "status": "pending",
+          "evidence": ""
+        }
+      ],
+      "notes": ""
+    }
+  ],
+  "signoff": {
+    "status": "pending",
+    "approvedBy": "",
+    "approvedAt": "",
+    "notes": ""
+  }
+}

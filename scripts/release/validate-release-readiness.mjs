@@ -9,6 +9,7 @@ const requiredGateIds = new Set([
   'go-no-go-checklist',
   'smoke-regression-matrix',
   'compatibility-matrix',
+  'manual-device-qa-evidence',
   'design-parity-evidence',
   'performance-evidence',
   'beta-capacity-evidence',

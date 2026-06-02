@@ -626,10 +626,13 @@ Current source of truth for the production web catch-up continuation:
    - `scripts/release/validate-beta-capacity-evidence.mjs` now gates the 300-500 user beta capacity artifact and explicitly requires `usesLocalFfmpeg=false`, `usesServerSideTranscode=false`, `usesServerSideRemux=false`, `usesGeneratedHls=false`, and `usesXuiSideTranscode=false`.
    - `scripts/release/compatibility-matrix-task.mjs finalize` now refuses final signoff while any matrix case is missing evidence, so target/device coverage cannot be marked complete from status-only entries.
    - `scripts/release/v1-compatibility-targets.template.json` now separates provider QA, no-media-processing, and web-gateway unit evidence from real desktop/mobile/Cast/AirPlay target evidence.
+   - `scripts/release/v1-manual-device-qa.template.json` and `scripts/release/validate-manual-device-qa.mjs` now define the exact real-device/manual QA evidence required for Windows Chrome, macOS Safari, Android Chrome, iOS Safari, Chromecast, AirPlay/Apple TV, and PWA install/offline.
    - Partial compatibility run artifact: `artifacts/release/compatibility/qaf035-provider-local-20260602.json`.
      - Current status: `in-progress`, 8 pass, 21 pending, 0 fail.
      - Completed target slices: `provider-qa-account`, `no-media-processing-audit`, `web-gateway-vitest`, and `desktop-chromium-local`.
      - Still pending by design: Windows/Chrome, macOS/Safari, Android Chrome, iOS Safari, Chromecast, Apple TV/AirPlay, PWA install/offline, and final owner/capacity signoff.
+   - Partial manual real-device QA artifact: `artifacts/release/manual-device-qa/qaf035-manual-device-qa-20260603.json`.
+     - It is intentionally pending until each real target has an owner, actual device/browser version, screenshot/report evidence, network/no-media-processing evidence, and all release-blocker checks resolved.
    - Partial 300-500 user beta capacity artifact: `artifacts/release/capacity/qaf035-beta-capacity-20260602.json`.
      - `no-media-processing-verification` is pass from local browser/network/process evidence plus runtime media policy default no-remux checks.
      - `provider-capacity-owner`, `lumen-edge-capacity`, `observability-slo`, `rollback-throttle-plan`, and final signoff remain pending by design.

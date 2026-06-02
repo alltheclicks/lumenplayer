@@ -94,6 +94,7 @@ describe('V1 final release readiness review template', () => {
       'go-no-go-checklist',
       'smoke-regression-matrix',
       'compatibility-matrix',
+      'manual-device-qa-evidence',
       'design-parity-evidence',
       'performance-evidence',
       'beta-capacity-evidence',
@@ -119,6 +120,9 @@ describe('V1 final release readiness review template', () => {
     );
     expect(gatesById.get('runtime-media-policy')?.evidenceRef).toBe(
       'artifacts/release/media-policy/<run-id>.json',
+    );
+    expect(gatesById.get('manual-device-qa-evidence')?.evidenceRef).toBe(
+      'artifacts/release/manual-device-qa/<run-id>.json',
     );
   });
 

@@ -29,6 +29,14 @@
       "notes": "Partial compatibility run is in-progress: 8 pass, 21 pending, 0 fail. Provider/no-media/gateway and local desktop-chromium slices pass; Windows/Safari/mobile/Cast/AirPlay/PWA remain pending."
     },
     {
+      "id": "manual-device-qa-evidence",
+      "name": "V1 manual real-device QA evidence",
+      "status": "pending",
+      "evidenceRef": "artifacts/release/manual-device-qa/qaf035-manual-device-qa-20260603.json",
+      "checkedAt": "2026-06-03T00:12:00Z",
+      "notes": "Manual real-device QA artifact is structured but non-final. Windows Chrome, macOS Safari, Android Chrome, iOS Safari, Chromecast, AirPlay/Apple TV, and PWA install/offline evidence remain pending."
+    },
+    {
       "id": "design-parity-evidence",
       "name": "V1 UI design parity evidence review",
       "status": "pending",

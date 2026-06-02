@@ -29,6 +29,14 @@
       "notes": ""
     },
     {
+      "id": "manual-device-qa-evidence",
+      "name": "V1 manual real-device QA evidence",
+      "status": "pending",
+      "evidenceRef": "artifacts/release/manual-device-qa/<run-id>.json",
+      "checkedAt": "",
+      "notes": ""
+    },
+    {
       "id": "design-parity-evidence",
       "name": "V1 UI design parity evidence review",
       "status": "pending",
