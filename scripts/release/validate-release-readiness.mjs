@@ -12,6 +12,7 @@ const requiredGateIds = new Set([
   'manual-device-qa-evidence',
   'design-parity-evidence',
   'performance-evidence',
+  'provider-owner-signoff',
   'beta-capacity-evidence',
   'runtime-media-policy',
   'observability-baseline',

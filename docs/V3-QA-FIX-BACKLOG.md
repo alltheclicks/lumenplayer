@@ -628,6 +628,7 @@ Current source of truth for the production web catch-up continuation:
    - `scripts/release/v1-compatibility-targets.template.json` now separates provider QA, no-media-processing, and web-gateway unit evidence from real desktop/mobile/Cast/AirPlay target evidence.
    - `scripts/release/v1-manual-device-qa.template.json` and `scripts/release/validate-manual-device-qa.mjs` now define the exact real-device/manual QA evidence required for Windows Chrome, macOS Safari, Android Chrome, iOS Safari, Chromecast, AirPlay/Apple TV, and PWA install/offline.
    - `scripts/release/v1-beta-ops-signoff.template.json` and `scripts/release/validate-beta-ops-signoff.mjs` now define the beta observability SLO, alert-route, rollback/throttle owner, enrollment stop, and no-media-processing stop-trigger evidence required before 300-500 live-user beta signoff.
+   - `scripts/release/v1-provider-owner-signoff.template.json` and `scripts/release/validate-provider-owner-signoff.mjs` now define the provider/XUI owner evidence required for 300-500 user capacity, rate-limit/escalation contact, and explicit no XUI-side transcode/remux/generated-HLS commitment.
    - Partial compatibility run artifact: `artifacts/release/compatibility/qaf035-provider-local-20260602.json`.
      - Current status: `in-progress`, 8 pass, 21 pending, 0 fail.
      - Completed target slices: `provider-qa-account`, `no-media-processing-audit`, `web-gateway-vitest`, and `desktop-chromium-local`.
@@ -636,14 +637,18 @@ Current source of truth for the production web catch-up continuation:
      - It is intentionally pending until each real target has an owner, actual device/browser version, screenshot/report evidence, network/no-media-processing evidence, and all release-blocker checks resolved.
    - Partial 300-500 user beta capacity artifact: `artifacts/release/capacity/qaf035-beta-capacity-20260602.json`.
      - `no-media-processing-verification` is pass from local browser/network/process evidence plus runtime media policy default no-remux checks.
+     - `provider-capacity-owner` now links to the partial provider owner artifact, but remains pending until account/upstream capacity approval, rate-limit policy, and escalation path are recorded by the provider/XUI owner.
      - `observability-slo` and `rollback-throttle-plan` now link to the partial ops artifact, but remain pending until owners, alert routes, decision authority, and final signoff are recorded.
      - `provider-capacity-owner`, `lumen-edge-capacity`, `observability-slo`, `rollback-throttle-plan`, and final signoff remain pending by design.
      - `--require-final` validation is expected to fail until all owners/evidence/signoff fields are populated with real capacity approval.
+   - Partial provider/XUI owner signoff artifact: `artifacts/release/provider/qaf035-provider-owner-signoff-20260603.json`.
+     - It is intentionally pending until provider/XUI owner identity, contact path, account/upstream capacity approval, rate-limit/escalation policy, no XUI-side transcode/remux/generated-HLS commitment, and final approval are recorded.
+     - It explicitly forbids resolving broken catch-up channels with local ffmpeg/ffprobe, server-side media processing, transcode/remux, generated HLS, proxy-remuxed/remux-hls, or XUI-side media processing.
    - Partial beta ops signoff artifact: `artifacts/release/ops/qaf035-beta-ops-signoff-20260603.json`.
      - It is intentionally pending until observability owner, alert channel, dashboard, SLO thresholds, rollback/throttle owner, notification route, decision authority, and final approval are recorded.
      - It explicitly treats local ffmpeg, server-side transcode/remux, generated HLS, proxy-remuxed/remux-hls, and XUI-side media processing as beta stop triggers.
    - Partial release-readiness rollup artifact: `artifacts/release/readiness/qaf035-release-readiness-20260602.json`.
-     - It links current compatibility, capacity, runtime media policy, manual-device, and beta ops artifacts, records open blockers for capacity owner, target devices, and beta ops signoff, and keeps final signoff pending.
+     - It links current compatibility, capacity, provider owner, runtime media policy, manual-device, and beta ops artifacts, records open blockers for capacity owner, target devices, and beta ops signoff, and keeps final signoff pending.
      - `--require-final` validation is expected to fail until every gate is non-pending, blockers are closed/mitigated, rollback owner/channel are set, and final approval is recorded.
    - Partial runtime media policy artifact: `artifacts/release/media-policy/qaf035-runtime-media-policy-20260602.json`.
      - Web gateway, proxy default no-remux, committed env, and local process checks pass for the no-transcode/no-remux policy.

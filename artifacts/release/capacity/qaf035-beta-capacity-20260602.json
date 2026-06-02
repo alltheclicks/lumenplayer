@@ -24,8 +24,8 @@
       "description": "Provider/XUI owner confirms the QA/beta account and upstream service can support the planned 300-500 live-user beta without adding XUI-side transcode/remux.",
       "status": "pending",
       "owner": "",
-      "evidence": "",
-      "notes": "Needs provider/XUI owner confirmation for the actual beta account and upstream service. Do not mark pass from local browser evidence."
+      "evidence": "artifacts/release/provider/qaf035-provider-owner-signoff-20260603.json",
+      "notes": "Structured provider owner signoff artifact now defines the required account capacity, rate-limit/escalation, and no XUI-side transcode/remux evidence. Do not mark pass from local browser evidence."
     },
     {
       "id": "lumen-edge-capacity",

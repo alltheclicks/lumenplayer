@@ -58,8 +58,8 @@
       "description": "Provider/XUI owner confirms catch-up failures will not be solved with XUI-side transcode/remux for beta.",
       "status": "pending",
       "owner": "",
-      "evidence": "",
-      "notes": "Needs external provider/XUI owner confirmation. Do not infer this from local browser or repository evidence."
+      "evidence": "artifacts/release/provider/qaf035-provider-owner-signoff-20260603.json",
+      "notes": "Structured provider owner signoff artifact now defines the required no XUI-side transcode/remux/generated-HLS commitment. Do not infer this from local browser or repository evidence."
     }
   ],
   "signoff": {

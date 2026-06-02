@@ -53,6 +53,14 @@
       "notes": ""
     },
     {
+      "id": "provider-owner-signoff",
+      "name": "V1 provider/XUI owner capacity and no-media-processing signoff",
+      "status": "pending",
+      "evidenceRef": "artifacts/release/provider/<run-id>.json",
+      "checkedAt": "",
+      "notes": ""
+    },
+    {
       "id": "beta-capacity-evidence",
       "name": "V1 300-500 user beta capacity evidence",
       "status": "pending",

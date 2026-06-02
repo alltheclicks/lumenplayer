@@ -1,0 +1,100 @@
+{
+  "release": "V1",
+  "templateVersion": 1,
+  "generatedAt": "2026-06-02T22:26:00Z",
+  "runOwner": "codex",
+  "provider": {
+    "name": "QAF-035 QA/beta provider",
+    "accountScope": "QA/beta Xtream provider account used for the 300-500 live-user beta. Credentials are intentionally not recorded in this artifact.",
+    "xuiHostRef": "gw.castcdn.net",
+    "ownerName": "",
+    "ownerRole": "",
+    "contact": "",
+    "approvedAt": "",
+    "evidenceRefs": [],
+    "notes": "Partial provider owner signoff only. Final beta readiness still needs a named provider/XUI owner, contact path, account scope confirmation, capacity evidence, and explicit no-transcode/no-remux commitment."
+  },
+  "target": {
+    "minConcurrentLiveUsers": 300,
+    "maxConcurrentLiveUsers": 500,
+    "trafficModel": "Live TV beta cohort with normal channel zapping and catch-up attempts kept on provider media bytes."
+  },
+  "mediaProcessingCommitment": {
+    "status": "pending",
+    "owner": "",
+    "allowedTransportModes": ["provider-direct", "proxy-normalized"],
+    "disallowedTransportModes": ["proxy-remuxed", "remux-hls"],
+    "usesLocalFfmpeg": false,
+    "usesServerSideTranscode": false,
+    "usesServerSideRemux": false,
+    "usesGeneratedHls": false,
+    "usesXuiSideTranscode": false,
+    "usesXuiSideRemux": false,
+    "forbiddenResolutionPaths": [
+      "Do not resolve broken catch-up channels with local ffmpeg or ffprobe.",
+      "Do not resolve broken catch-up channels with server-side media processing, transcode, remux, generated HLS, proxy-remuxed, or remux-hls.",
+      "Do not resolve broken catch-up channels with XUI-side media processing, XUI-side transcode, or XUI-side remux."
+    ],
+    "evidenceRefs": [],
+    "notes": "Partial no-media-processing commitment only. Final beta readiness still needs provider/XUI owner evidence that no XUI-side transcode, XUI-side remux, generated HLS, server-side media processing, or local ffmpeg/ffprobe workaround will be used."
+  },
+  "capacityCommitment": {
+    "status": "pending",
+    "owner": "",
+    "approvedConcurrentLiveUsers": 0,
+    "accountLimitEvidence": "",
+    "upstreamCapacityEvidence": "",
+    "rateLimitPolicy": "",
+    "rollbackContact": "",
+    "evidenceRefs": [],
+    "notes": "Partial capacity commitment only. Final beta readiness still needs provider/XUI approval for 300-500 concurrent live users, account limits, rate-limit policy, and escalation contact."
+  },
+  "checks": [
+    {
+      "id": "provider-owner-identity",
+      "description": "Provider/XUI owner identity, role, contact, and account scope are recorded.",
+      "status": "pending",
+      "owner": "",
+      "evidence": "",
+      "notes": ""
+    },
+    {
+      "id": "provider-account-capacity",
+      "description": "Provider/XUI owner confirms the beta account and upstream service can support 300-500 concurrent live users.",
+      "status": "pending",
+      "owner": "",
+      "evidence": "",
+      "notes": ""
+    },
+    {
+      "id": "xui-no-transcode-remux",
+      "description": "Provider/XUI owner confirms no XUI-side transcode/remux/media-processing workaround will be enabled for broken catch-up channels.",
+      "status": "pending",
+      "owner": "",
+      "evidence": "",
+      "notes": ""
+    },
+    {
+      "id": "catchup-no-generated-hls",
+      "description": "Provider/XUI owner confirms broken catch-up channels will not be resolved with generated HLS, proxy-remuxed, remux-hls, local ffmpeg, or server-side media processing.",
+      "status": "pending",
+      "owner": "",
+      "evidence": "",
+      "notes": ""
+    },
+    {
+      "id": "rate-limit-rollback-contact",
+      "description": "Provider escalation and rollback/throttle contact is recorded for auth, 429/5xx, and capacity incidents during beta.",
+      "status": "pending",
+      "owner": "",
+      "evidence": "",
+      "notes": ""
+    }
+  ],
+  "signoff": {
+    "status": "pending",
+    "approvedBy": "",
+    "approvedAt": "",
+    "notes": "Partial provider owner signoff only. This artifact must fail --require-final until provider/XUI owner, account capacity, rate-limit policy, escalation path, no-transcode/no-remux commitment, and final approval are recorded."
+  }
+}

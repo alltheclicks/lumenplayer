@@ -32,6 +32,8 @@
     "release:manual-device-qa:test": "vitest run scripts/release/v1-manual-device-qa.test.ts",
     "release:beta-ops:validate": "node scripts/release/validate-beta-ops-signoff.mjs scripts/release/v1-beta-ops-signoff.template.json",
     "release:beta-ops:test": "vitest run scripts/release/v1-beta-ops-signoff.test.ts",
+    "release:provider-owner:validate": "node scripts/release/validate-provider-owner-signoff.mjs scripts/release/v1-provider-owner-signoff.template.json",
+    "release:provider-owner:test": "vitest run scripts/release/v1-provider-owner-signoff.test.ts",
     "release:design-parity:validate": "node scripts/release/validate-design-parity-evidence.mjs scripts/release/v1-design-parity-evidence.template.json",
     "release:design-parity:test": "vitest run scripts/release/v1-design-parity-evidence.test.ts",
     "release:observability:test": "vitest run apps/web/src/services/observability.test.ts",

@@ -97,6 +97,7 @@ describe('V1 final release readiness review template', () => {
       'manual-device-qa-evidence',
       'design-parity-evidence',
       'performance-evidence',
+      'provider-owner-signoff',
       'beta-capacity-evidence',
       'runtime-media-policy',
       'observability-baseline',
@@ -124,6 +125,9 @@ describe('V1 final release readiness review template', () => {
     );
     expect(gatesById.get('manual-device-qa-evidence')?.evidenceRef).toBe(
       'artifacts/release/manual-device-qa/<run-id>.json',
+    );
+    expect(gatesById.get('provider-owner-signoff')?.evidenceRef).toBe(
+      'artifacts/release/provider/<run-id>.json',
     );
     expect(gatesById.get('beta-ops-signoff')?.evidenceRef).toBe(
       'artifacts/release/ops/<run-id>.json',

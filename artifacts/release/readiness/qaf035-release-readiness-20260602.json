@@ -53,6 +53,14 @@
       "notes": "Local perf tests pass, but final beta capacity/performance evidence is not complete."
     },
     {
+      "id": "provider-owner-signoff",
+      "name": "V1 provider/XUI owner capacity and no-media-processing signoff",
+      "status": "pending",
+      "evidenceRef": "artifacts/release/provider/qaf035-provider-owner-signoff-20260603.json",
+      "checkedAt": "2026-06-02T22:26:00Z",
+      "notes": "Partial provider owner artifact validates non-final. Provider/XUI owner identity, capacity approval, rate-limit/escalation path, and explicit no XUI-side transcode/remux/generated-HLS commitment remain pending."
+    },
+    {
       "id": "beta-capacity-evidence",
       "name": "V1 300-500 user beta capacity evidence",
       "status": "pending",
@@ -102,7 +110,7 @@
         "id": "BETA-CAPACITY-OWNER",
         "summary": "Provider/XUI owner capacity approval for 300-500 beta users is missing.",
         "status": "open",
-        "disposition": "Needs external owner confirmation that the beta account/upstream service can support the cohort without XUI-side transcode/remux.",
+        "disposition": "Needs external owner confirmation in artifacts/release/provider/qaf035-provider-owner-signoff-20260603.json that the beta account/upstream service can support the cohort without XUI-side transcode/remux.",
         "owner": "provider-capacity-owner",
         "issueRef": ""
       },
