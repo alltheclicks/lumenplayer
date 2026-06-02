@@ -53,6 +53,11 @@ describe('sessionSources', () => {
       catchUpProgramId: 'program-1',
       catchUpStartTimestamp: '1771873200',
       catchUpDurationSeconds: '1800',
+      catchUpHlsStartupMode: 'complete',
+      catchUpHlsStartPositionSeconds: '61',
+      catchUpMediaOffsetSeconds: '960',
+      catchUpPendingTimelineSeekMs: '1049180',
+      catchUpPendingMediaSeekSeconds: '89.18',
       catchUpFallbackUrls: [
         'https://login.example/timeshift/user/pass/1800/1771873200/2927.ts',
       ],
@@ -71,8 +76,40 @@ describe('sessionSources', () => {
       programId: 'program-1',
       startTimestamp: 1771873200,
       durationSeconds: 1800,
+      catchUpHlsStartupMode: 'complete',
+      catchUpHlsStartPositionSeconds: 61,
+      catchUpMediaOffsetSeconds: 960,
+      catchUpPendingTimelineSeekMs: 1049180,
+      catchUpPendingMediaSeekSeconds: 89.18,
       fallbackStreamIds: [2927],
       title: 'Dnevnik 2',
+    });
+  });
+
+  it('preserves catch-up provider issue evidence while parsing persisted metadata', () => {
+    const parsed = parseSessionSourceMetadata({
+      mode: 'catchup',
+      channelId: 'hrt-1',
+      streamId: 75,
+      catchUpProgramId: 'program-1',
+      catchUpStartTimestamp: 1771873200,
+      catchUpDurationSeconds: 1800,
+      catchUpWebProviderIssue: {
+        reasonCode: 'unsupported-audio-codec',
+        channelName: 'HRT 1',
+        summary: 'H.264 video + MP2 audio',
+      },
+    });
+
+    expect(isCatchUpSessionSourceMetadata(parsed)).toBe(true);
+    if (!isCatchUpSessionSourceMetadata(parsed)) {
+      return;
+    }
+
+    expect(parsed.catchUpWebProviderIssue).toEqual({
+      reasonCode: 'unsupported-audio-codec',
+      channelName: 'HRT 1',
+      summary: 'H.264 video + MP2 audio',
     });
   });
 
@@ -100,6 +137,8 @@ describe('sessionSources', () => {
       catchUpProgramId: 'program-1',
       catchUpStartTimestamp: 1771873200,
       catchUpDurationSeconds: 1800,
+      catchUpHlsStartupMode: undefined,
+      catchUpHlsStartPositionSeconds: 15,
       catchUpFallbackUrls: expect.any(Array),
     });
     expect((result.source.metadata as Record<string, unknown>).catchUpAttemptPlan).toBeInstanceOf(Array);

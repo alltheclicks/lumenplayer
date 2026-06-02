@@ -35,8 +35,30 @@ const readVideoPaused = async (page: Page): Promise<boolean | null> => {
   });
 };
 
-const pickDifferentChannelButton = async (page: Page): Promise<null | { index: number; name: string }> => {
+const PREFERRED_LIVE_CHANNELS = [
+  /^PINK$/i,
+  /^RTS\s*1/i,
+  /^NOVA\s*S$/i,
+  /^PRVA$/i,
+  /^OBN$/i,
+];
+
+const readChannelButtonName = async (page: Page, index: number): Promise<string> => (
+  (await page
+    .locator('[data-testid="channel-select"]')
+    .nth(index)
+    .locator('p.font-medium')
+    .first()
+    .innerText()
+    .catch(() => '')).trim()
+);
+
+const pickPreferredLiveChannelButton = async (
+  page: Page,
+  excludedName?: string,
+): Promise<null | { index: number; name: string }> => {
   const buttons = page.locator('[data-testid="channel-select"]');
+  await buttons.first().waitFor({ state: 'visible', timeout: 30_000 }).catch(() => undefined);
   const count = await buttons.count();
   if (count < 1) {
     return null;
@@ -44,19 +66,33 @@ const pickDifferentChannelButton = async (page: Page): Promise<null | { index: n
 
   const active = page.locator('[data-testid="channel-row"][data-active="true"]');
   const activeName = await active.first().locator('p.font-medium').first().innerText().catch(() => '');
+  const normalizedExcluded = (excludedName ?? activeName).trim();
+
+  for (const preferred of PREFERRED_LIVE_CHANNELS) {
+    for (let i = 0; i < Math.min(count, 30); i += 1) {
+      const name = await readChannelButtonName(page, i);
+      if (name.length > 0 && name !== normalizedExcluded && preferred.test(name)) {
+        return { index: i, name };
+      }
+    }
+  }
 
   for (let i = 0; i < Math.min(count, 12); i += 1) {
-    const name = (await buttons.nth(i).locator('p.font-medium').first().innerText().catch(() => '')).trim();
-    if (name.length === 0) {
-      continue;
-    }
-    if (name !== activeName.trim()) {
+    const name = await readChannelButtonName(page, i);
+    if (name.length > 0 && name !== normalizedExcluded) {
       return { index: i, name };
     }
   }
 
-  const fallbackName = (await buttons.first().locator('p.font-medium').first().innerText().catch(() => '')).trim();
+  const fallbackName = await readChannelButtonName(page, 0);
   return fallbackName.length > 0 ? { index: 0, name: fallbackName } : null;
+};
+
+const waitForVideoPlaying = async (page: Page, timeoutMs: number): Promise<void> => {
+  await page.waitForFunction(() => {
+    const video = document.querySelector('video') as HTMLVideoElement | null;
+    return Boolean(video && !video.paused);
+  }, undefined, { timeout: timeoutMs });
 };
 
 test('QAF-006: live startup mode manual vs autoplay', async ({ page }, testInfo) => {
@@ -116,7 +152,7 @@ test('QAF-006: live startup mode manual vs autoplay', async ({ page }, testInfo)
     'QAF006_MANUAL_EXPECTED_PAUSED',
     async () => {
       await page.goto('/player');
-      const selected = await pickDifferentChannelButton(page);
+      const selected = await pickPreferredLiveChannelButton(page);
       if (!selected) {
         throw new Error('No channel rows available for manual mode validation.');
       }
@@ -154,12 +190,12 @@ test('QAF-006: live startup mode manual vs autoplay', async ({ page }, testInfo)
     'QAF006_AUTOPLAY_EXPECTED_PLAYING',
     async () => {
       await page.goto('/player');
-      const selected = await pickDifferentChannelButton(page);
+      const selected = await pickPreferredLiveChannelButton(page);
       if (!selected) {
         throw new Error('No channel rows available for autoplay validation.');
       }
       await page.locator('[data-testid="channel-select"]').nth(selected.index).click();
-      await page.waitForTimeout(2200);
+      await waitForVideoPlaying(page, 20_000);
       const paused = await readVideoPaused(page);
       if (paused !== false) {
         throw new Error(`Expected video.paused=false in autoplay mode, got ${String(paused)}.`);

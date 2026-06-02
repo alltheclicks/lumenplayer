@@ -14,6 +14,7 @@ export interface LiveSessionSourceMetadata {
   channelId: string;
   streamId: number;
   source?: PlayerChannel['source'];
+  loadKey?: number;
 }
 
 export interface CatchUpSessionSourceMetadata {
@@ -27,6 +28,18 @@ export interface CatchUpSessionSourceMetadata {
   title?: string;
   source?: PlayerChannel['source'];
   gateway?: CatchUpGatewayPlaybackMetadata;
+  catchUpHlsStartupMode?: 'progressive' | 'complete';
+  catchUpHlsStartPositionSeconds?: number;
+  catchUpMediaOffsetSeconds?: number;
+  catchUpPendingTimelineSeekMs?: number;
+  catchUpPendingMediaSeekSeconds?: number;
+  catchUpWebProviderIssue?: {
+    reasonCode: string;
+    channelName: string;
+    summary?: string;
+    evidence?: string;
+    observedAt?: string;
+  };
 }
 
 export interface VodSessionSourceMetadata {
@@ -49,6 +62,7 @@ type SessionSourceMetadataShape = {
   mode?: SessionSourceMode;
   channelId?: string;
   streamId?: number;
+  loadKey?: number;
   source?: PlayerChannel['source'];
   programId?: string;
   durationSeconds?: number;
@@ -61,6 +75,12 @@ type SessionSourceMetadataShape = {
   episodeNumber?: number;
   backPath?: string;
   gateway?: CatchUpGatewayPlaybackMetadata;
+  catchUpHlsStartupMode?: 'progressive' | 'complete';
+  catchUpHlsStartPositionSeconds?: number;
+  catchUpMediaOffsetSeconds?: number;
+  catchUpPendingTimelineSeekMs?: number;
+  catchUpPendingMediaSeekSeconds?: number;
+  catchUpWebProviderIssue?: CatchUpSessionSourceMetadata['catchUpWebProviderIssue'];
 };
 
 export type ParsedSessionSourceMetadata = (
@@ -177,6 +197,36 @@ const parseCatchUpGatewayMetadata = (
   };
 };
 
+const parseCatchUpWebProviderIssueMetadata = (
+  metadata: Record<string, unknown>,
+): CatchUpSessionSourceMetadata['catchUpWebProviderIssue'] | undefined => {
+  const rawProviderIssue = metadata.catchUpWebProviderIssue;
+  if (!rawProviderIssue || typeof rawProviderIssue !== 'object') {
+    return undefined;
+  }
+
+  const providerIssue = rawProviderIssue as Record<string, unknown>;
+  const reasonCode = parseStringValue(providerIssue.reasonCode);
+  const channelName = parseStringValue(providerIssue.channelName);
+  if (!reasonCode || !channelName) {
+    return undefined;
+  }
+
+  return {
+    reasonCode,
+    channelName,
+    ...(parseStringValue(providerIssue.summary)
+      ? { summary: parseStringValue(providerIssue.summary) }
+      : {}),
+    ...(parseStringValue(providerIssue.evidence)
+      ? { evidence: parseStringValue(providerIssue.evidence) }
+      : {}),
+    ...(parseStringValue(providerIssue.observedAt)
+      ? { observedAt: parseStringValue(providerIssue.observedAt) }
+      : {}),
+  };
+};
+
 const normalizeFallbackStreamIds = (values: readonly number[], streamId: number): number[] => (
   values
     .map((value) => Math.floor(value))
@@ -255,6 +305,7 @@ export const parseSessionSourceMetadata = (
       mode,
       channelId,
       streamId: Math.floor(streamId),
+      loadKey: parseNumericValue(metadata.loadKey),
       source: metadata.source === 'xtream' || metadata.source === 'm3u'
         ? metadata.source
         : undefined,
@@ -290,6 +341,14 @@ export const parseSessionSourceMetadata = (
         ? metadata.source
         : undefined,
       gateway: parseCatchUpGatewayMetadata(metadata),
+      catchUpHlsStartupMode: metadata.catchUpHlsStartupMode === 'complete'
+        ? 'complete'
+        : (metadata.catchUpHlsStartupMode === 'progressive' ? 'progressive' : undefined),
+      catchUpHlsStartPositionSeconds: parseNumericValue(metadata.catchUpHlsStartPositionSeconds),
+      catchUpMediaOffsetSeconds: parseNumericValue(metadata.catchUpMediaOffsetSeconds),
+      catchUpPendingTimelineSeekMs: parseNumericValue(metadata.catchUpPendingTimelineSeekMs),
+      catchUpPendingMediaSeekSeconds: parseNumericValue(metadata.catchUpPendingMediaSeekSeconds),
+      catchUpWebProviderIssue: parseCatchUpWebProviderIssueMetadata(metadata),
     };
   }
 
@@ -365,9 +424,11 @@ export const clampCatchUpPositionMs = (
 export const buildLiveSessionSource = ({
   channel,
   sourceUrl,
+  loadKey,
 }: {
   channel: Pick<PlayerChannel, 'id' | 'name' | 'streamId' | 'source'>;
   sourceUrl: string;
+  loadKey?: number;
 }): SessionSource => ({
   url: sourceUrl,
   type: 'hls',
@@ -378,6 +439,7 @@ export const buildLiveSessionSource = ({
     streamId: channel.streamId,
     mode: 'live',
     source: channel.source,
+    ...(typeof loadKey === 'number' ? { loadKey } : {}),
   } satisfies LiveSessionSourceMetadata,
 });
 
@@ -436,6 +498,12 @@ export const buildCatchUpSessionSourceFromMetadata = ({
     : (channelTitle ?? channel.name);
   const catchUpFallbackUrls = transportPlan.fallbackAttempts.map((attempt) => attempt.url);
   const catchUpFallbackUrl = catchUpFallbackUrls[0] ?? '';
+  const initialPositionMs = resolveCatchUpInitialPositionMs(
+    metadata.durationSeconds,
+    preferredPositionSeconds,
+    initialPositionGuardSeconds,
+  );
+  const catchUpHlsStartPositionSeconds = Math.floor(initialPositionMs / 1000);
 
   return {
     source: {
@@ -456,14 +524,12 @@ export const buildCatchUpSessionSourceFromMetadata = ({
         catchUpFallbackUrls,
         catchUpFallbackIndex: -1,
         catchUpFallbackUsed: false,
+        catchUpHlsStartupMode: metadata.catchUpHlsStartupMode,
+        catchUpHlsStartPositionSeconds,
       },
     },
     transportPlan,
-    initialPositionMs: resolveCatchUpInitialPositionMs(
-      metadata.durationSeconds,
-      preferredPositionSeconds,
-      initialPositionGuardSeconds,
-    ),
+    initialPositionMs,
     fullDurationSeconds: metadata.durationSeconds,
     metadata,
   };

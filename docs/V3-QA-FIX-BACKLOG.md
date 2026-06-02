@@ -576,3 +576,23 @@ User executed an additional run with HTTPS-oriented profile settings to compare 
 5. Additional Lumen mitigation:
    - when a catch-up program is within ~45s of its end and a following EPG entry exists, Lumen now pre-resolves the next catch-up source in the background
    - prefetched results are cached briefly and reused on transition to reduce cold-start delay when auto-advancing to the next program
+
+## QAF-035 Current runtime note (2026-05-15)
+
+Fresh manual/provider testing on the partner MediaKing/Xtream stack changed the active QAF-035 assumptions:
+
+1. `proxy-remuxed` is not the production path for the partner launch.
+   - No transcode, remux, or generated server-side HLS should be used for the browser player.
+   - The current path stays on the provider tokenized `/streaming/timeshift.php?token=...` HLS chain.
+2. MediaKing/CastCDN catch-up start time is provider-local.
+   - Lumen now suppresses UTC fallback for this provider family, including when reached through `/xui-api/<encoded target>`.
+   - This prevents Nova S-style mistakes where a `21:30` Europe/Belgrade EPG click can fall back to a `19:30` archive.
+3. Catch-up startup uses progressive fragment loading, but recovery is gated.
+   - Archive startup can prefetch the first fragment so the browser can parse initial bytes sooner.
+   - `recoverMediaError()` and buffering recovery remain disabled until `playing` or real media time progress, preventing repeated `seg=0_...ts` abort/reopen loops.
+4. Unsupported web archive formats still use the blocking overlay.
+   - HEVC, MP2/AC3/MP3 audio, missing audio, and confirmed archive corruption should show the user-facing message and a live-channel action after the runtime attempt fails.
+5. Verification evidence for this pass is recorded in:
+   - `docs/catchup-stability-2026-05-15.md`
+   - `docs/catchup-web-capability-preflight.md`
+   - `docs/catchup-timeshift-hls-evidence.md`

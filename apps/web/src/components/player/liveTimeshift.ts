@@ -64,7 +64,9 @@ export const resolveLiveTimeshiftPositionSeconds = (
     return 0;
   }
 
-  const clampedRatio = Math.max(0, Math.min(1, ratio));
+  const clampedRatio = Number.isFinite(ratio)
+    ? Math.max(0, Math.min(1, ratio))
+    : 0;
   return durationSeconds * clampedRatio;
 };
 

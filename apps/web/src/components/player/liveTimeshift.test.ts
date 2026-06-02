@@ -50,6 +50,7 @@ describe('liveTimeshift', () => {
     expect(resolveLiveTimeshiftPositionSeconds(program, -0.2, afterProgramEnd)).toBe(0);
     expect(resolveLiveTimeshiftPositionSeconds(program, 1.5, afterProgramEnd)).toBe(3600);
     expect(resolveLiveTimeshiftPositionSeconds(program, 1, halfElapsed)).toBe(1710);
+    expect(resolveLiveTimeshiftPositionSeconds(program, Number.NaN, afterProgramEnd)).toBe(0);
   });
 
   it('exposes currently available archive window for in-progress program', () => {

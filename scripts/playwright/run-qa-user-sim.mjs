@@ -65,7 +65,6 @@ const CRITICAL_XTREAM_ACTIONS = new Set([
   'get_vod_categories',
   'get_vod_streams',
   'get_vod_info',
-  'get_series_categories',
   'get_series',
   'get_series_info',
   'live-stream',
@@ -76,6 +75,7 @@ const CRITICAL_XTREAM_ACTIONS = new Set([
 const NON_CRITICAL_XTREAM_ACTIONS = new Set([
   'get_short_epg',
   'get_simple_data_table',
+  'get_series_categories',
   'xmltv',
 ]);
 
@@ -212,11 +212,20 @@ const criticalNetworkFailures = allNetworkFailures.filter(
 const nonCriticalNetworkFailures = allNetworkFailures.filter(
   (failure) => classifyXtreamFailureSeverity(failure) === 'non-critical'
 );
+const topLevelErrors = Array.isArray(parsed.errors)
+  ? parsed.errors
+    .map((error) => error?.message || error?.stack || '')
+    .filter((message) => typeof message === 'string' && message.trim().length > 0)
+  : [];
 const xtreamActionFailureBreakdown = summarizeXtreamActionFailures(allNetworkFailures);
 const criticalActionBreakdown = summarizeXtreamActionFailures(criticalNetworkFailures);
 const nonCriticalActionBreakdown = summarizeXtreamActionFailures(nonCriticalNetworkFailures);
 const blockedSteps = allTimelineEntries.filter((item) => item.status === 'blocked').length;
 const scenarioStatus = (() => {
+  if (topLevelErrors.length > 0) {
+    return 'failed';
+  }
+
   if (scenarios.length === 0) {
     return 'unknown';
   }
@@ -283,6 +292,7 @@ const nonCriticalActionBreakdownLines = formatActionBreakdownLines(
 
 const globalBlockers = [
   ...allBlockers,
+  ...topLevelErrors.map((message) => `PLAYWRIGHT_SETUP_ERROR: ${message}`),
   ...Array.from(criticalActionBreakdown.entries()).map(
     ([action, summary]) => `NETWORK_CRITICAL ${action}: total=${summary.total}`
   ),

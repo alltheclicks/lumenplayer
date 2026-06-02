@@ -132,6 +132,48 @@ describe('normalizeRestoredSessionSource', () => {
     expect(result.normalizedPositionMs).toBe(420_000);
   });
 
+  it('drops stale direct timeshift_hls gateway playback when restoring catch-up', () => {
+    const channel = createChannel();
+    const result = normalizeRestoredSessionSource({
+      source: {
+        url: 'http://127.0.0.1:8788/xui-api/http%3A%2F%2Fedge6.castcdn.net%3A8080/timeshift_hls/user/pass/35/2026-05-09:19-30/112.m3u8',
+        type: 'hls',
+        title: 'RTS 1 - Dnevnik',
+        channelId: channel.id,
+        metadata: {
+          mode: 'catchup',
+          channelId: channel.id,
+          streamId: channel.streamId,
+          programId: 'program-rts',
+          startTimestamp: 1778347800,
+          durationSeconds: 2100,
+          title: 'Dnevnik',
+          gateway: {
+            serverId: 'server-1',
+            assetKey: 'asset-1',
+            transportMode: 'proxy-normalized',
+            playbackUrl: 'http://127.0.0.1:8788/xui-api/http%3A%2F%2Fedge6.castcdn.net%3A8080/timeshift_hls/user/pass/35/2026-05-09:19-30/112.m3u8',
+            assetState: 'ready',
+            fallbackReason: 'gateway-normalized',
+            hotStart: true,
+          },
+        },
+      },
+      positionMs: 0,
+      channels: [channel],
+      fallbackStreamIdsByChannelId: new Map(),
+      urlBuilder: createUrlBuilder(),
+      resolveLiveSourceUrl,
+    });
+
+    expect(result.normalizedSource?.url).toContain('/streaming/timeshift.php');
+    expect(result.normalizedSource?.url).not.toContain('/timeshift_hls/');
+    expect(result.normalizedSource?.metadata).toMatchObject({
+      mode: 'catchup',
+      gateway: null,
+    });
+  });
+
   it('falls back to live when persisted catch-up lacks canonical restore data', () => {
     const channel = createChannel();
     const result = normalizeRestoredSessionSource({

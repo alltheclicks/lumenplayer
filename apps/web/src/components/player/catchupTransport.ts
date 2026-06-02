@@ -11,16 +11,22 @@ const SHADOW_TOKEN_HOSTS = new Set([
   'edge6.castcdn.net',
 ]);
 const GATEWAY_ONLY_LEGACY_HOSTS = new Set([
+  'gw.castcdn.net',
   'smart.mediaking.fi',
   'serv2.mediaking.fi',
   'edge6.castcdn.net',
   '79.137.99.121',
 ]);
+const MEDIAKING_CATCH_UP_HOST_SUFFIXES = [
+  '.castcdn.net',
+  '.mediaking.fi',
+];
 
 export const CATCH_UP_MINUTE_STEP_OFFSETS = [-1, -2, -3, 1, -5, 2, -10, -15, 5] as const;
 export const CATCH_UP_STREAM_FALLBACK_OFFSETS = [0, -1, -2, 1, -5] as const;
 
 export type CatchUpTransportAttemptStrategy =
+  | 'blocked-web-capability'
   | 'gateway-resolved'
   | 'shadow-validation'
   | 'redirect-primary'
@@ -263,6 +269,26 @@ const buildRetryUrl = (url: string, retryAttempt: number): string => {
   return parsed.toString();
 };
 
+const resolveQueryDurationSeconds = (url: string): number | null => {
+  const parsed = parseUrl(url);
+  if (!parsed) {
+    return null;
+  }
+
+  const duration = Number(parsed.searchParams.get('duration'));
+  if (!Number.isFinite(duration) || duration <= 0) {
+    return null;
+  }
+
+  return Math.floor(duration);
+};
+
+const orderMediaKingQueryUrls = (urls: readonly string[]): string[] => (
+  [...urls].sort((left, right) => (
+    (resolveQueryDurationSeconds(right) ?? 0) - (resolveQueryDurationSeconds(left) ?? 0)
+  ))
+);
+
 const dedupeAttempts = (attempts: CatchUpTransportAttempt[]): CatchUpTransportAttempt[] => {
   const uniqueAttempts: CatchUpTransportAttempt[] = [];
   const seenUrls = new Set<string>();
@@ -298,6 +324,75 @@ const shouldSuppressLegacyCatchUpFallback = (queryUrls: readonly string[]): bool
     GATEWAY_ONLY_LEGACY_HOSTS.has(parsed.hostname.toLowerCase()) &&
     parsed.pathname.toLowerCase().startsWith('/timeshift_hls/')
   );
+};
+
+const isMediaKingCatchUpUrl = (url: string): boolean => {
+  const parsedTarget = parseTargetUrl(url);
+  if (!parsedTarget) {
+    return false;
+  }
+
+  const host = parsedTarget.targetServerUrl.hostname.toLowerCase();
+  return (
+    GATEWAY_ONLY_LEGACY_HOSTS.has(host) ||
+    MEDIAKING_CATCH_UP_HOST_SUFFIXES.some((suffix) => host.endsWith(suffix))
+  );
+};
+
+const shouldPrioritizeStartOffsetQueryAttempts = (
+  queryUrls: readonly string[],
+  redirectUrls: {
+    manifestUrls: readonly string[];
+    transportUrls: readonly string[];
+  },
+): boolean => (
+  [
+    ...queryUrls,
+    ...redirectUrls.manifestUrls,
+    ...redirectUrls.transportUrls,
+  ].some(isMediaKingCatchUpUrl)
+);
+
+const appendStartOffsetQueryAttempts = ({
+  attempts,
+  urlBuilder,
+  streamId,
+  minuteAlignedStartTimestamp,
+  normalizedDurationSeconds,
+  minuteStepOffsets,
+}: {
+  attempts: CatchUpTransportAttempt[];
+  urlBuilder: CatchUpUrlBuilder;
+  streamId: number;
+  minuteAlignedStartTimestamp: number;
+  normalizedDurationSeconds: number;
+  minuteStepOffsets: readonly number[];
+}): void => {
+  for (const offsetMinutes of minuteStepOffsets) {
+    if (offsetMinutes === 0) {
+      continue;
+    }
+
+    const candidateStartTimestamp = minuteAlignedStartTimestamp + offsetMinutes * 60;
+    if (candidateStartTimestamp <= 0) {
+      continue;
+    }
+
+    for (const url of orderMediaKingQueryUrls(urlBuilder.getCatchUpUrlVariants(
+      streamId,
+      candidateStartTimestamp,
+      normalizedDurationSeconds,
+    ))) {
+      attempts.push({
+        url,
+        streamId,
+        startTimestamp: candidateStartTimestamp,
+        durationSeconds: normalizedDurationSeconds,
+        offsetMinutes,
+        strategy: 'start-offset',
+      });
+    }
+  }
 };
 
 export const clearCatchUpHostAffinityMemory = (): void => {
@@ -435,6 +530,38 @@ export const applyKnownCatchUpHostAffinity = (url: string): string => {
   return rewriteTokenizedCatchUpShadowUrl(originRewrittenUrl);
 };
 
+export const resolveCatchUpFallbackAttemptUrl = (
+  url: string,
+  preferredFinalHost: string | null,
+): string => {
+  const affinityUrl = applyKnownCatchUpHostAffinity(url);
+  if (!preferredFinalHost) {
+    return affinityUrl;
+  }
+
+  const parsedTarget = parseTargetUrl(affinityUrl);
+  if (!parsedTarget) {
+    return affinityUrl;
+  }
+
+  const pathname = (
+    parsedTarget.encodedProxyTarget && parsedTarget.proxySuffixPath.length > 0
+      ? parsedTarget.proxySuffixPath
+      : parsedTarget.targetServerUrl.pathname
+  ).toLowerCase();
+  const isTokenizedStreamingUrl = (
+    XTREAM_CATCH_UP_STREAMING_PATHS.has(pathname) &&
+    parsedTarget.requestUrl.searchParams.has('token')
+  );
+  const isSegmentUrl = pathname.startsWith('/hlsr/');
+
+  if (!isTokenizedStreamingUrl && !isSegmentUrl) {
+    return affinityUrl;
+  }
+
+  return rewriteCatchUpUrlTargetOrigin(affinityUrl, preferredFinalHost);
+};
+
 export const isCatchUpFallbackStrategy = (
   strategy: CatchUpTransportAttemptStrategy,
 ): boolean => strategy === 'stream-fallback' || strategy === 'legacy';
@@ -465,7 +592,7 @@ export const buildCatchUpTransportPlan = ({
   startTimestamp,
   durationSeconds,
   fallbackStreamIds = [],
-  primaryRetries = 3,
+  primaryRetries = 0,
   minuteStepOffsets = CATCH_UP_MINUTE_STEP_OFFSETS,
   streamFallbackOffsets = CATCH_UP_STREAM_FALLBACK_OFFSETS,
   gatewaySelection,
@@ -505,13 +632,20 @@ export const buildCatchUpTransportPlan = ({
   ));
   const [primaryRedirectManifestUrl, ...fallbackManifestUrls] = primaryRedirectUrls.manifestUrls;
   const [primaryRedirectTransportUrl, ...fallbackTransportUrls] = primaryRedirectUrls.transportUrls;
-  const primaryQueryUrls = urlBuilder.getCatchUpUrlVariants(
+  const rawPrimaryQueryUrls = urlBuilder.getCatchUpUrlVariants(
     streamId,
     minuteAlignedStartTimestamp,
     normalizedDurationSeconds,
   );
+  const primaryQueryUrls = rawPrimaryQueryUrls.some(isMediaKingCatchUpUrl)
+    ? orderMediaKingQueryUrls(rawPrimaryQueryUrls)
+    : rawPrimaryQueryUrls;
   const [primaryQueryUrl, ...fallbackQueryUrls] = primaryQueryUrls;
   const primaryStartupUrl = primaryQueryUrl ?? primaryRedirectManifestUrl ?? primaryRedirectTransportUrl ?? null;
+  const prioritizeStartOffsetQueries = shouldPrioritizeStartOffsetQueryAttempts(
+    primaryQueryUrls,
+    primaryRedirectUrls,
+  );
   const primaryStartupStrategy: CatchUpTransportAttemptStrategy = (
     primaryStartupUrl === primaryRedirectManifestUrl ||
     (
@@ -577,6 +711,16 @@ export const buildCatchUpTransportPlan = ({
       minuteAlignedStartTimestamp,
       0,
     );
+    if (prioritizeStartOffsetQueries) {
+      appendStartOffsetQueryAttempts({
+        attempts,
+        urlBuilder,
+        streamId,
+        minuteAlignedStartTimestamp,
+        normalizedDurationSeconds,
+        minuteStepOffsets,
+      });
+    }
     appendUrls(
       primaryRedirectUrls.manifestUrls,
       'redirect-primary',

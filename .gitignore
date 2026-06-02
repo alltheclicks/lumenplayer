@@ -6,3 +6,10 @@ dist
 .env.local
 .DS_Store
 .codex/
+.playwright-mcp/
+output/
+test-results/
+.tmp-remux-tests/
+apps/**/.tmp-remux-tests/
+lumen-local-*
+lumen-*-browser-*.md

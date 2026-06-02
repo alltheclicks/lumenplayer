@@ -1,6 +1,6 @@
 import { writeFileSync } from 'node:fs';
 import type { Page } from '@playwright/test';
-import { test } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 import { createQaNetworkTracker } from './qaNetworkTracker';
 
 type TimelineEntry = {
@@ -71,6 +71,21 @@ const buildSelectorDiagnostics = async (page: Page): Promise<string> => {
   return parts.join('; ');
 };
 
+const waitForSeriesCatalogToSettle = async (page: Page): Promise<void> => {
+  await page.waitForFunction(() => {
+    const links = Array.from(document.querySelectorAll('main a[href^="/series/"]'));
+    const hasSeriesLink = links.some((link) => {
+      const rect = link.getBoundingClientRect();
+      return rect.width > 0 && rect.height > 0;
+    });
+    const text = document.body.innerText;
+    const hasError = /Neuspešno učitavanje serija/i.test(text);
+    const hasEmptyState = /Nema rezultata za zadatu pretragu ili kategoriju/i.test(text);
+    const isLoading = /Učitavanje serijskog kataloga/i.test(text);
+    return hasSeriesLink || hasError || hasEmptyState || !isLoading;
+  }, undefined, { timeout: 30_000 });
+};
+
 const openFirstSeriesDetail = async (
   page: Page
 ): Promise<{ selectorUsed: string; diagnostics: string; fallbackUsed: string | null }> => {
@@ -101,7 +116,16 @@ const openFirstSeriesDetail = async (
     });
   };
 
-  await page.waitForTimeout(400);
+  await waitForSeriesCatalogToSettle(page);
+  const providerError = await page
+    .getByText(/Neuspešno učitavanje serija/i)
+    .first()
+    .innerText()
+    .catch(() => '');
+  if (providerError.trim().length > 0) {
+    throw new Error(`Series catalog provider error: ${providerError.trim()}`);
+  }
+
   let diagnostics = await buildSelectorDiagnostics(page);
   let selectorUsed = await clickFirstVisible();
   let fallbackUsed: string | null = null;
@@ -135,6 +159,22 @@ const openFirstSeriesDetail = async (
     diagnostics,
     fallbackUsed,
   };
+};
+
+const openTvUzivoFromOnDemandPlayer = async (page: Page): Promise<void> => {
+  const tvUzivoButton = page.getByRole('button', { name: /TV U[žz]ivo/i }).first();
+  if (await tvUzivoButton.isVisible().catch(() => false)) {
+    await tvUzivoButton.click();
+    return;
+  }
+
+  const tvUzivoLink = page.getByRole('link', { name: /TV U[žz]ivo/i }).first();
+  if (await tvUzivoLink.isVisible().catch(() => false)) {
+    await tvUzivoLink.click();
+    return;
+  }
+
+  throw new Error('TV Uživo navigation is not visible in on-demand player state.');
 };
 
 test('QAF-002: Series episode -> TV Uživo -> Live shell', async ({ page }, testInfo) => {
@@ -224,6 +264,7 @@ test('QAF-002: Series episode -> TV Uživo -> Live shell', async ({ page }, test
     'QAF002_PLAY_EPISODE_FAILED',
     async () => {
       const playEpisodeButton = page.getByRole('button', { name: /Play Episode/i }).first();
+      await playEpisodeButton.waitFor({ state: 'visible', timeout: 30_000 }).catch(() => undefined);
       if (!(await playEpisodeButton.isVisible().catch(() => false))) {
         throw new Error('No Play Episode button visible.');
       }
@@ -232,9 +273,7 @@ test('QAF-002: Series episode -> TV Uživo -> Live shell', async ({ page }, test
         throw new Error(`Episode play did not navigate to player: ${page.url()}`);
       }
       const onDemandHeading = page.getByRole('heading', { name: /Episode Playback/i });
-      if (!(await onDemandHeading.isVisible().catch(() => false))) {
-        throw new Error('Episode playback context was not detected on /player.');
-      }
+      await expect(onDemandHeading).toBeVisible({ timeout: 30_000 });
       await page.screenshot({
         path: testInfo.outputPath('03-episode-player.png'),
         fullPage: true,
@@ -248,11 +287,7 @@ test('QAF-002: Series episode -> TV Uživo -> Live shell', async ({ page }, test
       'TV Uživo should reset to live shell',
       'QAF002_LIVE_SHELL_NOT_RESTORED',
       async () => {
-        const goLive = page.getByRole('link', { name: /TV Uživo/i }).first();
-        if (!(await goLive.isVisible().catch(() => false))) {
-          throw new Error('TV Uživo navigation is not visible in on-demand player state.');
-        }
-        await goLive.click();
+        await openTvUzivoFromOnDemandPlayer(page);
         if (!/\/player$/.test(page.url())) {
           throw new Error(`TV Uživo did not navigate to /player: ${page.url()}`);
         }

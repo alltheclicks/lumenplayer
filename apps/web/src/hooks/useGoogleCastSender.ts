@@ -352,9 +352,11 @@ export const useGoogleCastSender = ({
         };
       } catch (loadError) {
         if (!cancelled) {
-          const message = loadError instanceof Error ? loadError.message : 'Cast unavailable.';
-          setError(message);
+          // Initial SDK load failure only means this browser cannot offer Cast controls.
+          // Keep user-facing errors for explicit cast actions such as startCasting().
           setIsAvailable(false);
+          setIsConnecting(false);
+          setError(null);
         }
       }
 

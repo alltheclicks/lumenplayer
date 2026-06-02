@@ -334,7 +334,7 @@ describe("createProxyServer", () => {
     await app.close();
   });
 
-  it("upgrades catch-up m3u8 redirects onto the archive host timeshift_hls path", async () => {
+  it("preserves catch-up m3u8 token redirects through the proxy contract", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(null, {
         status: 302,
@@ -358,7 +358,7 @@ describe("createProxyServer", () => {
 
     expect(response.statusCode).toBe(302);
     expect(response.headers.location).toBe(
-      `/xui-api/${encodeTarget("https://edge.example")}/timeshift_hls/demo/secret/60/2026-03-04%3A20-10/112.m3u8`,
+      `/xui-api/${encodeTarget("https://edge.example")}/streaming/timeshift.php?token=abc123`,
     );
     expect(fetchMock).toHaveBeenCalledTimes(1);
     await app.close();
@@ -431,6 +431,85 @@ describe("createProxyServer", () => {
     await app.close();
   });
 
+  it("marks MediaKing archive segment one as a discontinuity to prevent browser backtracking to segment zero", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response([
+      "#EXTM3U",
+      "#EXT-X-VERSION:3",
+      "#EXT-X-TARGETDURATION:60",
+      "#EXT-X-MEDIA-SEQUENCE:0",
+      "#EXT-X-PLAYLIST-TYPE:VOD",
+      "#EXTINF:60,",
+      "/streaming/timeshift.php?token=abc&seg=0_21794816.ts",
+      "#EXTINF:60,",
+      "/streaming/timeshift.php?token=abc&seg=1_21512192.ts",
+      "#EXTINF:60,",
+      "/streaming/timeshift.php?token=abc&seg=2_21233664.ts",
+      "#EXT-X-ENDLIST",
+    ].join("\n"), {
+      status: 200,
+      headers: {
+        "content-type": "application/x-mpegurl",
+      },
+    }));
+
+    const app = createProxyServer({
+      allowedHosts: ["oveu.mediaking.fi"],
+      fetchImpl: fetchMock as typeof fetch,
+      logger: false,
+      remuxController: createTestRemuxController(),
+    });
+
+    const response = await app.inject({
+      method: "GET",
+      url: `/xui-api/${encodeTarget("http://oveu.mediaking.fi:8080")}/streaming/timeshift.php?token=abc`,
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.payload).toContain([
+      "/streaming/timeshift.php?token=abc&seg=0_21794816.ts",
+      "#EXT-X-DISCONTINUITY",
+      "#EXTINF:60,",
+      "/streaming/timeshift.php?token=abc&seg=1_21512192.ts",
+    ].join("\n").replaceAll(
+      "/streaming/",
+      `/xui-api/${encodeTarget("http://oveu.mediaking.fi:8080")}/streaming/`,
+    ));
+    await app.close();
+  });
+
+  it("strips leading junk bytes from MediaKing archive transport stream segments", async () => {
+    const leadingJunk = Buffer.from([0xbc, 0xf9, 0xaa, 0xd7]);
+    const packet = Buffer.alloc(188, 0);
+    packet[0] = 0x47;
+    const segmentBody = Buffer.concat([leadingJunk, packet, packet]);
+    const fetchMock = vi.fn().mockResolvedValue(new Response(segmentBody, {
+      status: 200,
+      headers: {
+        "content-type": "video/mp2t",
+        "content-length": String(segmentBody.length),
+      },
+    }));
+
+    const app = createProxyServer({
+      allowedHosts: ["oveu.mediaking.fi"],
+      fetchImpl: fetchMock as typeof fetch,
+      logger: false,
+      remuxController: createTestRemuxController(),
+    });
+
+    const response = await app.inject({
+      method: "GET",
+      url: `/xui-api/${encodeTarget("http://oveu.mediaking.fi:8080")}/streaming/timeshift.php?token=abc&seg=1_21512192.ts`,
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.headers["content-type"]).toContain("video/mp2t");
+    expect(response.headers["content-length"]).toBe(String(segmentBody.length - leadingJunk.length));
+    expect(response.rawPayload[0]).toBe(0x47);
+    expect(response.rawPayload.length).toBe(segmentBody.length - leadingJunk.length);
+    await app.close();
+  });
+
   it("retries once on transport failure for GET and then returns upstream payload", async () => {
     const fetchMock = vi.fn()
       .mockRejectedValueOnce(new TypeError("fetch failed"))
@@ -484,6 +563,43 @@ describe("createProxyServer", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(response.statusCode).toBe(502);
     expect(response.headers["content-type"]).toContain("text/plain");
+    await app.close();
+  });
+
+  it("requests identity encoding and strips decoded-body headers", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response('{"ok":true}', {
+      status: 200,
+      headers: {
+        "content-type": "application/json",
+        "content-encoding": "gzip",
+        "content-length": "999",
+      },
+    }));
+
+    const app = createProxyServer({
+      allowedHosts: ["login.example"],
+      retryCount: 0,
+      fetchImpl: fetchMock as typeof fetch,
+      logger: false,
+      remuxController: createTestRemuxController(),
+    });
+
+    const response = await app.inject({
+      method: "GET",
+      url: `/xui-api/${encodeTarget("https://login.example")}/player_api.php`,
+      headers: {
+        "accept-encoding": "gzip, deflate, br",
+      },
+    });
+
+    const forwardedHeaders = fetchMock.mock.calls[0]?.[1]?.headers;
+    expect(forwardedHeaders).toBeInstanceOf(Headers);
+    expect((forwardedHeaders as Headers).get("accept-encoding")).toBe("identity");
+    expect(response.statusCode).toBe(200);
+    expect(response.headers["content-type"]).toContain("application/json");
+    expect(response.headers["content-encoding"]).toBeUndefined();
+    expect(response.headers["content-length"]).toBeUndefined();
+    expect(response.payload).toBe('{"ok":true}');
     await app.close();
   });
 
@@ -547,6 +663,8 @@ describe("createProxyServer", () => {
     );
 
     expect(response.status).toBe(200);
+    expect(response.headers.get("access-control-allow-origin")).toBe("*");
+    expect(response.headers.get("access-control-expose-headers")).toBe("*");
     expect(response.headers.get("content-type") ?? "").toContain("video/mp2t");
     expect(await response.text()).toBe("segment-data");
 

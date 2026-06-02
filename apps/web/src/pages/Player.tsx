@@ -99,10 +99,15 @@ import {
 import { hasLiveCatchUpEntries, shouldShowLiveCatchUpSection } from '@/pages/liveCatchUpVisibility';
 import { resolveCatchUpClockActionTarget } from '@/pages/liveCatchUpDiscoverability';
 import { resolveXtreamCanonicalServer } from '@/config/xtream';
+import { buildPlaybackProblemReportMetadata } from '@/pages/playbackProblemReport';
 import {
   resolveCatchUpPlaybackSource,
   type CatchUpPlaybackSourceResult,
 } from '@/components/player/catchupSource';
+import {
+  shouldRetryCatchUpBufferingStall,
+  shouldRetryLiveStartupWithoutFrame,
+} from '@/components/player/videoPlaybackSync';
 import {
   buildCatchUpSessionSourceFromMetadata,
   buildLiveSessionSource,
@@ -156,7 +161,7 @@ const formatXtreamExpDate = (expDateUnix: string): string => {
 
 const CATCH_UP_STALL_RECOVERY_DELAY_MS = 6_000;
 const CATCH_UP_STALL_RECOVERY_BUCKET_MS = 5_000;
-const LIVE_STARTUP_RETRY_DELAY_MS = 3_500;
+const LIVE_STARTUP_RETRY_DELAY_MS = 3_000;
 
 const withStartupRetryHash = (url: string): string => {
   const [baseUrl] = url.split('#', 1);
@@ -455,6 +460,9 @@ const Player = () => {
   const usesLocalRenderer = session.renderer === 'local-web' || session.renderer === 'airplay';
   const shouldAutoplayLiveOnSelect = shouldAutoplaySource('live', appSettings);
   const shouldAutoplayCurrentSource = shouldAutoplaySource(sessionSourceMetadata.mode, appSettings);
+  const localPlaybackSourceKey = session.source
+    ? `${session.source.url}:${sessionSourceMetadata.loadKey ?? 'initial'}`
+    : 'no-source';
 
   const currentChannel = useMemo(() => {
     if (channels.length === 0) {
@@ -569,16 +577,56 @@ const Player = () => {
       const source = buildLiveSessionSource({
         channel,
         sourceUrl,
+        loadKey: Date.now(),
       });
 
+      playerRef.current?.stop();
       commands.setSource(source, 0);
 
       if (options?.forceAutoplay || shouldAutoplayLiveOnSelect) {
         commands.play();
+        playerRef.current?.play();
       }
     },
     [commands, resolveLiveSourceUrl, shouldAutoplayLiveOnSelect]
   );
+
+  const switchBlockedSourceToLive = useCallback((source: SessionSource) => {
+    const metadata = parseSessionSourceMetadata(source.metadata);
+    const channelId = source.channelId ?? metadata.channelId;
+    const targetChannel = (
+      (channelId ? channels.find(channel => channel.id === channelId) : undefined)
+      ?? (
+        typeof metadata.streamId === 'number'
+          ? channels.find(channel => channel.streamId === metadata.streamId)
+          : undefined
+      )
+    );
+
+    if (!targetChannel) {
+      return;
+    }
+
+    switchToLiveChannel(targetChannel, { forceAutoplay: true });
+  }, [channels, switchToLiveChannel]);
+
+  const reportPlaybackProblem = useCallback((
+    source: SessionSource,
+    error: { message: string; details?: string },
+  ) => {
+    const metadata = buildPlaybackProblemReportMetadata(source, error);
+
+    emitWebObservabilityEvent({
+      name: 'playback.problem_reported',
+      severity: 'warn',
+      metadata,
+    });
+
+    toast({
+      title: 'Problem prijavljen',
+      description: `${metadata.title} je zabeležen za proveru streama.`,
+    });
+  }, [toast]);
 
   useEffect(() => {
     const previousRenderer = previousRendererRef.current;
@@ -1739,7 +1787,18 @@ const Player = () => {
       return;
     }
 
+    const currentSource = session.source;
     const stallPositionMs = Math.max(0, session.positionMs ?? 0);
+    if (!shouldRetryCatchUpBufferingStall({
+      source: currentSource,
+      playback: session.playback,
+    }, {
+      currentTimeSeconds: playerRef.current?.getCurrentTime() ?? 0,
+      hasRenderableFrame: Boolean(playerRef.current?.hasRenderableFrame()),
+    })) {
+      return;
+    }
+
     const stallKey = `${session.source.url}:${Math.floor(stallPositionMs / CATCH_UP_STALL_RECOVERY_BUCKET_MS)}`;
     if (catchUpStallRecoveryAttemptedKeysRef.current.has(stallKey)) {
       return;
@@ -1757,7 +1816,7 @@ const Player = () => {
           status: 'buffering_watchdog_retry',
           errorCode: 'BUFFERING_STALL',
           positionMs: stallPositionMs,
-          sourceUrl: session.source?.url ?? null,
+          sourceUrl: currentSource.url,
         },
       });
       retryCurrentPlayback();
@@ -1774,6 +1833,25 @@ const Player = () => {
     sessionSourceMetadata,
     usesLocalRenderer,
   ]);
+  const handleCatchUpEnded = useCallback(() => {
+    if (!nextCatchUpProgram) {
+      return;
+    }
+
+    emitWebObservabilityEvent({
+      name: 'catchup.retry',
+      severity: 'info',
+      metadata: {
+        channelId: currentChannelWithEPG?.id ?? null,
+        streamId: currentChannelWithEPG?.streamId ?? null,
+        programId: nextCatchUpProgram.id,
+        status: 'auto_advanced_to_next_program',
+        errorCode: null,
+      },
+    });
+    void playCatchUpProgram(nextCatchUpProgram);
+  }, [currentChannelWithEPG, nextCatchUpProgram, playCatchUpProgram]);
+
   useEffect(() => {
     if (
       !usesLocalRenderer ||
@@ -1794,8 +1872,12 @@ const Player = () => {
     }
 
     const timeoutId = setTimeout(() => {
-      const currentTimeSeconds = playerRef.current?.getCurrentTime() ?? 0;
-      if (currentTimeSeconds > 0.25) {
+      const player = playerRef.current;
+      const currentTimeSeconds = player?.getCurrentTime() ?? 0;
+      if (!shouldRetryLiveStartupWithoutFrame({
+        currentTimeSeconds,
+        hasRenderableFrame: Boolean(player?.hasRenderableFrame()),
+      })) {
         return;
       }
 
@@ -1829,24 +1911,7 @@ const Player = () => {
     sessionSourceMetadata,
     usesLocalRenderer,
   ]);
-  const handleCatchUpEnded = useCallback(() => {
-    if (!nextCatchUpProgram) {
-      return;
-    }
 
-    emitWebObservabilityEvent({
-      name: 'catchup.retry',
-      severity: 'info',
-      metadata: {
-        channelId: currentChannelWithEPG?.id ?? null,
-        streamId: currentChannelWithEPG?.streamId ?? null,
-        programId: nextCatchUpProgram.id,
-        status: 'auto_advanced_to_next_program',
-        errorCode: null,
-      },
-    });
-    void playCatchUpProgram(nextCatchUpProgram);
-  }, [currentChannelWithEPG, nextCatchUpProgram, playCatchUpProgram]);
   const triggerTvUnazadDiscoverability = useCallback(() => {
     const actionTarget = resolveCatchUpClockActionTarget(
       Boolean(tvUnazadSectionRef.current) && shouldShowTvUnazadSection
@@ -2254,11 +2319,14 @@ const Player = () => {
 
             {session.source && usesLocalRenderer && isPlaybackBootstrapReady && (
               <VideoPlayer
+                key={localPlaybackSourceKey}
                 ref={playerRef}
                 autoPlay={shouldAutoplayCurrentSource}
                 preferNativeHls={appSettings.player.preferNativeHls}
                 loadingOverlayMaxMs={isOnDemandSource ? ON_DEMAND_LOADING_OVERLAY_MAX_MS : undefined}
                 onEnded={handleCatchUpEnded}
+                onSourceBlockingPrimaryAction={switchBlockedSourceToLive}
+                onReportPlaybackProblem={reportPlaybackProblem}
               />
             )}
 
@@ -2666,6 +2734,9 @@ const Player = () => {
                                     <button
                                       key={program.id}
                                       type="button"
+                                      data-testid="catchup-program"
+                                      data-catchup-start-ms={program.startTime.getTime()}
+                                      data-catchup-end-ms={program.endTime.getTime()}
                                       onClick={() => playCatchUpProgram(program)}
                                       className={`w-full flex items-center gap-4 p-3 rounded-xl transition-all group text-left ${
                                         isActiveCatchUp
@@ -2718,6 +2789,9 @@ const Player = () => {
                                         <button
                                           key={program.id}
                                           type="button"
+                                          data-testid="catchup-program"
+                                          data-catchup-start-ms={program.startTime.getTime()}
+                                          data-catchup-end-ms={program.endTime.getTime()}
                                           onClick={() => playCatchUpProgram(program)}
                                           className={`w-full flex items-center gap-4 p-3 rounded-xl transition-all group text-left ${
                                             isActiveCatchUp

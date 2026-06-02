@@ -12,6 +12,11 @@ const HLS_MIME_TYPE = 'application/vnd.apple.mpegurl';
 const HLS_BUFFERING_RECOVERY_DELAY_MS = 4_000;
 const HLS_BUFFERING_PROGRESS_TOLERANCE_SECONDS = 0.25;
 const HLS_BUFFERING_MAX_RECOVERY_ATTEMPTS = 2;
+const HLS_CATCHUP_SAFE_RETRY_START_POSITION_SECONDS = 75;
+const HLS_CATCHUP_MAX_BUFFER_LENGTH_SECONDS = 90;
+const HLS_CATCHUP_MAX_BUFFER_SIZE_MB = 180;
+const HLS_LIVE_MAX_BUFFER_LENGTH_SECONDS = 30;
+const HLS_LIVE_MAX_BUFFER_SIZE_MB = 60;
 
 type StateListener = (state: PlaybackState) => void;
 type ErrorListener = (error: PlaybackError) => void;
@@ -36,7 +41,18 @@ interface HlsPlayerAdapterOptions {
 type PlaybackMetadataCarrier = MediaSource & {
   metadata?: {
     mode?: unknown;
+    catchUpHlsStartupMode?: unknown;
+    catchUpHlsStartPositionSeconds?: unknown;
   };
+};
+
+type CatchUpHlsStartupMode = 'progressive' | 'complete';
+
+const parsePositiveFiniteNumber = (value: unknown): number => {
+  const numericValue = typeof value === 'number'
+    ? value
+    : (typeof value === 'string' ? Number(value) : NaN);
+  return Number.isFinite(numericValue) && numericValue > 0 ? numericValue : 0;
 };
 
 interface NativeAudioTrack {
@@ -85,6 +101,7 @@ export class HlsPlayerAdapter implements PlayerAdapter {
   private bufferingRecoveryTimer: ReturnType<typeof setTimeout> | null = null;
   private bufferingRecoveryAttempts = 0;
   private bufferingRecoveryEnabled = false;
+  private bufferingRecoveryArmed = false;
 
   constructor(video: HTMLVideoElement, options: HlsPlayerAdapterOptions = {}) {
     this.video = video;
@@ -100,6 +117,7 @@ export class HlsPlayerAdapter implements PlayerAdapter {
     this.bufferingRecoveryEnabled = (
       (source as PlaybackMetadataCarrier).metadata?.mode === 'catchup'
     );
+    this.bufferingRecoveryArmed = false;
 
     if (this.isMixedContentBlocked(source.url)) {
       const error: PlaybackError = {
@@ -112,7 +130,23 @@ export class HlsPlayerAdapter implements PlayerAdapter {
     }
 
     if (source.type === 'hls') {
-      await this.loadHlsSource(source.url);
+      const sourceMode = (source as PlaybackMetadataCarrier).metadata?.mode;
+      const catchUpStartPositionSeconds = parsePositiveFiniteNumber(
+        (source as PlaybackMetadataCarrier).metadata?.catchUpHlsStartPositionSeconds,
+      );
+      const catchUpStartupMode = (
+        (source as PlaybackMetadataCarrier).metadata?.catchUpHlsStartupMode === 'complete'
+          ? 'complete'
+          : 'progressive'
+      );
+      await this.loadHlsSource(
+        source.url,
+        sourceMode === 'live',
+        sourceMode === 'catchup',
+        0,
+        catchUpStartupMode,
+        catchUpStartPositionSeconds,
+      );
       return;
     }
 
@@ -122,10 +156,13 @@ export class HlsPlayerAdapter implements PlayerAdapter {
   }
 
   play(): void {
-    this.video.play().catch(() => {
+    this.video.play().catch((error: unknown) => {
+      const message = error instanceof Error && error.message
+        ? `Unable to start playback: ${error.name}: ${error.message}`
+        : 'Unable to start playback.';
       this.emitError({
         code: 'PLAYBACK_START_FAILED',
-        message: 'Unable to start playback.',
+        message,
         fatal: false,
       });
     });
@@ -306,7 +343,14 @@ export class HlsPlayerAdapter implements PlayerAdapter {
     return () => this.subtitleTracksListeners.delete(callback);
   }
 
-  private async loadHlsSource(url: string): Promise<void> {
+  private async loadHlsSource(
+    url: string,
+    isLiveSource = false,
+    isCatchUpSource = false,
+    liveStartupMediaRetryCount = 0,
+    catchUpStartupMode: CatchUpHlsStartupMode = 'progressive',
+    catchUpStartPositionSeconds = 0,
+  ): Promise<void> {
     if (this.preferNativeHls && this.video.canPlayType(HLS_MIME_TYPE)) {
       this.video.src = url;
       this.video.load();
@@ -317,13 +361,32 @@ export class HlsPlayerAdapter implements PlayerAdapter {
     }
 
     if (Hls.isSupported()) {
+      const useProgressiveCatchUpStartup = isCatchUpSource && catchUpStartupMode === 'progressive';
+      const shouldUseProgressiveLoading = isLiveSource || useProgressiveCatchUpStartup;
+      const safeCatchUpStartPositionSeconds = (
+        isCatchUpSource && catchUpStartPositionSeconds > 0
+          ? Math.max(0, catchUpStartPositionSeconds)
+          : -1
+      );
       const hls = new Hls({
-        enableWorker: true,
-        lowLatencyMode: true,
+        enableWorker: !isLiveSource,
+        lowLatencyMode: isLiveSource,
+        startPosition: safeCatchUpStartPositionSeconds,
+        ...(shouldUseProgressiveLoading ? { progressive: true } : {}),
+        ...(useProgressiveCatchUpStartup ? {
+          fragLoadingTimeOut: 60_000,
+          startFragPrefetch: true,
+        } : {}),
         backBufferLength: 90,
-        maxBufferLength: 30,
+        maxBufferLength: isCatchUpSource
+          ? HLS_CATCHUP_MAX_BUFFER_LENGTH_SECONDS
+          : HLS_LIVE_MAX_BUFFER_LENGTH_SECONDS,
         maxMaxBufferLength: 600,
-        maxBufferSize: 60 * 1000 * 1000,
+        maxBufferSize: (
+          isCatchUpSource
+            ? HLS_CATCHUP_MAX_BUFFER_SIZE_MB
+            : HLS_LIVE_MAX_BUFFER_SIZE_MB
+        ) * 1000 * 1000,
         maxBufferHole: 0.5,
         startLevel: -1,
       });
@@ -332,10 +395,52 @@ export class HlsPlayerAdapter implements PlayerAdapter {
       try {
         await new Promise<void>((resolve, reject) => {
           let mediaErrorRecoveryAttempted = false;
+          let liveStartupBufferSeekApplied = false;
+          let startupSettled = false;
 
-          const onMediaAttached = () => {
-            hls.off(Hls.Events.MEDIA_ATTACHED, onMediaAttached);
-            hls.loadSource(url);
+          const resolveStartup = () => {
+            startupSettled = true;
+            resolve();
+          };
+
+          const rejectStartup = (error: Error) => {
+            startupSettled = true;
+            reject(error);
+          };
+
+          const seekLiveStartupToBufferedRange = () => {
+            if (!isLiveSource || liveStartupBufferSeekApplied) {
+              return;
+            }
+
+            const buffered = this.video.buffered;
+            if (!buffered || buffered.length === 0) {
+              return;
+            }
+
+            let bufferStart: number;
+            try {
+              bufferStart = buffered.start(0);
+            } catch {
+              return;
+            }
+
+            if (!Number.isFinite(bufferStart)) {
+              return;
+            }
+
+            const currentTime = this.video.currentTime || 0;
+            if (currentTime + 0.1 >= bufferStart) {
+              return;
+            }
+
+            liveStartupBufferSeekApplied = true;
+            this.video.currentTime = bufferStart + 0.05;
+            if (!this.video.paused) {
+              this.video.play().catch(() => {
+                // The normal autoplay recovery path will retry play() if this fails.
+              });
+            }
           };
 
           const onManifestParsed = () => {
@@ -343,7 +448,7 @@ export class HlsPlayerAdapter implements PlayerAdapter {
             this.syncHlsSubtitleTracks(hls.subtitleTrack);
             cleanupStartupListeners();
             this.updateState('paused');
-            resolve();
+            resolveStartup();
           };
 
           const onManifestLoaded = (
@@ -367,7 +472,113 @@ export class HlsPlayerAdapter implements PlayerAdapter {
           };
 
           const onHlsError = (_event: string, data: ErrorData) => {
+            if (this.hls !== hls) {
+              return;
+            }
+
             if (data.fatal && data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+              if (
+                isLiveSource &&
+                liveStartupMediaRetryCount < 1 &&
+                (this.video.currentTime || 0) <= 0.25
+              ) {
+                cleanupStartupListeners();
+                hls.destroy();
+                if (this.hls === hls) {
+                  this.hls = null;
+                }
+
+                const shouldResumePlayback = !this.video.paused;
+                this.updateState('loading');
+                const retryStartup = this.loadHlsSource(
+                  url,
+                  isLiveSource,
+                  isCatchUpSource,
+                  liveStartupMediaRetryCount + 1,
+                ).then(() => {
+                  if (shouldResumePlayback) {
+                    this.play();
+                  }
+                });
+
+                if (startupSettled) {
+                  retryStartup.catch((error: unknown) => {
+                    const mappedError = this.mapHlsError(data);
+                    this.emitError({
+                      ...mappedError,
+                      message: error instanceof Error ? error.message : mappedError.message,
+                    });
+                  });
+                } else {
+                  retryStartup.then(resolveStartup).catch((error: unknown) => {
+                    rejectStartup(error instanceof Error
+                      ? error
+                      : new Error('Media error while decoding stream.'));
+                  });
+                }
+                return;
+              }
+
+              if (
+                isCatchUpSource &&
+                !this.bufferingRecoveryArmed &&
+                (this.video.currentTime || 0) <= 0.25
+              ) {
+                if (catchUpStartupMode === 'progressive') {
+                  cleanupStartupListeners();
+                  hls.destroy();
+                  if (this.hls === hls) {
+                    this.hls = null;
+                  }
+
+                  const shouldResumePlayback = !this.video.paused;
+                  this.updateState('loading');
+                  const retryStartPositionSeconds = Math.max(
+                    catchUpStartPositionSeconds,
+                    HLS_CATCHUP_SAFE_RETRY_START_POSITION_SECONDS,
+                  );
+                  const retryStartup = this.loadHlsSource(
+                    url,
+                    isLiveSource,
+                    isCatchUpSource,
+                    liveStartupMediaRetryCount,
+                    'complete',
+                    retryStartPositionSeconds,
+                  ).then(() => {
+                    if (shouldResumePlayback) {
+                      this.play();
+                    }
+                  });
+
+                  if (startupSettled) {
+                    retryStartup.catch((error: unknown) => {
+                      const mappedError = this.mapHlsError(data);
+                      this.emitError({
+                        ...mappedError,
+                        message: error instanceof Error ? error.message : mappedError.message,
+                      });
+                    });
+                  } else {
+                    retryStartup.then(resolveStartup).catch((error: unknown) => {
+                      rejectStartup(error instanceof Error
+                        ? error
+                        : new Error('Media error while decoding stream.'));
+                    });
+                  }
+                  return;
+                }
+
+                const mappedError = this.mapHlsError(data);
+                this.emitError(mappedError);
+                cleanupStartupListeners();
+                hls.destroy();
+                if (this.hls === hls) {
+                  this.hls = null;
+                }
+                rejectStartup(new Error(mappedError.message));
+                return;
+              }
+
               if (!mediaErrorRecoveryAttempted) {
                 mediaErrorRecoveryAttempted = true;
                 hls.recoverMediaError();
@@ -410,13 +621,15 @@ export class HlsPlayerAdapter implements PlayerAdapter {
             this.syncHlsSubtitleTracks(hls.subtitleTrack);
           };
 
+          const onBufferAppended = () => {
+            seekLiveStartupToBufferedRange();
+          };
+
           const cleanupStartupListeners = () => {
-            hls.off(Hls.Events.MEDIA_ATTACHED, onMediaAttached);
             hls.off(Hls.Events.MANIFEST_PARSED, onManifestParsed);
             hls.off(Hls.Events.MANIFEST_LOADED, onManifestLoaded);
           };
 
-          hls.on(Hls.Events.MEDIA_ATTACHED, onMediaAttached);
           hls.on(Hls.Events.MANIFEST_LOADED, onManifestLoaded);
           hls.on(Hls.Events.MANIFEST_PARSED, onManifestParsed);
           hls.on(Hls.Events.ERROR, onHlsError);
@@ -424,6 +637,8 @@ export class HlsPlayerAdapter implements PlayerAdapter {
           hls.on(Hls.Events.AUDIO_TRACK_SWITCHED, onAudioTrackSwitched);
           hls.on(Hls.Events.SUBTITLE_TRACKS_UPDATED, onSubtitleTracksUpdated);
           hls.on(Hls.Events.SUBTITLE_TRACK_SWITCH, onSubtitleTrackSwitched);
+          hls.on(Hls.Events.BUFFER_APPENDED, onBufferAppended);
+          hls.loadSource(url);
           hls.attachMedia(this.video);
         });
       } catch (error) {
@@ -478,6 +693,7 @@ export class HlsPlayerAdapter implements PlayerAdapter {
 
   private attachVideoListeners(): () => void {
     const handlePlaying = () => {
+      this.bufferingRecoveryArmed = true;
       this.resetBufferingRecovery();
       this.updateState('playing');
     };
@@ -490,6 +706,7 @@ export class HlsPlayerAdapter implements PlayerAdapter {
       this.scheduleBufferingRecovery();
     };
     const handleEnded = () => {
+      this.bufferingRecoveryArmed = false;
       this.resetBufferingRecovery();
       this.updateState('ended');
     };
@@ -502,6 +719,9 @@ export class HlsPlayerAdapter implements PlayerAdapter {
       this.updateState(this.video.paused ? 'paused' : 'playing');
     };
     const handleTimeUpdate = () => {
+      if ((this.video.currentTime || 0) > 0.25) {
+        this.bufferingRecoveryArmed = true;
+      }
       this.resetBufferingRecovery();
       this.timeListeners.forEach((listener) => listener(this.video.currentTime));
     };
@@ -577,6 +797,8 @@ export class HlsPlayerAdapter implements PlayerAdapter {
     if (!this.hls) {
       return;
     }
+    this.hls.stopLoad();
+    this.hls.detachMedia();
     this.hls.destroy();
     this.hls = null;
   }
@@ -592,6 +814,7 @@ export class HlsPlayerAdapter implements PlayerAdapter {
     this.selectedAudioTrackId = null;
     this.subtitleTracks = [];
     this.selectedSubtitleTrackId = null;
+    this.bufferingRecoveryArmed = false;
     this.emitAudioTracksChange();
     this.emitSubtitleTracksChange();
     this.updateState('idle');
@@ -625,7 +848,9 @@ export class HlsPlayerAdapter implements PlayerAdapter {
   }
 
   private emitError(error: PlaybackError): void {
-    this.updateState('error');
+    if (error.fatal) {
+      this.updateState('error');
+    }
     this.errorListeners.forEach((listener) => listener(error));
   }
 
@@ -812,6 +1037,7 @@ export class HlsPlayerAdapter implements PlayerAdapter {
   private scheduleBufferingRecovery(): void {
     if (
       !this.bufferingRecoveryEnabled ||
+      !this.bufferingRecoveryArmed ||
       !this.hls ||
       this.video.paused ||
       this.bufferingRecoveryAttempts >= HLS_BUFFERING_MAX_RECOVERY_ATTEMPTS

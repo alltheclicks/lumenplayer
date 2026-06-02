@@ -70,6 +70,33 @@ const mergeFallbackStreamIds = (
   ),
 });
 
+const isStaleDirectCatchUpGatewayPlaybackUrl = (url: string): boolean => {
+  const lowerUrl = url.toLowerCase();
+  if (lowerUrl.includes('/timeshift_hls/') || lowerUrl.includes('%2ftimeshift_hls%2f')) {
+    return true;
+  }
+
+  try {
+    return decodeURIComponent(lowerUrl).includes('/timeshift_hls/');
+  } catch {
+    return false;
+  }
+};
+
+const removeStaleDirectCatchUpGateway = (
+  metadata: CatchUpSessionSourceMetadata,
+): CatchUpSessionSourceMetadata => {
+  const playbackUrl = metadata.gateway?.playbackUrl;
+  if (!playbackUrl || !isStaleDirectCatchUpGatewayPlaybackUrl(playbackUrl)) {
+    return metadata;
+  }
+
+  return {
+    ...metadata,
+    gateway: undefined,
+  };
+};
+
 export const normalizeRestoredSessionSource = ({
   source,
   positionMs,
@@ -117,7 +144,9 @@ export const normalizeRestoredSessionSource = ({
       };
     }
 
-    const normalizedMetadata = mergeFallbackStreamIds(parsedMetadata, fallbackStreamIdsByChannelId);
+    const normalizedMetadata = removeStaleDirectCatchUpGateway(
+      mergeFallbackStreamIds(parsedMetadata, fallbackStreamIdsByChannelId),
+    );
     const rebuiltCatchUp = buildCatchUpSessionSourceFromMetadata({
       channel,
       metadata: normalizedMetadata,

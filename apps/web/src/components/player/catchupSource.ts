@@ -1,6 +1,10 @@
 import type { SessionSource } from '@lumen/session-core';
 import type { PlayerChannel, Program } from '@lumen/types';
-import type { CatchUpTransportPlan, CatchUpUrlBuilder } from './catchupTransport';
+import type {
+  CatchUpTransportAttempt,
+  CatchUpTransportPlan,
+  CatchUpUrlBuilder,
+} from './catchupTransport';
 import { XTREAM_SERVER_URL, resolveXtreamApiServer } from '../../config/xtream';
 import {
   resolveCatchUpGatewayPlayback,
@@ -12,6 +16,10 @@ import {
   buildCatchUpMetadata,
   buildCatchUpSessionSourceFromMetadata,
 } from './sessionSources';
+import {
+  getCatchUpWebCapabilityNotice,
+  resolveCatchUpWebCapability,
+} from './catchupCapability';
 
 export interface CatchUpPlaybackSourceResult {
   source: SessionSource;
@@ -23,6 +31,15 @@ export interface CatchUpPlaybackSourceResult {
 
 const CATCHUP_SHADOW_VALIDATION_ENABLED = import.meta.env.VITE_CATCHUP_SHADOW_VALIDATION === '1';
 const SHADOW_VALIDATION_UNAVAILABLE_ERROR = 'catchup_shadow_validation_unavailable';
+const MEDIAKING_CATCHUP_SAFE_START_POSITION_SECONDS = 75;
+
+const MEDIAKING_CATCHUP_HOSTS = [
+  'mediaking.fi',
+  'castcdn.net',
+];
+const MEDIAKING_CATCHUP_EXACT_HOSTS = new Set([
+  '79.137.99.121',
+]);
 
 const parseTimeshiftPathUrl = (
   url: string,
@@ -207,6 +224,190 @@ const alignTimestampToMinute = (timestampSeconds: number): number => {
   return Math.floor(normalized / 60) * 60;
 };
 
+const extractCatchUpTargetHost = (url: string): string | null => {
+  let parsed: URL;
+  try {
+    parsed = new URL(url, typeof window === 'undefined' ? 'http://localhost' : window.location.origin);
+  } catch {
+    return null;
+  }
+
+  const proxyMatch = parsed.pathname.match(/^\/xui-api\/([^/?#]+)/);
+  if (!proxyMatch?.[1]) {
+    return parsed.hostname.toLowerCase();
+  }
+
+  try {
+    const decodedTarget = decodeURIComponent(proxyMatch[1]);
+    return new URL(decodedTarget.includes('://') ? decodedTarget : `http://${decodedTarget}`).hostname.toLowerCase();
+  } catch {
+    return null;
+  }
+};
+
+const isMediaKingCatchUpHost = (host: string | null): boolean => {
+  if (!host) {
+    return false;
+  }
+
+  return (
+    MEDIAKING_CATCHUP_EXACT_HOSTS.has(host) ||
+    MEDIAKING_CATCHUP_HOSTS.some((knownHost) => (
+      host === knownHost || host.endsWith(`.${knownHost}`)
+    ))
+  );
+};
+
+const resolveProviderSafeStartPositionSeconds = ({
+  sourceCandidates,
+  gateway,
+  durationSeconds,
+  streamId,
+}: {
+  sourceCandidates: {
+    redirectUrls: string[];
+    queryUrls: string[];
+    legacyUrls: string[];
+  };
+  gateway?: CatchUpGatewayPlaybackMetadata | null;
+  durationSeconds: number;
+  streamId: number;
+}): number => {
+  const urls = [
+    ...(gateway?.playbackUrl ? [gateway.playbackUrl] : []),
+    ...sourceCandidates.queryUrls,
+    ...sourceCandidates.redirectUrls,
+    ...sourceCandidates.legacyUrls,
+  ];
+  const isMediaKingProvider = urls.some((url) => (
+    isMediaKingCatchUpHost(extractCatchUpTargetHost(url))
+  ));
+  if (!isMediaKingProvider) {
+    return 0;
+  }
+
+  return Math.min(
+    Math.max(0, Math.floor(durationSeconds)),
+    MEDIAKING_CATCHUP_SAFE_START_POSITION_SECONDS,
+  );
+};
+
+const buildBlockedCatchUpPlaybackSourceResult = ({
+  channel,
+  program,
+  metadata,
+  capability,
+  minuteAlignedStartTimestamp,
+  resolvedDurationSeconds,
+  initialPositionSeconds,
+  fullDurationSeconds,
+  channelTitle,
+}: {
+  channel: Pick<PlayerChannel, 'id' | 'name' | 'streamId'>;
+  program: Pick<Program, 'id' | 'title'>;
+  metadata: ReturnType<typeof buildCatchUpMetadata>;
+  capability: ReturnType<typeof resolveCatchUpWebCapability>;
+  minuteAlignedStartTimestamp: number;
+  resolvedDurationSeconds: number;
+  initialPositionSeconds: number;
+  fullDurationSeconds: number;
+  channelTitle?: string;
+}): CatchUpPlaybackSourceResult => {
+  const blockedUrl = `lumen://catchup-unavailable/${channel.streamId}/${encodeURIComponent(program.id)}`;
+  const initialAttempt: CatchUpTransportAttempt = {
+    url: blockedUrl,
+    streamId: channel.streamId,
+    startTimestamp: minuteAlignedStartTimestamp,
+    durationSeconds: resolvedDurationSeconds,
+    offsetMinutes: 0,
+    strategy: 'blocked-web-capability',
+  };
+  const notice = getCatchUpWebCapabilityNotice(capability);
+
+  return {
+    source: {
+      url: blockedUrl,
+      type: 'hls',
+      title: `${channelTitle ?? channel.name} - ${program.title}`,
+      channelId: channel.id,
+      metadata: {
+        ...metadata,
+        gateway: null,
+        catchUpProgramId: metadata.programId,
+        catchUpStartTimestamp: minuteAlignedStartTimestamp,
+        catchUpDurationSeconds: resolvedDurationSeconds,
+        catchUpAttemptPlan: [initialAttempt],
+        catchUpAttemptIndex: 0,
+        catchUpAttemptStrategy: initialAttempt.strategy,
+        catchUpFallbackUrl: '',
+        catchUpFallbackUrls: [],
+        catchUpFallbackIndex: -1,
+        catchUpFallbackUsed: false,
+        catchUpUnavailable: {
+          code: 'catchup_web_provider_incompatible',
+          reasonCode: capability.reasonCode,
+          channelName: capability.channelName,
+          title: notice.title,
+          description: notice.description,
+          primaryActionLabel: notice.primaryActionLabel,
+          summary: capability.summary,
+          evidence: capability.evidence,
+          observedAt: capability.observedAt,
+        },
+      },
+    },
+    transportPlan: {
+      initialAttempt,
+      fallbackAttempts: [],
+      allAttempts: [initialAttempt],
+    },
+    initialPositionSeconds,
+    fullDurationSeconds,
+    gateway: null,
+  };
+};
+
+const buildCatchUpWebProviderIssueMetadata = (
+  capability: ReturnType<typeof resolveCatchUpWebCapability>,
+): Record<string, unknown> | null => {
+  if (
+    capability.blockPlayback ||
+    capability.reasonCode === 'not-in-provider-matrix' ||
+    capability.reasonCode === 'browser-compatible-provider-archive'
+  ) {
+    return null;
+  }
+
+  return {
+    reasonCode: capability.reasonCode,
+    channelName: capability.channelName,
+    summary: capability.summary,
+    evidence: capability.evidence,
+    observedAt: capability.observedAt,
+  };
+};
+
+const attachCatchUpWebProviderIssue = (
+  result: CatchUpPlaybackSourceResult,
+  capability: ReturnType<typeof resolveCatchUpWebCapability>,
+): CatchUpPlaybackSourceResult => {
+  const providerIssue = buildCatchUpWebProviderIssueMetadata(capability);
+  if (!providerIssue) {
+    return result;
+  }
+
+  return {
+    ...result,
+    source: {
+      ...result.source,
+      metadata: {
+        ...(result.source.metadata ?? {}),
+        catchUpWebProviderIssue: providerIssue,
+      },
+    },
+  };
+};
+
 export const resolveCatchUpPlaybackSource = async ({
   channel,
   program,
@@ -245,12 +446,26 @@ export const resolveCatchUpPlaybackSource = async ({
     durationSeconds: resolvedDurationSeconds,
   });
   const minuteAlignedStartTimestamp = alignTimestampToMinute(startTimestamp);
-  const initialPositionSeconds = preferredPositionSeconds > 0
+  const baseInitialPositionSeconds = preferredPositionSeconds > 0
     ? Math.max(0, Math.min(resolvedDurationSeconds, preferredPositionSeconds))
     : Math.max(
       0,
       Math.min(resolvedDurationSeconds, initialPositionGuardSeconds),
     );
+  const capability = resolveCatchUpWebCapability(channel);
+  if (capability.blockPlayback) {
+    return buildBlockedCatchUpPlaybackSourceResult({
+      channel,
+      program,
+      metadata,
+      capability,
+      minuteAlignedStartTimestamp,
+      resolvedDurationSeconds,
+      initialPositionSeconds: baseInitialPositionSeconds,
+      fullDurationSeconds,
+      channelTitle,
+    });
+  }
 
   const sourceCandidates = {
     redirectUrls: urlBuilder.getCatchUpRedirectUrlVariants(
@@ -281,13 +496,29 @@ export const resolveCatchUpPlaybackSource = async ({
       throw new Error(SHADOW_VALIDATION_UNAVAILABLE_ERROR);
     }
 
+    const providerSafeStartPositionSeconds = resolveProviderSafeStartPositionSeconds({
+      sourceCandidates,
+      gateway: shadowGateway,
+      durationSeconds: resolvedDurationSeconds,
+      streamId: channel.streamId,
+    });
+    const initialPositionSeconds = Math.max(
+      baseInitialPositionSeconds,
+      providerSafeStartPositionSeconds,
+    );
+    const stableStartupMetadata = providerSafeStartPositionSeconds > 0
+      ? { ...metadata, gateway: shadowGateway, catchUpHlsStartupMode: 'progressive' as const }
+      : { ...metadata, gateway: shadowGateway };
     const resolvedSource = buildCatchUpSessionSourceFromMetadata({
       channel,
-      metadata: { ...metadata, gateway: shadowGateway },
+      metadata: stableStartupMetadata,
       channelTitle,
       urlBuilder,
-      preferredPositionSeconds,
-      initialPositionGuardSeconds,
+      preferredPositionSeconds: initialPositionSeconds,
+      initialPositionGuardSeconds: Math.max(
+        initialPositionGuardSeconds,
+        providerSafeStartPositionSeconds,
+      ),
     });
     const result = {
       source: resolvedSource.source,
@@ -297,7 +528,10 @@ export const resolveCatchUpPlaybackSource = async ({
       gateway: shadowGateway,
     };
 
-    return buildShadowOnlyResult({ result, gateway: shadowGateway });
+    return buildShadowOnlyResult({
+      result: attachCatchUpWebProviderIssue(result, capability),
+      gateway: shadowGateway,
+    });
   }
 
   const gateway = await resolveCatchUpGatewayPlayback({
@@ -309,13 +543,33 @@ export const resolveCatchUpPlaybackSource = async ({
     sourceCandidates,
     gatewayOptions,
   });
+  const providerSafeStartPositionSeconds = resolveProviderSafeStartPositionSeconds({
+    sourceCandidates,
+    gateway,
+    durationSeconds: resolvedDurationSeconds,
+    streamId: channel.streamId,
+  });
+  const initialPositionSeconds = Math.max(
+    baseInitialPositionSeconds,
+    providerSafeStartPositionSeconds,
+  );
+  const stableStartupMetadata = providerSafeStartPositionSeconds > 0
+    ? {
+      ...metadata,
+      ...(gateway ? { gateway } : {}),
+      catchUpHlsStartupMode: 'progressive' as const,
+    }
+    : (gateway ? { ...metadata, gateway } : metadata);
   const resolvedSource = buildCatchUpSessionSourceFromMetadata({
     channel,
-    metadata: gateway ? { ...metadata, gateway } : metadata,
+    metadata: stableStartupMetadata,
     channelTitle,
     urlBuilder,
-    preferredPositionSeconds,
-    initialPositionGuardSeconds,
+    preferredPositionSeconds: initialPositionSeconds,
+    initialPositionGuardSeconds: Math.max(
+      initialPositionGuardSeconds,
+      providerSafeStartPositionSeconds,
+    ),
   });
 
   const result = {
@@ -326,5 +580,5 @@ export const resolveCatchUpPlaybackSource = async ({
     gateway,
   };
 
-  return result;
+  return attachCatchUpWebProviderIssue(result, capability);
 };

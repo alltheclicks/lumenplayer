@@ -31,7 +31,8 @@
     "release:security-baseline:test": "vitest run scripts/release/v1-security-privacy-baseline.test.ts",
     "release:readiness:validate": "node scripts/release/validate-release-readiness.mjs scripts/release/v1-release-readiness-review.template.json",
     "release:readiness:test": "vitest run scripts/release/v1-release-readiness-review.test.ts",
-    "e2e:qa:simulate": "node scripts/playwright/run-qa-user-sim.mjs"
+    "e2e:qa:simulate": "node scripts/playwright/run-qa-user-sim.mjs",
+    "e2e:playback:focused": "node scripts/playwright/run-focused-playback-smoke.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.55.0",

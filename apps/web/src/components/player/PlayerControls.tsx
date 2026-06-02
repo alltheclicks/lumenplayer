@@ -44,6 +44,10 @@ import { emitWebObservabilityEvent } from '@/services/observability';
 import { resolveCatchUpPlaybackSource } from './catchupSource';
 import { findCatchUpProgramById } from './catchupProgramNavigation';
 import {
+  resolveCatchUpTimelineDurationSeconds,
+  resolveTimelineSeekPositionSeconds,
+} from './timelineSeek';
+import {
   buildLiveSessionSource,
   isCatchUpSessionSourceMetadata,
   parseSessionSourceMetadata,
@@ -76,12 +80,19 @@ interface PendingSeekInteraction {
   tapStepSeconds: number;
 }
 
+interface CatchUpSwitchOptions {
+  mediaOffsetSeconds?: number;
+  timelineDurationSeconds?: number;
+  pendingTimelineSeekSeconds?: number;
+}
+
 const LONG_PRESS_THRESHOLD_MS = 250;
 const CONTROLS_IDLE_TIMEOUT_MS = 3000;
 const CONTROLS_IDLE_GRACE_MS = 1000;
 const CATCH_UP_REASON_REFRESH_MS = 60_000;
 const CATCH_UP_INITIAL_POSITION_GUARD_SECONDS = 15;
-
+const CATCH_UP_MEDIA_DURATION_TOLERANCE_SECONDS = 5;
+const CATCH_UP_WINDOWED_SEEK_THRESHOLD_SECONDS = 45;
 const groupProgramsByDate = (programs: Program[]): Map<string, Program[]> => {
   const grouped = new Map<string, Program[]>();
   const now = new Date();
@@ -151,8 +162,8 @@ const PlayerControls = ({
   const [hoverPosition, setHoverPosition] = useState<number | null>(null);
   const [isSeeking, setIsSeeking] = useState(false);
   const [seekPreviewPosition, setSeekPreviewPosition] = useState<number | null>(null);
+  const [mediaDurationSeconds, setMediaDurationSeconds] = useState<number | null>(null);
   const [isLiveProgressFocused, setIsLiveProgressFocused] = useState(false);
-  const progressRef = useRef<HTMLDivElement>(null);
   const lastNonZeroVolumeRef = useRef(normalizedDefaultVolume || 80);
   const seekEngineRef = useRef<SeekEngine | null>(null);
   const idleTimerRef = useRef<IdleTimer | null>(null);
@@ -176,11 +187,20 @@ const PlayerControls = ({
     : 0;
   const isPlaying = session.playback === 'playing' || session.playback === 'buffering';
 
-  const catchUpDuration = catchUpProgram
+  const catchUpDurationBase = catchUpProgram
     ? isCatchUpSessionSourceMetadata(sessionSourceMetadata) && sessionSourceMetadata.durationSeconds > 0
       ? sessionSourceMetadata.durationSeconds
       : (catchUpProgram.endTime.getTime() - catchUpProgram.startTime.getTime()) / 1000
     : 0;
+  const catchUpMediaOffsetSeconds = isCatchUpSessionSourceMetadata(sessionSourceMetadata)
+    ? Math.max(0, Math.floor(sessionSourceMetadata.catchUpMediaOffsetSeconds ?? 0))
+    : 0;
+  const catchUpDuration = resolveCatchUpTimelineDurationSeconds({
+    baseDurationSeconds: catchUpDurationBase,
+    mediaDurationSeconds,
+    mediaOffsetSeconds: catchUpMediaOffsetSeconds,
+    toleranceSeconds: CATCH_UP_MEDIA_DURATION_TOLERANCE_SECONDS,
+  });
   const effectiveCatchUpPosition = catchUpProgram
     ? Math.max(
       0,
@@ -257,6 +277,28 @@ const PlayerControls = ({
       seekEngineRef.current = null;
     };
   }, []);
+
+  useEffect(() => {
+    if (!catchUpProgram) {
+      setMediaDurationSeconds(null);
+      return;
+    }
+
+    const syncMediaDuration = () => {
+      const duration = playerRef.current?.getDuration() ?? 0;
+      if (!Number.isFinite(duration) || duration <= 0) {
+        return;
+      }
+
+      setMediaDurationSeconds(duration);
+    };
+
+    syncMediaDuration();
+    const intervalId = window.setInterval(syncMediaDuration, 1_000);
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [catchUpProgram, playerRef, session.source]);
 
   useEffect(() => {
     const idleTimer = new IdleTimer(
@@ -547,6 +589,7 @@ const PlayerControls = ({
   const switchToCatchUpProgram = useCallback(async (
     program: Program,
     preferredPositionSeconds = 0,
+    options: CatchUpSwitchOptions = {},
   ): Promise<number | null> => {
     const startTimestamp = Math.floor(program.startTime.getTime() / 1000);
     const fullDuration = Math.floor(
@@ -557,18 +600,57 @@ const PlayerControls = ({
       1,
       Math.min(fullDuration, availableDuration > 0 ? availableDuration : fullDuration)
     );
+    const mediaOffsetSeconds = Math.max(0, Math.floor(options.mediaOffsetSeconds ?? 0));
+    const timelineDurationSeconds = Math.max(
+      duration,
+      Math.floor(options.timelineDurationSeconds ?? duration),
+    );
+    const playbackDuration = Math.max(1, duration - mediaOffsetSeconds);
+    const playbackProgram = mediaOffsetSeconds > 0
+      ? {
+        ...program,
+        startTime: new Date(program.startTime.getTime() + mediaOffsetSeconds * 1000),
+        endTime: new Date(program.startTime.getTime() + (mediaOffsetSeconds + playbackDuration) * 1000),
+      }
+      : program;
     try {
       const resolved = await resolveCatchUpPlaybackSource({
         channel,
-        program,
+        program: playbackProgram,
         urlBuilder: xtreamCodesService,
         fallbackStreamIds: catchUpFallbackStreamIds,
-        durationSeconds: duration,
+        durationSeconds: playbackDuration,
         preferredPositionSeconds,
         initialPositionGuardSeconds: CATCH_UP_INITIAL_POSITION_GUARD_SECONDS,
       });
-
       const catchUpFallbackUrls = resolved.transportPlan.fallbackAttempts.map((attempt) => attempt.url);
+      const pendingTimelineSeekSeconds = typeof options.pendingTimelineSeekSeconds === 'number' &&
+        Number.isFinite(options.pendingTimelineSeekSeconds)
+        ? Math.max(0, options.pendingTimelineSeekSeconds)
+        : 0;
+      const pendingTimelineSeekMs = pendingTimelineSeekSeconds > 0
+        ? Math.floor(pendingTimelineSeekSeconds * 1000)
+        : null;
+      const pendingMediaSeekSeconds = pendingTimelineSeekSeconds > 0
+        ? Math.max(0, pendingTimelineSeekSeconds - mediaOffsetSeconds)
+        : null;
+      const initialTimelinePositionSeconds = mediaOffsetSeconds + resolved.initialPositionSeconds;
+      const source = mediaOffsetSeconds > 0 || timelineDurationSeconds !== duration || pendingTimelineSeekMs !== null
+        ? {
+          ...resolved.source,
+          metadata: {
+            ...(resolved.source.metadata ?? {}),
+            durationSeconds: timelineDurationSeconds,
+            catchUpMediaOffsetSeconds: mediaOffsetSeconds,
+            ...(pendingTimelineSeekMs !== null
+              ? {
+                catchUpPendingTimelineSeekMs: pendingTimelineSeekMs,
+                catchUpPendingMediaSeekSeconds: pendingMediaSeekSeconds,
+              }
+              : {}),
+          },
+        }
+        : resolved.source;
       emitWebObservabilityEvent({
         name: 'catchup.requested',
         severity: 'info',
@@ -582,7 +664,8 @@ const PlayerControls = ({
           status: 'requested',
           finalHost: null,
           errorCode: null,
-          fullDurationSeconds: fullDuration,
+          fullDurationSeconds: timelineDurationSeconds,
+          mediaOffsetSeconds,
           initialStrategy: resolved.transportPlan.initialAttempt.strategy,
           initialStartTs: resolved.transportPlan.initialAttempt.startTimestamp,
           fallbackStreamIds: catchUpFallbackStreamIds,
@@ -592,12 +675,14 @@ const PlayerControls = ({
           assetKey: resolved.gateway?.assetKey ?? null,
           hotStart: resolved.gateway?.hotStart ?? false,
           fallbackReason: resolved.gateway?.fallbackReason ?? null,
+          pendingTimelineSeekMs,
+          pendingMediaSeekSeconds,
         },
       });
 
-      commands.setSource(resolved.source, Math.floor(resolved.initialPositionSeconds * 1000));
+      commands.setSource(source, Math.floor(initialTimelinePositionSeconds * 1000));
       commands.play();
-      return resolved.initialPositionSeconds;
+      return initialTimelinePositionSeconds;
     } catch (error) {
       emitWebObservabilityEvent({
         name: 'playback.error',
@@ -614,14 +699,38 @@ const PlayerControls = ({
     }
   }, [catchUpFallbackStreamIds, channel, commands]);
 
-  const updateCatchUpPosition = useCallback((positionSeconds: number) => {
+  const updateCatchUpPosition = useCallback((
+    positionSeconds: number,
+  ) => {
     if (!catchUpProgram) {
       return;
     }
 
-    playerRef.current?.seek(positionSeconds);
-    commands.seek(Math.floor(positionSeconds * 1000));
-  }, [catchUpProgram, commands, playerRef]);
+    const clampedPositionSeconds = Math.max(0, Math.min(catchUpDuration, positionSeconds));
+    const seekDeltaSeconds = Math.abs(clampedPositionSeconds - effectiveCatchUpPosition);
+    if (seekDeltaSeconds >= CATCH_UP_WINDOWED_SEEK_THRESHOLD_SECONDS) {
+      const mediaOffsetSeconds = Math.max(
+        0,
+        Math.floor(clampedPositionSeconds - CATCH_UP_INITIAL_POSITION_GUARD_SECONDS),
+      );
+      void switchToCatchUpProgram(catchUpProgram, CATCH_UP_INITIAL_POSITION_GUARD_SECONDS, {
+        mediaOffsetSeconds,
+        timelineDurationSeconds: catchUpDuration,
+        pendingTimelineSeekSeconds: clampedPositionSeconds,
+      });
+      return;
+    }
+
+    playerRef.current?.seek(clampedPositionSeconds);
+    commands.seek(Math.floor(clampedPositionSeconds * 1000));
+  }, [
+    catchUpDuration,
+    catchUpProgram,
+    commands,
+    effectiveCatchUpPosition,
+    playerRef,
+    switchToCatchUpProgram,
+  ]);
 
   const togglePlay = useCallback(() => {
     if (isPlaying) {
@@ -691,24 +800,32 @@ const PlayerControls = ({
   }, [isFullscreen, onCatchUpDiscoverabilityAction]);
 
   const handleSeek = (e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>) => {
-    if (!progressRef.current || !catchUpProgram) return;
+    if (!catchUpProgram) return;
 
-    const rect = progressRef.current.getBoundingClientRect();
-    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
-    const x = clientX - rect.left;
-    const percentage = Math.max(0, Math.min(1, x / rect.width));
-    const newPosition = percentage * catchUpDuration;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const clientX = 'touches' in e ? e.touches[0]?.clientX : e.clientX;
+    const newPosition = resolveTimelineSeekPositionSeconds({
+      clientX,
+      timelineLeft: rect.left,
+      timelineWidth: rect.width,
+      durationSeconds: catchUpDuration,
+      fallbackPositionSeconds: effectiveCatchUpPosition,
+    });
 
     updateCatchUpPosition(newPosition);
   };
 
   const handleProgressHover = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!progressRef.current || !catchUpProgram) return;
+    if (!catchUpProgram) return;
 
-    const rect = progressRef.current.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const percentage = Math.max(0, Math.min(1, x / rect.width));
-    setHoverPosition(percentage * catchUpDuration);
+    const rect = e.currentTarget.getBoundingClientRect();
+    setHoverPosition(resolveTimelineSeekPositionSeconds({
+      clientX: e.clientX,
+      timelineLeft: rect.left,
+      timelineWidth: rect.width,
+      durationSeconds: catchUpDuration,
+      fallbackPositionSeconds: effectiveCatchUpPosition,
+    }));
   };
 
   const applySeekStep = useCallback((direction: SeekDirection, seconds: number) => {
@@ -935,7 +1052,7 @@ const PlayerControls = ({
         {catchUpProgram ? (
           <div className="mb-4">
             <div
-              ref={progressRef}
+              data-testid="catchup-timeline"
               className="h-1.5 bg-secondary/50 rounded-full overflow-hidden cursor-pointer"
               onClick={handleSeek}
             >
@@ -986,6 +1103,7 @@ const PlayerControls = ({
                     variant="ghost"
                     size="icon"
                     className="h-9 w-9 hover:bg-secondary/50"
+                    data-testid="catchup-seek-backward-10"
                     onPointerDown={(event) => handleSeekButtonPointerDown(event, 'backward', 10)}
                     onPointerUp={handleSeekButtonPointerUp}
                     onPointerCancel={handleSeekButtonPointerCancel}
@@ -994,13 +1112,20 @@ const PlayerControls = ({
                   >
                     <SkipBack className="h-4 w-4" />
                   </Button>
-                  <Button variant="ghost" size="icon" className="h-9 w-9 hover:bg-secondary/50" onClick={togglePlay}>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-9 w-9 hover:bg-secondary/50"
+                    data-testid="catchup-play-toggle"
+                    onClick={togglePlay}
+                  >
                     {isPlaying ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
                   </Button>
                   <Button
                     variant="ghost"
                     size="icon"
                     className="h-9 w-9 hover:bg-secondary/50"
+                    data-testid="catchup-seek-forward-10"
                     onPointerDown={(event) => handleSeekButtonPointerDown(event, 'forward', 10)}
                     onPointerUp={handleSeekButtonPointerUp}
                     onPointerCancel={handleSeekButtonPointerCancel}
@@ -1013,6 +1138,7 @@ const PlayerControls = ({
                     variant="ghost"
                     size="sm"
                     className="ml-1 h-9 gap-1 px-3 text-xs"
+                    data-testid="catchup-go-live"
                     onClick={goToLive}
                   >
                     <Radio className="h-3 w-3" />
@@ -1079,6 +1205,8 @@ const PlayerControls = ({
                   variant="ghost"
                   size="icon"
                   className={`h-9 w-9 hover:bg-secondary/50 ${catchUpProgram ? 'text-primary' : ''}`}
+                  aria-label="Otvori TV unazad"
+                  data-testid="catchup-open"
                   onClick={handleCatchUpAction}
                 >
                   <Clock className="h-4 w-4" />
@@ -1232,6 +1360,7 @@ const PlayerControls = ({
                             {programs.map(program => (
                               <button
                                 key={program.id}
+                                data-testid="catchup-program"
                                 onClick={() => handleSelectProgram(program)}
                                 className={`w-full text-left p-3 rounded-lg transition-colors ${catchUpProgram?.id === program.id
                                     ? 'bg-primary/20 border border-primary/50'
@@ -1309,6 +1438,7 @@ const PlayerControls = ({
               variant="ghost"
               size="icon"
               className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-background/20 backdrop-blur-sm hover:bg-background/40 hover:scale-110 transition-transform flex flex-col items-center justify-center gap-0"
+              data-testid="catchup-seek-backward-10"
               onPointerDown={(e) => handleSeekButtonPointerDown(e, 'backward', 10)}
               onPointerUp={handleSeekButtonPointerUp}
               onPointerCancel={handleSeekButtonPointerCancel}
@@ -1323,6 +1453,7 @@ const PlayerControls = ({
               variant="ghost"
               size="icon"
               className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-primary/90 hover:bg-primary hover:scale-110 transition-transform"
+              data-testid="catchup-play-toggle"
               onClick={(e) => {
                 e.stopPropagation();
                 togglePlay();
@@ -1339,6 +1470,7 @@ const PlayerControls = ({
               variant="ghost"
               size="icon"
               className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-background/20 backdrop-blur-sm hover:bg-background/40 hover:scale-110 transition-transform flex flex-col items-center justify-center gap-0"
+              data-testid="catchup-seek-forward-10"
               onPointerDown={(e) => handleSeekButtonPointerDown(e, 'forward', 10)}
               onPointerUp={handleSeekButtonPointerUp}
               onPointerCancel={handleSeekButtonPointerCancel}
@@ -1419,7 +1551,7 @@ const PlayerControls = ({
           {catchUpProgram ? (
             <div className="space-y-1">
               <div
-                ref={progressRef}
+                data-testid="catchup-timeline"
                 className="group relative h-2 sm:h-3 bg-secondary/50 rounded-full overflow-visible cursor-pointer"
                 onClick={(e) => {
                   e.stopPropagation();
@@ -1510,6 +1642,7 @@ const PlayerControls = ({
                 variant="ghost"
                 size="icon"
                 className="w-9 h-9 sm:w-10 sm:h-10 hover:bg-secondary/50"
+                data-testid="catchup-play-toggle"
                 onClick={(e) => {
                   e.stopPropagation();
                   togglePlay();
@@ -1524,6 +1657,7 @@ const PlayerControls = ({
                     variant="ghost"
                     size="icon"
                     className="w-9 h-9 sm:w-10 sm:h-10 hover:bg-secondary/50 flex flex-col items-center justify-center gap-0"
+                    data-testid="catchup-seek-backward-30"
                     onPointerDown={(e) => handleSeekButtonPointerDown(e, 'backward', 30)}
                     onPointerUp={handleSeekButtonPointerUp}
                     onPointerCancel={handleSeekButtonPointerCancel}
@@ -1537,6 +1671,7 @@ const PlayerControls = ({
                     variant="ghost"
                     size="icon"
                     className="w-9 h-9 sm:w-10 sm:h-10 hover:bg-secondary/50 flex flex-col items-center justify-center gap-0"
+                    data-testid="catchup-seek-forward-30"
                     onPointerDown={(e) => handleSeekButtonPointerDown(e, 'forward', 30)}
                     onPointerUp={handleSeekButtonPointerUp}
                     onPointerCancel={handleSeekButtonPointerCancel}
@@ -1599,6 +1734,7 @@ const PlayerControls = ({
                   variant="ghost"
                   size="sm"
                   className="hidden sm:flex gap-1 h-8 px-3 hover:bg-secondary/50"
+                  data-testid="catchup-go-live"
                   onClick={(e) => {
                     e.stopPropagation();
                     goToLive();
@@ -1635,6 +1771,8 @@ const PlayerControls = ({
                   variant="ghost"
                   size="icon"
                   className={`w-9 h-9 sm:w-10 sm:h-10 hover:bg-secondary/50 ${catchUpProgram ? 'text-primary' : ''}`}
+                  aria-label="Otvori TV unazad"
+                  data-testid="catchup-open"
                   onClick={(e) => {
                     e.stopPropagation();
                     handleCatchUpAction();

@@ -16,6 +16,17 @@ export default defineConfig({
       '@lumen/session-core': resolvePath('./packages/session-core/src/index.ts'),
       '@lumen/storage': resolvePath('./packages/storage/src/index.ts'),
       '@lumen/types': resolvePath('./packages/types/src/index.ts'),
+      '@': resolvePath('./apps/web/src'),
     },
+  },
+  test: {
+    exclude: [
+      '**/node_modules/**',
+      '**/dist/**',
+      '**/.codex/**',
+      '**/output/**',
+      '**/test-results/**',
+      '**/e2e/**',
+    ],
   },
 });

@@ -13,13 +13,6 @@ import type { HttpClient } from "./http-client";
 
 export class XtreamCodesService {
   private static readonly VOD_CATEGORY_FETCH_CONCURRENCY = 8;
-  private static readonly MEDIAKING_BROWSER_SAFE_CATCH_UP_ORIGIN = "http://edge6.castcdn.net:8080";
-  private static readonly MEDIAKING_BROWSER_SAFE_CATCH_UP_HOSTS = new Set([
-    "smart.mediaking.fi",
-    "serv2.mediaking.fi",
-    "edge6.castcdn.net",
-    "79.137.99.121",
-  ]);
   private static readonly CATCH_UP_REDIRECT_PATHS = [
     {
       basePath: "/timeshift_hls",
@@ -276,19 +269,12 @@ export class XtreamCodesService {
       throw new Error("Credentials not set");
     }
 
-    const directCatchUpOrigin = this.resolvePreferredDirectCatchUpHlsOrigin();
-    if (directCatchUpOrigin) {
-      return this.buildTimeshiftPathCatchUpVariants(streamId, startTimestamp, duration, {
-        serverOrigin: directCatchUpOrigin,
-        basePath: "/timeshift_hls",
-        extensions: ["m3u8"],
-        includeEpochStart: false,
-      });
-    }
-
     const credentials = this.credentials;
 
-    const startCandidates = XtreamCodesService.resolveTimeshiftStartCandidates(startTimestamp);
+    const startCandidates = XtreamCodesService.resolveTimeshiftStartCandidates(
+      startTimestamp,
+      this.usesLocalOnlyTimeshiftStart(),
+    );
     const durationCandidates = XtreamCodesService.resolveTimeshiftDurationCandidates(duration);
     const urls: string[] = [];
 
@@ -325,16 +311,6 @@ export class XtreamCodesService {
     startTimestamp: number,
     duration: number,
   ): string[] {
-    const directCatchUpOrigin = this.resolvePreferredDirectCatchUpHlsOrigin();
-    if (directCatchUpOrigin) {
-      return this.buildTimeshiftPathCatchUpVariants(streamId, startTimestamp, duration, {
-        serverOrigin: directCatchUpOrigin,
-        basePath: "/timeshift_hls",
-        extensions: ["m3u8"],
-        includeEpochStart: false,
-      });
-    }
-
     const urls = XtreamCodesService.CATCH_UP_REDIRECT_PATHS.flatMap((candidate) => (
       this.buildTimeshiftPathCatchUpVariants(streamId, startTimestamp, duration, {
         serverOrigin: this.credentials?.server ?? "",
@@ -364,15 +340,6 @@ export class XtreamCodesService {
     startTimestamp: number,
     duration: number,
   ): string[] {
-    if (this.resolvePreferredDirectCatchUpHlsOrigin()) {
-      return this.buildTimeshiftPathCatchUpVariants(streamId, startTimestamp, duration, {
-        serverOrigin: this.credentials?.server ?? "",
-        basePath: "/timeshift",
-        extensions: ["ts"],
-        includeEpochStart: false,
-      });
-    }
-
     return this.buildTimeshiftPathCatchUpVariants(streamId, startTimestamp, duration, {
       serverOrigin: this.credentials?.server ?? "",
       basePath: "/timeshift",
@@ -397,7 +364,10 @@ export class XtreamCodesService {
     }
 
     const durationCandidates = XtreamCodesService.resolveTimeshiftDurationCandidates(duration);
-    const formattedStartCandidates = XtreamCodesService.resolveTimeshiftStartCandidates(startTimestamp);
+    const formattedStartCandidates = XtreamCodesService.resolveTimeshiftStartCandidates(
+      startTimestamp,
+      this.usesLocalOnlyTimeshiftStart(),
+    );
     const startCandidates = options.includeEpochStart
       ? [...formattedStartCandidates, String(Math.floor(startTimestamp))]
       : formattedStartCandidates;
@@ -419,39 +389,6 @@ export class XtreamCodesService {
     }
 
     return XtreamCodesService.filterUniqueUrls(urls);
-  }
-
-  private resolvePreferredDirectCatchUpHlsOrigin(): string | null {
-    if (!this.credentials) {
-      return null;
-    }
-
-    const upstreamUrl = XtreamCodesService.resolveUpstreamServerUrl(this.credentials.server);
-    const upstreamHost = upstreamUrl?.hostname.trim().toLowerCase() ?? "";
-    if (!XtreamCodesService.MEDIAKING_BROWSER_SAFE_CATCH_UP_HOSTS.has(upstreamHost)) {
-      return null;
-    }
-
-    return XtreamCodesService.MEDIAKING_BROWSER_SAFE_CATCH_UP_ORIGIN;
-  }
-
-  private static resolveUpstreamServerUrl(server: string): URL | null {
-    try {
-      const parsed = new URL(server);
-      const proxiedTargetMatch = parsed.pathname.match(/^\/xui-api\/([^/?#]+)/);
-      if (!proxiedTargetMatch?.[1]) {
-        return parsed;
-      }
-
-      const decodedTarget = decodeURIComponent(proxiedTargetMatch[1]).trim();
-      if (!decodedTarget) {
-        return parsed;
-      }
-
-      return new URL(decodedTarget.includes("://") ? decodedTarget : `http://${decodedTarget}`);
-    } catch {
-      return null;
-    }
   }
 
   getArchiveUrl(
@@ -485,8 +422,54 @@ export class XtreamCodesService {
     return `${year}-${month}-${day}:${hours}-${minutes}`;
   }
 
-  private static resolveTimeshiftStartCandidates(startTimestamp: number): string[] {
+  private usesLocalOnlyTimeshiftStart(): boolean {
+    if (!this.credentials) {
+      return false;
+    }
+
+    const host = XtreamCodesService.resolveServerHost(this.credentials.server);
+    if (!host) {
+      return false;
+    }
+
+    return (
+      host === "mediaking.fi" ||
+      host.endsWith(".mediaking.fi") ||
+      host === "castcdn.net" ||
+      host.endsWith(".castcdn.net") ||
+      host === "79.137.99.121"
+    );
+  }
+
+  private static resolveServerHost(server: string): string | null {
+    try {
+      const parsed = new URL(server);
+      const proxiedTargetMatch = parsed.pathname.match(/^\/xui-api\/([^/?#]+)/);
+      if (!proxiedTargetMatch?.[1]) {
+        return parsed.hostname.toLowerCase();
+      }
+
+      const decodedTarget = decodeURIComponent(proxiedTargetMatch[1]).trim();
+      if (!decodedTarget) {
+        return parsed.hostname.toLowerCase();
+      }
+
+      const upstreamUrl = new URL(decodedTarget.includes("://") ? decodedTarget : `http://${decodedTarget}`);
+      return upstreamUrl.hostname.toLowerCase();
+    } catch {
+      return null;
+    }
+  }
+
+  private static resolveTimeshiftStartCandidates(
+    startTimestamp: number,
+    localOnly = false,
+  ): string[] {
     const localStart = XtreamCodesService.formatTimeshiftStart(startTimestamp);
+    if (localOnly) {
+      return [localStart];
+    }
+
     const utcStart = XtreamCodesService.formatTimeshiftStartUtc(startTimestamp);
     if (localStart === utcStart) {
       return [localStart];

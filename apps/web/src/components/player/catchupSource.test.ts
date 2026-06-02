@@ -201,4 +201,157 @@ describe('resolveCatchUpPlaybackSource', () => {
       shadowValidation: true,
     })).rejects.toThrow('catchup_shadow_validation_unavailable');
   });
+
+  it('keeps known provider archive issues playable while carrying runtime failure evidence', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        serverId: 'server-1',
+        channelId: 'channel-53',
+        programId: 'program-1',
+        assetKey: 'asset-1',
+        transportMode: 'provider-direct',
+        playbackUrl: 'https://edge.example/streaming/timeshift.php?token=abc',
+        assetState: 'ready',
+        fallbackReason: null,
+        hotStart: true,
+      }),
+    });
+
+    const result = await resolveCatchUpPlaybackSource({
+      channel: {
+        id: 'channel-53',
+        name: 'KANAL 5',
+        streamId: 53,
+        source: 'xtream',
+        catchUpDays: 7,
+        hasCatchUp: true,
+      },
+      program: {
+        id: 'program-1',
+        title: 'Program 1',
+        startTime: new Date('2026-03-06T10:00:00Z'),
+        endTime: new Date('2026-03-06T10:30:00Z'),
+      },
+      urlBuilder: createUrlBuilder(),
+      gatewayOptions: {
+        enabled: true,
+        debugOverride: true,
+        origin: 'http://localhost:8788',
+        fetchImpl: fetchImpl as typeof fetch,
+      },
+      shadowValidation: false,
+    });
+
+    expect(result.source.url).toBe('https://edge.example/streaming/timeshift.php?token=abc');
+    expect(result.transportPlan.initialAttempt.strategy).toBe('gateway-resolved');
+    expect(result.source.metadata).toMatchObject({
+      mode: 'catchup',
+      channelId: 'channel-53',
+      streamId: 53,
+      programId: 'program-1',
+      catchUpWebProviderIssue: {
+        reasonCode: 'unsupported-audio-codec',
+        channelName: 'KANAL 5',
+        summary: 'H.264 video + MP2 audio',
+      },
+    });
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it('starts MediaKing catch-up at the first browser-safe archive segment', async () => {
+    const fetchImpl = vi.fn().mockRejectedValue(new Error('gateway unavailable'));
+
+    const result = await resolveCatchUpPlaybackSource({
+      channel: {
+        id: 'channel-58',
+        name: 'BHT 1',
+        streamId: 58,
+        source: 'xtream',
+        catchUpDays: 7,
+        hasCatchUp: true,
+      },
+      program: {
+        id: 'program-1',
+        title: 'Program 1',
+        startTime: new Date('2026-03-06T10:00:00Z'),
+        endTime: new Date('2026-03-06T10:30:00Z'),
+      },
+      urlBuilder: createShadowValidationUrlBuilder(),
+      gatewayOptions: {
+        fetchImpl: fetchImpl as typeof fetch,
+      },
+      shadowValidation: false,
+    });
+
+    expect(result.initialPositionSeconds).toBe(75);
+    expect(result.source.metadata).toMatchObject({
+      catchUpHlsStartupMode: 'progressive',
+      catchUpHlsStartPositionSeconds: 75,
+    });
+  });
+
+  it('does not special-case N1 SRB by stream id when selecting provider safe-start', async () => {
+    const fetchImpl = vi.fn().mockRejectedValue(new Error('gateway unavailable'));
+
+    const result = await resolveCatchUpPlaybackSource({
+      channel: {
+        id: 'channel-399',
+        name: 'N1 SRB',
+        streamId: 399,
+        source: 'xtream',
+        catchUpDays: 7,
+        hasCatchUp: true,
+      },
+      program: {
+        id: 'program-1',
+        title: 'Pregled dana',
+        startTime: new Date('2026-03-06T10:00:00Z'),
+        endTime: new Date('2026-03-06T10:50:00Z'),
+      },
+      urlBuilder: createShadowValidationUrlBuilder(),
+      gatewayOptions: {
+        fetchImpl: fetchImpl as typeof fetch,
+      },
+      shadowValidation: false,
+    });
+
+    expect(result.initialPositionSeconds).toBe(75);
+    expect(result.source.metadata).toMatchObject({
+      catchUpHlsStartupMode: 'progressive',
+      catchUpHlsStartPositionSeconds: 75,
+    });
+  });
+
+  it('does not special-case PRVA by stream id when selecting provider safe-start', async () => {
+    const fetchImpl = vi.fn().mockRejectedValue(new Error('gateway unavailable'));
+
+    const result = await resolveCatchUpPlaybackSource({
+      channel: {
+        id: 'channel-109',
+        name: 'PRVA',
+        streamId: 109,
+        source: 'xtream',
+        catchUpDays: 7,
+        hasCatchUp: true,
+      },
+      program: {
+        id: 'program-1',
+        title: 'Pobednik',
+        startTime: new Date('2026-03-06T10:00:00Z'),
+        endTime: new Date('2026-03-06T10:20:00Z'),
+      },
+      urlBuilder: createShadowValidationUrlBuilder(),
+      gatewayOptions: {
+        fetchImpl: fetchImpl as typeof fetch,
+      },
+      shadowValidation: false,
+    });
+
+    expect(result.initialPositionSeconds).toBe(75);
+    expect(result.source.metadata).toMatchObject({
+      catchUpHlsStartupMode: 'progressive',
+      catchUpHlsStartPositionSeconds: 75,
+    });
+  });
 });

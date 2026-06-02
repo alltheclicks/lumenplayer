@@ -10,6 +10,18 @@ export type QaNetworkFailure = {
   failureText: string | null;
 };
 
+const redactXtreamUrl = (urlValue: string): string => (
+  urlValue
+    .replace(/(username=)[^&\s]+/gi, '$1<redacted>')
+    .replace(/(password=)[^&\s]+/gi, '$1<redacted>')
+    .replace(/(token=)[^&\s]+/gi, '$1<redacted>')
+    .replace(/(\/live\/)[^/\s]+\/[^/\s]+\//gi, '$1<redacted>/<redacted>/')
+    .replace(/(\/movie\/)[^/\s]+\/[^/\s]+\//gi, '$1<redacted>/<redacted>/')
+    .replace(/(\/series\/)[^/\s]+\/[^/\s]+\//gi, '$1<redacted>/<redacted>/')
+    .replace(/(\/timeshift_hls\/)[^/\s]+\/[^/\s]+\//gi, '$1<redacted>/<redacted>/')
+    .replace(/(\/timeshift\/)[^/\s]+\/[^/\s]+\//gi, '$1<redacted>/<redacted>/')
+);
+
 const resolveXtreamAction = (urlValue: string): string | null => {
   let url: URL;
   try {
@@ -60,12 +72,17 @@ const toFailureFromResponse = (response: Response): QaNetworkFailure | null => {
     method: request.method(),
     resourceType: request.resourceType(),
     status,
-    url: response.url(),
+    url: redactXtreamUrl(response.url()),
     failureText: null,
   };
 };
 
 const toFailureFromRequest = (request: Request): QaNetworkFailure | null => {
+  const failureText = request.failure()?.errorText ?? null;
+  if (failureText === 'net::ERR_ABORTED') {
+    return null;
+  }
+
   const action = resolveXtreamAction(request.url());
   if (!action) {
     return null;
@@ -77,8 +94,8 @@ const toFailureFromRequest = (request: Request): QaNetworkFailure | null => {
     method: request.method(),
     resourceType: request.resourceType(),
     status: null,
-    url: request.url(),
-    failureText: request.failure()?.errorText ?? null,
+    url: redactXtreamUrl(request.url()),
+    failureText,
   };
 };
 

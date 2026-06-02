@@ -419,7 +419,7 @@ describe("XtreamCodesService catch-up URL builders", () => {
     ))).toBe(true);
   });
 
-  it("uses domain-based direct timeshift_hls for mediaking and removes dead timeshift fallback", () => {
+  it("keeps the provider-accepted streaming/timeshift query URL first for mediaking", () => {
     const httpClient: HttpClient = {
       get: async <T>(): Promise<T> => {
         throw new Error("Unexpected GET");
@@ -434,14 +434,61 @@ describe("XtreamCodesService catch-up URL builders", () => {
     });
 
     const queryVariants = service.getCatchUpUrlVariants(112, 1773071880, 240 * 60);
-    const redirectVariants = service.getCatchUpRedirectUrlVariants(112, 1773071880, 240 * 60);
 
     expect(queryVariants.length).toBeGreaterThan(0);
-    expect(queryVariants.every((variant) => variant.startsWith("http://edge6.castcdn.net:8080/timeshift_hls/"))).toBe(true);
-    expect(queryVariants.some((variant) => variant.includes("/streaming/timeshift.php"))).toBe(false);
-    expect(redirectVariants).toEqual(queryVariants);
+    expect(queryVariants[0]).toContain("http://smart.mediaking.fi:8080/streaming/timeshift.php");
+    expect(queryVariants[0]).toContain("extension=m3u8");
+    expect(queryVariants.some((variant) => variant.includes("edge6.castcdn.net"))).toBe(false);
     expect(service.getLegacyCatchUpUrlVariants(112, 1773071880, 240 * 60).every((variant) => (
       variant.startsWith("http://smart.mediaking.fi:8080/timeshift/")
     ))).toBe(true);
+  });
+
+  it("uses local-time catch-up starts only for mediaking providers", () => {
+    const httpClient: HttpClient = {
+      get: async <T>(): Promise<T> => {
+        throw new Error("Unexpected GET");
+      },
+      getText: async () => "",
+    };
+    const service = new XtreamCodesService(httpClient);
+    service.setCredentials({
+      server: "http://serv2.mediaking.fi:8080",
+      username: "fica",
+      password: "secret",
+    });
+
+    const startTimestamp = 1778268600;
+    const localStart = "2026-05-08:21-30";
+    const utcStart = "2026-05-08:19-30";
+    const queryVariants = service.getCatchUpUrlVariants(381, startTimestamp, 90 * 60);
+    const redirectVariants = service.getCatchUpRedirectUrlVariants(381, startTimestamp, 90 * 60);
+
+    expect(queryVariants.length).toBeGreaterThan(0);
+    expect(queryVariants.every((variant) => variant.includes(`start=${encodeURIComponent(localStart)}`))).toBe(true);
+    expect(queryVariants.some((variant) => variant.includes(encodeURIComponent(utcStart)))).toBe(false);
+    expect(redirectVariants.every((variant) => variant.includes(`/${localStart}/`))).toBe(true);
+    expect(redirectVariants.some((variant) => variant.includes(`/${utcStart}/`))).toBe(false);
+  });
+
+  it("uses local-time catch-up starts when mediaking is reached through the xui proxy", () => {
+    const httpClient: HttpClient = {
+      get: async <T>(): Promise<T> => {
+        throw new Error("Unexpected GET");
+      },
+      getText: async () => "",
+    };
+    const service = new XtreamCodesService(httpClient);
+    service.setCredentials({
+      server: "http://127.0.0.1:8788/xui-api/http%3A%2F%2Fserv2.mediaking.fi%3A8080",
+      username: "fica",
+      password: "secret",
+    });
+
+    const queryVariants = service.getCatchUpUrlVariants(381, 1778268600, 90 * 60);
+
+    expect(queryVariants.length).toBeGreaterThan(0);
+    expect(queryVariants.every((variant) => variant.includes("start=2026-05-08%3A21-30"))).toBe(true);
+    expect(queryVariants.some((variant) => variant.includes("2026-05-08%3A19-30"))).toBe(false);
   });
 });
