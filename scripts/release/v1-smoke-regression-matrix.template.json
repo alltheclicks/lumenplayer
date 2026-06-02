@@ -9,9 +9,22 @@
     "cast-flow",
     "airplay-flow",
     "pwa-install",
-    "pwa-offline"
+    "pwa-offline",
+    "provider-qa"
   ],
   "cases": [
+    {
+      "id": "SMK-PROVIDER-AUTH-LIVE-CATALOG",
+      "suite": "smoke",
+      "title": "Provider auth and live catalog preflight",
+      "platform": "provider",
+      "device": "Xtream QA account",
+      "browser": "Playwright Chromium",
+      "tags": ["provider-qa", "desktop-browser"],
+      "releaseBlocker": true,
+      "status": "pending",
+      "evidence": ""
+    },
     {
       "id": "SMK-DESKTOP-CHROME-LIVE",
       "suite": "smoke",
@@ -164,6 +177,18 @@
       "device": "Android/iOS",
       "browser": "Chrome/Safari PWA",
       "tags": ["pwa-offline", "mobile-browser"],
+      "releaseBlocker": true,
+      "status": "pending",
+      "evidence": ""
+    },
+    {
+      "id": "REG-PROVIDER-FOCUSED-PLAYBACK",
+      "suite": "regression",
+      "title": "Focused live/catch-up playback smoke with provider recovery evidence",
+      "platform": "provider",
+      "device": "Xtream QA account",
+      "browser": "Playwright Chromium",
+      "tags": ["provider-qa", "desktop-browser"],
       "releaseBlocker": true,
       "status": "pending",
       "evidence": ""

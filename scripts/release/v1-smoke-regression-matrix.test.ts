@@ -48,4 +48,14 @@ describe('V1 smoke/regression matrix template', () => {
       expect(smokeCase.releaseBlocker).toBe(true);
     }
   });
+
+  it('requires provider-backed QA coverage before release signoff', () => {
+    const template = loadTemplate();
+    const providerCases = template.cases.filter((testCase) => testCase.tags.includes('provider-qa'));
+
+    expect(template.requiredCoverageTags).toContain('provider-qa');
+    expect(providerCases.some((testCase) => testCase.suite === 'smoke')).toBe(true);
+    expect(providerCases.some((testCase) => testCase.suite === 'regression')).toBe(true);
+    expect(providerCases.every((testCase) => testCase.releaseBlocker)).toBe(true);
+  });
 });

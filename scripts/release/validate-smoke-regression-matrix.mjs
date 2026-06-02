@@ -12,6 +12,7 @@ const defaultRequiredTags = [
   'airplay-flow',
   'pwa-install',
   'pwa-offline',
+  'provider-qa',
 ];
 
 const usage = () => {
