@@ -32,6 +32,7 @@
     "release:readiness:validate": "node scripts/release/validate-release-readiness.mjs scripts/release/v1-release-readiness-review.template.json",
     "release:readiness:test": "vitest run scripts/release/v1-release-readiness-review.test.ts",
     "e2e:qa:simulate": "node scripts/playwright/run-qa-user-sim.mjs",
+    "e2e:provider:preflight": "node scripts/playwright/run-provider-qa-preflight.mjs",
     "e2e:playback:focused": "node scripts/playwright/run-focused-playback-smoke.mjs"
   },
   "devDependencies": {

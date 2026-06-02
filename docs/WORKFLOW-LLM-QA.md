@@ -194,8 +194,15 @@ After each bugfix batch (1-2 tasks max), run:
 E2E_XUI_USERNAME='...' E2E_XUI_PASSWORD='...' ./run-qa-simulation.sh
 ```
 
+When the task depends on real provider playback, run the provider preflight before browser smoke:
+
+```bash
+pnpm e2e:provider:preflight
+```
+
 Then update:
 - `output/playwright/qa-user-sim/QA-REPORT.md` (generated)
+- `output/playwright/provider-qa-preflight/REPORT.md` when provider preflight is in scope
 - active QA backlog doc (status changes and new blockers)
 - `HANDOFF.md` (what changed + evidence)
 

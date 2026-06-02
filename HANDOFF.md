@@ -9,8 +9,8 @@
     - `codex/qaf-035-production-web-catchup`
   - active PR:
     - #224 `[codex] Consolidate QAF-035 web catch-up production path`
-  - latest pushed head:
-    - `59e420e`
+  - latest provider-preflight addendum:
+    - see current PR #224 head on `codex/qaf-035-production-web-catchup`
 - Current state:
   - PR #224 is still draft, but merge state is `CLEAN`
   - GitHub `PR Quality Gate` is green on latest head:
@@ -22,6 +22,11 @@
   - transient Xtream HTTP retry/backoff now covers `429`, `502`, `503`, and `504`, with `Retry-After` support
   - QA network reports now include successful Xtream responses, so recovered `429` calls can be treated as warnings instead of false blockers
   - QA global setup and focused playback smoke now fail fast when the QA provider account is rejected instead of surfacing generic `/player` or `channel-select` timeouts
+  - standalone provider preflight now exists:
+    - `pnpm e2e:provider:preflight`
+    - loads env credentials first, otherwise `output/playwright/qa-user-sim/storage-state.json`
+    - verifies Xtream auth and non-empty live catalog before browser smoke
+    - writes redacted evidence to `output/playwright/provider-qa-preflight/REPORT.md`
   - release smoke/regression matrix now requires `provider-qa` coverage:
     - `SMK-PROVIDER-AUTH-LIVE-CATALOG`
     - `REG-PROVIDER-FOCUSED-PLAYBACK`
@@ -36,9 +41,12 @@
   - `pnpm exec turbo typecheck --force`
   - `pnpm exec turbo lint --force`
   - `pnpm exec turbo build --force`
-  - GitHub Actions run `26823936348`
+  - `pnpm e2e:provider:preflight` currently exits `1` with expected blocker `auth_0`
+  - GitHub `PR Quality Gate` on current PR #224 head
 - Evidence snapshot folder:
   - `/Users/filip/Documents/lumen-alignment-snapshot-20260602-141420`
+  - provider preflight addendum:
+    - `/Users/filip/Documents/lumen-alignment-snapshot-20260602-141420/provider-preflight-20260602-160449`
 
 ## Session 2026-04-03 — shadow `fMP4` provider validation + Lumen-side mitigations
 
