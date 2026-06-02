@@ -224,7 +224,11 @@ test('QAF-006: live startup mode manual vs autoplay', async ({ page }, testInfo)
   const networkPath = testInfo.outputPath('qa-live-autoplay.network.json');
   writeFileSync(
     networkPath,
-    JSON.stringify({ scenario: summary.scenario, failures: qaNetworkTracker.getFailures() }, null, 2),
+    JSON.stringify({
+      scenario: summary.scenario,
+      failures: qaNetworkTracker.getFailures(),
+      successes: qaNetworkTracker.getSuccesses(),
+    }, null, 2),
     'utf-8'
   );
   await testInfo.attach('qa-network', {

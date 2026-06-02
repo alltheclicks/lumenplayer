@@ -10,6 +10,13 @@ export type QaNetworkFailure = {
   failureText: string | null;
 };
 
+export type QaNetworkSuccess = {
+  action: string;
+  method: string;
+  resourceType: string;
+  status: number;
+};
+
 const redactXtreamUrl = (urlValue: string): string => (
   urlValue
     .replace(/(username=)[^&\s]+/gi, '$1<redacted>')
@@ -77,6 +84,26 @@ const toFailureFromResponse = (response: Response): QaNetworkFailure | null => {
   };
 };
 
+const toSuccessFromResponse = (response: Response): QaNetworkSuccess | null => {
+  const status = response.status();
+  if (status >= 400) {
+    return null;
+  }
+
+  const request = response.request();
+  const action = resolveXtreamAction(response.url());
+  if (!action) {
+    return null;
+  }
+
+  return {
+    action,
+    method: request.method(),
+    resourceType: request.resourceType(),
+    status,
+  };
+};
+
 const toFailureFromRequest = (request: Request): QaNetworkFailure | null => {
   const failureText = request.failure()?.errorText ?? null;
   if (failureText === 'net::ERR_ABORTED') {
@@ -101,11 +128,18 @@ const toFailureFromRequest = (request: Request): QaNetworkFailure | null => {
 
 export const createQaNetworkTracker = (page: Page) => {
   const failures: QaNetworkFailure[] = [];
+  const successes: QaNetworkSuccess[] = [];
 
   const handleResponse = (response: Response) => {
     const failure = toFailureFromResponse(response);
     if (failure) {
       failures.push(failure);
+      return;
+    }
+
+    const success = toSuccessFromResponse(response);
+    if (success) {
+      successes.push(success);
     }
   };
 
@@ -121,6 +155,7 @@ export const createQaNetworkTracker = (page: Page) => {
 
   return {
     getFailures: (): QaNetworkFailure[] => failures.slice(),
+    getSuccesses: (): QaNetworkSuccess[] => successes.slice(),
     dispose: () => {
       page.off('response', handleResponse);
       page.off('requestfailed', handleRequestFailed);

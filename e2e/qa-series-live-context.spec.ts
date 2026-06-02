@@ -333,7 +333,11 @@ test('QAF-002: Series episode -> TV Uživo -> Live shell', async ({ page }, test
   const networkPath = testInfo.outputPath('qa-series-live-context.network.json');
   writeFileSync(
     networkPath,
-    JSON.stringify({ scenario: summary.scenario, failures: qaNetworkTracker.getFailures() }, null, 2),
+    JSON.stringify({
+      scenario: summary.scenario,
+      failures: qaNetworkTracker.getFailures(),
+      successes: qaNetworkTracker.getSuccesses(),
+    }, null, 2),
     'utf-8'
   );
   await testInfo.attach('qa-network', {

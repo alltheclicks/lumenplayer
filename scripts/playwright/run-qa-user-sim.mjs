@@ -1,6 +1,14 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
+import {
+  buildXtreamActionSuccessCounts,
+  classifyXtreamFailureSeverity,
+  formatActionBreakdownLines,
+  formatSuccessBreakdownLines,
+  summarizeXtreamActionFailures,
+  summarizeXtreamActionSuccesses,
+} from './qaUserSimReport.mjs';
 
 const root = process.cwd();
 const outDir = resolve(root, 'output/playwright/qa-user-sim');
@@ -58,110 +66,12 @@ const walk = (suites) => {
 };
 walk(parsed.suites);
 
-const CRITICAL_XTREAM_ACTIONS = new Set([
-  'authenticate',
-  'get_live_categories',
-  'get_live_streams',
-  'get_vod_categories',
-  'get_vod_streams',
-  'get_vod_info',
-  'get_series',
-  'get_series_info',
-  'live-stream',
-  'vod-stream',
-  'series-stream',
-]);
-
-const NON_CRITICAL_XTREAM_ACTIONS = new Set([
-  'get_short_epg',
-  'get_simple_data_table',
-  'get_series_categories',
-  'xmltv',
-]);
-
-const summarizeXtreamActionFailures = (networkFailures) => {
-  const grouped = new Map();
-
-  for (const failure of networkFailures) {
-    const action = typeof failure?.action === 'string' && failure.action.trim().length > 0
-      ? failure.action.trim()
-      : null;
-    if (!action) {
-      continue;
-    }
-
-    if (!grouped.has(action)) {
-      grouped.set(action, {
-        total: 0,
-        responseFailures: 0,
-        requestFailed: 0,
-        statuses: new Map(),
-      });
-    }
-
-    const entry = grouped.get(action);
-    entry.total += 1;
-
-    if (failure.kind === 'requestfailed') {
-      entry.requestFailed += 1;
-    } else {
-      entry.responseFailures += 1;
-    }
-
-    if (typeof failure.status === 'number' && Number.isFinite(failure.status)) {
-      entry.statuses.set(failure.status, (entry.statuses.get(failure.status) ?? 0) + 1);
-    }
-  }
-
-  return grouped;
-};
-
-const classifyXtreamFailureSeverity = (failure) => {
-  const action = typeof failure?.action === 'string' ? failure.action.trim() : '';
-  const status = typeof failure?.status === 'number' ? failure.status : null;
-
-  if (status !== null && status >= 500) {
-    return 'critical';
-  }
-
-  if (CRITICAL_XTREAM_ACTIONS.has(action)) {
-    return 'critical';
-  }
-
-  if (NON_CRITICAL_XTREAM_ACTIONS.has(action)) {
-    return 'non-critical';
-  }
-
-  if (failure?.kind === 'requestfailed') {
-    return 'critical';
-  }
-
-  return 'non-critical';
-};
-
-const formatActionBreakdownLines = (breakdown, emptyMessage) => {
-  if (breakdown.size === 0) {
-    return [`- [INFO] ${emptyMessage}`];
-  }
-
-  return Array.from(breakdown.entries())
-    .sort(([, left], [, right]) => right.total - left.total)
-    .map(([action, summary]) => {
-      const statusBreakdown = summary.statuses.size > 0
-        ? Array.from(summary.statuses.entries())
-          .sort((left, right) => left[0] - right[0])
-          .map(([status, count]) => `${status}:${count}`)
-          .join(', ')
-        : 'n/a';
-      return `- \`${action}\`: total=${summary.total}, response=${summary.responseFailures}, requestfailed=${summary.requestFailed}, statuses={${statusBreakdown}}`;
-    });
-};
-
 const scenarios = tests.map((testResult) => {
   let scenarioName = testResult.title;
   let timeline = [];
   let blockers = [];
   let networkFailures = [];
+  let networkSuccesses = [];
 
   const timelineAttachment = testResult.attachments.find((att) => att.name === 'qa-timeline');
   if (timelineAttachment?.path && existsSync(timelineAttachment.path)) {
@@ -186,8 +96,15 @@ const scenarios = tests.map((testResult) => {
         failure !== null &&
         typeof failure.action === 'string'
       ));
+      const successes = Array.isArray(content.successes) ? content.successes : [];
+      networkSuccesses = successes.filter((success) => (
+        typeof success === 'object' &&
+        success !== null &&
+        typeof success.action === 'string'
+      ));
     } catch {
       networkFailures = [];
+      networkSuccesses = [];
     }
   }
 
@@ -197,6 +114,7 @@ const scenarios = tests.map((testResult) => {
     timeline,
     blockers,
     networkFailures,
+    networkSuccesses,
     attachments: testResult.attachments.filter((att) => Boolean(att.path)),
     error: testResult.error,
     testFile: testResult.testFile,
@@ -206,11 +124,13 @@ const scenarios = tests.map((testResult) => {
 const allTimelineEntries = scenarios.flatMap((scenario) => scenario.timeline);
 const allBlockers = scenarios.flatMap((scenario) => scenario.blockers);
 const allNetworkFailures = scenarios.flatMap((scenario) => scenario.networkFailures);
+const allNetworkSuccesses = scenarios.flatMap((scenario) => scenario.networkSuccesses);
+const actionSuccessCounts = buildXtreamActionSuccessCounts(allNetworkSuccesses);
 const criticalNetworkFailures = allNetworkFailures.filter(
-  (failure) => classifyXtreamFailureSeverity(failure) === 'critical'
+  (failure) => classifyXtreamFailureSeverity(failure, actionSuccessCounts) === 'critical'
 );
 const nonCriticalNetworkFailures = allNetworkFailures.filter(
-  (failure) => classifyXtreamFailureSeverity(failure) === 'non-critical'
+  (failure) => classifyXtreamFailureSeverity(failure, actionSuccessCounts) === 'non-critical'
 );
 const topLevelErrors = Array.isArray(parsed.errors)
   ? parsed.errors
@@ -218,6 +138,7 @@ const topLevelErrors = Array.isArray(parsed.errors)
     .filter((message) => typeof message === 'string' && message.trim().length > 0)
   : [];
 const xtreamActionFailureBreakdown = summarizeXtreamActionFailures(allNetworkFailures);
+const xtreamActionSuccessBreakdown = summarizeXtreamActionSuccesses(allNetworkSuccesses);
 const criticalActionBreakdown = summarizeXtreamActionFailures(criticalNetworkFailures);
 const nonCriticalActionBreakdown = summarizeXtreamActionFailures(nonCriticalNetworkFailures);
 const blockedSteps = allTimelineEntries.filter((item) => item.status === 'blocked').length;
@@ -289,6 +210,10 @@ const nonCriticalActionBreakdownLines = formatActionBreakdownLines(
   nonCriticalActionBreakdown,
   'No non-critical Xtream API failures in this run.'
 );
+const actionSuccessBreakdownLines = formatSuccessBreakdownLines(
+  xtreamActionSuccessBreakdown,
+  'No successful Xtream API responses captured by action in this run.'
+);
 
 const globalBlockers = [
   ...allBlockers,
@@ -309,6 +234,7 @@ const report = [
   `- Scenarios executed: \`${scenarios.length}\``,
   `- Timeline totals: pass=${allTimelineEntries.filter((item) => item.status === 'pass').length}, blocked=${blockedSteps}, info=${allTimelineEntries.filter((item) => item.status === 'info').length}`,
   `- Xtream API failures captured: \`${allNetworkFailures.length}\``,
+  `- Xtream API successes captured: \`${allNetworkSuccesses.length}\``,
   `- Network severity totals: critical=${criticalNetworkFailures.length}, non-critical=${nonCriticalNetworkFailures.length}`,
   '',
   ...scenarioSections,
@@ -321,6 +247,9 @@ const report = [
   '',
   '## Xtream API Failure Breakdown (by action)',
   ...actionBreakdownLines,
+  '',
+  '## Xtream API Success Breakdown (by action)',
+  ...actionSuccessBreakdownLines,
   '',
   '## Global Blockers',
   ...(globalBlockers.length > 0
