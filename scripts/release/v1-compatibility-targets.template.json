@@ -4,6 +4,33 @@
   "generatedAt": "",
   "targets": [
     {
+      "id": "provider-qa-account",
+      "name": "Provider QA account",
+      "platform": "provider",
+      "device": "Xtream QA account",
+      "browser": "Playwright Chromium",
+      "matchMode": "all",
+      "requiredTags": ["provider-qa"]
+    },
+    {
+      "id": "no-media-processing-audit",
+      "name": "No media-processing audit",
+      "platform": "release",
+      "device": "Provider/browser media path",
+      "browser": "Playwright Chromium + Vitest",
+      "matchMode": "all",
+      "requiredTags": ["no-media-processing"]
+    },
+    {
+      "id": "web-gateway-vitest",
+      "name": "Web catch-up gateway unit guard",
+      "platform": "web",
+      "device": "Gateway adapter",
+      "browser": "Vitest",
+      "matchMode": "all",
+      "requiredTags": ["web-gateway"]
+    },
+    {
       "id": "desktop-chrome-windows",
       "name": "Desktop Chrome (Windows 11)",
       "platform": "desktop",

@@ -37,7 +37,30 @@ describe('compatibility-matrix-task', () => {
     expect(run.targets.length).toBeGreaterThanOrEqual(4);
     expect(run.results.length).toBeGreaterThan(13);
     expect(run.results.every((result) => result.status === 'pending')).toBe(true);
+    expect(run.targets.some((target) => target.id === 'provider-qa-account')).toBe(true);
+    expect(run.targets.some((target) => target.id === 'no-media-processing-audit')).toBe(true);
+    expect(run.targets.some((target) => target.id === 'web-gateway-vitest')).toBe(true);
     expect(run.results.some((result) => result.targetId === 'cast-chromecast')).toBe(true);
+    expect(run.results.some((result) => (
+      result.caseId === 'SMK-PROVIDER-AUTH-LIVE-CATALOG'
+      && result.targetId === 'desktop-chrome-windows'
+    ))).toBe(false);
+    expect(run.results.some((result) => (
+      result.caseId === 'REG-WEB-GATEWAY-REJECTS-REMUX'
+      && result.targetId === 'provider-qa-account'
+    ))).toBe(false);
+    expect(run.results.some((result) => (
+      result.caseId === 'REG-DESKTOP-LOCAL-PLAYER-STATE'
+      && result.targetId === 'desktop-chrome-windows'
+    ))).toBe(true);
+    expect(run.results.some((result) => (
+      result.caseId === 'REG-CAST-RENDERER-SWITCH'
+      && result.targetId === 'desktop-chrome-windows'
+    ))).toBe(false);
+    expect(run.results.some((result) => (
+      result.caseId === 'REG-AIRPLAY-RETURN-LOCAL'
+      && result.targetId === 'desktop-safari-macos'
+    ))).toBe(false);
   });
 
   it('requires --target when a case exists for multiple targets', () => {

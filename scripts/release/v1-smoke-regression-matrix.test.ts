@@ -57,6 +57,7 @@ describe('V1 smoke/regression matrix template', () => {
     expect(providerCases.some((testCase) => testCase.suite === 'smoke')).toBe(true);
     expect(providerCases.some((testCase) => testCase.suite === 'regression')).toBe(true);
     expect(providerCases.every((testCase) => testCase.releaseBlocker)).toBe(true);
+    expect(providerCases.every((testCase) => !testCase.tags.includes('desktop-browser'))).toBe(true);
   });
 
   it('requires no-media-processing coverage before release signoff', () => {
@@ -69,5 +70,30 @@ describe('V1 smoke/regression matrix template', () => {
     expect(noMediaProcessingCases.some((testCase) => testCase.suite === 'smoke')).toBe(true);
     expect(noMediaProcessingCases.some((testCase) => testCase.suite === 'regression')).toBe(true);
     expect(noMediaProcessingCases.every((testCase) => testCase.releaseBlocker)).toBe(true);
+  });
+
+  it('keeps the web gateway remux guard scoped to unit coverage, not provider account coverage', () => {
+    const template = loadTemplate();
+    const gatewayCase = template.cases.find((testCase) => testCase.id === 'REG-WEB-GATEWAY-REJECTS-REMUX');
+
+    expect(gatewayCase?.tags).toContain('web-gateway');
+    expect(gatewayCase?.tags).toContain('no-media-processing');
+    expect(gatewayCase?.tags).not.toContain('provider-qa');
+    expect(gatewayCase?.tags).not.toContain('desktop-browser');
+  });
+
+  it('keeps Cast and AirPlay target coverage separate from plain desktop browser coverage', () => {
+    const template = loadTemplate();
+    const desktopRegression = template.cases.find((testCase) => (
+      testCase.id === 'REG-DESKTOP-LOCAL-PLAYER-STATE'
+    ));
+    const castCase = template.cases.find((testCase) => testCase.id === 'REG-CAST-RENDERER-SWITCH');
+    const airplayCase = template.cases.find((testCase) => testCase.id === 'REG-AIRPLAY-RETURN-LOCAL');
+
+    expect(desktopRegression?.tags).toContain('desktop-browser');
+    expect(desktopRegression?.tags).not.toContain('cast-flow');
+    expect(desktopRegression?.tags).not.toContain('airplay-flow');
+    expect(castCase?.tags).toEqual(['cast-flow']);
+    expect(airplayCase?.tags).toEqual(['airplay-flow']);
   });
 });

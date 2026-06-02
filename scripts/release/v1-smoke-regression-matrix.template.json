@@ -21,7 +21,7 @@
       "platform": "provider",
       "device": "Xtream QA account",
       "browser": "Playwright Chromium",
-      "tags": ["provider-qa", "desktop-browser"],
+      "tags": ["provider-qa"],
       "releaseBlocker": true,
       "status": "pending",
       "evidence": ""
@@ -45,7 +45,7 @@
       "platform": "provider",
       "device": "Xtream QA account",
       "browser": "Playwright Chromium",
-      "tags": ["provider-qa", "no-media-processing", "desktop-browser"],
+      "tags": ["provider-qa", "no-media-processing"],
       "releaseBlocker": true,
       "status": "pending",
       "evidence": ""
@@ -135,13 +135,25 @@
       "evidence": ""
     },
     {
+      "id": "REG-DESKTOP-LOCAL-PLAYER-STATE",
+      "suite": "regression",
+      "title": "Desktop local player preserves playback state across player navigation",
+      "platform": "desktop",
+      "device": "Windows/macOS desktop",
+      "browser": "Chrome/Safari latest",
+      "tags": ["desktop-browser"],
+      "releaseBlocker": true,
+      "status": "pending",
+      "evidence": ""
+    },
+    {
       "id": "REG-CAST-RENDERER-SWITCH",
       "suite": "regression",
       "title": "Renderer switch local<->cast keeps timeline",
       "platform": "desktop",
       "device": "Chromecast target",
       "browser": "Chrome latest",
-      "tags": ["cast-flow", "desktop-browser"],
+      "tags": ["cast-flow"],
       "releaseBlocker": true,
       "status": "pending",
       "evidence": ""
@@ -153,7 +165,7 @@
       "platform": "desktop",
       "device": "macOS + AirPlay target",
       "browser": "Safari latest",
-      "tags": ["airplay-flow", "desktop-browser"],
+      "tags": ["airplay-flow"],
       "releaseBlocker": true,
       "status": "pending",
       "evidence": ""
@@ -201,7 +213,7 @@
       "platform": "provider",
       "device": "Xtream QA account",
       "browser": "Playwright Chromium",
-      "tags": ["provider-qa", "desktop-browser"],
+      "tags": ["provider-qa"],
       "releaseBlocker": true,
       "status": "pending",
       "evidence": ""
@@ -213,7 +225,7 @@
       "platform": "desktop",
       "device": "Web gateway adapter",
       "browser": "Vitest",
-      "tags": ["provider-qa", "no-media-processing", "desktop-browser"],
+      "tags": ["web-gateway", "no-media-processing"],
       "releaseBlocker": true,
       "status": "pending",
       "evidence": ""
