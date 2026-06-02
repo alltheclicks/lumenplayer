@@ -45,6 +45,9 @@
     "release:evidence-links:test": "vitest run scripts/release/validate-release-evidence-links.test.ts",
     "release:secret-hygiene:validate": "node scripts/release/validate-release-secret-hygiene.mjs",
     "release:secret-hygiene:test": "vitest run scripts/release/validate-release-secret-hygiene.test.ts",
+    "release:qaf035:validate": "node scripts/release/validate-qaf035-release-gates.mjs",
+    "release:qaf035:final": "node scripts/release/validate-qaf035-release-gates.mjs --require-final",
+    "release:qaf035:test": "vitest run scripts/release/validate-qaf035-release-gates.test.ts",
     "e2e:qa:simulate": "node scripts/playwright/run-qa-user-sim.mjs",
     "e2e:provider:preflight": "node scripts/playwright/run-provider-qa-preflight.mjs",
     "e2e:playback:focused": "node scripts/playwright/run-focused-playback-smoke.mjs"

@@ -52,6 +52,7 @@ const listTrackedDefaultFiles = () => {
     .filter(Boolean)
     .filter((filePath) => (
       filePath.startsWith('artifacts/release/') ||
+      filePath.startsWith('docs/release/') ||
       /^scripts\/release\/v1-.*\.template\.json$/.test(filePath) ||
       filePath === 'docs/V3-QA-FIX-BACKLOG.md' ||
       filePath === 'package.json'
