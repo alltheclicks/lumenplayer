@@ -77,6 +77,14 @@
       "notes": ""
     },
     {
+      "id": "beta-ops-signoff",
+      "name": "V1 beta observability and rollback/throttle signoff",
+      "status": "pending",
+      "evidenceRef": "artifacts/release/ops/<run-id>.json",
+      "checkedAt": "",
+      "notes": ""
+    },
+    {
       "id": "security-privacy-baseline",
       "name": "V1 security/privacy baseline review",
       "status": "pending",

@@ -1,0 +1,142 @@
+{
+  "release": "V1",
+  "templateVersion": 1,
+  "generatedAt": "2026-06-03T00:28:00Z",
+  "runOwner": "codex",
+  "target": {
+    "minConcurrentLiveUsers": 300,
+    "maxConcurrentLiveUsers": 500,
+    "rolloutModel": "Controlled beta ramp with explicit stop/throttle points before expanding to 300-500 live users."
+  },
+  "observability": {
+    "status": "pending",
+    "owner": "",
+    "alertChannel": "",
+    "dashboardRef": "",
+    "evidenceRefs": [],
+    "signals": [
+      {
+        "id": "startup-health",
+        "name": "Startup success/failure and time-to-first-frame",
+        "source": "web playback observability and provider preflight reports",
+        "slo": "Beta owner defines startup failure and startup latency thresholds before launch.",
+        "stopTrigger": "Stop enrollment if startup failures exceed the owner-approved threshold during a ramp step.",
+        "status": "pending",
+        "evidence": ""
+      },
+      {
+        "id": "playback-failure",
+        "name": "Playback errors and user problem reports",
+        "source": "playback.error, playback.problem_reported, alert.playback-error-burst",
+        "slo": "Beta owner defines playback failure threshold before launch.",
+        "stopTrigger": "Stop enrollment or roll back if playback failure burst threshold is breached.",
+        "status": "pending",
+        "evidence": ""
+      },
+      {
+        "id": "provider-errors",
+        "name": "Provider auth/catalog/live-stream errors",
+        "source": "provider preflight, QA network report, and provider HTTP status breakdown",
+        "slo": "Beta owner defines acceptable 401/403/429/5xx provider error budget before launch.",
+        "stopTrigger": "Stop enrollment if provider 429/5xx or live-stream 403/401 failures exceed owner-approved threshold.",
+        "status": "pending",
+        "evidence": ""
+      },
+      {
+        "id": "cast-airplay-failures",
+        "name": "Cast and AirPlay route failures",
+        "source": "cast.error, alert.cast-error-burst, manual device QA reports",
+        "slo": "Beta owner defines cast/airplay failure tolerance before launch.",
+        "stopTrigger": "Stop or narrow beta if Cast/AirPlay release-blocker checks fail on supported targets.",
+        "status": "pending",
+        "evidence": ""
+      },
+      {
+        "id": "no-media-processing-violation",
+        "name": "No transcode/remux/ffmpeg policy violation",
+        "source": "runtime media policy, network HAR, process checks, provider/XUI owner evidence",
+        "slo": "Zero tolerated violations: any media-processing workaround is a beta stop condition.",
+        "stopTrigger": "Immediate stop if any ffmpeg, ffprobe, transcode, remux, proxy-remuxed, remux-hls, generated HLS, or XUI-side media processing is observed.",
+        "status": "pending",
+        "evidence": ""
+      }
+    ],
+    "notes": "Partial ops signoff evidence only. Final beta readiness still needs named observability owner, alert channel, dashboard evidence, SLO thresholds, and response ownership."
+  },
+  "rollbackThrottle": {
+    "status": "pending",
+    "owner": "",
+    "notificationChannel": "",
+    "decisionAuthority": "",
+    "maxDecisionMinutes": 30,
+    "triggers": [
+      "Provider overload, 429/5xx escalation, auth failure, live-stream 403/401 escalation, startup SLO breach, playback failure burst, Cast/AirPlay release-blocker regression, PWA install/offline release-blocker regression, or any ffmpeg/ffprobe/transcode/remux/proxy-remuxed/remux-hls/generated HLS/xui-side media processing violation."
+    ],
+    "throttleSteps": [
+      "Stop new beta enrollment immediately after a stop trigger is confirmed.",
+      "Keep existing users at the current cohort size until owner decision.",
+      "Reduce or pause the cohort before adding additional users if provider or playback SLOs remain out of threshold."
+    ],
+    "rollbackSteps": [
+      "Switch release recommendation to no-go.",
+      "Revert or redeploy the last known good build if Lumen introduced the regression.",
+      "Keep catch-up failures on provider-direct/proxy-normalized playback or unsupported overlay; do not enable transcode/remux workaround.",
+      "Re-run provider preflight, manual-device QA affected slices, runtime media policy validation, and no-media-processing audit before resuming enrollment."
+    ],
+    "verificationChecks": [
+      "Provider auth/live catalog preflight passes.",
+      "Runtime media policy validates and no forbidden media-processing processes are observed.",
+      "Affected manual-device QA targets have no release-blocker failures.",
+      "Capacity and readiness artifacts remain non-final until owner evidence is updated."
+    ],
+    "notes": "Partial rollback/throttle plan only. Final beta readiness still needs named owner, notification channel, and decision authority."
+  },
+  "checks": [
+    {
+      "id": "observability-slo-owner",
+      "description": "Named owner approves beta SLOs for startup, playback, provider errors, cast/airplay, and no-media-processing violations.",
+      "status": "pending",
+      "owner": "",
+      "evidence": "",
+      "notes": ""
+    },
+    {
+      "id": "alert-route-ready",
+      "description": "Alert channel, dashboard, and response path are defined before beta enrollment.",
+      "status": "pending",
+      "owner": "",
+      "evidence": "",
+      "notes": ""
+    },
+    {
+      "id": "rollback-owner-ready",
+      "description": "Rollback owner and decision authority are named with a maximum decision time.",
+      "status": "pending",
+      "owner": "",
+      "evidence": "",
+      "notes": ""
+    },
+    {
+      "id": "enrollment-throttle-ready",
+      "description": "Enrollment throttle path is approved for provider overload, playback regressions, or capacity breach.",
+      "status": "pending",
+      "owner": "",
+      "evidence": "",
+      "notes": ""
+    },
+    {
+      "id": "no-media-processing-stop-trigger",
+      "description": "Any local ffmpeg, server-side transcode/remux, generated HLS, proxy-remuxed/remux-hls, or XUI-side media processing is a beta stop trigger.",
+      "status": "pending",
+      "owner": "",
+      "evidence": "",
+      "notes": ""
+    }
+  ],
+  "signoff": {
+    "status": "pending",
+    "approvedBy": "",
+    "approvedAt": "",
+    "notes": "Partial beta ops signoff only. This artifact must fail --require-final until owners, alert route, rollback/throttle decision path, SLO evidence, and final approval are recorded."
+  }
+}

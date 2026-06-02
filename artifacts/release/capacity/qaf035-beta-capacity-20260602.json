@@ -48,16 +48,16 @@
       "description": "Beta launch has monitored startup, playback failure, provider error, and no-media-processing signals with named owner response.",
       "status": "pending",
       "owner": "",
-      "evidence": "",
-      "notes": "Needs named owner, alert route, and beta SLO response evidence before final signoff."
+      "evidence": "artifacts/release/ops/qaf035-beta-ops-signoff-20260603.json",
+      "notes": "Structured ops signoff artifact now defines the required startup/playback/provider/cast/no-media-processing signals, but still needs named owner, alert route, dashboard, thresholds, and beta SLO response evidence before final signoff."
     },
     {
       "id": "rollback-throttle-plan",
       "description": "Rollback or enrollment throttle plan is approved for provider overload, playback regressions, or capacity breach.",
       "status": "pending",
       "owner": "",
-      "evidence": "",
-      "notes": "Needs approved rollback/throttle owner and decision path for provider overload or playback regression during beta."
+      "evidence": "artifacts/release/ops/qaf035-beta-ops-signoff-20260603.json",
+      "notes": "Structured ops signoff artifact now defines stop/throttle/rollback steps and the no-media-processing stop trigger, but still needs approved rollback/throttle owner, notification route, and decision authority before beta."
     }
   ],
   "signoff": {

@@ -77,6 +77,14 @@
       "notes": "Unit coverage exists, but beta launch alert routing, owner response, and SLO signoff remain pending."
     },
     {
+      "id": "beta-ops-signoff",
+      "name": "V1 beta observability and rollback/throttle signoff",
+      "status": "pending",
+      "evidenceRef": "artifacts/release/ops/qaf035-beta-ops-signoff-20260603.json",
+      "checkedAt": "2026-06-03T00:28:00Z",
+      "notes": "Partial ops signoff artifact validates non-final. Observability owner, alert channel, dashboard, SLO thresholds, rollback/throttle owner, notification route, decision authority, and final approval remain pending."
+    },
+    {
       "id": "security-privacy-baseline",
       "name": "V1 security/privacy baseline review",
       "status": "pending",

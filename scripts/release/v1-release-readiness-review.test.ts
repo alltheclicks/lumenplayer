@@ -100,6 +100,7 @@ describe('V1 final release readiness review template', () => {
       'beta-capacity-evidence',
       'runtime-media-policy',
       'observability-baseline',
+      'beta-ops-signoff',
       'security-privacy-baseline',
     ];
 
@@ -123,6 +124,9 @@ describe('V1 final release readiness review template', () => {
     );
     expect(gatesById.get('manual-device-qa-evidence')?.evidenceRef).toBe(
       'artifacts/release/manual-device-qa/<run-id>.json',
+    );
+    expect(gatesById.get('beta-ops-signoff')?.evidenceRef).toBe(
+      'artifacts/release/ops/<run-id>.json',
     );
   });
 

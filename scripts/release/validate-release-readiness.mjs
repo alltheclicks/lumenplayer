@@ -15,6 +15,7 @@ const requiredGateIds = new Set([
   'beta-capacity-evidence',
   'runtime-media-policy',
   'observability-baseline',
+  'beta-ops-signoff',
   'security-privacy-baseline',
 ]);
 
