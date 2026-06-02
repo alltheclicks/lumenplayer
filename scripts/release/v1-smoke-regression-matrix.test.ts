@@ -58,4 +58,16 @@ describe('V1 smoke/regression matrix template', () => {
     expect(providerCases.some((testCase) => testCase.suite === 'regression')).toBe(true);
     expect(providerCases.every((testCase) => testCase.releaseBlocker)).toBe(true);
   });
+
+  it('requires no-media-processing coverage before release signoff', () => {
+    const template = loadTemplate();
+    const noMediaProcessingCases = template.cases.filter((testCase) => (
+      testCase.tags.includes('no-media-processing')
+    ));
+
+    expect(template.requiredCoverageTags).toContain('no-media-processing');
+    expect(noMediaProcessingCases.some((testCase) => testCase.suite === 'smoke')).toBe(true);
+    expect(noMediaProcessingCases.some((testCase) => testCase.suite === 'regression')).toBe(true);
+    expect(noMediaProcessingCases.every((testCase) => testCase.releaseBlocker)).toBe(true);
+  });
 });

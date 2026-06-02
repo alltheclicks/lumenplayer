@@ -584,6 +584,7 @@ Fresh manual/provider testing on the partner MediaKing/Xtream stack changed the 
 1. `proxy-remuxed` is not the production path for the partner launch.
    - No transcode, remux, or generated server-side HLS should be used for the browser player.
    - The current path stays on the provider tokenized `/streaming/timeshift.php?token=...` HLS chain.
+   - As of 2026-06-02, the web catch-up gateway adapter also rejects `proxy-remuxed` resolve responses, so beta/prod web playback cannot silently switch to local ffmpeg/remux/transcode when a provider archive fails.
 2. MediaKing/CastCDN catch-up start time is provider-local.
    - Lumen now suppresses UTC fallback for this provider family, including when reached through `/xui-api/<encoded target>`.
    - This prevents Nova S-style mistakes where a `21:30` Europe/Belgrade EPG click can fall back to a `19:30` archive.
@@ -604,16 +605,21 @@ Current source of truth for the production web catch-up continuation:
 1. Preserve and continue PR #224 before any branch/worktree cleanup.
    - Worktree: `/Users/filip/Documents/Lumen-Player-qaf035-production`
    - Branch: `codex/qaf-035-production-web-catchup`
-   - Latest pushed head: `59e420e`
    - PR state: draft, merge state `CLEAN`, GitHub `automation-scripts` and `web-quality` checks green.
 2. The old QA tooling blocker is no longer the active diagnosis.
    - The earlier post-batch `Requiring @playwright/test second time` loader-conflict note is superseded for this PR.
-   - QA user simulation now reaches setup and reports the current provider-auth blocker directly.
-   - Focused playback smoke now preflights Xtream auth before starting browser work and fails fast with `auth_0` when the stored QA provider account is rejected.
-3. Current live/browser validation blocker:
-   - Stored QA provider credentials return `user_info.auth = 0`.
-   - Until a valid QA provider account is available, real browser playback and QA simulation cannot prove beta readiness for live/catch-up flows.
-4. Release matrix guard added for beta readiness:
+   - QA user simulation now reaches setup and reports provider/network evidence directly.
+   - Focused playback smoke now preflights Xtream auth before starting browser work and fails fast if the QA account is rejected.
+3. Current live/browser validation state after valid provider credentials were supplied locally:
+   - `pnpm e2e:provider:preflight` passes from env-backed credentials: auth OK, HTTP 200, live catalog HTTP 200, 307 live items.
+   - `pnpm e2e:qa:simulate` passes with warnings: 2 scenarios, 0 unexpected/flaky/errors, no global blockers, critical network failures 0, non-critical 429 series catalog retries only.
+   - `E2E_CPU_GUARD=false pnpm e2e:playback:focused` passes: 7 focused playback scenarios, 0 failures. The normal CPU-guarded run is still not an idle-machine performance proof when local desktop CPU is above the 180% guard.
+   - Manual browser network audit passes on real local `/player` flow: PINK live plays, 9 catch-up programs are visible, first catch-up attempt remains playing at `currentTime=75`, and captured Network/CDP events have 0 `__remux__`, `remux-hls`, `ffmpeg`, `ffprobe`, `transcode`, or `proxy-remuxed` hits.
+4. Remaining beta-readiness work is no longer blocked on provider auth, but still needs signoff evidence outside this local provider/browser slice:
+   - 300-500 user capacity plan/evidence.
+   - Full target matrix evidence for desktop/mobile browser, Cast, AirPlay, PWA install/offline, and rollback/owner signoff.
+5. Release matrix guard added for beta readiness:
    - `scripts/release/v1-smoke-regression-matrix.template.json` now requires `provider-qa` coverage.
    - `SMK-PROVIDER-AUTH-LIVE-CATALOG` and `REG-PROVIDER-FOCUSED-PLAYBACK` are release-blocking cases.
    - Future beta/release signoff must include valid provider auth/live-catalog and focused playback evidence, not only local unit/build gates.
+   - `no-media-processing` coverage is now required too: catch-up beta signoff must prove provider/browser playback or a clear unsupported overlay without ffmpeg, remux, transcode, generated HLS, or XUI-side media processing.

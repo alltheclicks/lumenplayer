@@ -106,6 +106,52 @@ describe('resolveCatchUpGatewayPlayback', () => {
         channelId: 'channel-1',
         programId: 'program-1',
         assetKey: 'asset-1',
+        transportMode: 'proxy-normalized',
+        playbackUrl: 'http://127.0.0.1:8080/xui-api/http%3A%2F%2Fsmart.mediaking.fi%3A8080/streaming/timeshift.php?token=abc&__lumenTransport=normalized',
+        assetState: 'ready',
+        fallbackReason: 'gateway-normalized',
+        hotStart: false,
+      }),
+    });
+
+    const result = await resolveCatchUpGatewayPlayback({
+      channel: {
+        id: 'channel-1',
+        hasCatchUp: true,
+        catchUpDays: 7,
+      },
+      program: {
+        id: 'program-1',
+      },
+      streamId: 112,
+      startTimestamp: 1_772_000_000,
+      durationSeconds: 1800,
+      sourceCandidates: {
+        redirectUrls: ['http://edge6.castcdn.net:8080/timeshift_hls/user/pass/1800/2026-03-08:08-30/112.m3u8'],
+        queryUrls: [],
+        legacyUrls: ['http://smart.mediaking.fi:8080/timeshift/user/pass/1800/2026-03-08:08-30/112.ts'],
+      },
+      gatewayOptions: {
+        origin: 'http://localhost:8788',
+        fetchImpl: fetchImpl as typeof fetch,
+      },
+    });
+
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(result?.transportMode).toBe('proxy-normalized');
+    expect(result?.playbackUrl).toBe(
+      'http://localhost:8788/xui-api/http%3A%2F%2Fsmart.mediaking.fi%3A8080/streaming/timeshift.php?token=abc&__lumenTransport=normalized',
+    );
+  });
+
+  it('rejects proxy-remuxed playback responses for the web beta path', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        serverId: 'server-1',
+        channelId: 'channel-1',
+        programId: 'program-1',
+        assetKey: 'asset-1',
         transportMode: 'proxy-remuxed',
         playbackUrl: 'http://127.0.0.1:8080/xui-api/http%3A%2F%2Fsmart.mediaking.fi%3A8080/timeshift/user/pass/1800/2026-03-08:08-30/112.ts?__lumenTransport=remux-hls',
         assetState: 'ready',
@@ -138,9 +184,6 @@ describe('resolveCatchUpGatewayPlayback', () => {
     });
 
     expect(fetchImpl).toHaveBeenCalledTimes(1);
-    expect(result?.transportMode).toBe('proxy-remuxed');
-    expect(result?.playbackUrl).toBe(
-      'http://localhost:8788/xui-api/http%3A%2F%2Fsmart.mediaking.fi%3A8080/timeshift/user/pass/1800/2026-03-08:08-30/112.ts?__lumenTransport=remux-hls',
-    );
+    expect(result).toBeNull();
   });
 });

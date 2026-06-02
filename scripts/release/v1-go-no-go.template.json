@@ -39,6 +39,12 @@
           "description": "Provider-backed focused live/catch-up browser playback smoke passes with redacted evidence.",
           "status": "pending",
           "evidence": ""
+        },
+        {
+          "id": "catchup-no-transcode-remux",
+          "description": "Catch-up beta evidence proves broken provider archives are not solved with ffmpeg, transcode, remux, generated HLS, or XUI-side media processing.",
+          "status": "pending",
+          "evidence": ""
         }
       ]
     },
@@ -128,7 +134,7 @@
         },
         {
           "id": "beta-capacity-300-500",
-          "description": "300-500 live-user beta capacity plan is approved, including evidence that the production media path does not rely on unbounded server-side transcode/remux.",
+          "description": "300-500 live-user beta capacity plan is approved, including evidence that the production media path does not rely on server-side media processing.",
           "status": "pending",
           "evidence": ""
         }

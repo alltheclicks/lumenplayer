@@ -13,6 +13,7 @@ const defaultRequiredTags = [
   'pwa-install',
   'pwa-offline',
   'provider-qa',
+  'no-media-processing',
 ];
 
 const usage = () => {

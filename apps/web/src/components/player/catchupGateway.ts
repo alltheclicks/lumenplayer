@@ -189,6 +189,13 @@ const isCatchUpGatewayAssetState = (value: unknown): value is CatchUpGatewayAsse
   value === 'failed'
 );
 
+const isAllowedWebCatchUpGatewayTransportMode = (
+  value: CatchUpGatewayTransportMode,
+): value is Exclude<CatchUpGatewayTransportMode, 'proxy-remuxed'> => (
+  value === 'provider-direct' ||
+  value === 'proxy-normalized'
+);
+
 const isCatchUpGatewayResolveResponse = (
   value: unknown,
 ): value is CatchUpGatewayResolveResponse => {
@@ -282,6 +289,10 @@ export const resolveCatchUpGatewayPlayback = async ({
     }
 
     if (payload.assetState === 'failed' || payload.playbackUrl.trim().length === 0) {
+      return null;
+    }
+
+    if (!isAllowedWebCatchUpGatewayTransportMode(payload.transportMode)) {
       return null;
     }
 

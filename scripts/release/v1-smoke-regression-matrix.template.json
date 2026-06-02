@@ -10,7 +10,8 @@
     "airplay-flow",
     "pwa-install",
     "pwa-offline",
-    "provider-qa"
+    "provider-qa",
+    "no-media-processing"
   ],
   "cases": [
     {
@@ -33,6 +34,18 @@
       "device": "Windows/macOS desktop",
       "browser": "Chrome latest",
       "tags": ["desktop-browser"],
+      "releaseBlocker": true,
+      "status": "pending",
+      "evidence": ""
+    },
+    {
+      "id": "SMK-PROVIDER-CATCHUP-NO-MEDIA-PROCESSING",
+      "suite": "smoke",
+      "title": "Provider catch-up path does not use transcode, remux, generated HLS, or ffmpeg",
+      "platform": "provider",
+      "device": "Xtream QA account",
+      "browser": "Playwright Chromium",
+      "tags": ["provider-qa", "no-media-processing", "desktop-browser"],
       "releaseBlocker": true,
       "status": "pending",
       "evidence": ""
@@ -189,6 +202,18 @@
       "device": "Xtream QA account",
       "browser": "Playwright Chromium",
       "tags": ["provider-qa", "desktop-browser"],
+      "releaseBlocker": true,
+      "status": "pending",
+      "evidence": ""
+    },
+    {
+      "id": "REG-WEB-GATEWAY-REJECTS-REMUX",
+      "suite": "regression",
+      "title": "Web catch-up gateway rejects remuxed playback responses",
+      "platform": "desktop",
+      "device": "Web gateway adapter",
+      "browser": "Vitest",
+      "tags": ["provider-qa", "no-media-processing", "desktop-browser"],
       "releaseBlocker": true,
       "status": "pending",
       "evidence": ""

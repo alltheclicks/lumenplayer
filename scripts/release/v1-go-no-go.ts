@@ -78,6 +78,13 @@ export const V1_GO_NO_GO_FEATURE_AREAS: GoNoGoFeatureAreaDefinition[] = [
         failCondition: 'Focused provider playback is blocked, only local/unit evidence exists, or evidence leaks credentials.',
         required: true,
       },
+      {
+        id: 'content-catchup-no-transcode-remux',
+        title: 'Catch-up beta path does not use ffmpeg, transcode, remux, generated HLS, or XUI-side media processing.',
+        passCondition: 'Provider/catch-up evidence shows browser playback uses provider media bytes, normalized manifests, or a clear unsupported overlay without local or upstream media processing.',
+        failCondition: 'Broken catch-up channels are made to pass through ffmpeg, server-side transcode/remux, generated HLS, or unproven XUI-side media processing.',
+        required: true,
+      },
     ],
   },
   {
@@ -188,8 +195,8 @@ export const V1_GO_NO_GO_FEATURE_AREAS: GoNoGoFeatureAreaDefinition[] = [
       },
       {
         id: 'perf-beta-capacity-300-500',
-        title: 'Beta capacity plan supports 300-500 live users without unbounded server-side media processing.',
-        passCondition: 'Release sign-off includes capacity evidence or an approved plan showing the production media path does not rely on unbounded transcode/remux.',
+        title: 'Beta capacity plan supports 300-500 live users without server-side media processing.',
+        passCondition: 'Release sign-off includes capacity evidence or an approved plan showing the production media path does not rely on transcode/remux media processing.',
         failCondition: '300-500-user beta would depend on unproven server CPU media processing or lacks an owner-approved capacity plan.',
         required: true,
       },

@@ -58,8 +58,56 @@ describe('resolveCatchUpPlaybackSource', () => {
         channelId: 'channel-1',
         programId: 'program-1',
         assetKey: 'asset-1',
+        transportMode: 'proxy-normalized',
+        playbackUrl: 'http://localhost:8788/xui-api/https%3A%2F%2Fedge.example/streaming/timeshift.php?token=abc&__lumenTransport=normalized',
+        assetState: 'ready',
+        fallbackReason: 'gateway-normalized',
+        hotStart: false,
+      }),
+    });
+
+    const result = await resolveCatchUpPlaybackSource({
+      channel: {
+        id: 'channel-1',
+        name: 'Channel 1',
+        streamId: 112,
+        source: 'xtream',
+        catchUpDays: 7,
+        hasCatchUp: true,
+      },
+      program: {
+        id: 'program-1',
+        title: 'Program 1',
+        startTime: new Date('2026-03-06T10:00:00Z'),
+        endTime: new Date('2026-03-06T10:30:00Z'),
+      },
+      urlBuilder: createUrlBuilder(),
+      gatewayOptions: {
+        enabled: true,
+        debugOverride: true,
+        origin: 'http://localhost:8788',
+        fetchImpl: fetchImpl as typeof fetch,
+      },
+      shadowValidation: false,
+    });
+
+    expect(result.source.url).toContain('__lumenTransport=normalized');
+    expect((result.source.metadata as Record<string, unknown>).gateway).toMatchObject({
+      transportMode: 'proxy-normalized',
+      assetKey: 'asset-1',
+    });
+  });
+
+  it('does not use gateway remux playback when gateway returns a remuxed response', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        serverId: 'server-1',
+        channelId: 'channel-1',
+        programId: 'program-1',
+        assetKey: 'asset-1',
         transportMode: 'proxy-remuxed',
-        playbackUrl: 'http://localhost:8788/xui-api/https%3A%2F%2Fedge.example/streaming/timeshift.php?token=abc&__lumenTransport=remux-hls',
+        playbackUrl: 'http://localhost:8788/xui-api/https%3A%2F%2Fedge.example/timeshift/user/pass/1800/2026-03-08:08-30/112.ts?__lumenTransport=remux-hls',
         assetState: 'ready',
         fallbackReason: 'gateway-remux',
         hotStart: false,
@@ -91,11 +139,9 @@ describe('resolveCatchUpPlaybackSource', () => {
       shadowValidation: false,
     });
 
-    expect(result.source.url).toContain('__lumenTransport=remux-hls');
-    expect((result.source.metadata as Record<string, unknown>).gateway).toMatchObject({
-      transportMode: 'proxy-remuxed',
-      assetKey: 'asset-1',
-    });
+    expect(result.source.url).not.toContain('__lumenTransport=remux-hls');
+    expect(result.source.url.startsWith('https://login.example/')).toBe(true);
+    expect((result.source.metadata as Record<string, unknown>).gateway).toBeNull();
   });
 
   it('falls back to local transport plan when gateway resolve fails', async () => {

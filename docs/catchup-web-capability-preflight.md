@@ -8,6 +8,13 @@ This feature does not transcode, remux, generate HLS, or build any server-side p
 
 ## Transport Selection
 
+The beta/prod web path accepts only provider media bytes:
+
+- `provider-direct`
+- `proxy-normalized`
+
+It rejects `proxy-remuxed` gateway playback responses. Experimental proxy remux code may still exist in the monorepo for historical validation, but it is not an accepted web playback mode for partner beta or release signoff.
+
 For the current MediaKing/Xtream provider, web catch-up must start from the provider query endpoint:
 
 `/streaming/timeshift.php?username=...&password=...&stream=...&start=YYYY-MM-DD:HH-MM&duration=...&extension=m3u8`

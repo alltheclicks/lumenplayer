@@ -52,13 +52,14 @@ describe('V1 go/no-go checklist definition', () => {
     }
   });
 
-  it('requires provider QA and beta capacity checks in release criteria', () => {
+  it('requires provider QA, no-media-processing, and beta capacity checks in release criteria', () => {
     const criteriaIds = V1_GO_NO_GO_FEATURE_AREAS
       .flatMap((area) => area.criteria)
       .map((criterion) => criterion.id);
 
     expect(criteriaIds).toContain('content-provider-auth-live-catalog');
     expect(criteriaIds).toContain('content-provider-focused-playback');
+    expect(criteriaIds).toContain('content-catchup-no-transcode-remux');
     expect(criteriaIds).toContain('perf-beta-capacity-300-500');
 
     const templateCheckIds = loadJsonTemplate()
@@ -68,6 +69,7 @@ describe('V1 go/no-go checklist definition', () => {
 
     expect(templateCheckIds).toContain('provider-auth-live-catalog');
     expect(templateCheckIds).toContain('provider-focused-playback');
+    expect(templateCheckIds).toContain('catchup-no-transcode-remux');
     expect(templateCheckIds).toContain('beta-capacity-300-500');
   });
 
