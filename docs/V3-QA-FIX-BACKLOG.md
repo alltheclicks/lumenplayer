@@ -616,10 +616,11 @@ Current source of truth for the production web catch-up continuation:
    - `E2E_CPU_GUARD=false pnpm e2e:playback:focused` passes: 7 focused playback scenarios, 0 failures. The normal CPU-guarded run is still not an idle-machine performance proof when local desktop CPU is above the 180% guard.
    - Manual browser network audit passes on real local `/player` flow: PINK live plays, 9 catch-up programs are visible, first catch-up attempt remains playing at `currentTime=75`, and captured Network/CDP events have 0 `__remux__`, `remux-hls`, `ffmpeg`, `ffprobe`, `transcode`, or `proxy-remuxed` hits.
 4. Remaining beta-readiness work is no longer blocked on provider auth, but still needs signoff evidence outside this local provider/browser slice:
-   - 300-500 user capacity plan/evidence.
+   - 300-500 user capacity plan/evidence via `scripts/release/v1-beta-capacity-evidence.template.json`.
    - Full target matrix evidence for desktop/mobile browser, Cast, AirPlay, PWA install/offline, and rollback/owner signoff.
 5. Release matrix guard added for beta readiness:
    - `scripts/release/v1-smoke-regression-matrix.template.json` now requires `provider-qa` coverage.
    - `SMK-PROVIDER-AUTH-LIVE-CATALOG` and `REG-PROVIDER-FOCUSED-PLAYBACK` are release-blocking cases.
    - Future beta/release signoff must include valid provider auth/live-catalog and focused playback evidence, not only local unit/build gates.
    - `no-media-processing` coverage is now required too: catch-up beta signoff must prove provider/browser playback or a clear unsupported overlay without ffmpeg, remux, transcode, generated HLS, or XUI-side media processing.
+   - `scripts/release/validate-beta-capacity-evidence.mjs` now gates the 300-500 user beta capacity artifact and explicitly requires `usesLocalFfmpeg=false`, `usesServerSideTranscode=false`, `usesServerSideRemux=false`, `usesGeneratedHls=false`, and `usesXuiSideTranscode=false`.

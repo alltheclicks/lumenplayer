@@ -95,6 +95,7 @@ describe('V1 final release readiness review template', () => {
       'compatibility-matrix',
       'design-parity-evidence',
       'performance-evidence',
+      'beta-capacity-evidence',
       'observability-baseline',
       'security-privacy-baseline',
     ];

@@ -11,6 +11,7 @@ const requiredGateIds = new Set([
   'compatibility-matrix',
   'design-parity-evidence',
   'performance-evidence',
+  'beta-capacity-evidence',
   'observability-baseline',
   'security-privacy-baseline',
 ]);

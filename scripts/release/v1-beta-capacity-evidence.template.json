@@ -1,0 +1,69 @@
+{
+  "release": "V1",
+  "templateVersion": 1,
+  "generatedAt": "",
+  "runOwner": "",
+  "target": {
+    "minConcurrentLiveUsers": 300,
+    "maxConcurrentLiveUsers": 500,
+    "trafficModel": "Live TV beta cohort with normal channel zapping and catch-up attempts kept on provider media bytes."
+  },
+  "mediaPath": {
+    "allowedTransportModes": ["provider-direct", "proxy-normalized"],
+    "disallowedTransportModes": ["proxy-remuxed", "remux-hls"],
+    "usesLocalFfmpeg": false,
+    "usesServerSideTranscode": false,
+    "usesServerSideRemux": false,
+    "usesGeneratedHls": false,
+    "usesXuiSideTranscode": false,
+    "evidence": ""
+  },
+  "checks": [
+    {
+      "id": "provider-capacity-owner",
+      "description": "Provider/XUI owner confirms the QA/beta account and upstream service can support the planned 300-500 live-user beta without adding XUI-side transcode/remux.",
+      "status": "pending",
+      "owner": "",
+      "evidence": "",
+      "notes": ""
+    },
+    {
+      "id": "lumen-edge-capacity",
+      "description": "Lumen web/proxy path capacity is sized for the beta cohort and does not perform per-user media processing.",
+      "status": "pending",
+      "owner": "",
+      "evidence": "",
+      "notes": ""
+    },
+    {
+      "id": "no-media-processing-verification",
+      "description": "Browser/network/process evidence shows catch-up failures are handled with provider bytes, normalized manifests, or unsupported overlays, not ffmpeg/remux/transcode/generated HLS.",
+      "status": "pending",
+      "owner": "",
+      "evidence": "",
+      "notes": ""
+    },
+    {
+      "id": "observability-slo",
+      "description": "Beta launch has monitored startup, playback failure, provider error, and no-media-processing signals with named owner response.",
+      "status": "pending",
+      "owner": "",
+      "evidence": "",
+      "notes": ""
+    },
+    {
+      "id": "rollback-throttle-plan",
+      "description": "Rollback or enrollment throttle plan is approved for provider overload, playback regressions, or capacity breach.",
+      "status": "pending",
+      "owner": "",
+      "evidence": "",
+      "notes": ""
+    }
+  ],
+  "signoff": {
+    "status": "pending",
+    "approvedBy": "",
+    "approvedAt": "",
+    "notes": ""
+  }
+}

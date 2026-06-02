@@ -45,6 +45,14 @@
       "notes": ""
     },
     {
+      "id": "beta-capacity-evidence",
+      "name": "V1 300-500 user beta capacity evidence",
+      "status": "pending",
+      "evidenceRef": "scripts/release/v1-beta-capacity-evidence.template.json",
+      "checkedAt": "",
+      "notes": ""
+    },
+    {
       "id": "observability-baseline",
       "name": "V1 production observability baseline",
       "status": "pending",
