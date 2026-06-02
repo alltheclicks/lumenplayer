@@ -629,6 +629,7 @@ Current source of truth for the production web catch-up continuation:
    - `scripts/release/v1-manual-device-qa.template.json` and `scripts/release/validate-manual-device-qa.mjs` now define the exact real-device/manual QA evidence required for Windows Chrome, macOS Safari, Android Chrome, iOS Safari, Chromecast, AirPlay/Apple TV, and PWA install/offline.
    - `scripts/release/v1-beta-ops-signoff.template.json` and `scripts/release/validate-beta-ops-signoff.mjs` now define the beta observability SLO, alert-route, rollback/throttle owner, enrollment stop, and no-media-processing stop-trigger evidence required before 300-500 live-user beta signoff.
    - `scripts/release/v1-provider-owner-signoff.template.json` and `scripts/release/validate-provider-owner-signoff.mjs` now define the provider/XUI owner evidence required for 300-500 user capacity, rate-limit/escalation contact, and explicit no XUI-side transcode/remux/generated-HLS commitment.
+   - `scripts/release/validate-release-evidence-links.mjs` now audits the concrete QAF readiness rollup: every `evidenceRef` must exist, linked artifacts must pass their own non-final validators, and current-QAF mode must keep final readiness blocked while open blockers remain.
    - Partial compatibility run artifact: `artifacts/release/compatibility/qaf035-provider-local-20260602.json`.
      - Current status: `in-progress`, 8 pass, 21 pending, 0 fail.
      - Completed target slices: `provider-qa-account`, `no-media-processing-audit`, `web-gateway-vitest`, and `desktop-chromium-local`.
@@ -649,6 +650,7 @@ Current source of truth for the production web catch-up continuation:
      - It explicitly treats local ffmpeg, server-side transcode/remux, generated HLS, proxy-remuxed/remux-hls, and XUI-side media processing as beta stop triggers.
    - Partial release-readiness rollup artifact: `artifacts/release/readiness/qaf035-release-readiness-20260602.json`.
      - It links current compatibility, capacity, provider owner, runtime media policy, manual-device, and beta ops artifacts, records open blockers for capacity owner, target devices, and beta ops signoff, and keeps final signoff pending.
+     - `pnpm release:evidence-links:validate` is the current rollup audit command; it is expected to pass only while all concrete evidence refs validate and the known open blockers remain explicit.
      - `--require-final` validation is expected to fail until every gate is non-pending, blockers are closed/mitigated, rollback owner/channel are set, and final approval is recorded.
    - Partial runtime media policy artifact: `artifacts/release/media-policy/qaf035-runtime-media-policy-20260602.json`.
      - Web gateway, proxy default no-remux, committed env, and local process checks pass for the no-transcode/no-remux policy.
