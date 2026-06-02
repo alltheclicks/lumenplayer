@@ -1,7 +1,7 @@
 {
   "runId": "qaf035-provider-local-20260602",
   "createdAt": "2026-06-02T21:14:50.724Z",
-  "updatedAt": "2026-06-02T21:24:41.164Z",
+  "updatedAt": "2026-06-02T21:38:38.515Z",
   "operator": "codex",
   "matrixSource": "scripts/release/v1-smoke-regression-matrix.template.json",
   "targetsSource": "scripts/release/v1-compatibility-targets.template.json",
@@ -149,8 +149,8 @@
       ],
       "status": "pass",
       "evidence": "output/playwright/provider-qa-preflight/REPORT.md",
-      "notes": "Fresh provider preflight: auth HTTP 200, live catalog HTTP 200, 307 live items.",
-      "executedAt": "2026-06-02T21:15:03.103Z",
+      "notes": "Fresh provider preflight after proxy default no-remux guard: auth HTTP 200, live catalog HTTP 200, 307 live items.",
+      "executedAt": "2026-06-02T21:38:38.435Z",
       "executor": "codex"
     },
     {
@@ -200,8 +200,8 @@
       ],
       "status": "pass",
       "evidence": "output/playwright/focused-playback-smoke/REPORT.md",
-      "notes": "Fresh focused playback smoke passed 7 scenarios with bundled Chromium headless and 0 failures; CPU guard was disabled only for local desktop noise control.",
-      "executedAt": "2026-06-02T21:15:22.980Z",
+      "notes": "Fresh focused playback smoke after proxy default no-remux guard passed 7 scenarios with bundled Chromium headless and 0 failures; CPU guard was disabled only for local desktop noise control.",
+      "executedAt": "2026-06-02T21:38:38.476Z",
       "executor": "codex"
     },
     {
@@ -305,8 +305,8 @@
       ],
       "status": "pass",
       "evidence": "output/playwright/focused-playback-smoke/REPORT.md",
-      "notes": "Fresh local Playwright bundled Chromium run passed focused live/rapid-zap playback scenarios with 0 failures. This proves local Chromium only, not Windows Chrome or Safari.",
-      "executedAt": "2026-06-02T21:15:51.029Z",
+      "notes": "Fresh local Playwright bundled Chromium run after proxy default no-remux guard passed focused live/rapid-zap playback scenarios with 0 failures. This proves local Chromium only, not Windows Chrome or Safari.",
+      "executedAt": "2026-06-02T21:38:38.514Z",
       "executor": "codex"
     },
     {

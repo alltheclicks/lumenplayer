@@ -63,6 +63,10 @@ const createStubRemuxController = (
   ...overrides,
 });
 
+const REMUX_ALLOWED_ENV = {
+  LUMEN_CATCHUP_GATEWAY_ALLOWED_MODES: "provider-direct,proxy-normalized,proxy-remuxed",
+};
+
 describe("createCatchUpGateway", () => {
   it("returns a stable cached normalized response on repeated resolve", async () => {
     const logger = createLogger();
@@ -88,7 +92,29 @@ describe("createCatchUpGateway", () => {
     expect(first.playbackUrl).toContain("__lumenTransport=normalized");
   });
 
-  it("chooses the raw redirect .ts candidate for remux mode and bootstraps it before resolve", async () => {
+  it("does not use remux by default even when the remux feature gate matches", async () => {
+    const logger = createLogger();
+    const prepareSession = vi.fn();
+    const gateway = createCatchUpGateway({
+      logger,
+      remuxController: createStubRemuxController({
+        matchesFeatureGate: () => true,
+        prepareSession,
+      }),
+    });
+
+    const result = await gateway.resolve({
+      request: createRequest(),
+      requestBaseUrl: "http://localhost:8788/catchup-gateway/resolve",
+    });
+
+    expect(result.transportMode).toBe("proxy-normalized");
+    expect(result.playbackUrl).toContain("__lumenTransport=normalized");
+    expect(result.playbackUrl).not.toContain("__lumenTransport=remux-hls");
+    expect(prepareSession).not.toHaveBeenCalled();
+  });
+
+  it("chooses the raw redirect .ts candidate for explicitly allowed remux mode and bootstraps it before resolve", async () => {
     const logger = createLogger();
     const prepareSession = vi.fn().mockResolvedValue({
       sessionId: "session-1",
@@ -110,6 +136,7 @@ describe("createCatchUpGateway", () => {
         matchesFeatureGate: () => true,
         prepareSession,
       }),
+      env: REMUX_ALLOWED_ENV,
     });
 
     const result = await gateway.resolve({
@@ -139,6 +166,7 @@ describe("createCatchUpGateway", () => {
     const gateway = createCatchUpGateway({
       logger,
       remuxController,
+      env: REMUX_ALLOWED_ENV,
     });
 
     const result = await gateway.resolve({
@@ -161,6 +189,7 @@ describe("createCatchUpGateway", () => {
           throw new Error("ffmpeg exploded");
         },
       }),
+      env: REMUX_ALLOWED_ENV,
     });
 
     const result = await gateway.resolve({

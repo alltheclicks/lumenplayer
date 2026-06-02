@@ -80,6 +80,7 @@ describe('V1 runtime media policy artifact', () => {
       disallowedValues: expect.arrayContaining(['1']),
     }));
     expect(template.policy.forbiddenProcesses).toEqual(expect.arrayContaining(['ffmpeg', 'ffprobe']));
+    expect(template.checks.map((check) => check.id)).toContain('gateway-default-disallows-remux');
   });
 
   it('passes validator in template mode and strict mode for finalized artifact', () => {

@@ -30,6 +30,14 @@
       "notes": "Current web resolver tests pass and prove proxy-remuxed/remux-hls responses are not used by the web beta path."
     },
     {
+      "id": "gateway-default-disallows-remux",
+      "description": "Proxy gateway defaults do not offer proxy-remuxed playback or direct remux-hls handling unless explicitly allowed for non-beta lab use.",
+      "status": "pass",
+      "owner": "codex-local-qa",
+      "evidence": "pnpm exec vitest run apps/proxy/src/catchup-gateway.test.ts apps/proxy/src/server.test.ts",
+      "notes": "Proxy default allowed modes exclude proxy-remuxed. Tests prove gateway resolve stays proxy-normalized and direct remux-hls proxy requests are not routed to the remux controller unless a lab override explicitly allows proxy-remuxed."
+    },
+    {
       "id": "committed-env-no-remux",
       "description": "Committed env/example surfaces do not enable LUMEN_PROXY_REMUX_ENABLED=1 for beta/prod.",
       "status": "pass",

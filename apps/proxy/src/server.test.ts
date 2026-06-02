@@ -17,6 +17,10 @@ const createTempRootDir = (label: string): string => (
   path.join(process.cwd(), ".tmp-remux-tests", `${label}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
 );
 
+const REMUX_ALLOWED_ENV = {
+  LUMEN_CATCHUP_GATEWAY_ALLOWED_MODES: "provider-direct,proxy-normalized,proxy-remuxed",
+};
+
 const createCompletedSpawn = () => ({
   spawnProcess: ({
     playlistPath,
@@ -93,6 +97,7 @@ describe("createProxyServer", () => {
   it("returns proxy-remuxed from gateway resolve only after remux bootstrap succeeds", async () => {
     const app = createProxyServer({
       allowedHosts: ["*"],
+      env: REMUX_ALLOWED_ENV,
       logger: false,
       sweepIntervalMs: 0,
       remuxController: createTestRemuxController(),
@@ -154,6 +159,34 @@ describe("createProxyServer", () => {
     await app.close();
   });
 
+  it("does not serve direct remux playback requests unless remux is explicitly allowed", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response("upstream-body", {
+      status: 200,
+      headers: {
+        "content-type": "video/mp2t",
+      },
+    }));
+    const app = createProxyServer({
+      allowedHosts: ["login.example"],
+      fetchImpl: fetchMock as typeof fetch,
+      logger: false,
+      sweepIntervalMs: 0,
+      remuxController: createTestRemuxController(),
+    });
+
+    const response = await app.inject({
+      method: "GET",
+      url: `/xui-api/${encodeTarget("https://login.example")}/timeshift/user/pass/1800/2026-03-08:08-30/112.ts?__lumenTransport=remux-hls&__lumenProgramId=program-1`,
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.headers["content-type"]).toContain("video/mp2t");
+    expect(response.payload).toBe("upstream-body");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    await app.close();
+  });
+
   it("rejects invalid catch-up gateway resolve requests", async () => {
     const app = createProxyServer({
       allowedHosts: ["*"],
@@ -201,6 +234,7 @@ describe("createProxyServer", () => {
   it("returns remux manifest bodies for remux-hls catch-up proxy requests", async () => {
     const app = createProxyServer({
       allowedHosts: ["*"],
+      env: REMUX_ALLOWED_ENV,
       logger: false,
       sweepIntervalMs: 0,
       remuxController: createTestRemuxController(),
@@ -223,6 +257,7 @@ describe("createProxyServer", () => {
   it("serves remux asset endpoints as video/mp4 with CORS headers", async () => {
     const app = createProxyServer({
       allowedHosts: ["*"],
+      env: REMUX_ALLOWED_ENV,
       logger: false,
       sweepIntervalMs: 0,
       remuxController: createTestRemuxController(),

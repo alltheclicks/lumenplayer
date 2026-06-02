@@ -11,6 +11,7 @@ import {
   isCatchUpGatewayResolveRequest,
   type CatchUpGatewayResolveRequest,
 } from "./catchup-gateway-contracts.js";
+import { createDefaultServerPolicy } from "./server-registry.js";
 
 const XTREAM_PROXY_BASE_PATH = "/xui-api";
 const XTREAM_HLS_ROOT_PATH = "/hlsr/";
@@ -638,6 +639,7 @@ export const createProxyServer = (options: ProxyServerOptions = {}): FastifyInst
     1,
     parseNonNegativeInteger(env.LUMEN_CATCHUP_GATEWAY_PER_SERVER_CONCURRENCY, 2),
   );
+  const remuxPlaybackRequestsAllowed = createDefaultServerPolicy(env).allowedModes.includes("proxy-remuxed");
   const fetchImpl = options.fetchImpl ?? fetch;
 
   const app = Fastify({
@@ -714,6 +716,7 @@ export const createProxyServer = (options: ProxyServerOptions = {}): FastifyInst
     if (
       RETRYABLE_METHODS.has(requestMethod) &&
       isCatchUpRequestUrl(upstreamUrl) &&
+      remuxPlaybackRequestsAllowed &&
       remuxController.isRemuxPlaybackRequest(upstreamUrl)
     ) {
       try {

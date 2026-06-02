@@ -58,7 +58,7 @@
       "status": "pending",
       "evidenceRef": "artifacts/release/media-policy/qaf035-runtime-media-policy-20260602.json",
       "checkedAt": "2026-06-02T20:59:44Z",
-      "notes": "Partial artifact validates non-final. Web gateway, committed env, and local process checks pass; provider/XUI no-transcode owner confirmation remains pending."
+      "notes": "Partial artifact validates non-final. Web gateway, proxy default no-remux, committed env, and local process checks pass; provider/XUI no-transcode owner confirmation remains pending."
     },
     {
       "id": "observability-baseline",

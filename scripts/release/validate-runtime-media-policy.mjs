@@ -7,6 +7,7 @@ const allowedStatus = new Set(['pending', 'pass', 'fail']);
 const disallowedTransportModes = new Set(['proxy-remuxed', 'remux-hls']);
 const requiredCheckIds = new Set([
   'web-gateway-rejects-remux',
+  'gateway-default-disallows-remux',
   'committed-env-no-remux',
   'runtime-process-no-ffmpeg',
   'provider-xui-no-transcode-owner',

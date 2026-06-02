@@ -21,7 +21,6 @@ export interface ServerRegistryRecord {
 const DEFAULT_ALLOWED_MODES: CatchUpGatewayTransportMode[] = [
   "provider-direct",
   "proxy-normalized",
-  "proxy-remuxed",
 ];
 
 const DEFAULT_POLICY: CatchUpGatewayServerPolicy = {
