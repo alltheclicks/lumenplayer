@@ -10,6 +10,7 @@ const requiredCheckIds = new Set([
   'gateway-default-disallows-remux',
   'committed-env-no-remux',
   'runtime-process-no-ffmpeg',
+  'no-media-evidence-scan',
   'provider-xui-no-transcode-owner',
 ]);
 
@@ -140,6 +141,14 @@ for (const requiredCheckId of requiredCheckIds) {
   if (!seenCheckIds.has(requiredCheckId)) {
     fail(`required check is missing: ${requiredCheckId}`);
   }
+}
+
+const noMediaEvidenceScan = artifact.checks.find((check) => check.id === 'no-media-evidence-scan');
+if (
+  noMediaEvidenceScan?.status === 'pass'
+  && !noMediaEvidenceScan.evidence.includes('release:no-media-evidence:scan')
+) {
+  fail('check no-media-evidence-scan evidence must reference release:no-media-evidence:scan when passing.');
 }
 
 if (!artifact.signoff || typeof artifact.signoff !== 'object') {

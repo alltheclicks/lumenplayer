@@ -54,6 +54,14 @@
       "notes": ""
     },
     {
+      "id": "no-media-evidence-scan",
+      "description": "Captured HAR/JSON/log evidence is scanned with the release no-media evidence scanner for remux, transcode, ffmpeg, ffprobe, generated HLS, and XUI-side media-processing indicators.",
+      "status": "pending",
+      "owner": "",
+      "evidence": "",
+      "notes": ""
+    },
+    {
       "id": "provider-xui-no-transcode-owner",
       "description": "Provider/XUI owner confirms catch-up failures will not be solved with XUI-side transcode/remux for beta.",
       "status": "pending",

@@ -66,7 +66,7 @@
       "status": "pending",
       "evidenceRef": "artifacts/release/capacity/qaf035-beta-capacity-20260602.json",
       "checkedAt": "2026-06-02T20:53:05Z",
-      "notes": "Partial artifact validates non-final. no-media-processing-verification passes; provider owner, Lumen edge capacity, observability SLO, rollback/throttle plan, and final signoff remain pending."
+      "notes": "Partial artifact validates non-final. no-media-processing-verification passes with manual audit evidence plus the release no-media evidence scanner; provider owner, Lumen edge capacity, observability SLO, rollback/throttle plan, and final signoff remain pending."
     },
     {
       "id": "runtime-media-policy",
@@ -74,7 +74,7 @@
       "status": "pending",
       "evidenceRef": "artifacts/release/media-policy/qaf035-runtime-media-policy-20260602.json",
       "checkedAt": "2026-06-02T20:59:44Z",
-      "notes": "Partial artifact validates non-final. Web gateway, proxy default no-remux, committed env, and local process checks pass; provider/XUI no-transcode owner confirmation remains pending."
+      "notes": "Partial artifact validates non-final. Web gateway, proxy default no-remux, committed env, local process, and no-media evidence scanner checks pass; provider/XUI no-transcode owner confirmation remains pending."
     },
     {
       "id": "observability-baseline",
@@ -149,7 +149,7 @@
     ],
     "verificationChecks": [
       "Provider auth/live catalog preflight passes.",
-      "Manual browser/network audit remains free of __remux__, remux-hls, ffmpeg, ffprobe, transcode, proxy-remuxed, and generated-HLS hits.",
+      "Manual browser/network audit and no-media evidence scanner remain free of __remux__, remux, remux-hls, ffmpeg, ffprobe, transcode, proxy-remuxed, generated-HLS, and XUI-side media-processing hits.",
       "Compatibility matrix has no release-blocker failures and pending target evidence is explicitly triaged.",
       "Beta capacity artifact validates and final signoff remains blocked until owner evidence is complete."
     ],

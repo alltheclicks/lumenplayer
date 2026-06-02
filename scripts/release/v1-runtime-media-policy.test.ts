@@ -56,6 +56,9 @@ const finalizeArtifact = (): RuntimeMediaPolicyArtifact => {
     check.status = 'pass';
     check.owner = 'release-owner';
     check.evidence = `evidence://${check.id}`;
+    if (check.id === 'no-media-evidence-scan') {
+      check.evidence = 'pnpm release:no-media-evidence:scan -- evidence/manual-network-audit/report.json';
+    }
   }
   artifact.signoff.status = 'pass';
   artifact.signoff.approvedBy = 'release-director';
@@ -81,6 +84,7 @@ describe('V1 runtime media policy artifact', () => {
     }));
     expect(template.policy.forbiddenProcesses).toEqual(expect.arrayContaining(['ffmpeg', 'ffprobe']));
     expect(template.checks.map((check) => check.id)).toContain('gateway-default-disallows-remux');
+    expect(template.checks.map((check) => check.id)).toContain('no-media-evidence-scan');
   });
 
   it('passes validator in template mode and strict mode for finalized artifact', () => {
@@ -142,6 +146,24 @@ describe('V1 runtime media policy artifact', () => {
     const result = runValidator([invalidPath, '--require-final'], repoRoot);
     expect(result.status).toBe(2);
     expect(result.stderr).toContain('policy.forbiddenRuntimeFlags must include LUMEN_PROXY_REMUX_ENABLED');
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('fails if passing no-media evidence scan does not cite the scanner command', () => {
+    const repoRoot = process.cwd();
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-runtime-media-'));
+    const invalidPath = path.join(tmpDir, 'no-media-scan-weak-evidence.json');
+    const artifact = finalizeArtifact();
+    const check = artifact.checks.find((entry) => entry.id === 'no-media-evidence-scan');
+    if (check) {
+      check.evidence = 'output/playwright/manual-network-audit/REPORT.md';
+    }
+    fs.writeFileSync(invalidPath, `${JSON.stringify(artifact, null, 2)}\n`);
+
+    const result = runValidator([invalidPath, '--require-final'], repoRoot);
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain('check no-media-evidence-scan evidence must reference release:no-media-evidence:scan');
 
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
