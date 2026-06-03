@@ -9,6 +9,7 @@ interface NoMediaEvidenceScanArtifact {
     evidenceRef: string;
     reportRef: string;
     rawEvidenceTracked: boolean;
+    rawEvidenceIgnored: boolean;
     evidenceSha256: string;
     reportSha256: string;
   };
@@ -75,6 +76,21 @@ describe('no-media evidence scan artifact', () => {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
+  it('fails validation when raw evidence is not marked ignored', () => {
+    const repoRoot = process.cwd();
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-no-media-scan-artifact-'));
+    const invalidPath = path.join(tmpDir, 'raw-not-ignored-flag.json');
+    const artifact = loadArtifact();
+    artifact.source.rawEvidenceIgnored = false;
+    fs.writeFileSync(invalidPath, `${JSON.stringify(artifact, null, 2)}\n`);
+
+    const result = runValidator([invalidPath], repoRoot);
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain('source.rawEvidenceIgnored must be true');
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
   it('fails validation when a source ref is tracked by git', () => {
     const repoRoot = process.cwd();
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-no-media-scan-artifact-'));
@@ -90,9 +106,26 @@ describe('no-media evidence scan artifact', () => {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  it('fails validation when an existing source hash differs from the artifact digest', () => {
+  it('fails validation when a source ref is not ignored by git', () => {
     const repoRoot = process.cwd();
     const tmpDir = fs.mkdtempSync(path.join(repoRoot, '.tmp-no-media-scan-artifact-'));
+    const sourcePath = path.join(tmpDir, 'report.json');
+    const invalidPath = path.join(tmpDir, 'source-ref-not-ignored.json');
+    const artifact = loadArtifact();
+    fs.writeFileSync(sourcePath, '{ "status": "ignored-policy-missing" }\n');
+    artifact.source.evidenceRef = path.relative(repoRoot, sourcePath);
+    fs.writeFileSync(invalidPath, `${JSON.stringify(artifact, null, 2)}\n`);
+
+    const result = runValidator([invalidPath], repoRoot);
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain('source.evidenceRef must be ignored by git');
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('fails validation when an existing source hash differs from the artifact digest', () => {
+    const repoRoot = process.cwd();
+    const tmpDir = fs.mkdtempSync(path.join(repoRoot, 'output/playwright/manual-network-audit/hash-mismatch-'));
     const sourcePath = path.join(tmpDir, 'report.json');
     const invalidPath = path.join(tmpDir, 'hash-mismatch.json');
     const artifact = loadArtifact();

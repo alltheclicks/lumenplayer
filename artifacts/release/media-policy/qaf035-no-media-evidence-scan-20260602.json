@@ -7,6 +7,7 @@
     "evidenceRef": "output/playwright/manual-network-audit/report.json",
     "reportRef": "output/playwright/manual-network-audit/REPORT.md",
     "rawEvidenceTracked": false,
+    "rawEvidenceIgnored": true,
     "rawEvidencePolicy": "Raw Network/CDP capture remains untracked to avoid publishing provider URLs, tokens, or credentials.",
     "evidenceSha256": "ef68b091dbbc3e586c9e93b16d8cf8ba2f3c7529f84f1e6979f284de037ac617",
     "reportSha256": "2b9581474897ec03e5213bd4b16fb5c398dc411bebc266fd7d01909e2d217942"

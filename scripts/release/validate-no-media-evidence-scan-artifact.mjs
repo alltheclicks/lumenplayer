@@ -60,6 +60,15 @@ const ensureSourceRefUntracked = (fieldName, fileRef) => {
     fail(`source.${fieldName} must not be tracked by git: ${fileRef}`);
   }
 };
+const ensureSourceRefIgnored = (fieldName, fileRef) => {
+  const result = spawnSync('git', ['check-ignore', '-q', '--', fileRef], {
+    cwd: process.cwd(),
+    encoding: 'utf8',
+  });
+  if (result.status !== 0) {
+    fail(`source.${fieldName} must be ignored by git: ${fileRef}`);
+  }
+};
 
 let artifact;
 try {
@@ -81,9 +90,13 @@ for (const field of ['evidenceRef', 'reportRef']) {
     fail(`source.${field} must be a repo-relative path without parent traversal.`);
   }
   ensureSourceRefUntracked(field, artifact.source[field]);
+  ensureSourceRefIgnored(field, artifact.source[field]);
 }
 if (artifact.source.rawEvidenceTracked !== false) {
   fail('source.rawEvidenceTracked must be false.');
+}
+if (artifact.source.rawEvidenceIgnored !== true) {
+  fail('source.rawEvidenceIgnored must be true.');
 }
 if (!isSha256(artifact.source.evidenceSha256)) {
   fail('source.evidenceSha256 must be a SHA-256 hex digest.');
