@@ -2,6 +2,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 
 const allowedCheckStatuses = new Set(['pending', 'pass', 'fail']);
 const allowedDecisionStatuses = new Set(['pending', 'pass', 'fail']);
@@ -18,10 +19,39 @@ if (!fileArg) {
 
 const requireFinal = flags.includes('--require-final');
 const filePath = path.resolve(process.cwd(), fileArg);
+const repoRoot = process.cwd();
 
 const fail = (message) => {
   console.error(`[go-no-go] ERROR: ${message}`);
   process.exit(2);
+};
+
+const validateTrackedNoMediaEvidence = (evidence, label) => {
+  if (!evidence.includes('release:no-media-evidence:scan')) {
+    fail(`${label} evidence must reference release:no-media-evidence:scan.`);
+  }
+
+  const artifactRef = evidence
+    .split(/[;\s]+/)
+    .find((part) => /^artifacts\/release\/.*no-media.*\.json$/.test(part));
+
+  if (!artifactRef) {
+    fail(`${label} evidence must reference a tracked artifacts/release no-media scan artifact.`);
+  }
+
+  const result = spawnSync(process.execPath, [
+    'scripts/release/validate-no-media-evidence-scan-artifact.mjs',
+    artifactRef,
+  ], {
+    cwd: repoRoot,
+    encoding: 'utf8',
+  });
+
+  if (result.status !== 0) {
+    const stderr = result.stderr?.trim();
+    const stdout = result.stdout?.trim();
+    fail(`${label} no-media scan artifact validation failed${stderr ? `: ${stderr}` : stdout ? `: ${stdout}` : ''}`);
+  }
 };
 
 let raw;
@@ -87,6 +117,10 @@ for (const area of checklist.featureAreas) {
 
     if (check.status === 'fail') {
       failedCheckCount += 1;
+    }
+
+    if (check.id === 'catchup-no-transcode-remux' && check.status === 'pass') {
+      validateTrackedNoMediaEvidence(check.evidence, `Check ${area.id}/${check.id}`);
     }
 
     if (requireFinal && check.status === 'pending') {

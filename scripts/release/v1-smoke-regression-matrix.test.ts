@@ -1,5 +1,7 @@
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 import { describe, expect, it } from 'vitest';
 
 interface MatrixCase {
@@ -7,6 +9,8 @@ interface MatrixCase {
   suite: 'smoke' | 'regression';
   tags: string[];
   releaseBlocker: boolean;
+  status?: 'pending' | 'pass' | 'fail';
+  evidence?: string;
 }
 
 interface MatrixTemplate {
@@ -21,6 +25,22 @@ const loadTemplate = (): MatrixTemplate => {
   );
 
   return JSON.parse(fs.readFileSync(templatePath, 'utf8')) as MatrixTemplate;
+};
+
+const runValidator = (args: string[], cwd: string) => (
+  spawnSync(process.execPath, ['scripts/release/validate-smoke-regression-matrix.mjs', ...args], {
+    cwd,
+    encoding: 'utf8',
+  })
+);
+
+const loadQafArtifact = (): MatrixTemplate => {
+  const artifactPath = path.resolve(
+    process.cwd(),
+    'artifacts/release/smoke/qaf035-smoke-regression-matrix-20260603.json',
+  );
+
+  return JSON.parse(fs.readFileSync(artifactPath, 'utf8')) as MatrixTemplate;
 };
 
 describe('V1 smoke/regression matrix template', () => {
@@ -70,6 +90,33 @@ describe('V1 smoke/regression matrix template', () => {
     expect(noMediaProcessingCases.some((testCase) => testCase.suite === 'smoke')).toBe(true);
     expect(noMediaProcessingCases.some((testCase) => testCase.suite === 'regression')).toBe(true);
     expect(noMediaProcessingCases.every((testCase) => testCase.releaseBlocker)).toBe(true);
+  });
+
+  it('tracks the QAF-035 smoke artifact and requires scanner evidence for passing provider no-media smoke', () => {
+    const repoRoot = process.cwd();
+    const artifactPath = 'artifacts/release/smoke/qaf035-smoke-regression-matrix-20260603.json';
+    const result = runValidator([artifactPath], repoRoot);
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain('cases: 18');
+
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-smoke-matrix-'));
+    const invalidPath = path.join(tmpDir, 'missing-no-media-scan.json');
+    const invalidArtifact = loadQafArtifact();
+    const noMediaCase = invalidArtifact.cases.find((testCase) => (
+      testCase.id === 'SMK-PROVIDER-CATCHUP-NO-MEDIA-PROCESSING'
+    ));
+    if (noMediaCase) {
+      noMediaCase.status = 'pass';
+      noMediaCase.evidence = 'output/playwright/manual-network-audit/REPORT.md';
+    }
+    fs.writeFileSync(invalidPath, `${JSON.stringify(invalidArtifact, null, 2)}\n`);
+
+    const invalidResult = runValidator([invalidPath], repoRoot);
+    expect(invalidResult.status).toBe(2);
+    expect(invalidResult.stderr).toContain('release:no-media-evidence:scan');
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
   it('keeps the web gateway remux guard scoped to unit coverage, not provider account coverage', () => {

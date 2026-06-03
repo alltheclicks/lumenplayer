@@ -10,6 +10,7 @@
     "perf:ttfc": "vitest run scripts/perf/time-to-first-channel.test.ts",
     "perf:rss": "vitest run scripts/perf/memory-cap.test.ts",
     "release:go-no-go:validate": "node scripts/release/validate-go-no-go.mjs artifacts/release/readiness/qaf035-go-no-go-20260603.json",
+    "release:go-no-go:test": "vitest run scripts/release/v1-go-no-go.test.ts",
     "release:smoke-matrix:validate": "node scripts/release/validate-smoke-regression-matrix.mjs artifacts/release/smoke/qaf035-smoke-regression-matrix-20260603.json",
     "release:smoke-matrix:test": "vitest run scripts/release/v1-smoke-regression-matrix.test.ts",
     "release:compat-matrix": "node scripts/release/compatibility-matrix-task.mjs",

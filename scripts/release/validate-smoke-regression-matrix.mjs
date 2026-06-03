@@ -2,6 +2,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 
 const allowedSuites = new Set(['smoke', 'regression']);
 const allowedStatuses = new Set(['pending', 'pass', 'fail']);
@@ -27,11 +28,40 @@ if (!fileArg) {
 }
 
 const requireFinal = flags.includes('--require-final');
-const filePath = path.resolve(process.cwd(), fileArg);
+const repoRoot = process.cwd();
+const filePath = path.resolve(repoRoot, fileArg);
 
 const fail = (message) => {
   console.error(`[smoke-matrix] ERROR: ${message}`);
   process.exit(2);
+};
+
+const validateTrackedNoMediaEvidence = (evidence, label) => {
+  if (!evidence.includes('release:no-media-evidence:scan')) {
+    fail(`${label} evidence must reference release:no-media-evidence:scan.`);
+  }
+
+  const artifactRef = evidence
+    .split(/[;\s]+/)
+    .find((part) => /^artifacts\/release\/.*no-media.*\.json$/.test(part));
+
+  if (!artifactRef) {
+    fail(`${label} evidence must reference a tracked artifacts/release no-media scan artifact.`);
+  }
+
+  const result = spawnSync(process.execPath, [
+    'scripts/release/validate-no-media-evidence-scan-artifact.mjs',
+    artifactRef,
+  ], {
+    cwd: repoRoot,
+    encoding: 'utf8',
+  });
+
+  if (result.status !== 0) {
+    const stderr = result.stderr?.trim();
+    const stdout = result.stdout?.trim();
+    fail(`${label} no-media scan artifact validation failed${stderr ? `: ${stderr}` : stdout ? `: ${stdout}` : ''}`);
+  }
 };
 
 let matrix;
@@ -111,6 +141,10 @@ for (const testCase of matrix.cases) {
 
   if (requireFinal && testCase.releaseBlocker && testCase.status === 'fail') {
     fail(`Release-blocker case ${testCase.id} has status "fail" and cannot be finalized.`);
+  }
+
+  if (testCase.id === 'SMK-PROVIDER-CATCHUP-NO-MEDIA-PROCESSING' && testCase.status === 'pass') {
+    validateTrackedNoMediaEvidence(testCase.evidence, `Case ${testCase.id}`);
   }
 }
 

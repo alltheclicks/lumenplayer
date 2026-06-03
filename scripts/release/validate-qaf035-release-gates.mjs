@@ -181,6 +181,11 @@ const validatePackageScripts = () => {
     fail(`package.json scripts.release:go-no-go:validate must validate ${files.goNoGo}.`);
   }
 
+  const goNoGoTest = packageJson.scripts?.['release:go-no-go:test'];
+  if (goNoGoTest !== 'vitest run scripts/release/v1-go-no-go.test.ts') {
+    fail('package.json scripts.release:go-no-go:test must run scripts/release/v1-go-no-go.test.ts.');
+  }
+
   const smokeMatrixValidator = packageJson.scripts?.['release:smoke-matrix:validate'];
   if (smokeMatrixValidator !== `node scripts/release/validate-smoke-regression-matrix.mjs ${files.smokeMatrix}`) {
     fail(`package.json scripts.release:smoke-matrix:validate must validate ${files.smokeMatrix}.`);

@@ -116,6 +116,8 @@ pnpm release:no-media-scan-artifact:validate
 4. Keep `mediaProcessingAudit.forbiddenHits` empty for pass.
 5. If any forbidden hit appears, set that target or check to fail and stop beta readiness.
 
+The QAF go/no-go and smoke/regression validators apply the same rule to passing catch-up no-media checks: a passing provider no-media smoke or go/no-go check must cite `release:no-media-evidence:scan` and a tracked redacted no-media scan artifact that validates.
+
 On the local Lumen machine, also verify:
 
 ```sh

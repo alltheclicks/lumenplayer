@@ -27,6 +27,9 @@ const finalizeJsonTemplate = () => {
     for (const check of area.checks) {
       check.status = 'pass';
       check.evidence = `evidence://${area.id}/${check.id}`;
+      if (check.id === 'catchup-no-transcode-remux') {
+        check.evidence = 'pnpm release:no-media-evidence:scan -- evidence/network.har; artifacts/release/media-policy/qaf035-no-media-evidence-scan-20260602.json';
+      }
     }
   }
   template.decision.status = 'pass';
@@ -148,6 +151,26 @@ describe('V1 go/no-go checklist definition', () => {
     const result = runJsonValidator([invalidPath, '--require-final'], repoRoot);
     expect(result.status).toBe(2);
     expect(result.stderr).toContain('evidence must be set with --require-final');
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('fails validation when catch-up no-media pass omits the scanner artifact', () => {
+    const repoRoot = process.cwd();
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-go-no-go-'));
+    const invalidPath = path.join(tmpDir, 'missing-no-media-scan.json');
+    const invalidArtifact = finalizeJsonTemplate();
+    const check = invalidArtifact.featureAreas
+      .flatMap((area: { checks: Array<{ id: string; evidence: string }> }) => area.checks)
+      .find((entry: { id: string }) => entry.id === 'catchup-no-transcode-remux');
+    if (check) {
+      check.evidence = 'output/playwright/manual-network-audit/REPORT.md';
+    }
+    fs.writeFileSync(invalidPath, `${JSON.stringify(invalidArtifact, null, 2)}\n`);
+
+    const result = runJsonValidator([invalidPath], repoRoot);
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain('release:no-media-evidence:scan');
 
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
