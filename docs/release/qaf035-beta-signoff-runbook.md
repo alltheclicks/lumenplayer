@@ -26,7 +26,7 @@ pnpm release:qaf035:final
 ```
 
 `pnpm release:qaf035:validate` must pass while final owner/device blockers are still open. `pnpm release:qaf035:final` must fail until every real-device, provider, capacity, ops, rollback, and no-media-processing owner field is complete.
-The final aggregate also directly runs final-mode validation for the concrete go/no-go, smoke/regression, compatibility-matrix, and design-parity artifacts; those artifacts must be complete, approved, and backed by rendered or scanned evidence before the final command can pass.
+The final aggregate also directly runs final-mode validation for the concrete go/no-go, smoke/regression, compatibility-matrix, and design-parity artifacts; those artifacts must be complete, approved, and backed by rendered or scanned evidence before the final command can pass. Compatibility final validation uses `--require-targets scripts/release/v1-compatibility-targets.template.json`, so the matrix cannot pass after dropping required beta target profiles.
 The individual `pnpm release:*:validate` commands above validate the concrete QAF-035 artifacts, not generic templates. `pnpm release:readiness:validate` must report the current open blocker count until those blockers are genuinely closed.
 `pnpm release:no-media-scan-artifact:validate` must pass on the tracked redacted scan-result artifact so the local Chrome Network/CDP evidence hashes, forbidden-pattern list, zero-hit summary, and raw-evidence-untracked policy stay mechanically checked in CI.
 `pnpm release:perf-evidence:validate` must pass on the concrete performance artifact so local benchmark coverage and failed-run accounting are checked before final beta performance signoff.

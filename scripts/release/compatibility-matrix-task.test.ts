@@ -356,4 +356,110 @@ describe('compatibility-matrix-task', () => {
 
     fs.rmSync(tempDir, { recursive: true, force: true });
   });
+
+  it('fails final status when a required target profile is missing', () => {
+    const repoRoot = process.cwd();
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-0342-compat-'));
+    const matrixPath = path.join(tempDir, 'matrix.json');
+    const targetsPath = path.join(tempDir, 'targets.json');
+    const outPath = path.join(tempDir, 'run.json');
+
+    fs.writeFileSync(matrixPath, JSON.stringify({
+      release: 'V1',
+      templateVersion: 1,
+      cases: [
+        {
+          id: 'CASE-TARGET-A',
+          suite: 'smoke',
+          title: 'case target A',
+          platform: 'desktop',
+          device: 'Desktop',
+          browser: 'Chrome',
+          tags: ['target-a'],
+          releaseBlocker: true,
+        },
+        {
+          id: 'CASE-TARGET-B',
+          suite: 'smoke',
+          title: 'case target B',
+          platform: 'desktop',
+          device: 'Desktop',
+          browser: 'Safari',
+          tags: ['target-b'],
+          releaseBlocker: true,
+        },
+      ],
+    }, null, 2));
+
+    fs.writeFileSync(targetsPath, JSON.stringify({
+      targets: [
+        {
+          id: 'target-a',
+          name: 'Target A',
+          platform: 'desktop',
+          device: 'Desktop',
+          browser: 'Chrome',
+          requiredTags: ['target-a'],
+        },
+        {
+          id: 'target-b',
+          name: 'Target B',
+          platform: 'desktop',
+          device: 'Desktop',
+          browser: 'Safari',
+          requiredTags: ['target-b'],
+        },
+      ],
+    }, null, 2));
+
+    const init = runTask([
+      'init',
+      '--matrix', matrixPath,
+      '--targets', targetsPath,
+      '--out', outPath,
+      '--run-id', 'compat-test-run-7',
+      '--operator', 'ci-test',
+    ], repoRoot);
+    expect(init.status).toBe(0);
+
+    for (const [caseId, targetId] of [['CASE-TARGET-A', 'target-a'], ['CASE-TARGET-B', 'target-b']]) {
+      const set = runTask([
+        'set',
+        '--run', outPath,
+        '--case', caseId,
+        '--target', targetId,
+        '--status', 'pass',
+        '--executor', 'ci-test',
+        '--evidence', `manual-${targetId}`,
+      ], repoRoot);
+      expect(set.status).toBe(0);
+    }
+
+    const finalize = runTask([
+      'finalize',
+      '--run', outPath,
+      '--signoff', 'pass',
+      '--approved-by', 'release-owner',
+    ], repoRoot);
+    expect(finalize.status).toBe(0);
+
+    const run = JSON.parse(fs.readFileSync(outPath, 'utf8')) as {
+      targets: Array<{ id: string }>;
+      results: Array<{ targetId: string }>;
+    };
+    run.targets = run.targets.filter((target) => target.id !== 'target-b');
+    run.results = run.results.filter((result) => result.targetId !== 'target-b');
+    fs.writeFileSync(outPath, `${JSON.stringify(run, null, 2)}\n`);
+
+    const finalStatus = runTask([
+      'status',
+      '--run', outPath,
+      '--require-final',
+      '--require-targets', targetsPath,
+    ], repoRoot);
+    expect(finalStatus.status).toBe(2);
+    expect(finalStatus.stderr).toContain('requires target target-b');
+
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  });
 });

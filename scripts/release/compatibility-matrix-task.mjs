@@ -72,7 +72,7 @@ const usage = () => {
   console.log('Commands:');
   console.log('  init --matrix <path> [--targets <path>] [--out <path>] [--operator <name>] [--run-id <id>]');
   console.log('  set --run <path> --case <id> --status <pending|pass|fail> [--target <id>] [--evidence <text>] [--notes <text>] [--executor <name>]');
-  console.log('  status --run <path> [--require-final]');
+  console.log('  status --run <path> [--require-final] [--require-targets <path>]');
   console.log('  finalize --run <path> --signoff <pass|fail> --approved-by <name> [--notes <text>]');
 };
 
@@ -409,6 +409,13 @@ const statusCommand = (args) => {
   }
 
   const requireFinal = args['require-final'] === true;
+  let requiredTargets = [];
+  if (args['require-targets']) {
+    const targetsPath = path.resolve(process.cwd(), String(args['require-targets']));
+    const targetsDoc = readJson(targetsPath);
+    requiredTargets = validateTargets(targetsDoc);
+  }
+
   const runPath = path.resolve(process.cwd(), String(args.run));
   const run = readJson(runPath);
   if (!Array.isArray(run.results)) {
@@ -418,6 +425,12 @@ const statusCommand = (args) => {
   const counts = summarizeResults(run.results);
   const blockerFail = run.results.filter((result) => result.releaseBlocker && result.status === 'fail').length;
   const missingEvidence = run.results.filter((result) => !isNonEmptyString(result.evidence));
+  const runTargetIds = new Set((Array.isArray(run.targets) ? run.targets : [])
+    .map((target) => target.id)
+    .filter(isNonEmptyString));
+  const resultTargetIds = new Set(run.results
+    .map((result) => result.targetId)
+    .filter(isNonEmptyString));
 
   if (requireFinal) {
     if (run.status !== 'completed') {
@@ -448,6 +461,16 @@ const statusCommand = (args) => {
 
     if (!isNonEmptyString(run.signoff.approvedAt)) {
       fail('status --require-final requires signoff.approvedAt.');
+    }
+
+    for (const target of requiredTargets) {
+      if (!runTargetIds.has(target.id)) {
+        fail(`status --require-final requires target ${target.id}.`);
+      }
+
+      if (!resultTargetIds.has(target.id)) {
+        fail(`status --require-final requires at least one result for target ${target.id}.`);
+      }
     }
   }
 

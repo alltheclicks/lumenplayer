@@ -23,6 +23,7 @@ const files = {
   goNoGo: 'artifacts/release/readiness/qaf035-go-no-go-20260603.json',
   smokeMatrix: 'artifacts/release/smoke/qaf035-smoke-regression-matrix-20260603.json',
   compatibility: 'artifacts/release/compatibility/qaf035-provider-local-20260602.json',
+  compatibilityTargets: 'scripts/release/v1-compatibility-targets.template.json',
   manualDeviceQa: 'artifacts/release/manual-device-qa/qaf035-manual-device-qa-20260603.json',
   designParity: 'artifacts/release/design/qaf035-design-parity-20260603.json',
   providerOwner: 'artifacts/release/provider/qaf035-provider-owner-signoff-20260603.json',
@@ -62,6 +63,7 @@ const validateRunbook = () => {
     files.goNoGo,
     files.smokeMatrix,
     files.compatibility,
+    files.compatibilityTargets,
     files.manualDeviceQa,
     files.designParity,
     files.providerOwner,
@@ -102,6 +104,7 @@ const validateRunbook = () => {
     'concrete QAF-035 artifacts',
     'final proof command',
     'final-mode validation for the concrete go/no-go, smoke/regression, compatibility-matrix, and design-parity artifacts',
+    '--require-targets',
   ];
 
   for (const snippet of requiredSnippets) {
@@ -346,7 +349,7 @@ runNode('beta blocker closure plan', [
 const finalValidators = [
   ['final go/no-go checklist', ['scripts/release/validate-go-no-go.mjs', files.goNoGo, '--require-final']],
   ['final smoke/regression matrix', ['scripts/release/validate-smoke-regression-matrix.mjs', files.smokeMatrix, '--require-final']],
-  ['final compatibility matrix', ['scripts/release/compatibility-matrix-task.mjs', 'status', '--run', files.compatibility, '--require-final']],
+  ['final compatibility matrix', ['scripts/release/compatibility-matrix-task.mjs', 'status', '--run', files.compatibility, '--require-final', '--require-targets', files.compatibilityTargets]],
   ['final design parity evidence', ['scripts/release/validate-design-parity-evidence.mjs', files.designParity, '--require-final']],
   ['final release readiness', ['scripts/release/validate-release-readiness.mjs', files.readiness, '--require-final']],
   ['final provider owner signoff', ['scripts/release/validate-provider-owner-signoff.mjs', files.providerOwner, '--require-final']],
