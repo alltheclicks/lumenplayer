@@ -99,6 +99,13 @@ const createFixture = (overrides: Record<string, string> = {}) => {
       'scripts/catchup/probe-timeshift-hls.mjs` is preserved only as a historical parser/audit helper; direct CLI use now exits before local `ffmpeg/ffprobe` probing',
       'The later remux/transcode fallback direction is superseded by the current no-media production policy at the top of this handoff.',
     ].join('\n'),
+    'VISION.md': [
+      'Current QAF-035 no-media addendum (2026-06-03)',
+      'broken channels must stay on provider bytes, proxy-normalized manifests, or unsupported overlay',
+      'Do not resolve broken catch-up with local `ffmpeg/ffprobe`, server-side transcode/remux, generated HLS, `proxy-remuxed`/`remux-hls`, or XUI-side transcode/remux.',
+      'za beta/prod web može da odluči samo `provider-direct | proxy-normalized | unsupported overlay`',
+      'bez generisanja media asset-a',
+    ].join('\n'),
     'docs/V3-QA-FIX-BACKLOG.md': [
       'without transcode/remux fallback',
       'Current no-media production note (2026-06-03)',
@@ -186,5 +193,21 @@ describe('proxy no-media runtime validator', () => {
 
     expect(result.status).toBe(2);
     expect(result.stderr).toContain('must not include stale no-media wording');
+  });
+
+  it('fails when the top-level vision reintroduces proxy-remuxed as an allowed beta path', () => {
+    const result = runValidator(createFixture({
+      'VISION.md': [
+        'Current QAF-035 no-media addendum (2026-06-03)',
+        'broken channels must stay on provider bytes, proxy-normalized manifests, or unsupported overlay',
+        'Do not resolve broken catch-up with local `ffmpeg/ffprobe`, server-side transcode/remux, generated HLS, `proxy-remuxed`/`remux-hls`, or XUI-side transcode/remux.',
+        'za beta/prod web može da odluči samo `provider-direct | proxy-normalized | unsupported overlay`',
+        'bez generisanja media asset-a',
+        'može da odluči `provider-direct | proxy-normalized | proxy-remuxed`',
+      ].join('\n'),
+    }));
+
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain('VISION.md QAF-035 current no-media direction must not include');
   });
 });

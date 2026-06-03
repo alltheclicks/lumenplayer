@@ -131,6 +131,11 @@ Krajnji cilj: **jedan player koji radi svuda** — od browsera na laptopu, preko
 
 > Ažurirano: 6. mart 2026 (QAF-034 / QAF-035 catch-up arhitekturno razdvajanje)
 
+Current QAF-035 no-media addendum (2026-06-03):
+- For beta/prod web catch-up, broken channels must stay on provider bytes, proxy-normalized manifests, or unsupported overlay.
+- Do not resolve broken catch-up with local `ffmpeg/ffprobe`, server-side transcode/remux, generated HLS, `proxy-remuxed`/`remux-hls`, or XUI-side transcode/remux.
+- Historical `proxy-remuxed`/FFmpeg notes are architecture history only, not an accepted next implementation direction.
+
 Osnova treba da bude ista na svim platformama: isti session model, isti Xtream domain model, isti playback observability ugovor.  
 Razlika po platformi sme da postoji u transport sloju, ali provider/browser-specifični repair ne sme da zarobi shared player core.
 
@@ -149,11 +154,11 @@ Razlika po platformi sme da postoji u transport sloju, ali provider/browser-spec
   - fallback nazad na live kada archive ne postoji
 
 ### Catch-up gateway boundary (Option B)
-- Provider-specific catch-up workaround logika (`PTS/DTS` surgery, continuity repair, FFmpeg/remux odluke, browser/container workarounds) ne ulazi u `@lumen/session-core`.
+- Provider-specific catch-up workaround logika (`PTS/DTS` handling, continuity repair, browser/container workarounds) ne ulazi u `@lumen/session-core`.
 - Catch-up gateway je opcioni sloj izvan shared core-a:
   - može da se uključi ili isključi po platformi, serveru, kanalu i programu
-  - može da odluči `provider-direct | proxy-normalized | proxy-remuxed`
-  - može da radi asset-based preparation/cache bez vezivanja za korisničku sesiju
+  - za beta/prod web može da odluči samo `provider-direct | proxy-normalized | unsupported overlay`
+  - može da radi manifest/control-plane preparation/cache bez generisanja media asset-a ili vezivanja za korisničku sesiju
 - Web i budući native klijenti treba da vide samo:
   - `transportMode`
   - `playbackUrl`

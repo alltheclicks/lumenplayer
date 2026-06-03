@@ -70,6 +70,7 @@ const catchupTimeshiftProbe = readText('scripts/catchup/probe-timeshift-hls.mjs'
 const catchupTimeshiftProbeTest = readText('scripts/catchup/probe-timeshift-hls.test.ts');
 const backlog = readText('BACKLOG.md');
 const handoff = readText('HANDOFF.md');
+const vision = readText('VISION.md');
 const qaFixBacklog = readText('docs/V3-QA-FIX-BACKLOG.md');
 
 assertIncludes('apps/proxy/src/catchup-remux.ts', catchupRemux, [
@@ -178,6 +179,18 @@ assertIncludes('HANDOFF.md QAF-035 current no-media direction', handoff, [
 ]);
 assertExcludes('HANDOFF.md QAF-035 current no-media direction', handoff, [
   'appears to require real transport normalization/remux work',
+]);
+
+assertIncludes('VISION.md QAF-035 current no-media direction', vision, [
+  'Current QAF-035 no-media addendum (2026-06-03)',
+  'broken channels must stay on provider bytes, proxy-normalized manifests, or unsupported overlay',
+  'Do not resolve broken catch-up with local `ffmpeg/ffprobe`, server-side transcode/remux, generated HLS, `proxy-remuxed`/`remux-hls`, or XUI-side transcode/remux.',
+  'za beta/prod web može da odluči samo `provider-direct | proxy-normalized | unsupported overlay`',
+  'bez generisanja media asset-a',
+]);
+assertExcludes('VISION.md QAF-035 current no-media direction', vision, [
+  'može da odluči `provider-direct | proxy-normalized | proxy-remuxed`',
+  'FFmpeg/remux odluke',
 ]);
 
 assertIncludes('docs/V3-QA-FIX-BACKLOG.md QAF-035 current no-media direction', qaFixBacklog, [
