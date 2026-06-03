@@ -122,6 +122,7 @@ Before 300-500 live users, `artifacts/release/ops/qaf035-beta-ops-signoff-202606
 - Decision authority.
 - Maximum decision time.
 - Stop trigger for any media-processing policy violation.
+- Passing `no-media-processing-violation` signal and `no-media-processing-stop-trigger` check evidence that cites `release:no-media-evidence:scan`, a tracked redacted no-media scan-result artifact, and the runtime media policy artifact.
 
 ## Final Go / No-Go
 

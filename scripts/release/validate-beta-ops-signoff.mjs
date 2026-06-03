@@ -2,6 +2,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 
 const allowedStatus = new Set(['pending', 'pass', 'fail']);
 const requiredSignalIds = new Set([
@@ -48,6 +49,52 @@ const fail = (message) => {
 };
 
 const isNonEmptyString = (value) => typeof value === 'string' && value.trim() !== '';
+
+const findArtifactRef = (evidence, matcher) => (
+  evidence
+    .split(/[;\s]+/)
+    .find((token) => (
+      token.startsWith('artifacts/release/')
+      && token.endsWith('.json')
+      && matcher(token)
+    ))
+);
+
+const runLinkedValidator = (label, commandArgs) => {
+  const result = spawnSync(process.execPath, commandArgs, {
+    cwd: process.cwd(),
+    encoding: 'utf8',
+  });
+  if (result.status !== 0) {
+    const stderr = result.stderr?.trim();
+    const stdout = result.stdout?.trim();
+    fail(`${label} linked artifact failed validation${stderr ? `: ${stderr}` : stdout ? `: ${stdout}` : ''}`);
+  }
+};
+
+const validateNoMediaOpsEvidence = (label, evidence) => {
+  if (!evidence.includes('release:no-media-evidence:scan')) {
+    fail(`${label} must reference release:no-media-evidence:scan.`);
+  }
+
+  const scanArtifactRef = findArtifactRef(evidence, (token) => token.includes('no-media'));
+  if (!scanArtifactRef) {
+    fail(`${label} must reference a tracked no-media scan artifact.`);
+  }
+  runLinkedValidator(label, [
+    'scripts/release/validate-no-media-evidence-scan-artifact.mjs',
+    scanArtifactRef,
+  ]);
+
+  const runtimeMediaArtifactRef = findArtifactRef(evidence, (token) => token.includes('runtime-media-policy'));
+  if (!runtimeMediaArtifactRef) {
+    fail(`${label} must reference a runtime media policy artifact.`);
+  }
+  runLinkedValidator(label, [
+    'scripts/release/validate-runtime-media-policy.mjs',
+    runtimeMediaArtifactRef,
+  ]);
+};
 
 let artifact;
 try {
@@ -113,6 +160,9 @@ for (const signal of artifact.observability.signals) {
   }
   if (typeof signal.evidence !== 'string') {
     fail(`observability signal ${signal.id} evidence must be a string.`);
+  }
+  if (signal.id === 'no-media-processing-violation' && signal.status === 'pass') {
+    validateNoMediaOpsEvidence('observability signal no-media-processing-violation evidence', signal.evidence);
   }
 }
 
@@ -200,6 +250,9 @@ for (const check of artifact.checks) {
   }
   if (typeof check.evidence !== 'string') {
     fail(`check ${check.id} evidence must be a string.`);
+  }
+  if (check.id === 'no-media-processing-stop-trigger' && check.status === 'pass') {
+    validateNoMediaOpsEvidence('check no-media-processing-stop-trigger evidence', check.evidence);
   }
 }
 for (const requiredCheckId of requiredCheckIds) {

@@ -69,6 +69,9 @@ const finalizeArtifact = (): BetaOpsSignoffArtifact => {
   for (const signal of artifact.observability.signals) {
     signal.status = 'pass';
     signal.evidence = `evidence://ops/signals/${signal.id}`;
+    if (signal.id === 'no-media-processing-violation') {
+      signal.evidence = 'pnpm release:no-media-evidence:scan -- output/playwright/manual-network-audit/report.json; artifacts/release/media-policy/qaf035-no-media-evidence-scan-20260602.json; artifacts/release/media-policy/qaf035-runtime-media-policy-20260602.json';
+    }
   }
 
   artifact.rollbackThrottle.status = 'pass';
@@ -80,6 +83,9 @@ const finalizeArtifact = (): BetaOpsSignoffArtifact => {
     check.status = 'pass';
     check.owner = 'release-ops-owner';
     check.evidence = `evidence://ops/checks/${check.id}`;
+    if (check.id === 'no-media-processing-stop-trigger') {
+      check.evidence = 'pnpm release:no-media-evidence:scan -- output/playwright/manual-network-audit/report.json; artifacts/release/media-policy/qaf035-no-media-evidence-scan-20260602.json; artifacts/release/media-policy/qaf035-runtime-media-policy-20260602.json';
+    }
   }
 
   artifact.signoff.status = 'pass';
@@ -172,6 +178,42 @@ describe('V1 beta ops signoff artifact', () => {
     const result = runValidator([invalidPath, '--require-final'], repoRoot);
     expect(result.status).toBe(2);
     expect(result.stderr).toContain('observability.alertChannel must be set with --require-final');
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('fails validation when passing no-media observability evidence omits the scan artifact', () => {
+    const repoRoot = process.cwd();
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-beta-ops-'));
+    const invalidPath = path.join(tmpDir, 'missing-no-media-scan-artifact.json');
+    const artifact = finalizeArtifact();
+    const signal = artifact.observability.signals.find((entry) => entry.id === 'no-media-processing-violation');
+    if (signal) {
+      signal.evidence = 'pnpm release:no-media-evidence:scan -- output/playwright/manual-network-audit/report.json; artifacts/release/media-policy/qaf035-runtime-media-policy-20260602.json';
+    }
+    fs.writeFileSync(invalidPath, `${JSON.stringify(artifact, null, 2)}\n`);
+
+    const result = runValidator([invalidPath], repoRoot);
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain('observability signal no-media-processing-violation evidence must reference a tracked no-media scan artifact');
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('fails validation when passing no-media stop-trigger evidence omits runtime media policy', () => {
+    const repoRoot = process.cwd();
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-beta-ops-'));
+    const invalidPath = path.join(tmpDir, 'missing-runtime-media-policy.json');
+    const artifact = finalizeArtifact();
+    const check = artifact.checks.find((entry) => entry.id === 'no-media-processing-stop-trigger');
+    if (check) {
+      check.evidence = 'pnpm release:no-media-evidence:scan -- output/playwright/manual-network-audit/report.json; artifacts/release/media-policy/qaf035-no-media-evidence-scan-20260602.json';
+    }
+    fs.writeFileSync(invalidPath, `${JSON.stringify(artifact, null, 2)}\n`);
+
+    const result = runValidator([invalidPath], repoRoot);
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain('check no-media-processing-stop-trigger evidence must reference a runtime media policy artifact');
 
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
