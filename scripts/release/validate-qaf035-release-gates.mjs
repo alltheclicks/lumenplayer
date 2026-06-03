@@ -100,6 +100,7 @@ const validateRunbook = () => {
     'pnpm release:manual-device-qa:validate',
     'pnpm release:beta-ops:validate',
     'concrete QAF-035 artifacts',
+    'final proof command',
   ];
 
   for (const snippet of requiredSnippets) {

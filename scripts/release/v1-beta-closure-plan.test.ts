@@ -94,6 +94,25 @@ describe('QAF-035 beta closure plan', () => {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
+  it('fails when an open closure item has no final proof command', () => {
+    const repoRoot = process.cwd();
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-beta-closure-'));
+    const invalidPath = path.join(tmpDir, 'missing-final-proof.json');
+    const invalidPlan = loadPlan();
+    const item = invalidPlan.closureItems.find((entry) => entry.blockerId === 'PERFORMANCE-RELEASE-RUN');
+    if (item) {
+      item.validationCommands = item.validationCommands.filter((command) => !command.includes('--require-final'));
+    }
+
+    fs.writeFileSync(invalidPath, `${JSON.stringify(invalidPlan, null, 2)}\n`);
+
+    const result = runValidator([invalidPath], repoRoot);
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain('validationCommands must include a final proof command');
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
   it('fails when a referenced closure artifact is missing', () => {
     const repoRoot = process.cwd();
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-beta-closure-'));

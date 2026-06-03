@@ -6,6 +6,7 @@ import path from 'node:path';
 const allowedStatus = new Set(['open', 'mitigated', 'closed']);
 const allowedSignoffStatus = new Set(['pending', 'pass', 'fail']);
 const repoRoot = process.cwd();
+const finalProofPattern = /(^|\s)(--require-final|release:qaf035:final)(\s|$)/;
 
 const usage = () => {
   console.error('Usage: node scripts/release/validate-beta-closure-plan.mjs <file>');
@@ -229,6 +230,10 @@ for (const item of plan.closureItems) {
     if (/(^|\s)(ffmpeg|ffprobe)(\s|$)/i.test(command)) {
       fail(`closure item ${item.id} validationCommands must not invoke ffmpeg/ffprobe.`);
     }
+  }
+
+  if (item.status !== 'closed' && !item.validationCommands.some((command) => finalProofPattern.test(command))) {
+    fail(`closure item ${item.id} validationCommands must include a final proof command with --require-final or release:qaf035:final.`);
   }
 }
 

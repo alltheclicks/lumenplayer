@@ -73,6 +73,7 @@ Record final evidence only in the concrete QAF-035 artifacts:
 Do not mark the PR ready for beta just because template validators pass. The concrete artifacts above are the release state.
 
 The closure plan is the next-dev checklist for closing the current 9 open blockers. Keep it in sync with `blockerTriage.items[]`: each open blocker must have a matching closure item with the same `gateIds`, concrete artifact refs, and validation commands. The closure plan must never propose local ffmpeg/ffprobe, server-side transcode/remux, generated HLS, proxy-remuxed/remux-hls, or XUI-side media processing as a catch-up fix.
+Each open closure item must also include a final proof command: either the aggregate `pnpm release:qaf035:final` or a concrete artifact validator with `--require-final`. Non-final validation proves current partial state only; final-mode validation is the command that proves the blocker is genuinely closed.
 
 ## Real Device Matrix
 

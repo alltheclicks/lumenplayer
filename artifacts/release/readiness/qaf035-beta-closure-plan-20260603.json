@@ -1,7 +1,7 @@
 {
   "release": "V1",
   "templateVersion": 1,
-  "generatedAt": "2026-06-03T12:35:00Z",
+  "generatedAt": "2026-06-03T03:36:06Z",
   "owner": "codex",
   "sourceReadinessArtifact": "artifacts/release/readiness/qaf035-release-readiness-20260602.json",
   "noMediaInvariant": {
@@ -90,9 +90,12 @@
       ],
       "validationCommands": [
         "pnpm release:smoke-matrix:validate",
+        "node scripts/release/validate-smoke-regression-matrix.mjs artifacts/release/smoke/qaf035-smoke-regression-matrix-20260603.json --require-final",
         "node scripts/release/compatibility-matrix-task.mjs status --run artifacts/release/compatibility/qaf035-provider-local-20260602.json",
         "node scripts/release/validate-manual-device-qa.mjs artifacts/release/manual-device-qa/qaf035-manual-device-qa-20260603.json",
+        "node scripts/release/validate-manual-device-qa.mjs artifacts/release/manual-device-qa/qaf035-manual-device-qa-20260603.json --require-final",
         "pnpm release:design-parity:validate",
+        "node scripts/release/validate-design-parity-evidence.mjs artifacts/release/design/qaf035-design-parity-20260603.json --require-final",
         "pnpm release:no-media-scan-artifact:validate",
         "pnpm release:no-media-evidence:scan -- <target-capture>"
       ],
@@ -128,7 +131,9 @@
       ],
       "validationCommands": [
         "node scripts/release/validate-beta-capacity-evidence.mjs artifacts/release/capacity/qaf035-beta-capacity-20260602.json",
+        "node scripts/release/validate-beta-capacity-evidence.mjs artifacts/release/capacity/qaf035-beta-capacity-20260602.json --require-final",
         "node scripts/release/validate-provider-owner-signoff.mjs artifacts/release/provider/qaf035-provider-owner-signoff-20260603.json",
+        "node scripts/release/validate-provider-owner-signoff.mjs artifacts/release/provider/qaf035-provider-owner-signoff-20260603.json --require-final",
         "pnpm release:no-media-scan-artifact:validate"
       ],
       "completionCriteria": [
@@ -161,6 +166,7 @@
       ],
       "validationCommands": [
         "node scripts/release/validate-provider-owner-signoff.mjs artifacts/release/provider/qaf035-provider-owner-signoff-20260603.json",
+        "node scripts/release/validate-provider-owner-signoff.mjs artifacts/release/provider/qaf035-provider-owner-signoff-20260603.json --require-final",
         "node scripts/release/validate-runtime-media-policy.mjs artifacts/release/media-policy/qaf035-runtime-media-policy-20260602.json"
       ],
       "completionCriteria": [
@@ -195,7 +201,8 @@
       "validationCommands": [
         "pnpm perf:ttfc",
         "pnpm perf:rss",
-        "node scripts/release/validate-performance-evidence.mjs artifacts/release/performance/qaf035-performance-evidence-20260603.json"
+        "node scripts/release/validate-performance-evidence.mjs artifacts/release/performance/qaf035-performance-evidence-20260603.json",
+        "node scripts/release/validate-performance-evidence.mjs artifacts/release/performance/qaf035-performance-evidence-20260603.json --require-final"
       ],
       "completionCriteria": [
         "Performance evidence artifact passes --require-final.",
@@ -229,7 +236,8 @@
         "pnpm release:proxy-no-media:validate",
         "pnpm release:proxy-no-media:test",
         "pnpm release:no-media-scan-artifact:validate",
-        "node scripts/release/validate-runtime-media-policy.mjs artifacts/release/media-policy/qaf035-runtime-media-policy-20260602.json"
+        "node scripts/release/validate-runtime-media-policy.mjs artifacts/release/media-policy/qaf035-runtime-media-policy-20260602.json",
+        "node scripts/release/validate-runtime-media-policy.mjs artifacts/release/media-policy/qaf035-runtime-media-policy-20260602.json --require-final"
       ],
       "completionCriteria": [
         "Runtime media policy passes --require-final.",
@@ -262,6 +270,7 @@
       ],
       "validationCommands": [
         "pnpm release:observability-baseline:validate",
+        "node scripts/release/validate-observability-baseline.mjs artifacts/release/observability/qaf035-observability-baseline-20260603.json --require-final",
         "node scripts/release/validate-beta-ops-signoff.mjs artifacts/release/ops/qaf035-beta-ops-signoff-20260603.json"
       ],
       "completionCriteria": [
@@ -296,6 +305,7 @@
       ],
       "validationCommands": [
         "node scripts/release/validate-beta-ops-signoff.mjs artifacts/release/ops/qaf035-beta-ops-signoff-20260603.json",
+        "node scripts/release/validate-beta-ops-signoff.mjs artifacts/release/ops/qaf035-beta-ops-signoff-20260603.json --require-final",
         "node scripts/release/validate-beta-capacity-evidence.mjs artifacts/release/capacity/qaf035-beta-capacity-20260602.json"
       ],
       "completionCriteria": [
@@ -328,7 +338,8 @@
       ],
       "validationCommands": [
         "pnpm release:security-baseline:validate",
-        "node scripts/release/validate-security-privacy-baseline.mjs artifacts/release/security/qaf035-security-privacy-baseline-20260603.json"
+        "node scripts/release/validate-security-privacy-baseline.mjs artifacts/release/security/qaf035-security-privacy-baseline-20260603.json",
+        "node scripts/release/validate-security-privacy-baseline.mjs artifacts/release/security/qaf035-security-privacy-baseline-20260603.json --require-final"
       ],
       "completionCriteria": [
         "Security/privacy baseline passes --require-final.",
