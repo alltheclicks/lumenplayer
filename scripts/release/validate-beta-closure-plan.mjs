@@ -9,6 +9,16 @@ const allowedSignoffStatus = new Set(['pending', 'pass', 'fail']);
 const repoRoot = process.cwd();
 const finalProofPattern = /(^|\s)(--require-final|release:qaf035:final)(\s|$)/;
 const forbiddenMediaToolReferencePattern = /(^|[^a-z0-9_-])(ffmpeg|ffprobe)([^a-z0-9_-]|$)/i;
+const forbiddenMediaProcessingCommandPatterns = [
+  ['LUMEN_PROXY_REMUX_ENABLED', /\bLUMEN_PROXY_REMUX_ENABLED\b/i],
+  ['__remux__', /__remux__/i],
+  ['remux-hls', /remux[-_]hls/i],
+  ['proxy-remuxed', /proxy[-_]remuxed/i],
+  ['XUI-side media processing', /\bxui(?:[-_\s]*side)?[-_\s]*(?:media[-_\s]*processing|transcod(?:e|ing|er)?|remux)\b/i],
+  ['server-side media processing', /\bserver[-_\s]*side[-_\s]*(?:media[-_\s]*processing|transcod(?:e|ing|er)?|remux)\b/i],
+  ['generated HLS', /\b(?:generated|generating|generate)[-_\s]+hls\b/i],
+  ['transcode', /transcod(?:e|ing|er)?/i],
+];
 
 const usage = () => {
   console.error('Usage: node scripts/release/validate-beta-closure-plan.mjs <file>');
@@ -247,6 +257,11 @@ for (const item of plan.closureItems) {
   for (const command of item.validationCommands) {
     if (forbiddenMediaToolReferencePattern.test(command)) {
       fail(`closure item ${item.id} validationCommands must not reference ffmpeg/ffprobe.`);
+    }
+    for (const [label, pattern] of forbiddenMediaProcessingCommandPatterns) {
+      if (pattern.test(command)) {
+        fail(`closure item ${item.id} validationCommands must not reference forbidden media-processing term: ${label}.`);
+      }
     }
   }
 

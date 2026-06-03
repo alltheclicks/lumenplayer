@@ -135,6 +135,82 @@ describe('QAF-035 beta closure plan', () => {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
+  it('fails when a closure validation command enables remux transport flags', () => {
+    const repoRoot = process.cwd();
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-beta-closure-'));
+    const invalidPath = path.join(tmpDir, 'bad-remux-flag-command.json');
+    const invalidPlan = loadPlan();
+    const item = invalidPlan.closureItems.find((entry) => entry.blockerId === 'RUNTIME-NO-MEDIA-OWNER');
+    if (item) {
+      item.validationCommands.push('LUMEN_PROXY_REMUX_ENABLED=1 pnpm release:runtime-media:validate');
+    }
+
+    fs.writeFileSync(invalidPath, `${JSON.stringify(invalidPlan, null, 2)}\n`);
+
+    const result = runValidator([invalidPath], repoRoot);
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain('forbidden media-processing term: LUMEN_PROXY_REMUX_ENABLED');
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('fails when a closure validation command references forbidden remux transport modes', () => {
+    const repoRoot = process.cwd();
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-beta-closure-'));
+    const invalidPath = path.join(tmpDir, 'bad-remux-transport-command.json');
+    const invalidPlan = loadPlan();
+    const item = invalidPlan.closureItems.find((entry) => entry.blockerId === 'RUNTIME-NO-MEDIA-OWNER');
+    if (item) {
+      item.validationCommands.push('node scripts/check-provider.mjs --transport remux-hls');
+    }
+
+    fs.writeFileSync(invalidPath, `${JSON.stringify(invalidPlan, null, 2)}\n`);
+
+    const result = runValidator([invalidPath], repoRoot);
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain('forbidden media-processing term: remux-hls');
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('fails when a closure validation command references XUI-side media processing', () => {
+    const repoRoot = process.cwd();
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-beta-closure-'));
+    const invalidPath = path.join(tmpDir, 'bad-xui-command.json');
+    const invalidPlan = loadPlan();
+    const item = invalidPlan.closureItems.find((entry) => entry.blockerId === 'PROVIDER-OWNER-SIGNOFF');
+    if (item) {
+      item.validationCommands.push('XUI_SIDE_TRANSCODE=1 pnpm release:provider-owner:validate');
+    }
+
+    fs.writeFileSync(invalidPath, `${JSON.stringify(invalidPlan, null, 2)}\n`);
+
+    const result = runValidator([invalidPath], repoRoot);
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain('forbidden media-processing term: XUI-side media processing');
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('fails when a closure validation command references server-side generated HLS', () => {
+    const repoRoot = process.cwd();
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-beta-closure-'));
+    const invalidPath = path.join(tmpDir, 'bad-generated-hls-command.json');
+    const invalidPlan = loadPlan();
+    const item = invalidPlan.closureItems.find((entry) => entry.blockerId === 'RUNTIME-NO-MEDIA-OWNER');
+    if (item) {
+      item.validationCommands.push('node scripts/check-provider.mjs --mode server-side-generate-hls');
+    }
+
+    fs.writeFileSync(invalidPath, `${JSON.stringify(invalidPlan, null, 2)}\n`);
+
+    const result = runValidator([invalidPath], repoRoot);
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain('forbidden media-processing term: generated HLS');
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
   it('fails when an open closure item has no final proof command', () => {
     const repoRoot = process.cwd();
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-beta-closure-'));
