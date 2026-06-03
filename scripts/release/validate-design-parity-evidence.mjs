@@ -17,11 +17,28 @@ if (!fileArg) {
 }
 
 const requireFinal = flags.includes('--require-final');
-const filePath = path.resolve(process.cwd(), fileArg);
+const repoRoot = process.cwd();
+const filePath = path.resolve(repoRoot, fileArg);
 
 const fail = (message) => {
   console.error(`[design-parity] ERROR: ${message}`);
   process.exit(2);
+};
+
+const resolveEvidenceRef = (fileRef) => (
+  path.isAbsolute(fileRef) ? fileRef : path.resolve(repoRoot, fileRef)
+);
+
+const validateEvidenceFileExists = (fileRef, label) => {
+  const absolutePath = resolveEvidenceRef(fileRef);
+  if (!fs.existsSync(absolutePath)) {
+    fail(`${label} must reference an existing file with --require-final: ${fileRef}`);
+  }
+
+  const stat = fs.statSync(absolutePath);
+  if (!stat.isFile()) {
+    fail(`${label} must reference a file with --require-final: ${fileRef}`);
+  }
 };
 
 let artifact;
@@ -162,6 +179,11 @@ if (requireFinal) {
     if (screen.mobile.status === 'pending') {
       fail(`screen ${screen.id} mobile.status cannot be pending with --require-final.`);
     }
+
+    validateEvidenceFileExists(screen.desktop.referenceRef, `screen ${screen.id} desktop.referenceRef`);
+    validateEvidenceFileExists(screen.desktop.lumenRef, `screen ${screen.id} desktop.lumenRef`);
+    validateEvidenceFileExists(screen.mobile.referenceRef, `screen ${screen.id} mobile.referenceRef`);
+    validateEvidenceFileExists(screen.mobile.lumenRef, `screen ${screen.id} mobile.lumenRef`);
 
     if (screen.parityReview.status === 'pending') {
       fail(`screen ${screen.id} parityReview.status cannot be pending with --require-final.`);

@@ -9,9 +9,13 @@ type Status = 'pending' | 'pass' | 'fail';
 interface DesignParityScreen {
   id: string;
   desktop: {
+    referenceRef: string;
+    lumenRef: string;
     status: Status;
   };
   mobile: {
+    referenceRef: string;
+    lumenRef: string;
     status: Status;
   };
   parityReview: {
@@ -51,6 +55,33 @@ const loadTemplate = (): DesignParityEvidence => {
   return JSON.parse(fs.readFileSync(templatePath, 'utf8')) as DesignParityEvidence;
 };
 
+const writeEvidenceFile = (tmpDir: string, fileName: string) => {
+  const filePath = path.join(tmpDir, fileName);
+  fs.writeFileSync(filePath, 'rendered evidence placeholder\n');
+  return filePath;
+};
+
+const finalizeArtifact = (tmpDir: string): DesignParityEvidence => {
+  const finalArtifact = structuredClone(loadTemplate());
+  for (const screen of finalArtifact.screens) {
+    screen.desktop.status = 'pass';
+    screen.desktop.referenceRef = writeEvidenceFile(tmpDir, `${screen.id}-desktop-reference.png`);
+    screen.desktop.lumenRef = writeEvidenceFile(tmpDir, `${screen.id}-desktop-lumen.png`);
+    screen.mobile.status = 'pass';
+    screen.mobile.referenceRef = writeEvidenceFile(tmpDir, `${screen.id}-mobile-reference.png`);
+    screen.mobile.lumenRef = writeEvidenceFile(tmpDir, `${screen.id}-mobile-lumen.png`);
+    screen.parityReview.status = 'pass';
+    screen.parityReview.reviewedBy = 'design-qa';
+    screen.parityReview.reviewedAt = '2026-02-18T16:00:00.000Z';
+  }
+
+  finalArtifact.signoff.status = 'pass';
+  finalArtifact.signoff.approvedBy = 'release-manager';
+  finalArtifact.signoff.approvedAt = '2026-02-18T16:05:00.000Z';
+
+  return finalArtifact;
+};
+
 describe('V1 design parity evidence artifact', () => {
   it('contains required screen entries and Balkan Stream source-of-truth', () => {
     const template = loadTemplate();
@@ -75,19 +106,7 @@ describe('V1 design parity evidence artifact', () => {
     ], repoRoot);
     expect(templateResult.status).toBe(0);
 
-    const finalArtifact = structuredClone(loadTemplate());
-    for (const screen of finalArtifact.screens) {
-      screen.desktop.status = 'pass';
-      screen.mobile.status = 'pass';
-      screen.parityReview.status = 'pass';
-      screen.parityReview.reviewedBy = 'design-qa';
-      screen.parityReview.reviewedAt = '2026-02-18T16:00:00.000Z';
-    }
-
-    finalArtifact.signoff.status = 'pass';
-    finalArtifact.signoff.approvedBy = 'release-manager';
-    finalArtifact.signoff.approvedAt = '2026-02-18T16:05:00.000Z';
-
+    const finalArtifact = finalizeArtifact(tmpDir);
     fs.writeFileSync(finalPath, `${JSON.stringify(finalArtifact, null, 2)}\n`);
 
     const finalResult = runValidator([finalPath, '--require-final'], repoRoot);
@@ -112,19 +131,41 @@ describe('V1 design parity evidence artifact', () => {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
+  it('tracks the QAF-035 partial design artifact without allowing final signoff', () => {
+    const repoRoot = process.cwd();
+    const artifactPath = 'artifacts/release/design/qaf035-design-parity-20260603.json';
+    const partialResult = runValidator([artifactPath], repoRoot);
+    expect(partialResult.status).toBe(0);
+
+    const finalResult = runValidator([artifactPath, '--require-final'], repoRoot);
+    expect(finalResult.status).toBe(2);
+    expect(finalResult.stderr).toContain('desktop.status cannot be pending with --require-final');
+  });
+
+  it('fails strict validation when rendered evidence files are missing', () => {
+    const repoRoot = process.cwd();
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-0373-design-parity-'));
+    const invalidPath = path.join(tmpDir, 'missing-rendered-evidence.json');
+    const invalidArtifact = finalizeArtifact(tmpDir);
+    const loginScreen = invalidArtifact.screens.find((screen) => screen.id === 'login');
+    if (loginScreen) {
+      loginScreen.desktop.lumenRef = path.join(tmpDir, 'missing-lumen-login.png');
+    }
+    fs.writeFileSync(invalidPath, `${JSON.stringify(invalidArtifact, null, 2)}\n`);
+
+    const result = runValidator([invalidPath, '--require-final'], repoRoot);
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain('desktop.lumenRef must reference an existing file');
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
   it('fails strict validation when signoff is pass but one screen is not pass', () => {
     const repoRoot = process.cwd();
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-0373-design-parity-'));
     const invalidPath = path.join(tmpDir, 'signoff-pass-with-fail-screen.json');
 
-    const invalidArtifact = structuredClone(loadTemplate());
-    for (const screen of invalidArtifact.screens) {
-      screen.desktop.status = 'pass';
-      screen.mobile.status = 'pass';
-      screen.parityReview.status = 'pass';
-      screen.parityReview.reviewedBy = 'design-qa';
-      screen.parityReview.reviewedAt = '2026-02-18T16:00:00.000Z';
-    }
+    const invalidArtifact = finalizeArtifact(tmpDir);
 
     const epgScreen = invalidArtifact.screens.find((screen) => screen.id === 'epg');
     if (epgScreen) {

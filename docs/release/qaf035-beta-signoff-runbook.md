@@ -90,6 +90,8 @@ Each target must have a named owner, exact device/browser versions, evidence ref
 
 Local Playwright, bundled Chromium headless, or the local desktop browser smoke cannot be used as final evidence for these targets.
 
+Final design parity evidence also requires rendered files to exist for every desktop/mobile reference and Lumen capture ref in `artifacts/release/design/qaf035-design-parity-20260603.json`; status strings alone are not enough for `--require-final`.
+
 ## No-Transcode / No-Remux Audit
 
 Allowed transport modes are only provider-direct and proxy-normalized. The beta path must not use ffmpeg, ffprobe, transcode, remux, generated HLS, proxy-remuxed, remux-hls, or XUI-side media processing.
