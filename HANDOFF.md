@@ -21,6 +21,7 @@
   - `pnpm release:proxy-no-media:validate` statically verifies the hard-disable guard, CI workflow, package script, release artifact, and runbook coverage
   - `pnpm release:proxy-no-media:test` covers controller, gateway, and server behavior
   - `pnpm release:no-media-scan-artifact:validate` now validates the tracked redacted Chrome Network/CDP scan-result artifact, including raw-evidence-untracked policy, source/report hashes, forbidden-pattern coverage, and zero media-processing hits
+  - `scripts/release/validate-manual-device-qa.mjs` now rejects passing target media audits unless they cite both `release:no-media-evidence:scan` and a tracked redacted no-media scan-result artifact that validates
   - `pnpm release:secret-hygiene:validate` now scans release evidence/docs/templates plus `HANDOFF.md`, `BACKLOG.md`, `VISION.md`, `docs/V3-QA-FIX-BACKLOG.md`, and `docs/catchup-timeshift-hls-evidence.md`, so current-truth/provider-evidence docs cannot reintroduce non-redacted provider credentials
 - Current beta state:
   - local/provider/browser/no-media evidence is partial and useful, but final beta signoff remains pending on real provider/XUI owner confirmation, 300-500 user capacity approval, real device target matrix, beta ops/observability, and final go/no-go

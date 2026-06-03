@@ -2,6 +2,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 
 const allowedStatus = new Set(['pending', 'pass', 'fail']);
 const disallowedTransportModes = new Set(['proxy-remuxed', 'remux-hls']);
@@ -34,6 +35,33 @@ const fail = (message) => {
 };
 
 const isNonEmptyString = (value) => typeof value === 'string' && value.trim() !== '';
+
+const validateNoMediaScanArtifactRef = (targetId, evidenceRef) => {
+  const scanArtifactRef = evidenceRef
+    .split(/[;\s]+/)
+    .find((token) => (
+      token.startsWith('artifacts/release/')
+      && token.endsWith('.json')
+      && token.includes('no-media')
+    ));
+
+  if (!scanArtifactRef) {
+    fail(`target ${targetId} mediaProcessingAudit.evidenceRef must reference a tracked no-media scan artifact when passing.`);
+  }
+
+  const scanArtifactResult = spawnSync(process.execPath, [
+    'scripts/release/validate-no-media-evidence-scan-artifact.mjs',
+    scanArtifactRef,
+  ], {
+    cwd: process.cwd(),
+    encoding: 'utf8',
+  });
+  if (scanArtifactResult.status !== 0) {
+    const stderr = scanArtifactResult.stderr?.trim();
+    const stdout = scanArtifactResult.stdout?.trim();
+    fail(`target ${targetId} mediaProcessingAudit linked artifact failed validation${stderr ? `: ${stderr}` : stdout ? `: ${stdout}` : ''}`);
+  }
+};
 
 let artifact;
 try {
@@ -140,6 +168,15 @@ for (const target of artifact.targets) {
   if (!Array.isArray(target.mediaProcessingAudit.forbiddenHits)) {
     fail(`target ${target.id} mediaProcessingAudit.forbiddenHits must be an array.`);
   }
+  if (target.mediaProcessingAudit.status === 'pass') {
+    if (!target.mediaProcessingAudit.evidenceRef.includes('release:no-media-evidence:scan')) {
+      fail(`target ${target.id} mediaProcessingAudit.evidenceRef must reference release:no-media-evidence:scan when passing.`);
+    }
+    if (target.mediaProcessingAudit.forbiddenHits.length > 0) {
+      fail(`target ${target.id} mediaProcessingAudit.forbiddenHits must be empty when passing.`);
+    }
+    validateNoMediaScanArtifactRef(target.id, target.mediaProcessingAudit.evidenceRef);
+  }
 
   if (!Array.isArray(target.checks) || target.checks.length === 0) {
     fail(`target ${target.id} checks must be a non-empty array.`);
@@ -195,9 +232,6 @@ for (const target of artifact.targets) {
     }
     if (!isNonEmptyString(target.mediaProcessingAudit.evidenceRef)) {
       fail(`target ${target.id} mediaProcessingAudit.evidenceRef must be set with --require-final.`);
-    }
-    if (!target.mediaProcessingAudit.evidenceRef.includes('release:no-media-evidence:scan')) {
-      fail(`target ${target.id} mediaProcessingAudit.evidenceRef must reference release:no-media-evidence:scan with --require-final.`);
     }
     if (target.mediaProcessingAudit.forbiddenHits.length > 0) {
       fail(`target ${target.id} mediaProcessingAudit.forbiddenHits must be empty with --require-final.`);

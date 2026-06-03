@@ -49,7 +49,7 @@ Do not mark the PR ready for beta just because template validators pass. The con
 
 ## Real Device Matrix
 
-Each target must have a named owner, exact device/browser versions, evidence refs, media-processing audit evidence, and all release-blocker checks passing.
+Each target must have a named owner, exact device/browser versions, evidence refs, media-processing audit evidence, a tracked redacted no-media scan-result artifact, and all release-blocker checks passing.
 
 | Target id | Required device flow |
 | --- | --- |
@@ -85,7 +85,7 @@ Validate that redacted artifact before signoff:
 pnpm release:no-media-scan-artifact:validate
 ```
 
-3. Record the scanner command/output ref in `mediaProcessingAudit.evidenceRef`; final validation requires this field to reference `release:no-media-evidence:scan`.
+3. Record the scanner command/output ref and tracked redacted scan-result artifact in `mediaProcessingAudit.evidenceRef`; final validation requires this field to reference both `release:no-media-evidence:scan` and an `artifacts/release/...no-media...json` artifact that passes `validate-no-media-evidence-scan-artifact.mjs`.
 4. Keep `mediaProcessingAudit.forbiddenHits` empty for pass.
 5. If any forbidden hit appears, set that target or check to fail and stop beta readiness.
 

@@ -67,7 +67,7 @@ const finalizeArtifact = (): ManualDeviceQaArtifact => {
     target.browserVersion = 'release-lab-browser';
     target.evidenceRefs = [`evidence://${target.id}/report.md`];
     target.mediaProcessingAudit.status = 'pass';
-    target.mediaProcessingAudit.evidenceRef = `pnpm release:no-media-evidence:scan -- evidence/${target.id}/network.har`;
+    target.mediaProcessingAudit.evidenceRef = `pnpm release:no-media-evidence:scan -- evidence/${target.id}/network.har; artifacts/release/media-policy/qaf035-no-media-evidence-scan-20260602.json`;
     target.mediaProcessingAudit.forbiddenHits = [];
     for (const check of target.checks) {
       check.status = 'pass';
@@ -178,6 +178,21 @@ describe('V1 manual device QA artifact', () => {
     const result = runValidator([invalidPath, '--require-final'], repoRoot);
     expect(result.status).toBe(2);
     expect(result.stderr).toContain('mediaProcessingAudit.evidenceRef must reference release:no-media-evidence:scan');
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('fails strict validation when passing media audit evidence omits the tracked scan artifact', () => {
+    const repoRoot = process.cwd();
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-manual-device-qa-'));
+    const invalidPath = path.join(tmpDir, 'missing-scan-artifact.json');
+    const artifact = finalizeArtifact();
+    artifact.targets[0].mediaProcessingAudit.evidenceRef = 'pnpm release:no-media-evidence:scan -- evidence/desktop-chrome-windows/network.har';
+    fs.writeFileSync(invalidPath, `${JSON.stringify(artifact, null, 2)}\n`);
+
+    const result = runValidator([invalidPath, '--require-final'], repoRoot);
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain('mediaProcessingAudit.evidenceRef must reference a tracked no-media scan artifact');
 
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
