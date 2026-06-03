@@ -21,6 +21,7 @@ describe('QAF-035 release gate aggregate validator', () => {
     expect(result.stdout).toContain('package-scripts');
     expect(result.stdout).toContain('qaf035-beta-signoff-runbook');
     expect(result.stdout).toContain('no-media scan artifact');
+    expect(result.stdout).toContain('observability baseline');
   });
 
   it('fails final mode until concrete owner and device evidence is complete', () => {
@@ -29,6 +30,7 @@ describe('QAF-035 release gate aggregate validator', () => {
     expect(result.status).toBe(2);
     expect(result.stderr).toContain('final release readiness failed');
     expect(result.stderr).toContain('final provider owner signoff failed');
+    expect(result.stderr).toContain('final observability baseline failed');
     expect(result.stderr).toContain('final manual device QA failed');
   });
 

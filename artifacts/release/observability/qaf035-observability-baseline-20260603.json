@@ -1,0 +1,135 @@
+{
+  "release": "V1",
+  "templateVersion": 1,
+  "generatedAt": "2026-06-03T09:20:00Z",
+  "runOwner": "codex",
+  "target": {
+    "minConcurrentLiveUsers": 300,
+    "maxConcurrentLiveUsers": 500,
+    "rolloutModel": "Controlled beta ramp with named stop/throttle owners before expanding to 300-500 live users."
+  },
+  "sourceCoverage": {
+    "status": "pass",
+    "testCommand": "pnpm release:observability:test",
+    "sourceFiles": [
+      "apps/web/src/services/observability.ts",
+      "apps/web/src/services/observability.test.ts",
+      "apps/web/src/components/player/VideoPlayer.tsx",
+      "apps/web/src/pages/Player.tsx",
+      "apps/web/src/components/player/PlayerControls.tsx",
+      "apps/web/src/hooks/useGoogleCastSender.ts"
+    ],
+    "events": [
+      {
+        "id": "playback-started",
+        "eventName": "playback.started",
+        "status": "pass",
+        "sourceRef": "apps/web/src/components/player/VideoPlayer.tsx",
+        "evidence": "apps/web/src/services/observability.test.ts; pnpm release:observability:test"
+      },
+      {
+        "id": "playback-error",
+        "eventName": "playback.error",
+        "status": "pass",
+        "sourceRef": "apps/web/src/components/player/VideoPlayer.tsx",
+        "evidence": "apps/web/src/services/observability.test.ts; pnpm release:observability:test"
+      },
+      {
+        "id": "playback-problem-reported",
+        "eventName": "playback.problem_reported",
+        "status": "pass",
+        "sourceRef": "apps/web/src/pages/Player.tsx",
+        "evidence": "output/playwright/focused-playback-smoke/REPORT.md; apps/web/src/pages/Player.tsx"
+      },
+      {
+        "id": "catchup-startup-timeout",
+        "eventName": "catchup.startup_timeout",
+        "status": "pass",
+        "sourceRef": "apps/web/src/components/player/VideoPlayer.tsx",
+        "evidence": "apps/web/src/components/player/VideoPlayer.tsx; apps/web/src/components/player/videoPlaybackSync.test.ts"
+      },
+      {
+        "id": "cast-error",
+        "eventName": "cast.error",
+        "status": "pass",
+        "sourceRef": "apps/web/src/hooks/useGoogleCastSender.ts",
+        "evidence": "apps/web/src/hooks/useGoogleCastSender.ts; apps/web/src/services/observability.test.ts"
+      }
+    ],
+    "notes": "Structured web observability event emission and threshold tests are present. Final beta still needs real alert routing and owner response evidence."
+  },
+  "alertRules": [
+    {
+      "id": "web-playback-error-burst",
+      "eventName": "playback.error",
+      "alertEventName": "alert.playback-error-burst",
+      "maxEvents": 5,
+      "windowMs": 300000,
+      "cooldownMs": 120000,
+      "status": "pass",
+      "evidence": "apps/web/src/services/observability.ts; apps/web/src/services/observability.test.ts; pnpm release:observability:test"
+    },
+    {
+      "id": "web-cast-error-burst",
+      "eventName": "cast.error",
+      "alertEventName": "alert.cast-error-burst",
+      "maxEvents": 3,
+      "windowMs": 300000,
+      "cooldownMs": 120000,
+      "status": "pass",
+      "evidence": "apps/web/src/services/observability.ts"
+    }
+  ],
+  "betaRouting": {
+    "status": "pending",
+    "owner": "",
+    "alertChannel": "",
+    "dashboardRef": "",
+    "responseSlo": "",
+    "evidence": "artifacts/release/ops/qaf035-beta-ops-signoff-20260603.json",
+    "notes": "Needs named beta ops owner, dashboard, alert channel, and response SLO before final 300-500-user beta."
+  },
+  "stopTriggers": [
+    {
+      "id": "startup-slo-breach",
+      "description": "Startup failure or time-to-first-frame exceeds owner-approved beta threshold.",
+      "status": "pending",
+      "owner": "",
+      "evidence": "artifacts/release/ops/qaf035-beta-ops-signoff-20260603.json"
+    },
+    {
+      "id": "playback-failure-burst",
+      "description": "playback.error bursts or user problem reports exceed owner-approved beta threshold.",
+      "status": "pending",
+      "owner": "",
+      "evidence": "apps/web/src/services/observability.test.ts; artifacts/release/ops/qaf035-beta-ops-signoff-20260603.json"
+    },
+    {
+      "id": "provider-error-budget",
+      "description": "Provider auth, catalog, stream 401/403/429/5xx, or upstream capacity errors exceed owner-approved beta budget.",
+      "status": "pending",
+      "owner": "",
+      "evidence": "output/playwright/provider-qa-preflight/REPORT.md; artifacts/release/provider/qaf035-provider-owner-signoff-20260603.json"
+    },
+    {
+      "id": "cast-airplay-release-blocker",
+      "description": "Cast, AirPlay, Apple TV, or supported browser/device release-blocker failure is observed during beta ramp.",
+      "status": "pending",
+      "owner": "",
+      "evidence": "artifacts/release/manual-device-qa/qaf035-manual-device-qa-20260603.json"
+    },
+    {
+      "id": "no-media-processing-violation",
+      "description": "Immediate beta stop if any local ffmpeg, ffprobe, server-side transcode, server-side remux, generated HLS, proxy-remuxed, remux-hls, or XUI-side media processing is observed.",
+      "status": "pass",
+      "owner": "codex",
+      "evidence": "pnpm release:no-media-evidence:scan -- output/playwright/manual-network-audit/report.json; artifacts/release/media-policy/qaf035-no-media-evidence-scan-20260602.json; artifacts/release/media-policy/qaf035-runtime-media-policy-20260602.json"
+    }
+  ],
+  "signoff": {
+    "status": "pending",
+    "approvedBy": "",
+    "approvedAt": "",
+    "notes": "Observability source coverage validates now, but beta alert routing and stop/throttle ownership remain non-final."
+  }
+}

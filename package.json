@@ -37,6 +37,8 @@
     "release:design-parity:validate": "node scripts/release/validate-design-parity-evidence.mjs scripts/release/v1-design-parity-evidence.template.json",
     "release:design-parity:test": "vitest run scripts/release/v1-design-parity-evidence.test.ts",
     "release:observability:test": "vitest run apps/web/src/services/observability.test.ts",
+    "release:observability-baseline:validate": "node scripts/release/validate-observability-baseline.mjs artifacts/release/observability/qaf035-observability-baseline-20260603.json",
+    "release:observability-baseline:test": "vitest run scripts/release/v1-observability-baseline.test.ts",
     "release:security-baseline:validate": "node scripts/release/validate-security-privacy-baseline.mjs scripts/release/v1-security-privacy-baseline.template.json",
     "release:security-baseline:test": "vitest run scripts/release/v1-security-privacy-baseline.test.ts",
     "release:readiness:validate": "node scripts/release/validate-release-readiness.mjs scripts/release/v1-release-readiness-review.template.json",

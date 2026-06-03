@@ -98,6 +98,25 @@ describe('release evidence link audit', () => {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
+  it('fails when the linked observability baseline artifact does not validate', () => {
+    const repoRoot = process.cwd();
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-evidence-links-'));
+    const readinessPath = path.join(tmpDir, 'invalid-linked-observability.json');
+    const invalidObservabilityRef = `artifacts/release/observability/__invalid-observability-test-${path.basename(tmpDir)}.json`;
+    const invalidObservabilityPath = path.resolve(repoRoot, invalidObservabilityRef);
+    const artifact = loadReadiness();
+    artifact.gates.find((gate) => gate.id === 'observability-baseline')!.evidenceRef = invalidObservabilityRef;
+    fs.writeFileSync(invalidObservabilityPath, '{}\n');
+    fs.writeFileSync(readinessPath, `${JSON.stringify(artifact, null, 2)}\n`);
+
+    const result = runValidator([readinessPath], repoRoot);
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain('evidence validation for observability-baseline failed');
+
+    fs.rmSync(invalidObservabilityPath, { force: true });
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
   it('fails expected-open-blocker mode when the rollup has no open blockers', () => {
     const repoRoot = process.cwd();
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-evidence-links-'));

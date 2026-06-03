@@ -80,9 +80,9 @@
       "id": "observability-baseline",
       "name": "V1 production observability baseline",
       "status": "pending",
-      "evidenceRef": "apps/web/src/services/observability.test.ts",
-      "checkedAt": "2026-06-02T20:53:05Z",
-      "notes": "Unit coverage exists, but beta launch alert routing, owner response, and SLO signoff remain pending."
+      "evidenceRef": "artifacts/release/observability/qaf035-observability-baseline-20260603.json",
+      "checkedAt": "2026-06-03T09:20:00Z",
+      "notes": "Concrete observability baseline artifact validates source event coverage, alert threshold rules, and no-media stop-trigger evidence. Beta launch alert routing, owner response, dashboard, and SLO signoff remain pending."
     },
     {
       "id": "beta-ops-signoff",

@@ -24,9 +24,10 @@
   - `scripts/release/validate-manual-device-qa.mjs` now rejects passing target media audits unless they cite both `release:no-media-evidence:scan` and a tracked redacted no-media scan-result artifact that validates
   - `scripts/release/validate-beta-capacity-evidence.mjs` now applies the same tracked scan-result requirement to final `mediaPath.evidence` and any passing `no-media-processing-verification` check
   - `scripts/release/validate-beta-ops-signoff.mjs` now requires passing no-media ops signal/check evidence to cite `release:no-media-evidence:scan`, a tracked no-media scan artifact, and the runtime media policy artifact
+  - `scripts/release/validate-observability-baseline.mjs` now validates `artifacts/release/observability/qaf035-observability-baseline-20260603.json`, tying structured web events, playback/cast alert rules, beta alert routing, and no-media stop-trigger evidence into the QAF aggregate gate
   - `pnpm release:secret-hygiene:validate` now scans release evidence/docs/templates plus `HANDOFF.md`, `BACKLOG.md`, `VISION.md`, `docs/V3-QA-FIX-BACKLOG.md`, and `docs/catchup-timeshift-hls-evidence.md`, so current-truth/provider-evidence docs cannot reintroduce non-redacted provider credentials
 - Current beta state:
-  - local/provider/browser/no-media evidence is partial and useful, but final beta signoff remains pending on real provider/XUI owner confirmation, 300-500 user capacity approval, real device target matrix, beta ops/observability, and final go/no-go
+  - local/provider/browser/no-media/observability source evidence is partial and useful, but final beta signoff remains pending on real provider/XUI owner confirmation, 300-500 user capacity approval, real device target matrix, beta alert route/dashboard/owners, beta ops, and final go/no-go
 
 ## Session 2026-06-02 — QAF-035 production web catch-up PR alignment
 

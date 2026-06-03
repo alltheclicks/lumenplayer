@@ -9,11 +9,13 @@ Run these from the QAF-035 production worktree:
 ```sh
 pnpm release:qaf035:validate
 pnpm release:no-media-scan-artifact:validate
+pnpm release:observability-baseline:validate
 pnpm release:qaf035:final
 ```
 
 `pnpm release:qaf035:validate` must pass while final owner/device blockers are still open. `pnpm release:qaf035:final` must fail until every real-device, provider, capacity, ops, rollback, and no-media-processing owner field is complete.
 `pnpm release:no-media-scan-artifact:validate` must pass on the tracked redacted scan-result artifact so the local Chrome Network/CDP evidence hashes, forbidden-pattern list, zero-hit summary, and raw-evidence-untracked policy stay mechanically checked in CI.
+`pnpm release:observability-baseline:validate` must pass on the concrete observability artifact so structured event coverage, playback/cast burst alert rules, beta alert routing, and no-media stop-trigger evidence are checked before signoff.
 
 ## Automated Evidence Refresh
 
@@ -43,6 +45,7 @@ Record final evidence only in the concrete QAF-035 artifacts:
 - `artifacts/release/provider/qaf035-provider-owner-signoff-20260603.json`
 - `artifacts/release/capacity/qaf035-beta-capacity-20260602.json`
 - `artifacts/release/media-policy/qaf035-runtime-media-policy-20260602.json`
+- `artifacts/release/observability/qaf035-observability-baseline-20260603.json`
 - `artifacts/release/ops/qaf035-beta-ops-signoff-20260603.json`
 
 Do not mark the PR ready for beta just because template validators pass. The concrete artifacts above are the release state.
@@ -123,6 +126,8 @@ Before 300-500 live users, `artifacts/release/ops/qaf035-beta-ops-signoff-202606
 - Maximum decision time.
 - Stop trigger for any media-processing policy violation.
 - Passing `no-media-processing-violation` signal and `no-media-processing-stop-trigger` check evidence that cites `release:no-media-evidence:scan`, a tracked redacted no-media scan-result artifact, and the runtime media policy artifact.
+
+`artifacts/release/observability/qaf035-observability-baseline-20260603.json` must also be finalized with the beta alert owner, alert channel, dashboard, response SLO, and stop-trigger owners. Passing no-media stop-trigger evidence must cite `release:no-media-evidence:scan`, a tracked redacted no-media scan-result artifact, and the runtime media policy artifact.
 
 ## Final Go / No-Go
 

@@ -60,6 +60,7 @@ const artifactValidators = new Map([
   ['provider-owner-signoff', ['scripts/release/validate-provider-owner-signoff.mjs']],
   ['beta-capacity-evidence', ['scripts/release/validate-beta-capacity-evidence.mjs']],
   ['runtime-media-policy', ['scripts/release/validate-runtime-media-policy.mjs']],
+  ['observability-baseline', ['scripts/release/validate-observability-baseline.mjs']],
   ['beta-ops-signoff', ['scripts/release/validate-beta-ops-signoff.mjs']],
   ['security-privacy-baseline', ['scripts/release/validate-security-privacy-baseline.mjs']],
 ]);
@@ -70,6 +71,7 @@ const concreteArtifactGateIds = new Set([
   'provider-owner-signoff',
   'beta-capacity-evidence',
   'runtime-media-policy',
+  'observability-baseline',
   'beta-ops-signoff',
 ]);
 
