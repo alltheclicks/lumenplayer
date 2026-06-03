@@ -78,5 +78,8 @@ jobs:
       - name: Test QAF-035 release gate validator
         run: pnpm release:qaf035:test
 
+      - name: Test release guardrail validators
+        run: pnpm release:guardrails:test
+
       - name: Test no-media evidence scanner
         run: pnpm release:no-media-evidence:test

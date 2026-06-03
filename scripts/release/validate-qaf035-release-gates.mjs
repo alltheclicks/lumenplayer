@@ -89,6 +89,7 @@ const validatePrQualityGateWorkflow = () => {
     'release-gates',
     'pnpm release:qaf035:validate',
     'pnpm release:qaf035:test',
+    'pnpm release:guardrails:test',
     'pnpm release:no-media-evidence:test',
   ];
 
