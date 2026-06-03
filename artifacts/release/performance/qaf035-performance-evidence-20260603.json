@@ -1,0 +1,47 @@
+{
+  "release": "V1",
+  "templateVersion": 1,
+  "generatedAt": "2026-06-03T10:10:00Z",
+  "runOwner": "codex",
+  "dataset": {
+    "channelCount": 20000,
+    "epgEntryCount": 50000,
+    "nowMs": 1769947200000
+  },
+  "metrics": {
+    "startup": {
+      "metric": "time-to-first-channel-ms",
+      "samples": 20,
+      "p95": null,
+      "p99": null,
+      "thresholdP95": 3000,
+      "thresholdP99": 3500,
+      "status": "pending",
+      "evidence": "pnpm perf:ttfc; scripts/perf/time-to-first-channel.test.ts"
+    },
+    "memory": {
+      "metric": "rss-mb",
+      "samples": 1,
+      "peakRssMb": null,
+      "p95RssMb": null,
+      "thresholdPeakMb": 200,
+      "status": "pending",
+      "evidence": "pnpm perf:rss; scripts/perf/memory-cap.test.ts"
+    },
+    "failureRate": {
+      "metric": "failed-runs-percent",
+      "totalRuns": 2,
+      "failedRuns": 0,
+      "ratePercent": 0,
+      "thresholdPercent": 1,
+      "status": "pass",
+      "evidence": "pnpm perf:ttfc PASS; pnpm perf:rss PASS"
+    }
+  },
+  "signoff": {
+    "status": "pending",
+    "approvedBy": "",
+    "approvedAt": "",
+    "notes": "Concrete local benchmark coverage is wired, but final beta performance signoff remains pending until a named release owner records numeric startup/RSS evidence from an approved release run."
+  }
+}

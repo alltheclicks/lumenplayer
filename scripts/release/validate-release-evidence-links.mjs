@@ -68,6 +68,7 @@ const artifactValidators = new Map([
 const concreteArtifactGateIds = new Set([
   'compatibility-matrix',
   'manual-device-qa-evidence',
+  'performance-evidence',
   'provider-owner-signoff',
   'beta-capacity-evidence',
   'runtime-media-policy',

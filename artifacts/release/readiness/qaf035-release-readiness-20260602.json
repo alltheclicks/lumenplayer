@@ -48,9 +48,9 @@
       "id": "performance-evidence",
       "name": "V1 performance evidence artifact",
       "status": "pending",
-      "evidenceRef": "scripts/release/v1-performance-evidence.template.json",
-      "checkedAt": "2026-06-02T20:53:05Z",
-      "notes": "Local perf tests pass, but final beta capacity/performance evidence is not complete."
+      "evidenceRef": "artifacts/release/performance/qaf035-performance-evidence-20260603.json",
+      "checkedAt": "2026-06-03T10:10:00Z",
+      "notes": "Concrete performance artifact validates local benchmark coverage and failure-rate evidence. Numeric startup/RSS values and final release-owner performance signoff remain pending."
     },
     {
       "id": "provider-owner-signoff",

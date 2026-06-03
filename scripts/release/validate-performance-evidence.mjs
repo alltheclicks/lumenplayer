@@ -25,6 +25,7 @@ const fail = (message) => {
 };
 
 const isFiniteNumber = (value) => typeof value === 'number' && Number.isFinite(value);
+const isNonEmptyString = (value) => typeof value === 'string' && value.trim() !== '';
 
 let artifact;
 try {
@@ -70,6 +71,14 @@ if (!allowedMetricStatus.has(startup.status)) {
   fail('metrics.startup.status must be pending/pass/fail.');
 }
 
+if (typeof startup.samples !== 'number' || startup.samples < 0) {
+  fail('metrics.startup.samples must be a non-negative number.');
+}
+
+if (typeof startup.evidence !== 'string') {
+  fail('metrics.startup.evidence must be a string.');
+}
+
 const memory = artifact.metrics.memory;
 if (!memory || typeof memory !== 'object') {
   fail('metrics.memory is required.');
@@ -83,6 +92,14 @@ if (!allowedMetricStatus.has(memory.status)) {
   fail('metrics.memory.status must be pending/pass/fail.');
 }
 
+if (typeof memory.samples !== 'number' || memory.samples < 0) {
+  fail('metrics.memory.samples must be a non-negative number.');
+}
+
+if (typeof memory.evidence !== 'string') {
+  fail('metrics.memory.evidence must be a string.');
+}
+
 const failureRate = artifact.metrics.failureRate;
 if (!failureRate || typeof failureRate !== 'object') {
   fail('metrics.failureRate is required.');
@@ -94,6 +111,65 @@ if (typeof failureRate.thresholdPercent !== 'number' || failureRate.thresholdPer
 
 if (!allowedMetricStatus.has(failureRate.status)) {
   fail('metrics.failureRate.status must be pending/pass/fail.');
+}
+
+if (!Number.isInteger(failureRate.totalRuns) || failureRate.totalRuns < 0) {
+  fail('metrics.failureRate.totalRuns must be a non-negative integer.');
+}
+
+if (!Number.isInteger(failureRate.failedRuns) || failureRate.failedRuns < 0) {
+  fail('metrics.failureRate.failedRuns must be a non-negative integer.');
+}
+
+if (failureRate.failedRuns > failureRate.totalRuns) {
+  fail('metrics.failureRate.failedRuns must be <= totalRuns.');
+}
+
+if (typeof failureRate.evidence !== 'string') {
+  fail('metrics.failureRate.evidence must be a string.');
+}
+
+if (failureRate.ratePercent != null) {
+  if (!isFiniteNumber(failureRate.ratePercent)) {
+    fail('metrics.failureRate.ratePercent must be null or a finite number.');
+  }
+  const expectedRate = failureRate.totalRuns === 0 ? 0 : (failureRate.failedRuns / failureRate.totalRuns) * 100;
+  if (Math.abs(failureRate.ratePercent - expectedRate) > 0.001) {
+    fail('metrics.failureRate.ratePercent must match failedRuns / totalRuns.');
+  }
+}
+
+if (startup.status === 'pass' || startup.status === 'fail') {
+  if (startup.p95 == null || startup.p99 == null) {
+    fail('metrics.startup p95/p99 must be set when startup.status is pass/fail.');
+  }
+  if (!isFiniteNumber(startup.p95) || !isFiniteNumber(startup.p99)) {
+    fail('metrics.startup p95/p99 must be finite numbers when startup.status is pass/fail.');
+  }
+  if (!isNonEmptyString(startup.evidence)) {
+    fail('metrics.startup.evidence must be set when startup.status is pass/fail.');
+  }
+}
+
+if (memory.status === 'pass' || memory.status === 'fail') {
+  if (memory.peakRssMb == null || memory.p95RssMb == null) {
+    fail('metrics.memory peakRssMb/p95RssMb must be set when memory.status is pass/fail.');
+  }
+  if (!isFiniteNumber(memory.peakRssMb) || !isFiniteNumber(memory.p95RssMb)) {
+    fail('metrics.memory peakRssMb/p95RssMb must be finite numbers when memory.status is pass/fail.');
+  }
+  if (!isNonEmptyString(memory.evidence)) {
+    fail('metrics.memory.evidence must be set when memory.status is pass/fail.');
+  }
+}
+
+if (failureRate.status === 'pass' || failureRate.status === 'fail') {
+  if (failureRate.ratePercent == null) {
+    fail('metrics.failureRate.ratePercent must be set when failureRate.status is pass/fail.');
+  }
+  if (!isNonEmptyString(failureRate.evidence)) {
+    fail('metrics.failureRate.evidence must be set when failureRate.status is pass/fail.');
+  }
 }
 
 if (!artifact.signoff || typeof artifact.signoff !== 'object') {

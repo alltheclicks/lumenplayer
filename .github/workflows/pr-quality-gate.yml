@@ -87,6 +87,9 @@ jobs:
       - name: Validate no-media scan artifact
         run: pnpm release:no-media-scan-artifact:validate
 
+      - name: Validate performance evidence
+        run: pnpm release:perf-evidence:validate
+
       - name: Validate observability baseline
         run: pnpm release:observability-baseline:validate
 

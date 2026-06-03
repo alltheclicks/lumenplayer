@@ -22,7 +22,7 @@
     "tasks:overlap": "bash scripts/automation/check-overlap.sh",
     "tasks:merge": "bash scripts/automation/merge-queue.sh",
     "tasks:docs-sync": "bash scripts/automation/docs-sync.sh",
-    "release:perf-evidence:validate": "node scripts/release/validate-performance-evidence.mjs scripts/release/v1-performance-evidence.template.json",
+    "release:perf-evidence:validate": "node scripts/release/validate-performance-evidence.mjs artifacts/release/performance/qaf035-performance-evidence-20260603.json",
     "release:perf-evidence:test": "vitest run scripts/release/v1-performance-evidence.test.ts",
     "release:beta-capacity:validate": "node scripts/release/validate-beta-capacity-evidence.mjs scripts/release/v1-beta-capacity-evidence.template.json",
     "release:beta-capacity:test": "vitest run scripts/release/v1-beta-capacity-evidence.test.ts",

@@ -9,12 +9,14 @@ Run these from the QAF-035 production worktree:
 ```sh
 pnpm release:qaf035:validate
 pnpm release:no-media-scan-artifact:validate
+pnpm release:perf-evidence:validate
 pnpm release:observability-baseline:validate
 pnpm release:qaf035:final
 ```
 
 `pnpm release:qaf035:validate` must pass while final owner/device blockers are still open. `pnpm release:qaf035:final` must fail until every real-device, provider, capacity, ops, rollback, and no-media-processing owner field is complete.
 `pnpm release:no-media-scan-artifact:validate` must pass on the tracked redacted scan-result artifact so the local Chrome Network/CDP evidence hashes, forbidden-pattern list, zero-hit summary, and raw-evidence-untracked policy stay mechanically checked in CI.
+`pnpm release:perf-evidence:validate` must pass on the concrete performance artifact so local benchmark coverage and failed-run accounting are checked before final beta performance signoff.
 `pnpm release:observability-baseline:validate` must pass on the concrete observability artifact so structured event coverage, playback/cast burst alert rules, beta alert routing, and no-media stop-trigger evidence are checked before signoff.
 
 ## Automated Evidence Refresh
@@ -44,6 +46,7 @@ Record final evidence only in the concrete QAF-035 artifacts:
 - `artifacts/release/manual-device-qa/qaf035-manual-device-qa-20260603.json`
 - `artifacts/release/provider/qaf035-provider-owner-signoff-20260603.json`
 - `artifacts/release/capacity/qaf035-beta-capacity-20260602.json`
+- `artifacts/release/performance/qaf035-performance-evidence-20260603.json`
 - `artifacts/release/media-policy/qaf035-runtime-media-policy-20260602.json`
 - `artifacts/release/observability/qaf035-observability-baseline-20260603.json`
 - `artifacts/release/ops/qaf035-beta-ops-signoff-20260603.json`
@@ -114,6 +117,8 @@ The provider/XUI owner must fill `artifacts/release/provider/qaf035-provider-own
 - Explicit commitment that broken catch-up channels will not be resolved with local ffmpeg, server-side transcode/remux, generated HLS, proxy-remuxed, remux-hls, or XUI-side transcode/remux.
 
 The capacity owner must fill `artifacts/release/capacity/qaf035-beta-capacity-20260602.json` with provider capacity, Lumen edge capacity, observability SLO, and rollback/throttle evidence. Final `mediaPath.evidence` and any passing `no-media-processing-verification` check must cite both `release:no-media-evidence:scan` and a tracked redacted no-media scan-result artifact that validates.
+
+The performance owner must finalize `artifacts/release/performance/qaf035-performance-evidence-20260603.json` with numeric startup p95/p99, RSS peak/p95, failed-run rate, and owner approval from an approved release run. Template validation or a passing unit test alone is not final beta performance evidence.
 
 ## Ops Signoff
 

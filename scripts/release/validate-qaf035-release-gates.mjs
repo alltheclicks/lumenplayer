@@ -24,6 +24,7 @@ const files = {
   manualDeviceQa: 'artifacts/release/manual-device-qa/qaf035-manual-device-qa-20260603.json',
   providerOwner: 'artifacts/release/provider/qaf035-provider-owner-signoff-20260603.json',
   betaCapacity: 'artifacts/release/capacity/qaf035-beta-capacity-20260602.json',
+  performanceEvidence: 'artifacts/release/performance/qaf035-performance-evidence-20260603.json',
   runtimeMedia: 'artifacts/release/media-policy/qaf035-runtime-media-policy-20260602.json',
   noMediaScanArtifact: 'artifacts/release/media-policy/qaf035-no-media-evidence-scan-20260602.json',
   observabilityBaseline: 'artifacts/release/observability/qaf035-observability-baseline-20260603.json',
@@ -57,6 +58,7 @@ const validateRunbook = () => {
     files.manualDeviceQa,
     files.providerOwner,
     files.betaCapacity,
+    files.performanceEvidence,
     files.runtimeMedia,
     files.observabilityBaseline,
     files.betaOps,
@@ -64,6 +66,7 @@ const validateRunbook = () => {
     'pnpm release:qaf035:final',
     'pnpm release:no-media-evidence:scan',
     'pnpm release:no-media-scan-artifact:validate',
+    'pnpm release:perf-evidence:validate',
     'pnpm release:observability-baseline:validate',
     'pnpm catchup:timeshift-hls:test',
     'pnpm release:proxy-no-media:validate',
@@ -101,6 +104,7 @@ const validatePrQualityGateWorkflow = () => {
     'pnpm release:guardrails:test',
     'pnpm release:no-media-evidence:test',
     'pnpm release:no-media-scan-artifact:validate',
+    'pnpm release:perf-evidence:validate',
     'pnpm release:observability-baseline:validate',
     'pnpm catchup:timeshift-hls:test',
     'pnpm release:proxy-no-media:validate',
@@ -149,6 +153,11 @@ const validatePackageScripts = () => {
   const noMediaScanArtifactValidator = packageJson.scripts?.['release:no-media-scan-artifact:validate'];
   if (noMediaScanArtifactValidator !== `node scripts/release/validate-no-media-evidence-scan-artifact.mjs ${files.noMediaScanArtifact}`) {
     fail(`package.json scripts.release:no-media-scan-artifact:validate must validate ${files.noMediaScanArtifact}.`);
+  }
+
+  const performanceEvidenceValidator = packageJson.scripts?.['release:perf-evidence:validate'];
+  if (performanceEvidenceValidator !== `node scripts/release/validate-performance-evidence.mjs ${files.performanceEvidence}`) {
+    fail(`package.json scripts.release:perf-evidence:validate must validate ${files.performanceEvidence}.`);
   }
 
   const observabilityBaselineValidator = packageJson.scripts?.['release:observability-baseline:validate'];
@@ -231,6 +240,11 @@ runNode('no-media scan artifact', [
   files.noMediaScanArtifact,
 ]);
 
+runNode('performance evidence', [
+  'scripts/release/validate-performance-evidence.mjs',
+  files.performanceEvidence,
+]);
+
 runNode('observability baseline', [
   'scripts/release/validate-observability-baseline.mjs',
   files.observabilityBaseline,
@@ -240,6 +254,7 @@ const finalValidators = [
   ['final release readiness', ['scripts/release/validate-release-readiness.mjs', files.readiness, '--require-final']],
   ['final provider owner signoff', ['scripts/release/validate-provider-owner-signoff.mjs', files.providerOwner, '--require-final']],
   ['final beta capacity evidence', ['scripts/release/validate-beta-capacity-evidence.mjs', files.betaCapacity, '--require-final']],
+  ['final performance evidence', ['scripts/release/validate-performance-evidence.mjs', files.performanceEvidence, '--require-final']],
   ['final runtime media policy', ['scripts/release/validate-runtime-media-policy.mjs', files.runtimeMedia, '--require-final']],
   ['final observability baseline', ['scripts/release/validate-observability-baseline.mjs', files.observabilityBaseline, '--require-final']],
   ['final manual device QA', ['scripts/release/validate-manual-device-qa.mjs', files.manualDeviceQa, '--require-final']],

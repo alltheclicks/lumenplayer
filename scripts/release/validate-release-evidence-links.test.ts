@@ -117,6 +117,25 @@ describe('release evidence link audit', () => {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
+  it('fails when the linked performance artifact does not validate', () => {
+    const repoRoot = process.cwd();
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-evidence-links-'));
+    const readinessPath = path.join(tmpDir, 'invalid-linked-performance.json');
+    const invalidPerformanceRef = `artifacts/release/performance/__invalid-performance-test-${path.basename(tmpDir)}.json`;
+    const invalidPerformancePath = path.resolve(repoRoot, invalidPerformanceRef);
+    const artifact = loadReadiness();
+    artifact.gates.find((gate) => gate.id === 'performance-evidence')!.evidenceRef = invalidPerformanceRef;
+    fs.writeFileSync(invalidPerformancePath, '{}\n');
+    fs.writeFileSync(readinessPath, `${JSON.stringify(artifact, null, 2)}\n`);
+
+    const result = runValidator([readinessPath], repoRoot);
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain('evidence validation for performance-evidence failed');
+
+    fs.rmSync(invalidPerformancePath, { force: true });
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
   it('fails expected-open-blocker mode when the rollup has no open blockers', () => {
     const repoRoot = process.cwd();
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-evidence-links-'));

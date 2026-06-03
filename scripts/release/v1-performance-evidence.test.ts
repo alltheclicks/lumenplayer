@@ -13,17 +13,22 @@ interface PerformanceEvidenceArtifact {
       p99: number | null;
       thresholdP95: number;
       thresholdP99: number;
+      evidence: string;
       status: MetricStatus;
     };
     memory: {
       peakRssMb: number | null;
       p95RssMb: number | null;
       thresholdPeakMb: number;
+      evidence: string;
       status: MetricStatus;
     };
     failureRate: {
+      totalRuns: number;
+      failedRuns: number;
       ratePercent: number | null;
       thresholdPercent: number;
+      evidence: string;
       status: MetricStatus;
     };
   };
@@ -79,13 +84,18 @@ describe('V1 performance evidence artifact', () => {
     const finalArtifact = loadTemplate();
     finalArtifact.metrics.startup.p95 = 1820;
     finalArtifact.metrics.startup.p99 = 2470;
+    finalArtifact.metrics.startup.evidence = 'pnpm perf:ttfc PASS';
     finalArtifact.metrics.startup.status = 'pass';
 
     finalArtifact.metrics.memory.peakRssMb = 176;
     finalArtifact.metrics.memory.p95RssMb = 168;
+    finalArtifact.metrics.memory.evidence = 'pnpm perf:rss PASS';
     finalArtifact.metrics.memory.status = 'pass';
 
     finalArtifact.metrics.failureRate.ratePercent = 0;
+    finalArtifact.metrics.failureRate.totalRuns = 2;
+    finalArtifact.metrics.failureRate.failedRuns = 0;
+    finalArtifact.metrics.failureRate.evidence = 'pnpm perf:ttfc PASS; pnpm perf:rss PASS';
     finalArtifact.metrics.failureRate.status = 'pass';
 
     finalArtifact.signoff.status = 'pass';
@@ -108,13 +118,18 @@ describe('V1 performance evidence artifact', () => {
     const invalidArtifact = loadTemplate();
     invalidArtifact.metrics.startup.p95 = 3200;
     invalidArtifact.metrics.startup.p99 = 3600;
+    invalidArtifact.metrics.startup.evidence = 'pnpm perf:ttfc FAIL';
     invalidArtifact.metrics.startup.status = 'pass';
 
     invalidArtifact.metrics.memory.peakRssMb = 250;
     invalidArtifact.metrics.memory.p95RssMb = 230;
+    invalidArtifact.metrics.memory.evidence = 'pnpm perf:rss FAIL';
     invalidArtifact.metrics.memory.status = 'pass';
 
     invalidArtifact.metrics.failureRate.ratePercent = 2;
+    invalidArtifact.metrics.failureRate.totalRuns = 100;
+    invalidArtifact.metrics.failureRate.failedRuns = 2;
+    invalidArtifact.metrics.failureRate.evidence = 'pnpm perf:ttfc FAIL; pnpm perf:rss FAIL';
     invalidArtifact.metrics.failureRate.status = 'pass';
 
     invalidArtifact.signoff.status = 'pass';
@@ -145,11 +160,16 @@ describe('V1 performance evidence artifact', () => {
 
     delete artifactWithMissingField.metrics.startup.p95;
     artifactWithMissingField.metrics.startup.p99 = 2300;
+    artifactWithMissingField.metrics.startup.evidence = 'pnpm perf:ttfc PASS';
     artifactWithMissingField.metrics.startup.status = 'pass';
     artifactWithMissingField.metrics.memory.peakRssMb = 180;
     artifactWithMissingField.metrics.memory.p95RssMb = 170;
+    artifactWithMissingField.metrics.memory.evidence = 'pnpm perf:rss PASS';
     artifactWithMissingField.metrics.memory.status = 'pass';
     artifactWithMissingField.metrics.failureRate.ratePercent = 0;
+    artifactWithMissingField.metrics.failureRate.totalRuns = 2;
+    artifactWithMissingField.metrics.failureRate.failedRuns = 0;
+    artifactWithMissingField.metrics.failureRate.evidence = 'pnpm perf:ttfc PASS; pnpm perf:rss PASS';
     artifactWithMissingField.metrics.failureRate.status = 'pass';
     artifactWithMissingField.signoff.status = 'pass';
     artifactWithMissingField.signoff.approvedBy = 'qa-release-owner';
@@ -159,7 +179,7 @@ describe('V1 performance evidence artifact', () => {
 
     const result = runValidator([missingFieldPath, '--require-final'], repoRoot);
     expect(result.status).toBe(2);
-    expect(result.stderr).toContain('must be set with --require-final');
+    expect(result.stderr).toContain('p95/p99 must be set when startup.status is pass/fail');
 
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
@@ -180,11 +200,16 @@ describe('V1 performance evidence artifact', () => {
 
     invalidTypeArtifact.metrics.startup.p95 = 'fast';
     invalidTypeArtifact.metrics.startup.p99 = 2300;
+    invalidTypeArtifact.metrics.startup.evidence = 'pnpm perf:ttfc PASS';
     invalidTypeArtifact.metrics.startup.status = 'pass';
     invalidTypeArtifact.metrics.memory.peakRssMb = 180;
     invalidTypeArtifact.metrics.memory.p95RssMb = 170;
+    invalidTypeArtifact.metrics.memory.evidence = 'pnpm perf:rss PASS';
     invalidTypeArtifact.metrics.memory.status = 'pass';
     invalidTypeArtifact.metrics.failureRate.ratePercent = 0;
+    invalidTypeArtifact.metrics.failureRate.totalRuns = 2;
+    invalidTypeArtifact.metrics.failureRate.failedRuns = 0;
+    invalidTypeArtifact.metrics.failureRate.evidence = 'pnpm perf:ttfc PASS; pnpm perf:rss PASS';
     invalidTypeArtifact.metrics.failureRate.status = 'pass';
     invalidTypeArtifact.signoff.status = 'pass';
     invalidTypeArtifact.signoff.approvedBy = 'qa-release-owner';
@@ -195,6 +220,37 @@ describe('V1 performance evidence artifact', () => {
     const result = runValidator([invalidTypePath, '--require-final'], repoRoot);
     expect(result.status).toBe(2);
     expect(result.stderr).toContain('must be finite numbers');
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('tracks the QAF-035 partial performance artifact without allowing final signoff', () => {
+    const repoRoot = process.cwd();
+    const artifactPath = 'artifacts/release/performance/qaf035-performance-evidence-20260603.json';
+
+    const partialResult = runValidator([artifactPath], repoRoot);
+    expect(partialResult.status).toBe(0);
+
+    const finalResult = runValidator([artifactPath, '--require-final'], repoRoot);
+    expect(finalResult.status).toBe(2);
+    expect(finalResult.stderr).toContain('startup p95/p99 must be set with --require-final');
+  });
+
+  it('fails validation when failure rate does not match failed run counts', () => {
+    const repoRoot = process.cwd();
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-0343-perf-evidence-'));
+    const invalidPath = path.join(tmpDir, 'invalid-failure-rate.json');
+    const invalidArtifact = loadTemplate();
+    invalidArtifact.metrics.failureRate.totalRuns = 10;
+    invalidArtifact.metrics.failureRate.failedRuns = 1;
+    invalidArtifact.metrics.failureRate.ratePercent = 25;
+    invalidArtifact.metrics.failureRate.evidence = 'pnpm perf:ttfc FAIL';
+    invalidArtifact.metrics.failureRate.status = 'fail';
+    fs.writeFileSync(invalidPath, `${JSON.stringify(invalidArtifact, null, 2)}\n`);
+
+    const result = runValidator([invalidPath], repoRoot);
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain('ratePercent must match failedRuns / totalRuns');
 
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
