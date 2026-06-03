@@ -91,7 +91,7 @@ const usage = () => {
   console.log('Commands:');
   console.log('  init --matrix <path> [--targets <path>] [--out <path>] [--operator <name>] [--run-id <id>]');
   console.log('  set --run <path> --case <id> --status <pending|pass|fail> [--target <id>] [--evidence <text>] [--notes <text>] [--executor <name>]');
-  console.log('  status --run <path> [--require-final] [--require-targets <path>]');
+  console.log('  status --run <path> [--require-final] [--require-targets <path>] [--require-matrix <path>]');
   console.log('  finalize --run <path> --signoff <pass|fail> --approved-by <name> [--notes <text>]');
 };
 
@@ -434,6 +434,13 @@ const statusCommand = (args) => {
     const targetsDoc = readJson(targetsPath);
     requiredTargets = validateTargets(targetsDoc);
   }
+  let requiredCases = [];
+  if (args['require-matrix']) {
+    const matrixPath = path.resolve(process.cwd(), String(args['require-matrix']));
+    const matrixDoc = readJson(matrixPath);
+    validateMatrix(matrixDoc);
+    requiredCases = matrixDoc.cases;
+  }
 
   const runPath = path.resolve(process.cwd(), String(args.run));
   const run = readJson(runPath);
@@ -453,6 +460,10 @@ const statusCommand = (args) => {
   const resultTargetIds = new Set(run.results
     .map((result) => result.targetId)
     .filter(isNonEmptyString));
+  const resultCaseIds = new Set(run.results
+    .map((result) => result.caseId)
+    .filter(isNonEmptyString));
+  const requiredCasesById = new Map(requiredCases.map((testCase) => [testCase.id, testCase]));
 
   if (requireFinal) {
     if (run.status !== 'completed') {
@@ -483,6 +494,41 @@ const statusCommand = (args) => {
 
     if (!isNonEmptyString(run.signoff.approvedAt)) {
       fail('status --require-final requires signoff.approvedAt.');
+    }
+
+    for (const testCase of requiredCases) {
+      if (!resultCaseIds.has(testCase.id)) {
+        fail(`status --require-final requires matrix case ${testCase.id}.`);
+      }
+    }
+
+    for (const result of run.results) {
+      const requiredCase = requiredCasesById.get(result.caseId);
+      if (requiredCases.length > 0 && !requiredCase) {
+        fail(`status --require-final forbids result case ${result.caseId} because it is not in the required matrix.`);
+      }
+
+      if (requiredCase) {
+        for (const [field, expected] of [
+          ['suite', requiredCase.suite],
+          ['title', requiredCase.title],
+          ['casePlatform', requiredCase.platform],
+          ['caseDevice', requiredCase.device],
+          ['caseBrowser', requiredCase.browser],
+        ]) {
+          if (result[field] !== expected) {
+            fail(`status --require-final requires result ${result.caseId} ${field} to match required matrix case.`);
+          }
+        }
+
+        if (result.releaseBlocker !== Boolean(requiredCase.releaseBlocker)) {
+          fail(`status --require-final requires result ${result.caseId} releaseBlocker to match required matrix case.`);
+        }
+
+        if (!Array.isArray(result.tags) || !sameStringSet(result.tags, requiredCase.tags)) {
+          fail(`status --require-final requires result ${result.caseId} tags to match required matrix case.`);
+        }
+      }
     }
 
     for (const target of requiredTargets) {
