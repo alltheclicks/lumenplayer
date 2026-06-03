@@ -1,0 +1,176 @@
+{
+  "release": "V1",
+  "templateVersion": 1,
+  "generatedAt": "2026-06-03T13:20:00Z",
+  "decisionOwner": "release-owner",
+  "featureAreas": [
+    {
+      "id": "content-playback",
+      "name": "Content and Playback",
+      "passWhen": "Live TV, VOD, and Series playback paths pass smoke checks with no blocker defects.",
+      "failWhen": "Any playback entry point fails to start or recover, or a blocker defect remains open.",
+      "checks": [
+        {
+          "id": "live-player-start",
+          "description": "Live channel starts within target startup budget and basic controls work.",
+          "status": "pending",
+          "evidence": "artifacts/release/compatibility/qaf035-provider-local-20260602.json"
+        },
+        {
+          "id": "vod-player-start",
+          "description": "VOD starts from catalog and detail page, and seek/resume work.",
+          "status": "pending",
+          "evidence": "artifacts/release/manual-device-qa/qaf035-manual-device-qa-20260603.json"
+        },
+        {
+          "id": "series-episode-start",
+          "description": "Episode playback starts from series detail and metadata is correct.",
+          "status": "pending",
+          "evidence": "output/playwright/qa-user-sim/QA-REPORT.md"
+        },
+        {
+          "id": "provider-auth-live-catalog",
+          "description": "Provider auth succeeds and the live catalog returns non-empty release evidence for the QA account.",
+          "status": "pass",
+          "evidence": "output/playwright/provider-qa-preflight/REPORT.md; artifacts/release/compatibility/qaf035-provider-local-20260602.json"
+        },
+        {
+          "id": "provider-focused-playback",
+          "description": "Provider-backed focused live/catch-up browser playback smoke passes with redacted evidence.",
+          "status": "pass",
+          "evidence": "output/playwright/focused-playback-smoke/REPORT.md; artifacts/release/compatibility/qaf035-provider-local-20260602.json"
+        },
+        {
+          "id": "catchup-no-transcode-remux",
+          "description": "Catch-up beta evidence proves broken provider archives are not solved with ffmpeg, transcode, remux, generated HLS, or XUI-side media processing.",
+          "status": "pass",
+          "evidence": "pnpm release:no-media-evidence:scan -- output/playwright/manual-network-audit/report.json; artifacts/release/media-policy/qaf035-no-media-evidence-scan-20260602.json; artifacts/release/media-policy/qaf035-runtime-media-policy-20260602.json"
+        }
+      ]
+    },
+    {
+      "id": "cast",
+      "name": "Google Cast",
+      "passWhen": "Sender, receiver, and remote-control flow work without session reset on renderer switch.",
+      "failWhen": "Cast session cannot connect reliably, renderer switch breaks playback continuity, or remote controls are inconsistent.",
+      "checks": [
+        {
+          "id": "cast-connect-and-play",
+          "description": "Sender discovers receiver and starts remote playback.",
+          "status": "pending",
+          "evidence": "artifacts/release/manual-device-qa/qaf035-manual-device-qa-20260603.json"
+        },
+        {
+          "id": "cast-renderer-switch",
+          "description": "Switching local/cast preserves timeline and playback state.",
+          "status": "pending",
+          "evidence": "artifacts/release/manual-device-qa/qaf035-manual-device-qa-20260603.json"
+        },
+        {
+          "id": "cast-remote-controls",
+          "description": "Phone-as-remote controls (play/pause/seek/channel) match receiver behavior.",
+          "status": "pending",
+          "evidence": "artifacts/release/manual-device-qa/qaf035-manual-device-qa-20260603.json"
+        }
+      ]
+    },
+    {
+      "id": "airplay",
+      "name": "AirPlay",
+      "passWhen": "AirPlay device discovery and route handoff are stable for supported browsers/devices.",
+      "failWhen": "AirPlay route handoff fails or local/remote state diverges after switching.",
+      "checks": [
+        {
+          "id": "airplay-picker",
+          "description": "AirPlay picker can be opened and route can be selected.",
+          "status": "pending",
+          "evidence": "artifacts/release/manual-device-qa/qaf035-manual-device-qa-20260603.json"
+        },
+        {
+          "id": "airplay-renderer-sync",
+          "description": "Renderer transitions keep expected playback state.",
+          "status": "pending",
+          "evidence": "artifacts/release/manual-device-qa/qaf035-manual-device-qa-20260603.json"
+        }
+      ]
+    },
+    {
+      "id": "pwa",
+      "name": "PWA Install and Offline",
+      "passWhen": "Install flow works on supported targets and offline fallback is functional.",
+      "failWhen": "Install prompts are misleading for unsupported devices, or offline navigation breaks critical flows.",
+      "checks": [
+        {
+          "id": "pwa-install",
+          "description": "Install prompt behavior is correct on Android and iOS home-screen conditions.",
+          "status": "pending",
+          "evidence": "artifacts/release/manual-device-qa/qaf035-manual-device-qa-20260603.json"
+        },
+        {
+          "id": "pwa-offline-fallback",
+          "description": "Offline fallback page is served for navigation failures.",
+          "status": "pending",
+          "evidence": "artifacts/release/manual-device-qa/qaf035-manual-device-qa-20260603.json"
+        }
+      ]
+    },
+    {
+      "id": "performance",
+      "name": "Performance Acceptance",
+      "passWhen": "Performance benchmarks meet startup and memory thresholds on the 20k channel dataset.",
+      "failWhen": "Any required performance threshold is violated or benchmark artifacts are missing.",
+      "checks": [
+        {
+          "id": "ttfc-p95",
+          "description": "p95 time-to-first-channel stays below 3000 ms on benchmark dataset.",
+          "status": "pending",
+          "evidence": "artifacts/release/performance/qaf035-performance-evidence-20260603.json"
+        },
+        {
+          "id": "rss-cap",
+          "description": "Resident memory stays below 200 MB threshold under benchmark load.",
+          "status": "pending",
+          "evidence": "artifacts/release/performance/qaf035-performance-evidence-20260603.json"
+        },
+        {
+          "id": "beta-capacity-300-500",
+          "description": "300-500 live-user beta capacity plan is approved, including evidence that the production media path does not rely on server-side media processing.",
+          "status": "pending",
+          "evidence": "artifacts/release/capacity/qaf035-beta-capacity-20260602.json"
+        }
+      ]
+    },
+    {
+      "id": "release-quality",
+      "name": "Release Quality Gates",
+      "passWhen": "CI checks are green, smoke/regression matrix is complete, and no blocker defects remain.",
+      "failWhen": "Any required check is red, matrix execution is incomplete, or unresolved blocker defects exist.",
+      "checks": [
+        {
+          "id": "ci-green",
+          "description": "Required GitHub checks pass on release candidate branch.",
+          "status": "pending",
+          "evidence": "Latest PR Quality Gate run on the final release-candidate head must be recorded at signoff."
+        },
+        {
+          "id": "smoke-regression-complete",
+          "description": "Smoke/regression matrix run is complete with signed-off evidence.",
+          "status": "pending",
+          "evidence": "artifacts/release/smoke/qaf035-smoke-regression-matrix-20260603.json"
+        },
+        {
+          "id": "blocker-defects",
+          "description": "No open blocker defects in release scope.",
+          "status": "pending",
+          "evidence": "artifacts/release/readiness/qaf035-release-readiness-20260602.json"
+        }
+      ]
+    }
+  ],
+  "decision": {
+    "status": "pending",
+    "approvedBy": "",
+    "approvedAt": "",
+    "notes": "Partial QAF-035 go/no-go artifact. Local provider, no-media, and current PR CI checks have evidence, but final beta signoff remains pending on the readiness blocker triage."
+  }
+}

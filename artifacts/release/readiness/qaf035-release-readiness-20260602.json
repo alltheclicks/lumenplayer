@@ -8,17 +8,17 @@
       "id": "go-no-go-checklist",
       "name": "V1 go/no-go checklist",
       "status": "pending",
-      "evidenceRef": "scripts/release/v1-go-no-go.template.json",
+      "evidenceRef": "artifacts/release/readiness/qaf035-go-no-go-20260603.json",
       "checkedAt": "2026-06-02T20:53:05Z",
-      "notes": "Template validates locally, but final go/no-go remains pending until release owner signoff."
+      "notes": "Concrete QAF go/no-go artifact validates locally, but final go/no-go remains pending until release owner signoff."
     },
     {
       "id": "smoke-regression-matrix",
       "name": "V1 smoke/regression matrix execution",
       "status": "pending",
-      "evidenceRef": "scripts/release/v1-smoke-regression-matrix.template.json",
+      "evidenceRef": "artifacts/release/smoke/qaf035-smoke-regression-matrix-20260603.json",
       "checkedAt": "2026-06-02T20:53:05Z",
-      "notes": "Template validates locally with 18 cases. Full execution remains pending because desktop/mobile/Cast/AirPlay/PWA target evidence is not complete."
+      "notes": "Concrete QAF smoke/regression artifact validates locally with 18 cases. Full execution remains pending because desktop/mobile/Cast/AirPlay/PWA target evidence is not complete."
     },
     {
       "id": "compatibility-matrix",
@@ -40,9 +40,9 @@
       "id": "design-parity-evidence",
       "name": "V1 UI design parity evidence review",
       "status": "pending",
-      "evidenceRef": "scripts/release/v1-design-parity-evidence.template.json",
+      "evidenceRef": "artifacts/release/design/qaf035-design-parity-20260603.json",
       "checkedAt": "2026-06-02T20:53:05Z",
-      "notes": "Template/test coverage exists, but final rendered design parity evidence is not signed off for beta."
+      "notes": "Concrete QAF design-parity artifact validates locally, but final rendered design parity evidence is not signed off for beta."
     },
     {
       "id": "performance-evidence",

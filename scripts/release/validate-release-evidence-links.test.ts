@@ -80,6 +80,21 @@ describe('release evidence link audit', () => {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
+  it('fails when a QAF readiness gate points at a template instead of a concrete artifact', () => {
+    const repoRoot = process.cwd();
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-evidence-links-'));
+    const invalidPath = path.join(tmpDir, 'template-evidence.json');
+    const artifact = loadReadiness();
+    artifact.gates.find((gate) => gate.id === 'go-no-go-checklist')!.evidenceRef = 'scripts/release/v1-go-no-go.template.json';
+    fs.writeFileSync(invalidPath, `${JSON.stringify(artifact, null, 2)}\n`);
+
+    const result = runValidator([invalidPath], repoRoot);
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain('go-no-go-checklist must point at a concrete artifacts/release evidence file');
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
   it('fails when a linked artifact does not pass its own validator', () => {
     const repoRoot = process.cwd();
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-evidence-links-'));

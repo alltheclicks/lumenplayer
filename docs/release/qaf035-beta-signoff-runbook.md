@@ -8,11 +8,14 @@ Run these from the QAF-035 production worktree:
 
 ```sh
 pnpm release:qaf035:validate
+pnpm release:go-no-go:validate
+pnpm release:smoke-matrix:validate
 pnpm release:readiness:validate
 pnpm release:provider-owner:validate
 pnpm release:beta-capacity:validate
 pnpm release:runtime-media:validate
 pnpm release:manual-device-qa:validate
+pnpm release:design-parity:validate
 pnpm release:no-media-scan-artifact:validate
 pnpm release:perf-evidence:validate
 pnpm release:observability-baseline:validate
@@ -53,8 +56,11 @@ These are useful provider/browser signals, but they are not real-device signoff.
 Record final evidence only in the concrete QAF-035 artifacts:
 
 - `artifacts/release/readiness/qaf035-release-readiness-20260602.json`
+- `artifacts/release/readiness/qaf035-go-no-go-20260603.json`
+- `artifacts/release/smoke/qaf035-smoke-regression-matrix-20260603.json`
 - `artifacts/release/compatibility/qaf035-provider-local-20260602.json`
 - `artifacts/release/manual-device-qa/qaf035-manual-device-qa-20260603.json`
+- `artifacts/release/design/qaf035-design-parity-20260603.json`
 - `artifacts/release/provider/qaf035-provider-owner-signoff-20260603.json`
 - `artifacts/release/capacity/qaf035-beta-capacity-20260602.json`
 - `artifacts/release/performance/qaf035-performance-evidence-20260603.json`

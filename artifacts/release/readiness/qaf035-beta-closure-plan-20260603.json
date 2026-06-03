@@ -35,7 +35,7 @@
       ],
       "artifactRefs": [
         "artifacts/release/readiness/qaf035-release-readiness-20260602.json",
-        "scripts/release/v1-go-no-go.template.json",
+        "artifacts/release/readiness/qaf035-go-no-go-20260603.json",
         "docs/release/qaf035-beta-signoff-runbook.md"
       ],
       "requiredFields": [
@@ -51,6 +51,7 @@
         "Release owner approves the final go/no-go decision after latest CI is green."
       ],
       "validationCommands": [
+        "pnpm release:go-no-go:validate",
         "pnpm release:qaf035:validate",
         "pnpm release:qaf035:final"
       ],
@@ -73,8 +74,8 @@
       "artifactRefs": [
         "artifacts/release/compatibility/qaf035-provider-local-20260602.json",
         "artifacts/release/manual-device-qa/qaf035-manual-device-qa-20260603.json",
-        "scripts/release/v1-smoke-regression-matrix.template.json",
-        "scripts/release/v1-design-parity-evidence.template.json",
+        "artifacts/release/smoke/qaf035-smoke-regression-matrix-20260603.json",
+        "artifacts/release/design/qaf035-design-parity-20260603.json",
         "artifacts/release/media-policy/qaf035-no-media-evidence-scan-20260602.json"
       ],
       "requiredFields": [
@@ -88,8 +89,10 @@
         "No target evidence contains local ffmpeg, server-side transcode/remux, generated HLS, proxy-remuxed, remux-hls, or XUI-side media processing."
       ],
       "validationCommands": [
+        "pnpm release:smoke-matrix:validate",
         "node scripts/release/compatibility-matrix-task.mjs status --run artifacts/release/compatibility/qaf035-provider-local-20260602.json",
         "node scripts/release/validate-manual-device-qa.mjs artifacts/release/manual-device-qa/qaf035-manual-device-qa-20260603.json",
+        "pnpm release:design-parity:validate",
         "pnpm release:no-media-scan-artifact:validate",
         "pnpm release:no-media-evidence:scan -- <target-capture>"
       ],

@@ -20,8 +20,11 @@ if (unknownFlags.length > 0) {
 
 const files = {
   readiness: 'artifacts/release/readiness/qaf035-release-readiness-20260602.json',
+  goNoGo: 'artifacts/release/readiness/qaf035-go-no-go-20260603.json',
+  smokeMatrix: 'artifacts/release/smoke/qaf035-smoke-regression-matrix-20260603.json',
   compatibility: 'artifacts/release/compatibility/qaf035-provider-local-20260602.json',
   manualDeviceQa: 'artifacts/release/manual-device-qa/qaf035-manual-device-qa-20260603.json',
+  designParity: 'artifacts/release/design/qaf035-design-parity-20260603.json',
   providerOwner: 'artifacts/release/provider/qaf035-provider-owner-signoff-20260603.json',
   betaCapacity: 'artifacts/release/capacity/qaf035-beta-capacity-20260602.json',
   performanceEvidence: 'artifacts/release/performance/qaf035-performance-evidence-20260603.json',
@@ -56,8 +59,11 @@ const validateRunbook = () => {
   const targetIds = manualDeviceQa.targets?.map((target) => target.id) ?? [];
   const requiredSnippets = [
     files.readiness,
+    files.goNoGo,
+    files.smokeMatrix,
     files.compatibility,
     files.manualDeviceQa,
+    files.designParity,
     files.providerOwner,
     files.betaCapacity,
     files.performanceEvidence,
@@ -168,6 +174,21 @@ const validatePackageScripts = () => {
   const noMediaScanArtifactValidator = packageJson.scripts?.['release:no-media-scan-artifact:validate'];
   if (noMediaScanArtifactValidator !== `node scripts/release/validate-no-media-evidence-scan-artifact.mjs ${files.noMediaScanArtifact}`) {
     fail(`package.json scripts.release:no-media-scan-artifact:validate must validate ${files.noMediaScanArtifact}.`);
+  }
+
+  const goNoGoValidator = packageJson.scripts?.['release:go-no-go:validate'];
+  if (goNoGoValidator !== `node scripts/release/validate-go-no-go.mjs ${files.goNoGo}`) {
+    fail(`package.json scripts.release:go-no-go:validate must validate ${files.goNoGo}.`);
+  }
+
+  const smokeMatrixValidator = packageJson.scripts?.['release:smoke-matrix:validate'];
+  if (smokeMatrixValidator !== `node scripts/release/validate-smoke-regression-matrix.mjs ${files.smokeMatrix}`) {
+    fail(`package.json scripts.release:smoke-matrix:validate must validate ${files.smokeMatrix}.`);
+  }
+
+  const designParityValidator = packageJson.scripts?.['release:design-parity:validate'];
+  if (designParityValidator !== `node scripts/release/validate-design-parity-evidence.mjs ${files.designParity}`) {
+    fail(`package.json scripts.release:design-parity:validate must validate ${files.designParity}.`);
   }
 
   const performanceEvidenceValidator = packageJson.scripts?.['release:perf-evidence:validate'];
