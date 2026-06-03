@@ -19,6 +19,11 @@ interface BetaClosurePlan {
     trackedScanArtifact: string;
   };
   closureItems: ClosureItem[];
+  signoff: {
+    status: string;
+    approvedBy: string;
+    approvedAt: string;
+  };
 }
 
 const runValidator = (args: string[], cwd: string) => (
@@ -703,6 +708,45 @@ describe('QAF-035 beta closure plan', () => {
     const result = runValidator([invalidPath], repoRoot);
     expect(result.status).toBe(2);
     expect(result.stderr).toContain('noMediaInvariant.trackedScanArtifact must be repo-relative without parent traversal');
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('fails when a non-pending closure plan signoff has no approver metadata', () => {
+    const repoRoot = process.cwd();
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-beta-closure-'));
+    const cases = [
+      {
+        fileName: 'missing-signoff-approver.json',
+        mutate: (plan: BetaClosurePlan) => {
+          plan.signoff.status = 'pass';
+          plan.signoff.approvedBy = '';
+          plan.signoff.approvedAt = '2026-06-03T00:00:00.000Z';
+        },
+        expected: 'signoff.approvedBy must be set when signoff.status is pass/fail',
+      },
+      {
+        fileName: 'missing-signoff-time.json',
+        mutate: (plan: BetaClosurePlan) => {
+          plan.signoff.status = 'fail';
+          plan.signoff.approvedBy = 'release-owner';
+          plan.signoff.approvedAt = '';
+        },
+        expected: 'signoff.approvedAt must be set when signoff.status is pass/fail',
+      },
+    ];
+
+    for (const testCase of cases) {
+      const invalidPath = path.join(tmpDir, testCase.fileName);
+      const invalidPlan = loadPlan();
+      testCase.mutate(invalidPlan);
+
+      fs.writeFileSync(invalidPath, `${JSON.stringify(invalidPlan, null, 2)}\n`);
+
+      const result = runValidator([invalidPath], repoRoot);
+      expect(result.status).toBe(2);
+      expect(result.stderr).toContain(testCase.expected);
+    }
 
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });

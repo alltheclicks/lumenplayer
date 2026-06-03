@@ -611,6 +611,15 @@ if (typeof plan.signoff.approvedAt !== 'string') {
   fail('signoff.approvedAt must be a string.');
 }
 
+if (plan.signoff.status !== 'pending') {
+  if (plan.signoff.approvedBy.trim() === '') {
+    fail('signoff.approvedBy must be set when signoff.status is pass/fail.');
+  }
+  if (plan.signoff.approvedAt.trim() === '') {
+    fail('signoff.approvedAt must be set when signoff.status is pass/fail.');
+  }
+}
+
 console.log(`[beta-closure-plan] OK: ${filePath}`);
 console.log(`[beta-closure-plan] open blockers covered: ${openBlockers.length}`);
 console.log(`[beta-closure-plan] closure items: ${plan.closureItems.length}`);
