@@ -231,7 +231,17 @@ Current snapshot:
 | QAF-032 | Remove static helper copy `Klikni traku za TV unazad` and keep only context-aware cues | Player Copy/UX Clarity | P3 | done |
 | QAF-033 | Align VOD/Series playback overlay controls with live player and make loading spinner non-blocking/short-lived | On-demand Player UX | P1 | done |
 | QAF-034 | Reopened catch-up runtime failure: provider timeshift returns intermittent `404/502`, playback still fails in real user flow | Catch-up Playback/Provider Compatibility | P1 | in-progress |
-| QAF-035 | Option B catch-up gateway refactor: optional web gateway decides `provider-direct | proxy-normalized | proxy-remuxed` and keeps provider/browser repair outside `@lumen/session-core` | Catch-up Gateway/Transport | P1 | in-progress |
+| QAF-035 | Option B catch-up gateway refactor: optional web gateway decides `provider-direct | proxy-normalized` and keeps provider/browser repair outside `@lumen/session-core` without transcode/remux fallback | Catch-up Gateway/Transport | P1 | in-progress |
+
+Current no-media production note (2026-06-03):
+- `QAF-035`:
+  - This supersedes older March/April remux fallback notes for beta/release direction.
+  - `proxy-remuxed`, `remux-hls`, local ffmpeg/ffprobe, server-side transcode/remux, generated HLS, and XUI-side transcode/remux are not accepted paths for broken catch-up channels.
+  - PR #224 on `codex/qaf-035-production-web-catchup` hard-disables the proxy remux controller before binary checks or process spawn.
+  - CI/release guardrails now enforce:
+    - `pnpm release:proxy-no-media:validate`
+    - `pnpm release:proxy-no-media:test`
+  - Historical remux/transcode evidence remains below for audit context only, not as the next implementation direction.
 
 Current runtime note (2026-03-09):
 - `QAF-034`:
@@ -246,8 +256,8 @@ Current runtime note (2026-03-09):
     - later sampled segment `seg=90` is invalid on both channels (`Invalid data found when processing input`)
     - requested `duration=240` returned a `91`-segment / `5460s` manifest on both channels, so provider duration/window semantics also look suspect
 - `QAF-035`:
-  - optional gateway/remux path is still the fallback architecture if provider `timeshift_hls` cannot become fully browser-safe
-  - the provider evidence loop is now strong enough to justify targeted remux fallback validation for this provider without reopening the old startup-routing investigation
+  - superseded for beta/release by the 2026-06-03 no-media production note above
+  - the provider evidence loop remains useful for diagnosing provider archive behavior, but it no longer justifies local remux/transcode fallback validation as the next implementation direction
 
 Current workaround note (2026-03-16):
 - `QAF-035`:

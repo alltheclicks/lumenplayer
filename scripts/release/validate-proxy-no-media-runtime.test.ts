@@ -75,6 +75,22 @@ const createFixture = (overrides: Record<string, string> = {}) => {
       'direct remux controller calls do not reach binary checks, process spawn, or remux playback',
       'pnpm release:proxy-no-media:test',
     ].join('\n'),
+    'BACKLOG.md': [
+      'no transcode/remux fallback',
+      'active invariant: broken catch-up channels must stay on provider bytes, proxy-normalized manifests, or unsupported overlay',
+      'historical March remux/transcode notes remain preserved for audit context only',
+    ].join('\n'),
+    'HANDOFF.md': [
+      'Session 2026-06-03 — QAF-035 no-media production guard alignment',
+      'historical March remux/transcode branches and notes below are preserved for audit context only',
+      'apps/proxy/src/catchup-remux.ts` hard-disables direct controller calls before binary checks or process spawn',
+    ].join('\n'),
+    'docs/V3-QA-FIX-BACKLOG.md': [
+      'without transcode/remux fallback',
+      'Current no-media production note (2026-06-03)',
+      'This supersedes older March/April remux fallback notes for beta/release direction.',
+      'Historical remux/transcode evidence remains below for audit context only',
+    ].join('\n'),
     ...overrides,
   };
 

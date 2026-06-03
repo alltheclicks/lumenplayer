@@ -50,7 +50,7 @@
 | QAF-032 | Remove static helper copy `Klikni traku za TV unazad` and keep only context-aware cues | S | done | QAF-027 |
 | QAF-033 | Align VOD/Series playback overlay controls with live player and make loading spinner non-blocking/short-lived | M | done | QAF-032 |
 | QAF-034 | Reopened catch-up runtime failure: provider redirect/token flow works in native players but web flow is still unstable in real user scenarios (`404/502`, long startup) | M | in-progress | QAF-030, QAF-003 |
-| QAF-035 | Option B catch-up gateway refactor: move provider-specific catch-up transport/normalization/remux logic into optional gateway layer with fast startup, warm reopen, and seek-aware preparation | L | in-progress | QAF-034, LP-1511 |
+| QAF-035 | Option B catch-up gateway refactor: move provider-specific catch-up transport/normalization logic into optional gateway layer with fast startup, warm reopen, seek-aware preparation, and no transcode/remux fallback | L | in-progress | QAF-034, LP-1511 |
 | QAF-010 | Fix player control overlay auto-hide behavior on idle | S | done | — |
 | QAF-012 | Prevent desktop player page vertical scroll drift/dead-space | S | done | — |
 | QAF-011 | Fix EPG gibberish regression in live program blocks | S | done | — |
@@ -134,6 +134,11 @@ Completion notes (2026-02-19 .. 2026-02-21):
 - New intake wave (`BUG-20260221-01..08`) is now closed through `QAF-024..QAF-031`.
 - Reopened intake wave (`BUG-20260221-09..13`) now has merged follow-up fixes through `QAF-032..QAF-033`.
 - Historical post-batch QA gate note is superseded by the 2026-06-02 QAF-035 tooling update above; old inline provider credentials were redacted and the current blocker is invalid provider auth, not the earlier Playwright loader conflict.
+- On 2026-06-03 the active QAF-035 production PR explicitly supersedes the old remux/transcode fallback direction:
+  - branch: `codex/qaf-035-production-web-catchup`
+  - active invariant: broken catch-up channels must stay on provider bytes, proxy-normalized manifests, or unsupported overlay; they must not be solved with local ffmpeg/ffprobe, server-side transcode/remux, generated HLS, `proxy-remuxed`/`remux-hls`, or XUI-side transcode/remux
+  - PR #224 now hard-disables the proxy remux controller before binary checks/process spawn and CI enforces `pnpm release:proxy-no-media:validate` plus `pnpm release:proxy-no-media:test`
+  - historical March remux/transcode notes remain preserved for audit context only; they are not the next dev direction for beta/release
 
 ---
 

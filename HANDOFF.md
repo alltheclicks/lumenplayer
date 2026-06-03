@@ -1,5 +1,27 @@
 # Handoff — Lumen Player
 
+## Session 2026-06-03 — QAF-035 no-media production guard alignment
+
+- Context:
+  - active preserved worktree:
+    - `/Users/filip/Documents/Lumen-Player-qaf035-production`
+  - active branch:
+    - `codex/qaf-035-production-web-catchup`
+  - active PR:
+    - #224 `[codex] Consolidate QAF-035 web catch-up production path`
+- Current source of truth:
+  - broken catch-up channels must not be fixed with local ffmpeg/ffprobe, server-side transcode/remux, generated HLS, `proxy-remuxed`/`remux-hls`, or XUI-side transcode/remux
+  - allowed runtime outcomes are provider-direct/provider bytes, proxy-normalized manifests without media processing, or a clear unsupported/failure overlay
+  - the historical March remux/transcode branches and notes below are preserved for audit context only; they are not an accepted beta/release direction
+- Current guardrails on PR #224:
+  - web catch-up rejects `proxy-remuxed`
+  - proxy runtime strips `proxy-remuxed`, rejects direct `remux-hls`, and returns `remux_disabled` from `__remux__` asset endpoints
+  - `apps/proxy/src/catchup-remux.ts` hard-disables direct controller calls before binary checks or process spawn
+  - `pnpm release:proxy-no-media:validate` statically verifies the hard-disable guard, CI workflow, package script, release artifact, and runbook coverage
+  - `pnpm release:proxy-no-media:test` covers controller, gateway, and server behavior
+- Current beta state:
+  - local/provider/browser/no-media evidence is partial and useful, but final beta signoff remains pending on real provider/XUI owner confirmation, 300-500 user capacity approval, real device target matrix, beta ops/observability, and final go/no-go
+
 ## Session 2026-06-02 — QAF-035 production web catch-up PR alignment
 
 - Context:

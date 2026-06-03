@@ -58,6 +58,9 @@ const packageJson = JSON.parse(readText('package.json'));
 const workflow = readText('.github/workflows/pr-quality-gate.yml');
 const runtimePolicy = readText('artifacts/release/media-policy/qaf035-runtime-media-policy-20260602.json');
 const runbook = readText('docs/release/qaf035-beta-signoff-runbook.md');
+const backlog = readText('BACKLOG.md');
+const handoff = readText('HANDOFF.md');
+const qaFixBacklog = readText('docs/V3-QA-FIX-BACKLOG.md');
 
 assertIncludes('apps/proxy/src/catchup-remux.ts', catchupRemux, [
   'const isCatchUpRemuxRuntimeDisabled = (): boolean => true;',
@@ -124,6 +127,25 @@ assertIncludes('runtime media policy artifact', runtimePolicy, [
 assertIncludes('QAF-035 beta signoff runbook', runbook, [
   'direct remux controller calls do not reach binary checks, process spawn, or remux playback',
   'pnpm release:proxy-no-media:test',
+]);
+
+assertIncludes('BACKLOG.md QAF-035 current no-media direction', backlog, [
+  'no transcode/remux fallback',
+  'active invariant: broken catch-up channels must stay on provider bytes, proxy-normalized manifests, or unsupported overlay',
+  'historical March remux/transcode notes remain preserved for audit context only',
+]);
+
+assertIncludes('HANDOFF.md QAF-035 current no-media direction', handoff, [
+  'Session 2026-06-03 — QAF-035 no-media production guard alignment',
+  'historical March remux/transcode branches and notes below are preserved for audit context only',
+  'apps/proxy/src/catchup-remux.ts` hard-disables direct controller calls before binary checks or process spawn',
+]);
+
+assertIncludes('docs/V3-QA-FIX-BACKLOG.md QAF-035 current no-media direction', qaFixBacklog, [
+  'without transcode/remux fallback',
+  'Current no-media production note (2026-06-03)',
+  'This supersedes older March/April remux fallback notes for beta/release direction.',
+  'Historical remux/transcode evidence remains below for audit context only',
 ]);
 
 console.log('[proxy-no-media-runtime] OK: remux controller hard-disable and release guard coverage verified');
