@@ -18,6 +18,17 @@ const forbiddenMediaProcessingCommandPatterns = [
   ['generated HLS', /\b(?:generated|generating|generate)[-_\s]+hls\b/i],
   ['transcode', /transcod(?:e|ing|er)?/i],
 ];
+const forbiddenMediaProcessingTextLabel = (text) => {
+  if (forbiddenMediaToolReferencePattern.test(text)) {
+    return 'ffmpeg/ffprobe';
+  }
+  for (const [label, pattern] of forbiddenMediaProcessingCommandPatterns) {
+    if (pattern.test(text)) {
+      return label;
+    }
+  }
+  return null;
+};
 
 const usage = () => {
   console.error('Usage: node scripts/release/validate-beta-closure-plan.mjs <file>');
@@ -391,6 +402,10 @@ if (!Array.isArray(plan.noMediaInvariant.allowedOutcomes) || plan.noMediaInvaria
 for (const outcome of plan.noMediaInvariant.allowedOutcomes) {
   if (!isNonEmptyString(outcome)) {
     fail('noMediaInvariant.allowedOutcomes must contain non-empty strings.');
+  }
+  const forbiddenAllowedOutcome = forbiddenMediaProcessingTextLabel(outcome);
+  if (forbiddenAllowedOutcome) {
+    fail(`noMediaInvariant.allowedOutcomes must not allow forbidden media-processing term: ${forbiddenAllowedOutcome}.`);
   }
 }
 

@@ -15,6 +15,7 @@ interface ClosureItem {
 interface BetaClosurePlan {
   sourceReadinessArtifact: string;
   noMediaInvariant: {
+    allowedOutcomes: string[];
     trackedScanArtifact: string;
   };
   closureItems: ClosureItem[];
@@ -181,6 +182,22 @@ describe('QAF-035 beta closure plan', () => {
     const result = runValidator([invalidPath], repoRoot);
     expect(result.status).toBe(2);
     expect(result.stderr).toContain('sourceReadinessArtifact must be repo-relative without parent traversal');
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('fails when no-media allowed outcomes add forbidden media processing fallback', () => {
+    const repoRoot = process.cwd();
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-beta-closure-'));
+    const invalidPath = path.join(tmpDir, 'bad-allowed-outcome.json');
+    const invalidPlan = loadPlan();
+    invalidPlan.noMediaInvariant.allowedOutcomes.push('XUI-side transcode fallback for broken catch-up');
+
+    fs.writeFileSync(invalidPath, `${JSON.stringify(invalidPlan, null, 2)}\n`);
+
+    const result = runValidator([invalidPath], repoRoot);
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain('noMediaInvariant.allowedOutcomes must not allow forbidden media-processing term: XUI-side media processing');
 
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
