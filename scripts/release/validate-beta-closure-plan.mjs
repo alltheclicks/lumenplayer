@@ -554,7 +554,10 @@ for (const item of plan.closureItems) {
 
   for (const gateId of item.gateIds) {
     const requiredFinalProof = requiredFinalProofByGate.get(gateId);
-    if (requiredFinalProof && !item.validationCommands.some(requiredFinalProof.matches)) {
+    if (!requiredFinalProof) {
+      fail(`closure item ${item.id} gateId requires known final proof mapping: ${gateId}`);
+    }
+    if (!item.validationCommands.some(requiredFinalProof.matches)) {
       fail(`closure item ${item.id} validationCommands must include ${requiredFinalProof.label}.`);
     }
   }

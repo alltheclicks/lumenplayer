@@ -79,6 +79,57 @@ describe('QAF-035 beta closure plan', () => {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
+  it('fails when a source readiness gate has no closure final proof mapping', () => {
+    const repoRoot = process.cwd();
+    const tmpDir = fs.mkdtempSync(path.join(repoRoot, '.tmp-beta-closure-'));
+    const readinessPath = path.join(tmpDir, 'extra-gate-readiness.json');
+    const readinessRef = path.relative(repoRoot, readinessPath);
+    const invalidPath = path.join(tmpDir, 'extra-gate-plan.json');
+    const invalidPlan = loadPlan();
+    const readinessArtifactPath = 'artifacts/release/readiness/qaf035-release-readiness-20260602.json';
+    const readinessArtifact = JSON.parse(fs.readFileSync(path.resolve(repoRoot, readinessArtifactPath), 'utf8'));
+    readinessArtifact.gates.push({
+      id: 'new-beta-final-gate',
+      name: 'New beta final gate',
+      status: 'pending',
+      evidenceRef: 'artifacts/release/readiness/qaf035-go-no-go-20260603.json',
+      checkedAt: '',
+      notes: '',
+    });
+    readinessArtifact.blockerTriage.totalOpen += 1;
+    readinessArtifact.blockerTriage.items.push({
+      id: 'NEW-BETA-FINAL-GATE',
+      summary: 'New gate needs a dedicated closure proof mapping.',
+      status: 'open',
+      disposition: 'blocked until mapped',
+      owner: 'release-owner',
+      issueRef: '',
+      gateIds: ['new-beta-final-gate'],
+    });
+    invalidPlan.sourceReadinessArtifact = readinessRef;
+    invalidPlan.closureItems.push({
+      id: 'close-new-beta-final-gate',
+      blockerId: 'NEW-BETA-FINAL-GATE',
+      status: 'open',
+      owner: 'release-owner',
+      gateIds: ['new-beta-final-gate'],
+      artifactRefs: ['artifacts/release/readiness/qaf035-go-no-go-20260603.json'],
+      requiredFields: ['newGate.owner'],
+      evidenceRequirements: ['New gate evidence is recorded.'],
+      validationCommands: ['pnpm release:qaf035:final'],
+      completionCriteria: ['New gate passes final validation.'],
+    });
+
+    fs.writeFileSync(readinessPath, `${JSON.stringify(readinessArtifact, null, 2)}\n`);
+    fs.writeFileSync(invalidPath, `${JSON.stringify(invalidPlan, null, 2)}\n`);
+
+    const result = runValidator([invalidPath], repoRoot);
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain('gateId requires known final proof mapping: new-beta-final-gate');
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
   it('fails when the source readiness artifact exists but does not validate', () => {
     const repoRoot = process.cwd();
     const tmpDir = fs.mkdtempSync(path.join(repoRoot, '.tmp-beta-closure-'));
