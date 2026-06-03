@@ -5,11 +5,20 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 const usage = () => {
-  console.error('Usage: node scripts/release/validate-release-secret-hygiene.mjs [file-or-directory ...]');
+  console.error('Usage: node scripts/release/validate-release-secret-hygiene.mjs [--list-files] [file-or-directory ...]');
 };
 
 const repoRoot = process.cwd();
-const args = process.argv.slice(2);
+const rawArgs = process.argv.slice(2);
+const listFilesOnly = rawArgs.includes('--list-files');
+const unknownFlags = rawArgs.filter((arg) => arg.startsWith('--') && arg !== '--list-files');
+const args = rawArgs.filter((arg) => arg !== '--list-files');
+
+if (unknownFlags.length > 0) {
+  usage();
+  console.error(`[release-secret-hygiene] ERROR: unknown flag(s): ${unknownFlags.join(', ')}`);
+  process.exit(2);
+}
 
 const fail = (message) => {
   console.error(`[release-secret-hygiene] ERROR: ${message}`);
@@ -36,6 +45,20 @@ const isTextFile = (filePath) => (
   path.basename(filePath) === 'package.json'
 );
 
+const defaultReleaseSecretHygieneFiles = new Set([
+  'BACKLOG.md',
+  'HANDOFF.md',
+  'docs/V3-QA-FIX-BACKLOG.md',
+  'package.json',
+]);
+
+const isDefaultReleaseSecretHygieneFile = (filePath) => (
+  filePath.startsWith('artifacts/release/') ||
+  filePath.startsWith('docs/release/') ||
+  /^scripts\/release\/v1-.*\.template\.json$/.test(filePath) ||
+  defaultReleaseSecretHygieneFiles.has(filePath)
+);
+
 const listTrackedDefaultFiles = () => {
   const result = spawnSync('git', ['ls-files', '-z'], {
     cwd: repoRoot,
@@ -50,13 +73,7 @@ const listTrackedDefaultFiles = () => {
     .toString('utf8')
     .split('\0')
     .filter(Boolean)
-    .filter((filePath) => (
-      filePath.startsWith('artifacts/release/') ||
-      filePath.startsWith('docs/release/') ||
-      /^scripts\/release\/v1-.*\.template\.json$/.test(filePath) ||
-      filePath === 'docs/V3-QA-FIX-BACKLOG.md' ||
-      filePath === 'package.json'
-    ));
+    .filter(isDefaultReleaseSecretHygieneFile);
 };
 
 const collectFiles = (inputPaths) => {
@@ -89,11 +106,18 @@ if (scanFiles.length === 0) {
   fail('no files selected for secret hygiene scan.');
 }
 
+if (listFilesOnly) {
+  for (const filePath of scanFiles) {
+    console.log(filePath);
+  }
+  process.exit(0);
+}
+
 const findings = [];
 const querySecretPattern = /[?&](username|user|password|pass|token|api_key|apikey|secret)=([^&#\s`"')]+)/gi;
 const jsonSecretPattern = /"(username|password|token|secret|apiKey|api_key|apikey)"\s*:\s*"([^"]+)"/gi;
 const envSecretPattern = /\b([A-Z0-9_]*(?:USERNAME|PASSWORD|TOKEN|SECRET|API_KEY|APIKEY)[A-Z0-9_]*)\s*=\s*([^\s"'`]+)/g;
-const basicAuthUrlPattern = /\bhttps?:\/\/[^/\s:@]+:[^@\s/]+@/gi;
+const basicAuthUrlPattern = /\bhttps?:\/\/[^/\s:@]+:[^@\s/]+@/i;
 
 for (const filePath of scanFiles) {
   const absolutePath = path.resolve(repoRoot, filePath);

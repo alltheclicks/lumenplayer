@@ -138,6 +138,7 @@ Completion notes (2026-02-19 .. 2026-02-21):
   - branch: `codex/qaf-035-production-web-catchup`
   - active invariant: broken catch-up channels must stay on provider bytes, proxy-normalized manifests, or unsupported overlay; they must not be solved with local ffmpeg/ffprobe, server-side transcode/remux, generated HLS, `proxy-remuxed`/`remux-hls`, or XUI-side transcode/remux
   - PR #224 now hard-disables the proxy remux controller before binary checks/process spawn and CI enforces `pnpm release:proxy-no-media:validate` plus `pnpm release:proxy-no-media:test`
+  - `pnpm release:secret-hygiene:validate` includes `HANDOFF.md`, `BACKLOG.md`, and `docs/V3-QA-FIX-BACKLOG.md`, so current release direction docs stay free of non-redacted provider credentials
   - historical March remux/transcode notes remain preserved for audit context only; they are not the next dev direction for beta/release
 
 ---

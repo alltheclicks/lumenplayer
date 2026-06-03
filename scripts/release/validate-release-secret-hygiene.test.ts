@@ -25,6 +25,18 @@ describe('release secret hygiene scan', () => {
     expect(result.stdout).toContain('file(s) scanned');
   });
 
+  it('includes current handoff and backlog truth surfaces in the default scan', () => {
+    const result = runValidator(['--list-files'], process.cwd());
+
+    expect(result.status).toBe(0);
+    const scannedFiles = result.stdout.trim().split(/\r?\n/);
+    expect(scannedFiles).toEqual(expect.arrayContaining([
+      'BACKLOG.md',
+      'HANDOFF.md',
+      'docs/V3-QA-FIX-BACKLOG.md',
+    ]));
+  });
+
   it('allows redacted query parameters in docs', () => {
     const repoRoot = process.cwd();
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-secret-hygiene-'));
@@ -103,6 +115,28 @@ describe('release secret hygiene scan', () => {
     const result = runValidator([filePath], repoRoot);
     expect(result.status).toBe(2);
     expect(result.stderr).toContain('URL contains basic-auth credentials');
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('fails on basic-auth URLs in each scanned file', () => {
+    const repoRoot = process.cwd();
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-secret-hygiene-'));
+    const firstFilePath = writeFixture(
+      tmpDir,
+      'first-basic-auth.md',
+      'Do not publish https://user:password@example.invalid/stream\n',
+    );
+    const secondFilePath = writeFixture(
+      tmpDir,
+      'second-basic-auth.md',
+      'https://admin:secret@example.invalid/stream\n',
+    );
+
+    const result = runValidator([firstFilePath, secondFilePath], repoRoot);
+    expect(result.status).toBe(2);
+    const findingCount = result.stderr.match(/URL contains basic-auth credentials/g)?.length ?? 0;
+    expect(findingCount).toBe(2);
 
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
