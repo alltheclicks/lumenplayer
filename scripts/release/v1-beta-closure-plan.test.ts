@@ -305,6 +305,69 @@ describe('QAF-035 beta closure plan', () => {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
+  it('fails when a final proof command uses an absolute local artifact path', () => {
+    const repoRoot = process.cwd();
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-beta-closure-'));
+    const invalidPath = path.join(tmpDir, 'absolute-final-artifact.json');
+    const invalidPlan = loadPlan();
+    const item = invalidPlan.closureItems.find((entry) => entry.blockerId === 'PERFORMANCE-RELEASE-RUN');
+    if (item) {
+      item.validationCommands = [
+        `node scripts/release/validate-performance-evidence.mjs ${path.resolve(repoRoot, 'artifacts/release/performance/qaf035-performance-evidence-20260603.json')} --require-final`,
+      ];
+    }
+
+    fs.writeFileSync(invalidPath, `${JSON.stringify(invalidPlan, null, 2)}\n`);
+
+    const result = runValidator([invalidPath], repoRoot);
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain('validationCommands must include a concrete final proof command');
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('fails when a final proof command uses parent traversal artifact paths', () => {
+    const repoRoot = process.cwd();
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-beta-closure-'));
+    const invalidPath = path.join(tmpDir, 'traversal-final-artifact.json');
+    const invalidPlan = loadPlan();
+    const item = invalidPlan.closureItems.find((entry) => entry.blockerId === 'PERFORMANCE-RELEASE-RUN');
+    if (item) {
+      item.validationCommands = [
+        'node scripts/release/validate-performance-evidence.mjs artifacts/release/performance/../performance/qaf035-performance-evidence-20260603.json --require-final',
+      ];
+    }
+
+    fs.writeFileSync(invalidPath, `${JSON.stringify(invalidPlan, null, 2)}\n`);
+
+    const result = runValidator([invalidPath], repoRoot);
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain('validationCommands must include a concrete final proof command');
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('fails when a final proof command is shell chained', () => {
+    const repoRoot = process.cwd();
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-beta-closure-'));
+    const invalidPath = path.join(tmpDir, 'chained-final-proof.json');
+    const invalidPlan = loadPlan();
+    const item = invalidPlan.closureItems.find((entry) => entry.blockerId === 'PERFORMANCE-RELEASE-RUN');
+    if (item) {
+      item.validationCommands = [
+        'node scripts/release/validate-performance-evidence.mjs artifacts/release/performance/qaf035-performance-evidence-20260603.json --require-final && echo passed',
+      ];
+    }
+
+    fs.writeFileSync(invalidPath, `${JSON.stringify(invalidPlan, null, 2)}\n`);
+
+    const result = runValidator([invalidPath], repoRoot);
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain('validationCommands must include a concrete final proof command');
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
   it('fails when the compatibility gate lacks a final matrix proof command', () => {
     const repoRoot = process.cwd();
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-beta-closure-'));

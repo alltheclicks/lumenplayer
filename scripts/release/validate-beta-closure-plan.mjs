@@ -40,6 +40,21 @@ const isRepoRelativePath = (value) => (
   && !path.isAbsolute(value)
   && !value.split(/[\\/]/).includes('..')
 );
+const shellControlPattern = /(?:&&|\|\||[;|<>`]|\$\()/;
+const isPathLikeCommandArg = (value) => (
+  value.includes('/')
+  || /\.(?:json|mjs|md)$/i.test(value)
+);
+const finalProofFileArgsExist = (parts) => (
+  parts.every((part) => (
+    part.startsWith('--')
+    || !isPathLikeCommandArg(part)
+    || (
+      isRepoRelativePath(part)
+      && fs.existsSync(path.resolve(repoRoot, part))
+    )
+  ))
+);
 const allowedFinalProofScripts = new Set([
   'scripts/release/compatibility-matrix-task.mjs',
   'scripts/release/validate-beta-capacity-evidence.mjs',
@@ -57,6 +72,10 @@ const allowedFinalProofScripts = new Set([
   'scripts/release/validate-smoke-regression-matrix.mjs',
 ]);
 const isConcreteFinalProofCommand = (command) => {
+  if (shellControlPattern.test(command)) {
+    return false;
+  }
+
   const parts = command.trim().split(/\s+/).filter(Boolean);
   if (parts.length === 2 && parts[0] === 'pnpm' && parts[1] === 'release:qaf035:final') {
     return true;
@@ -71,6 +90,7 @@ const isConcreteFinalProofCommand = (command) => {
     allowedFinalProofScripts.has(scriptRef)
     && isRepoRelativePath(scriptRef)
     && fs.existsSync(path.resolve(repoRoot, scriptRef))
+    && finalProofFileArgsExist(parts.slice(1))
     && parts.includes('--require-final')
   );
 };
