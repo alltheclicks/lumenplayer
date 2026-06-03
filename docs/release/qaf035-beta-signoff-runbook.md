@@ -8,10 +8,12 @@ Run these from the QAF-035 production worktree:
 
 ```sh
 pnpm release:qaf035:validate
+pnpm release:no-media-scan-artifact:validate
 pnpm release:qaf035:final
 ```
 
 `pnpm release:qaf035:validate` must pass while final owner/device blockers are still open. `pnpm release:qaf035:final` must fail until every real-device, provider, capacity, ops, rollback, and no-media-processing owner field is complete.
+`pnpm release:no-media-scan-artifact:validate` must pass on the tracked redacted scan-result artifact so the local Chrome Network/CDP evidence hashes, forbidden-pattern list, zero-hit summary, and raw-evidence-untracked policy stay mechanically checked in CI.
 
 ## Automated Evidence Refresh
 
@@ -77,6 +79,11 @@ pnpm release:no-media-evidence:scan -- <capture.har-or-json-or-log>
 The scanner fails on forbidden strings: `__remux__`, `proxy-remuxed`, `remux-hls`, `ffmpeg`, `ffprobe`, `transcode`, `remux`, `generated HLS`, and `XUI-side`.
 It also fails enabled remux runtime flags such as `LUMEN_PROXY_REMUX_ENABLED=1` and XUI server media-processing wording even when the evidence does not use the exact `XUI-side` phrase.
 For release evidence, keep the raw capture local/untracked and record a redacted scan-result artifact such as `artifacts/release/media-policy/qaf035-no-media-evidence-scan-20260602.json`.
+Validate that redacted artifact before signoff:
+
+```sh
+pnpm release:no-media-scan-artifact:validate
+```
 
 3. Record the scanner command/output ref in `mediaProcessingAudit.evidenceRef`; final validation requires this field to reference `release:no-media-evidence:scan`.
 4. Keep `mediaProcessingAudit.forbiddenHits` empty for pass.

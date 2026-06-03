@@ -25,6 +25,7 @@ const files = {
   providerOwner: 'artifacts/release/provider/qaf035-provider-owner-signoff-20260603.json',
   betaCapacity: 'artifacts/release/capacity/qaf035-beta-capacity-20260602.json',
   runtimeMedia: 'artifacts/release/media-policy/qaf035-runtime-media-policy-20260602.json',
+  noMediaScanArtifact: 'artifacts/release/media-policy/qaf035-no-media-evidence-scan-20260602.json',
   betaOps: 'artifacts/release/ops/qaf035-beta-ops-signoff-20260603.json',
   runbook: 'docs/release/qaf035-beta-signoff-runbook.md',
   prQualityGateWorkflow: '.github/workflows/pr-quality-gate.yml',
@@ -60,6 +61,7 @@ const validateRunbook = () => {
     'pnpm release:qaf035:validate',
     'pnpm release:qaf035:final',
     'pnpm release:no-media-evidence:scan',
+    'pnpm release:no-media-scan-artifact:validate',
     'pnpm catchup:timeshift-hls:test',
     'pnpm release:proxy-no-media:validate',
     'pnpm release:proxy-no-media:test',
@@ -95,6 +97,7 @@ const validatePrQualityGateWorkflow = () => {
     'pnpm release:qaf035:test',
     'pnpm release:guardrails:test',
     'pnpm release:no-media-evidence:test',
+    'pnpm release:no-media-scan-artifact:validate',
     'pnpm catchup:timeshift-hls:test',
     'pnpm release:proxy-no-media:validate',
     'pnpm release:proxy-no-media:test',
@@ -137,6 +140,11 @@ const validatePackageScripts = () => {
   const disabledTimeshiftProbeTest = packageJson.scripts?.['catchup:timeshift-hls:test'];
   if (disabledTimeshiftProbeTest !== 'vitest run scripts/catchup/probe-timeshift-hls.test.ts') {
     fail('package.json scripts.catchup:timeshift-hls:test must run scripts/catchup/probe-timeshift-hls.test.ts.');
+  }
+
+  const noMediaScanArtifactValidator = packageJson.scripts?.['release:no-media-scan-artifact:validate'];
+  if (noMediaScanArtifactValidator !== `node scripts/release/validate-no-media-evidence-scan-artifact.mjs ${files.noMediaScanArtifact}`) {
+    fail(`package.json scripts.release:no-media-scan-artifact:validate must validate ${files.noMediaScanArtifact}.`);
   }
 };
 
@@ -202,6 +210,11 @@ runNode('compatibility matrix status', [
 
 runNode('proxy no-media runtime guard', [
   'scripts/release/validate-proxy-no-media-runtime.mjs',
+]);
+
+runNode('no-media scan artifact', [
+  'scripts/release/validate-no-media-evidence-scan-artifact.mjs',
+  files.noMediaScanArtifact,
 ]);
 
 const finalValidators = [
