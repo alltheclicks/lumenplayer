@@ -98,6 +98,9 @@ const isConcreteFinalProofCommand = (command) => {
 const commandPartsIncludeAll = (parts, requiredParts) => (
   requiredParts.every((requiredPart) => parts.includes(requiredPart))
 );
+const releaseArtifactRefsInCommand = (command) => (
+  commandParts(command).filter((part) => part.startsWith('artifacts/release/'))
+);
 const matchesFinalScript = (scriptRef, requiredParts = []) => (command) => {
   const parts = commandParts(command);
   return (
@@ -518,6 +521,7 @@ for (const item of plan.closureItems) {
       validatedArtifactRefs.add(artifactRef);
     }
   }
+  const itemArtifactRefs = new Set(item.artifactRefs);
 
   for (const [fieldName, minLength] of [
     ['requiredFields', 1],
@@ -543,6 +547,13 @@ for (const item of plan.closureItems) {
     for (const [label, pattern] of forbiddenMediaProcessingCommandPatterns) {
       if (pattern.test(command)) {
         fail(`closure item ${item.id} validationCommands must not reference forbidden media-processing term: ${label}.`);
+      }
+    }
+    if (isConcreteFinalProofCommand(command)) {
+      for (const artifactRef of releaseArtifactRefsInCommand(command)) {
+        if (!itemArtifactRefs.has(artifactRef)) {
+          fail(`closure item ${item.id} validationCommands final proof artifact must be listed in artifactRefs: ${artifactRef}`);
+        }
       }
     }
   }

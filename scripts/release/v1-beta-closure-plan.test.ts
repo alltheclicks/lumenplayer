@@ -468,6 +468,7 @@ describe('QAF-035 beta closure plan', () => {
     const invalidPlan = loadPlan();
     const item = invalidPlan.closureItems.find((entry) => entry.blockerId === 'PERFORMANCE-RELEASE-RUN');
     if (item) {
+      item.artifactRefs.push('artifacts/release/security/qaf035-security-privacy-baseline-20260603.json');
       item.validationCommands = item.validationCommands.map((command) => (
         command.includes('scripts/release/validate-performance-evidence.mjs') && command.includes('--require-final')
           ? 'node scripts/release/validate-performance-evidence.mjs artifacts/release/security/qaf035-security-privacy-baseline-20260603.json --require-final'
@@ -480,6 +481,26 @@ describe('QAF-035 beta closure plan', () => {
     const result = runValidator([invalidPath], repoRoot);
     expect(result.status).toBe(2);
     expect(result.stderr).toContain('validationCommands must include performance evidence final proof');
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('fails when a direct final proof artifact is not listed in artifactRefs', () => {
+    const repoRoot = process.cwd();
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-beta-closure-'));
+    const invalidPath = path.join(tmpDir, 'unlisted-final-artifact.json');
+    const invalidPlan = loadPlan();
+    const item = invalidPlan.closureItems.find((entry) => entry.blockerId === 'PERFORMANCE-RELEASE-RUN');
+    if (item) {
+      item.artifactRefs = ['docs/release/qaf035-beta-signoff-runbook.md'];
+    }
+
+    fs.writeFileSync(invalidPath, `${JSON.stringify(invalidPlan, null, 2)}\n`);
+
+    const result = runValidator([invalidPath], repoRoot);
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain('validationCommands final proof artifact must be listed in artifactRefs');
+    expect(result.stderr).toContain('artifacts/release/performance/qaf035-performance-evidence-20260603.json');
 
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
