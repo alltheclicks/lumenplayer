@@ -2,6 +2,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 
 const allowedStatus = new Set(['open', 'mitigated', 'closed']);
 const allowedSignoffStatus = new Set(['pending', 'pass', 'fail']);
@@ -30,6 +31,17 @@ const readJson = (fileRef) => {
     return JSON.parse(fs.readFileSync(filePath, 'utf8'));
   } catch {
     fail(`Unable to read/parse JSON file: ${fileRef}`);
+  }
+};
+const runLinkedValidator = (label, commandArgs) => {
+  const result = spawnSync(process.execPath, commandArgs, {
+    cwd: repoRoot,
+    encoding: 'utf8',
+  });
+
+  if (result.status !== 0) {
+    const details = result.stderr?.trim() || result.stdout?.trim() || `exit ${result.status}`;
+    fail(`${label} failed linked validation: ${details}`);
   }
 };
 
@@ -128,6 +140,11 @@ if (!isNonEmptyString(plan.noMediaInvariant.trackedScanArtifact)) {
 if (!fs.existsSync(path.resolve(repoRoot, plan.noMediaInvariant.trackedScanArtifact))) {
   fail(`noMediaInvariant.trackedScanArtifact does not exist: ${plan.noMediaInvariant.trackedScanArtifact}`);
 }
+
+runLinkedValidator('noMediaInvariant.trackedScanArtifact', [
+  'scripts/release/validate-no-media-evidence-scan-artifact.mjs',
+  plan.noMediaInvariant.trackedScanArtifact,
+]);
 
 if (!Array.isArray(plan.closureItems) || plan.closureItems.length === 0) {
   fail('closureItems must be a non-empty array.');

@@ -13,6 +13,9 @@ interface ClosureItem {
 }
 
 interface BetaClosurePlan {
+  noMediaInvariant: {
+    trackedScanArtifact: string;
+  };
   closureItems: ClosureItem[];
 }
 
@@ -128,6 +131,28 @@ describe('QAF-035 beta closure plan', () => {
     const result = runValidator([invalidPath], repoRoot);
     expect(result.status).toBe(2);
     expect(result.stderr).toContain('artifactRef does not exist');
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('fails when the tracked no-media scan artifact exists but does not validate', () => {
+    const repoRoot = process.cwd();
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-beta-closure-'));
+    const invalidScanPath = path.join(tmpDir, 'invalid-no-media-scan.json');
+    const invalidPlanPath = path.join(tmpDir, 'invalid-scan-artifact-plan.json');
+    const invalidPlan = loadPlan();
+    const scanArtifactPath = 'artifacts/release/media-policy/qaf035-no-media-evidence-scan-20260602.json';
+    const scanArtifact = JSON.parse(fs.readFileSync(path.resolve(repoRoot, scanArtifactPath), 'utf8'));
+    scanArtifact.scan.command = 'cat output/playwright/manual-network-audit/report.json';
+    invalidPlan.noMediaInvariant.trackedScanArtifact = invalidScanPath;
+
+    fs.writeFileSync(invalidScanPath, `${JSON.stringify(scanArtifact, null, 2)}\n`);
+    fs.writeFileSync(invalidPlanPath, `${JSON.stringify(invalidPlan, null, 2)}\n`);
+
+    const result = runValidator([invalidPlanPath], repoRoot);
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain('noMediaInvariant.trackedScanArtifact failed linked validation');
+    expect(result.stderr).toContain('scan.command must reference release:no-media-evidence:scan');
 
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
