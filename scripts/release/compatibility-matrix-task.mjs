@@ -20,6 +20,18 @@ const sameStringSet = (left, right) => {
   return sortedLeft.length === sortedRight.length
     && sortedLeft.every((value, index) => value === sortedRight[index]);
 };
+const resultMatchesTargetTags = (result, target) => {
+  if (!Array.isArray(result.tags)) {
+    return false;
+  }
+
+  const resultTags = new Set(result.tags);
+  if (target.matchMode === 'all') {
+    return target.requiredTags.every((tag) => resultTags.has(tag));
+  }
+
+  return target.requiredTags.some((tag) => resultTags.has(tag));
+};
 
 const nowIso = () => new Date().toISOString();
 
@@ -495,6 +507,10 @@ const statusCommand = (args) => {
 
       const targetResults = run.results.filter((result) => result.targetId === target.id);
       for (const result of targetResults) {
+        if (!resultMatchesTargetTags(result, target)) {
+          fail(`status --require-final requires result ${result.caseId} on ${target.id} tags to match required target profile.`);
+        }
+
         for (const [field, expected] of [
           ['platform', target.platform],
           ['device', target.device],

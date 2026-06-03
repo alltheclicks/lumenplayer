@@ -555,4 +555,92 @@ describe('compatibility-matrix-task', () => {
 
     fs.rmSync(tempDir, { recursive: true, force: true });
   });
+
+  it('fails final status when a result no longer matches target tags', () => {
+    const repoRoot = process.cwd();
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-0342-compat-'));
+    const matrixPath = path.join(tempDir, 'matrix.json');
+    const targetsPath = path.join(tempDir, 'targets.json');
+    const outPath = path.join(tempDir, 'run.json');
+
+    fs.writeFileSync(matrixPath, JSON.stringify({
+      release: 'V1',
+      templateVersion: 1,
+      cases: [
+        {
+          id: 'CASE-TARGET-TAGS',
+          suite: 'smoke',
+          title: 'case target tags',
+          platform: 'mobile',
+          device: 'Phone',
+          browser: 'Chrome',
+          tags: ['mobile-browser', 'pwa-install'],
+          releaseBlocker: true,
+        },
+      ],
+    }, null, 2));
+
+    fs.writeFileSync(targetsPath, JSON.stringify({
+      targets: [
+        {
+          id: 'target-tags',
+          name: 'Target tags',
+          platform: 'mobile',
+          device: 'Phone',
+          browser: 'Chrome',
+          matchMode: 'all',
+          requiredTags: ['mobile-browser', 'pwa-install'],
+        },
+      ],
+    }, null, 2));
+
+    const init = runTask([
+      'init',
+      '--matrix', matrixPath,
+      '--targets', targetsPath,
+      '--out', outPath,
+      '--run-id', 'compat-test-run-9',
+      '--operator', 'ci-test',
+    ], repoRoot);
+    expect(init.status).toBe(0);
+
+    const set = runTask([
+      'set',
+      '--run', outPath,
+      '--case', 'CASE-TARGET-TAGS',
+      '--target', 'target-tags',
+      '--status', 'pass',
+      '--executor', 'ci-test',
+      '--evidence', 'manual-tags',
+    ], repoRoot);
+    expect(set.status).toBe(0);
+
+    const finalize = runTask([
+      'finalize',
+      '--run', outPath,
+      '--signoff', 'pass',
+      '--approved-by', 'release-owner',
+    ], repoRoot);
+    expect(finalize.status).toBe(0);
+
+    const run = JSON.parse(fs.readFileSync(outPath, 'utf8')) as {
+      results: Array<{ targetId: string; tags: string[] }>;
+    };
+    const result = run.results.find((entry) => entry.targetId === 'target-tags');
+    if (result) {
+      result.tags = ['desktop-browser'];
+    }
+    fs.writeFileSync(outPath, `${JSON.stringify(run, null, 2)}\n`);
+
+    const finalStatus = runTask([
+      'status',
+      '--run', outPath,
+      '--require-final',
+      '--require-targets', targetsPath,
+    ], repoRoot);
+    expect(finalStatus.status).toBe(2);
+    expect(finalStatus.stderr).toContain('result CASE-TARGET-TAGS on target-tags tags to match required target profile');
+
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  });
 });

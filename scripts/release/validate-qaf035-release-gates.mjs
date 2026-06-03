@@ -106,6 +106,7 @@ const validateRunbook = () => {
     'final-mode validation for the concrete go/no-go, smoke/regression, compatibility-matrix, and design-parity artifacts',
     '--require-targets',
     'narrower platform/device/browser/tag profile',
+    'case results whose tags no longer match the required target profile',
   ];
 
   for (const snippet of requiredSnippets) {
