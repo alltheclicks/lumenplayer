@@ -101,6 +101,28 @@ describe('no media-processing evidence scanner', () => {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
+  it('fails on enabled remux flags and XUI server media-processing wording', () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-no-media-evidence-'));
+    const filePath = writeFixture(
+      tmpDir,
+      'runtime.log',
+      [
+        'LUMEN_PROXY_REMUX_ENABLED=1',
+        '"LUMEN_PROXY_REMUX_ENABLED": "true"',
+        'provider note: XUI server media processing enabled for broken catch-up',
+        'operator note: generate HLS for archive fallback',
+      ].join('\n'),
+    );
+
+    const result = runValidator([filePath]);
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain('LUMEN_PROXY_REMUX_ENABLED=1');
+    expect(result.stderr).toContain('XUI media processing');
+    expect(result.stderr).toContain('generated HLS');
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
   it('recursively scans directories and ignores binary screenshots', () => {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-no-media-evidence-'));
     writeFixture(tmpDir, 'nested/evidence.json', '{"url":"https://edge.example/live/ok.m3u8"}\n');

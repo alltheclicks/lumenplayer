@@ -24,14 +24,18 @@ const textFilePattern = /\.(har|json|log|md|txt|csv|tsv)$/i;
 const forbiddenPatterns = [
   ['__remux__', /__remux__/i],
   ['__lumenTransport=remux-hls', /__lumenTransport\s*=\s*remux-hls/i],
+  ['LUMEN_PROXY_REMUX_ENABLED=1', /\bLUMEN_PROXY_REMUX_ENABLED\b"?\s*(?::|=)\s*"?(?:1|true)"?/i],
   ['proxy-remuxed', /proxy-remuxed/i],
   ['remux-hls', /remux-hls/i],
   ['remux', /\bremux(?:ed|es|ing)?\b/i],
   ['ffmpeg', /\bffmpeg\b/i],
   ['ffprobe', /\bffprobe\b/i],
   ['transcode', /\btranscod(?:e|ed|es|ing)\b/i],
+  ['server-side media processing', /\bserver[-\s]?side\b[^\n\r]{0,80}\bmedia\s+processing\b/i],
+  ['server-side transcode', /\bserver[-\s]?side\b[^\n\r]{0,80}\btranscod(?:e|ed|es|ing)\b/i],
   ['server-side remux', /\bserver[-\s]?side\b[^\n\r]{0,80}\bremux(?:ed|es|ing)?\b/i],
-  ['generated HLS', /\bgenerated[-\s]?hls\b|\bgenerated\s+HLS\b/i],
+  ['generated HLS', /\bgenerat(?:e|ed|es|ing)[-\s]?hls\b|\bgenerat(?:e|ed|es|ing)\s+HLS\b/i],
+  ['XUI media processing', /\bxui\b[^\n\r]{0,80}\b(?:media\s+processing|transcod(?:e|ed|es|ing)|remux(?:ed|es|ing)?)\b/i],
   ['XUI-side media processing', /\bxui[-\s]?side\b[^\n\r]{0,80}\b(?:media\s+processing|transcod(?:e|ed|es|ing)|remux(?:ed|es|ing)?)\b/i],
 ];
 

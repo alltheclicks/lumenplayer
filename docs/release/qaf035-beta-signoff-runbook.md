@@ -75,6 +75,7 @@ pnpm release:no-media-evidence:scan -- <capture.har-or-json-or-log>
 ```
 
 The scanner fails on forbidden strings: `__remux__`, `proxy-remuxed`, `remux-hls`, `ffmpeg`, `ffprobe`, `transcode`, `remux`, `generated HLS`, and `XUI-side`.
+It also fails enabled remux runtime flags such as `LUMEN_PROXY_REMUX_ENABLED=1` and XUI server media-processing wording even when the evidence does not use the exact `XUI-side` phrase.
 
 3. Record the scanner command/output ref in `mediaProcessingAudit.evidenceRef`; final validation requires this field to reference `release:no-media-evidence:scan`.
 4. Keep `mediaProcessingAudit.forbiddenHits` empty for pass.
