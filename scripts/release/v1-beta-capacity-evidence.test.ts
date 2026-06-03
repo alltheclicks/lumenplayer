@@ -55,11 +55,14 @@ const loadTemplate = (): BetaCapacityEvidenceArtifact => {
 
 const finalizeArtifact = (): BetaCapacityEvidenceArtifact => {
   const artifact = loadTemplate();
-  artifact.mediaPath.evidence = 'output/playwright/manual-network-audit/REPORT.md plus provider/XUI owner capacity statement';
+  artifact.mediaPath.evidence = 'output/playwright/manual-network-audit/REPORT.md; pnpm release:no-media-evidence:scan -- output/playwright/manual-network-audit/report.json; artifacts/release/media-policy/qaf035-no-media-evidence-scan-20260602.json; provider/XUI owner capacity statement';
   for (const check of artifact.checks) {
     check.status = 'pass';
     check.owner = 'release-owner';
     check.evidence = `evidence://${check.id}`;
+    if (check.id === 'no-media-processing-verification') {
+      check.evidence = 'pnpm release:no-media-evidence:scan -- output/playwright/manual-network-audit/report.json; artifacts/release/media-policy/qaf035-no-media-evidence-scan-20260602.json';
+    }
   }
   artifact.signoff.status = 'pass';
   artifact.signoff.approvedBy = 'release-director';
@@ -170,6 +173,54 @@ describe('V1 beta capacity evidence artifact', () => {
     const result = runValidator([invalidPath, '--require-final'], repoRoot);
     expect(result.status).toBe(2);
     expect(result.stderr).toContain('signoff.status cannot be pass while any capacity check is fail');
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('fails final validation if media path evidence omits the no-media scan command', () => {
+    const repoRoot = process.cwd();
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-beta-capacity-'));
+    const invalidPath = path.join(tmpDir, 'weak-media-path.json');
+    const artifact = finalizeArtifact();
+    artifact.mediaPath.evidence = 'output/playwright/manual-network-audit/REPORT.md';
+    fs.writeFileSync(invalidPath, `${JSON.stringify(artifact, null, 2)}\n`);
+
+    const result = runValidator([invalidPath, '--require-final'], repoRoot);
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain('mediaPath.evidence must reference release:no-media-evidence:scan');
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('fails final validation if media path evidence omits the tracked no-media scan artifact', () => {
+    const repoRoot = process.cwd();
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-beta-capacity-'));
+    const invalidPath = path.join(tmpDir, 'missing-media-path-artifact.json');
+    const artifact = finalizeArtifact();
+    artifact.mediaPath.evidence = 'pnpm release:no-media-evidence:scan -- output/playwright/manual-network-audit/report.json';
+    fs.writeFileSync(invalidPath, `${JSON.stringify(artifact, null, 2)}\n`);
+
+    const result = runValidator([invalidPath, '--require-final'], repoRoot);
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain('mediaPath.evidence must reference a tracked no-media scan artifact');
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('fails validation if passing no-media verification omits the tracked scan artifact', () => {
+    const repoRoot = process.cwd();
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-beta-capacity-'));
+    const invalidPath = path.join(tmpDir, 'missing-check-artifact.json');
+    const artifact = finalizeArtifact();
+    const check = artifact.checks.find((entry) => entry.id === 'no-media-processing-verification');
+    if (check) {
+      check.evidence = 'pnpm release:no-media-evidence:scan -- output/playwright/manual-network-audit/report.json';
+    }
+    fs.writeFileSync(invalidPath, `${JSON.stringify(artifact, null, 2)}\n`);
+
+    const result = runValidator([invalidPath], repoRoot);
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain('check no-media-processing-verification evidence must reference a tracked no-media scan artifact');
 
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });

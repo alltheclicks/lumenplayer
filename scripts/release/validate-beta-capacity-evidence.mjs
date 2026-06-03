@@ -2,6 +2,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 
 const allowedStatus = new Set(['pending', 'pass', 'fail']);
 const requiredCheckIds = new Set([
@@ -29,6 +30,40 @@ const filePath = path.resolve(process.cwd(), fileArg);
 const fail = (message) => {
   console.error(`[beta-capacity] ERROR: ${message}`);
   process.exit(2);
+};
+
+const findNoMediaScanArtifactRef = (evidence) => (
+  evidence
+    .split(/[;\s]+/)
+    .find((token) => (
+      token.startsWith('artifacts/release/')
+      && token.endsWith('.json')
+      && token.includes('no-media')
+    ))
+);
+
+const validateNoMediaEvidence = (label, evidence) => {
+  if (!evidence.includes('release:no-media-evidence:scan')) {
+    fail(`${label} must reference release:no-media-evidence:scan.`);
+  }
+
+  const scanArtifactRef = findNoMediaScanArtifactRef(evidence);
+  if (!scanArtifactRef) {
+    fail(`${label} must reference a tracked no-media scan artifact.`);
+  }
+
+  const scanArtifactResult = spawnSync(process.execPath, [
+    'scripts/release/validate-no-media-evidence-scan-artifact.mjs',
+    scanArtifactRef,
+  ], {
+    cwd: process.cwd(),
+    encoding: 'utf8',
+  });
+  if (scanArtifactResult.status !== 0) {
+    const stderr = scanArtifactResult.stderr?.trim();
+    const stdout = scanArtifactResult.stdout?.trim();
+    fail(`${label} linked artifact failed validation${stderr ? `: ${stderr}` : stdout ? `: ${stdout}` : ''}`);
+  }
 };
 
 let artifact;
@@ -149,6 +184,16 @@ for (const requiredCheckId of requiredCheckIds) {
   }
 }
 
+const noMediaProcessingVerification = artifact.checks.find((check) => (
+  check.id === 'no-media-processing-verification'
+));
+if (noMediaProcessingVerification?.status === 'pass') {
+  validateNoMediaEvidence(
+    'check no-media-processing-verification evidence',
+    noMediaProcessingVerification.evidence,
+  );
+}
+
 if (!artifact.signoff || typeof artifact.signoff !== 'object') {
   fail('signoff object is required.');
 }
@@ -169,6 +214,7 @@ if (requireFinal) {
   if (artifact.mediaPath.evidence.trim() === '') {
     fail('mediaPath.evidence must be set with --require-final.');
   }
+  validateNoMediaEvidence('mediaPath.evidence', artifact.mediaPath.evidence);
 
   for (const check of artifact.checks) {
     if (check.status === 'pending') {

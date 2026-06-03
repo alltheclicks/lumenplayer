@@ -110,7 +110,7 @@ The provider/XUI owner must fill `artifacts/release/provider/qaf035-provider-own
 - Rate-limit and escalation path for auth, 429, 5xx, and live-stream failures.
 - Explicit commitment that broken catch-up channels will not be resolved with local ffmpeg, server-side transcode/remux, generated HLS, proxy-remuxed, remux-hls, or XUI-side transcode/remux.
 
-The capacity owner must fill `artifacts/release/capacity/qaf035-beta-capacity-20260602.json` with provider capacity, Lumen edge capacity, observability SLO, and rollback/throttle evidence.
+The capacity owner must fill `artifacts/release/capacity/qaf035-beta-capacity-20260602.json` with provider capacity, Lumen edge capacity, observability SLO, and rollback/throttle evidence. Final `mediaPath.evidence` and any passing `no-media-processing-verification` check must cite both `release:no-media-evidence:scan` and a tracked redacted no-media scan-result artifact that validates.
 
 ## Ops Signoff
 
