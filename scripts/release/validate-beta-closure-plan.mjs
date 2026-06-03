@@ -112,92 +112,114 @@ const requiredFinalProofByGate = new Map([
     'go-no-go-checklist',
     {
       label: 'go/no-go final proof',
-      matches: matchesFinalScript('scripts/release/validate-go-no-go.mjs'),
+      matches: matchesFinalScript('scripts/release/validate-go-no-go.mjs', [
+        'artifacts/release/readiness/qaf035-go-no-go-20260603.json',
+      ]),
     },
   ],
   [
     'smoke-regression-matrix',
     {
       label: 'smoke/regression final proof',
-      matches: matchesFinalScript('scripts/release/validate-smoke-regression-matrix.mjs'),
+      matches: matchesFinalScript('scripts/release/validate-smoke-regression-matrix.mjs', [
+        'artifacts/release/smoke/qaf035-smoke-regression-matrix-20260603.json',
+      ]),
     },
   ],
   [
     'compatibility-matrix',
     {
       label: 'compatibility final matrix with required targets',
-      matches: (command) => (
-        isConcreteFinalProofCommand(command)
-        && commandIncludesAll(command, [
-          'scripts/release/compatibility-matrix-task.mjs',
-          '--require-final',
-          '--require-matrix',
-          '--require-targets',
-        ])
-      ),
+      matches: matchesFinalScript('scripts/release/compatibility-matrix-task.mjs', [
+        'status',
+        '--run',
+        'artifacts/release/compatibility/qaf035-provider-local-20260602.json',
+        '--require-matrix',
+        'artifacts/release/smoke/qaf035-smoke-regression-matrix-20260603.json',
+        '--require-targets',
+        'scripts/release/v1-compatibility-targets.template.json',
+      ]),
     },
   ],
   [
     'manual-device-qa-evidence',
     {
       label: 'manual device QA final proof',
-      matches: matchesFinalScript('scripts/release/validate-manual-device-qa.mjs'),
+      matches: matchesFinalScript('scripts/release/validate-manual-device-qa.mjs', [
+        'artifacts/release/manual-device-qa/qaf035-manual-device-qa-20260603.json',
+      ]),
     },
   ],
   [
     'design-parity-evidence',
     {
       label: 'design parity final proof',
-      matches: matchesFinalScript('scripts/release/validate-design-parity-evidence.mjs'),
+      matches: matchesFinalScript('scripts/release/validate-design-parity-evidence.mjs', [
+        'artifacts/release/design/qaf035-design-parity-20260603.json',
+      ]),
     },
   ],
   [
     'performance-evidence',
     {
       label: 'performance evidence final proof',
-      matches: matchesFinalScript('scripts/release/validate-performance-evidence.mjs'),
+      matches: matchesFinalScript('scripts/release/validate-performance-evidence.mjs', [
+        'artifacts/release/performance/qaf035-performance-evidence-20260603.json',
+      ]),
     },
   ],
   [
     'provider-owner-signoff',
     {
       label: 'provider owner final proof',
-      matches: matchesFinalScript('scripts/release/validate-provider-owner-signoff.mjs'),
+      matches: matchesFinalScript('scripts/release/validate-provider-owner-signoff.mjs', [
+        'artifacts/release/provider/qaf035-provider-owner-signoff-20260603.json',
+      ]),
     },
   ],
   [
     'beta-capacity-evidence',
     {
       label: 'beta capacity final proof',
-      matches: matchesFinalScript('scripts/release/validate-beta-capacity-evidence.mjs'),
+      matches: matchesFinalScript('scripts/release/validate-beta-capacity-evidence.mjs', [
+        'artifacts/release/capacity/qaf035-beta-capacity-20260602.json',
+      ]),
     },
   ],
   [
     'runtime-media-policy',
     {
       label: 'runtime media policy final proof',
-      matches: matchesFinalScript('scripts/release/validate-runtime-media-policy.mjs'),
+      matches: matchesFinalScript('scripts/release/validate-runtime-media-policy.mjs', [
+        'artifacts/release/media-policy/qaf035-runtime-media-policy-20260602.json',
+      ]),
     },
   ],
   [
     'observability-baseline',
     {
       label: 'observability baseline final proof',
-      matches: matchesFinalScript('scripts/release/validate-observability-baseline.mjs'),
+      matches: matchesFinalScript('scripts/release/validate-observability-baseline.mjs', [
+        'artifacts/release/observability/qaf035-observability-baseline-20260603.json',
+      ]),
     },
   ],
   [
     'beta-ops-signoff',
     {
       label: 'beta ops final proof',
-      matches: matchesFinalScript('scripts/release/validate-beta-ops-signoff.mjs'),
+      matches: matchesFinalScript('scripts/release/validate-beta-ops-signoff.mjs', [
+        'artifacts/release/ops/qaf035-beta-ops-signoff-20260603.json',
+      ]),
     },
   ],
   [
     'security-privacy-baseline',
     {
       label: 'security/privacy final proof',
-      matches: matchesFinalScript('scripts/release/validate-security-privacy-baseline.mjs'),
+      matches: matchesFinalScript('scripts/release/validate-security-privacy-baseline.mjs', [
+        'artifacts/release/security/qaf035-security-privacy-baseline-20260603.json',
+      ]),
     },
   ],
 ]);

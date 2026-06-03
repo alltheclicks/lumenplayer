@@ -410,6 +410,29 @@ describe('QAF-035 beta closure plan', () => {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }, 20000);
 
+  it('fails when a direct final proof command points at the wrong existing artifact', () => {
+    const repoRoot = process.cwd();
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-beta-closure-'));
+    const invalidPath = path.join(tmpDir, 'wrong-final-artifact.json');
+    const invalidPlan = loadPlan();
+    const item = invalidPlan.closureItems.find((entry) => entry.blockerId === 'PERFORMANCE-RELEASE-RUN');
+    if (item) {
+      item.validationCommands = item.validationCommands.map((command) => (
+        command.includes('scripts/release/validate-performance-evidence.mjs') && command.includes('--require-final')
+          ? 'node scripts/release/validate-performance-evidence.mjs artifacts/release/security/qaf035-security-privacy-baseline-20260603.json --require-final'
+          : command
+      ));
+    }
+
+    fs.writeFileSync(invalidPath, `${JSON.stringify(invalidPlan, null, 2)}\n`);
+
+    const result = runValidator([invalidPath], repoRoot);
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain('validationCommands must include performance evidence final proof');
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
   it('fails when the compatibility gate lacks a final matrix proof command', () => {
     const repoRoot = process.cwd();
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-beta-closure-'));
