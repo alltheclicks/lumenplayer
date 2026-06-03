@@ -95,8 +95,8 @@ const isConcreteFinalProofCommand = (command) => {
     && parts.includes('--require-final')
   );
 };
-const commandIncludesAll = (command, requiredParts) => (
-  requiredParts.every((requiredPart) => command.includes(requiredPart))
+const commandPartsIncludeAll = (parts, requiredParts) => (
+  requiredParts.every((requiredPart) => parts.includes(requiredPart))
 );
 const matchesFinalScript = (scriptRef, requiredParts = []) => (command) => {
   const parts = commandParts(command);
@@ -104,7 +104,7 @@ const matchesFinalScript = (scriptRef, requiredParts = []) => (command) => {
     isConcreteFinalProofCommand(command)
     && parts[0] === 'node'
     && parts[1] === scriptRef
-    && commandIncludesAll(command, [scriptRef, '--require-final', ...requiredParts])
+    && commandPartsIncludeAll(parts, [scriptRef, '--require-final', ...requiredParts])
   );
 };
 const requiredFinalProofByGate = new Map([
