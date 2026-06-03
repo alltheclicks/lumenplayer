@@ -272,19 +272,58 @@ describe('QAF-035 beta closure plan', () => {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  it('fails when a referenced closure artifact exists but does not validate', () => {
+  it('fails when a referenced closure artifact uses an absolute local path', () => {
     const repoRoot = process.cwd();
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-beta-closure-'));
+    const invalidPath = path.join(tmpDir, 'absolute-artifact.json');
+    const invalidPlan = loadPlan();
+    const item = invalidPlan.closureItems.find((entry) => entry.blockerId === 'PERFORMANCE-RELEASE-RUN');
+    if (item) {
+      item.artifactRefs = [path.resolve(repoRoot, 'artifacts/release/performance/qaf035-performance-evidence-20260603.json')];
+    }
+
+    fs.writeFileSync(invalidPath, `${JSON.stringify(invalidPlan, null, 2)}\n`);
+
+    const result = runValidator([invalidPath], repoRoot);
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain('artifactRef must be repo-relative without parent traversal');
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('fails when a referenced closure artifact uses parent traversal', () => {
+    const repoRoot = process.cwd();
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-beta-closure-'));
+    const invalidPath = path.join(tmpDir, 'traversal-artifact.json');
+    const invalidPlan = loadPlan();
+    const item = invalidPlan.closureItems.find((entry) => entry.blockerId === 'PERFORMANCE-RELEASE-RUN');
+    if (item) {
+      item.artifactRefs = ['artifacts/release/performance/../performance/qaf035-performance-evidence-20260603.json'];
+    }
+
+    fs.writeFileSync(invalidPath, `${JSON.stringify(invalidPlan, null, 2)}\n`);
+
+    const result = runValidator([invalidPath], repoRoot);
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain('artifactRef must be repo-relative without parent traversal');
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('fails when a referenced closure artifact exists but does not validate', () => {
+    const repoRoot = process.cwd();
+    const tmpDir = fs.mkdtempSync(path.join(repoRoot, '.tmp-beta-closure-'));
     const invalidArtifactDir = path.join(tmpDir, 'artifacts', 'release', 'performance');
     fs.mkdirSync(invalidArtifactDir, { recursive: true });
     const invalidArtifactPath = path.join(invalidArtifactDir, 'qaf035-performance-evidence-invalid.json');
+    const invalidArtifactRef = path.relative(repoRoot, invalidArtifactPath);
     const invalidPlanPath = path.join(tmpDir, 'invalid-artifact-plan.json');
     const invalidPlan = loadPlan();
     const artifact = JSON.parse(fs.readFileSync(path.resolve(repoRoot, 'artifacts/release/performance/qaf035-performance-evidence-20260603.json'), 'utf8'));
     artifact.dataset.channelCount = 0;
     const item = invalidPlan.closureItems.find((entry) => entry.blockerId === 'PERFORMANCE-RELEASE-RUN');
     if (item) {
-      item.artifactRefs = [invalidArtifactPath];
+      item.artifactRefs = [invalidArtifactRef];
     }
 
     fs.writeFileSync(invalidArtifactPath, `${JSON.stringify(artifact, null, 2)}\n`);

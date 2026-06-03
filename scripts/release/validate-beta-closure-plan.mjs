@@ -36,6 +36,11 @@ const fail = (message) => {
 };
 
 const isNonEmptyString = (value) => typeof value === 'string' && value.trim() !== '';
+const isRepoRelativePath = (value) => (
+  isNonEmptyString(value)
+  && !path.isAbsolute(value)
+  && !value.split(/[\\/]/).includes('..')
+);
 const readJson = (fileRef) => {
   const filePath = path.resolve(repoRoot, fileRef);
   try {
@@ -310,6 +315,9 @@ for (const item of plan.closureItems) {
   for (const artifactRef of item.artifactRefs) {
     if (!isNonEmptyString(artifactRef)) {
       fail(`closure item ${item.id} artifactRefs must contain non-empty strings.`);
+    }
+    if (!isRepoRelativePath(artifactRef)) {
+      fail(`closure item ${item.id} artifactRef must be repo-relative without parent traversal: ${artifactRef}`);
     }
     if (!fs.existsSync(path.resolve(repoRoot, artifactRef))) {
       fail(`closure item ${item.id} artifactRef does not exist: ${artifactRef}`);
