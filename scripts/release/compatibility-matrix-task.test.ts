@@ -320,5 +320,40 @@ describe('compatibility-matrix-task', () => {
       '--approved-by', 'release-owner',
     ], repoRoot);
     expect(finalizeWithEvidence.status).toBe(0);
+
+    const finalStatus = runTask([
+      'status',
+      '--run', outPath,
+      '--require-final',
+    ], repoRoot);
+    expect(finalStatus.status).toBe(0);
+    expect(finalStatus.stdout).toContain('require-final: yes');
+    expect(finalStatus.stdout).toContain('status: completed');
+  });
+
+  it('fails final status while compatibility cases are still pending', () => {
+    const repoRoot = process.cwd();
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-0342-compat-'));
+    const outPath = path.join(tempDir, 'run.json');
+
+    const init = runTask([
+      'init',
+      '--matrix', 'scripts/release/v1-smoke-regression-matrix.template.json',
+      '--targets', 'scripts/release/v1-compatibility-targets.template.json',
+      '--out', outPath,
+      '--run-id', 'compat-test-run-6',
+      '--operator', 'ci-test',
+    ], repoRoot);
+    expect(init.status).toBe(0);
+
+    const finalStatus = runTask([
+      'status',
+      '--run', outPath,
+      '--require-final',
+    ], repoRoot);
+    expect(finalStatus.status).toBe(2);
+    expect(finalStatus.stderr).toContain('requires run.status to be completed');
+
+    fs.rmSync(tempDir, { recursive: true, force: true });
   });
 });

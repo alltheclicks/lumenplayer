@@ -12,6 +12,8 @@ const fail = (message) => {
   process.exit(2);
 };
 
+const isNonEmptyString = (value) => typeof value === 'string' && value.trim() !== '';
+
 const nowIso = () => new Date().toISOString();
 
 const parseArgs = (args) => {
@@ -70,7 +72,7 @@ const usage = () => {
   console.log('Commands:');
   console.log('  init --matrix <path> [--targets <path>] [--out <path>] [--operator <name>] [--run-id <id>]');
   console.log('  set --run <path> --case <id> --status <pending|pass|fail> [--target <id>] [--evidence <text>] [--notes <text>] [--executor <name>]');
-  console.log('  status --run <path>');
+  console.log('  status --run <path> [--require-final]');
   console.log('  finalize --run <path> --signoff <pass|fail> --approved-by <name> [--notes <text>]');
 };
 
@@ -406,6 +408,7 @@ const statusCommand = (args) => {
     fail('status requires --run <path>');
   }
 
+  const requireFinal = args['require-final'] === true;
   const runPath = path.resolve(process.cwd(), String(args.run));
   const run = readJson(runPath);
   if (!Array.isArray(run.results)) {
@@ -414,12 +417,46 @@ const statusCommand = (args) => {
 
   const counts = summarizeResults(run.results);
   const blockerFail = run.results.filter((result) => result.releaseBlocker && result.status === 'fail').length;
+  const missingEvidence = run.results.filter((result) => !isNonEmptyString(result.evidence));
+
+  if (requireFinal) {
+    if (run.status !== 'completed') {
+      fail('status --require-final requires run.status to be completed.');
+    }
+
+    if (counts.pending > 0) {
+      fail(`status --require-final requires zero pending cases; found ${counts.pending}.`);
+    }
+
+    if (blockerFail > 0) {
+      fail(`status --require-final forbids release-blocker failures; found ${blockerFail}.`);
+    }
+
+    if (missingEvidence.length > 0) {
+      const firstMissing = missingEvidence[0];
+      const targetLabel = firstMissing.targetId ? ` on ${firstMissing.targetId}` : '';
+      fail(`status --require-final requires evidence for every case; first missing is ${firstMissing.caseId}${targetLabel}.`);
+    }
+
+    if (!run.signoff || run.signoff.status !== 'pass') {
+      fail('status --require-final requires signoff.status pass.');
+    }
+
+    if (!isNonEmptyString(run.signoff.approvedBy)) {
+      fail('status --require-final requires signoff.approvedBy.');
+    }
+
+    if (!isNonEmptyString(run.signoff.approvedAt)) {
+      fail('status --require-final requires signoff.approvedAt.');
+    }
+  }
 
   console.log(`[compat-matrix] runId: ${run.runId}`);
   console.log(`[compat-matrix] status: ${run.status}`);
   console.log(`[compat-matrix] counts: pending=${counts.pending}, pass=${counts.pass}, fail=${counts.fail}`);
   console.log(`[compat-matrix] release-blocker failures: ${blockerFail}`);
   console.log(`[compat-matrix] signoff: ${run.signoff?.status ?? 'pending'}`);
+  console.log(`[compat-matrix] require-final: ${requireFinal ? 'yes' : 'no'}`);
 
   if (Array.isArray(run.targets) && run.targets.length > 0) {
     for (const target of run.targets) {
