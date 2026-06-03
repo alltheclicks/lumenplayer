@@ -1,4 +1,6 @@
 import { spawnSync } from 'node:child_process';
+import fs from 'node:fs';
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 const runValidator = (args: string[] = []) => (
@@ -9,6 +11,15 @@ const runValidator = (args: string[] = []) => (
 );
 
 describe('QAF-035 release gate aggregate validator', () => {
+  it('keeps closure final-proof guidance gate-specific instead of aggregate-only', () => {
+    const runbook = fs.readFileSync(path.resolve(process.cwd(), 'docs/release/qaf035-beta-signoff-runbook.md'), 'utf8');
+
+    expect(runbook).toContain('direct, gate-specific final proof command');
+    expect(runbook).toContain('not a substitute for the concrete artifact validator with `--require-final`');
+    expect(runbook).toContain('must also be listed in that closure item');
+    expect(runbook).not.toContain('either the aggregate `pnpm release:qaf035:final` or a concrete artifact validator');
+  });
+
   it('passes current QAF-035 artifacts while preserving explicit final blockers', () => {
     const result = runValidator();
 

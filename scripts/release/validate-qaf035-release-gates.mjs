@@ -103,6 +103,9 @@ const validateRunbook = () => {
     'pnpm release:beta-ops:validate',
     'concrete QAF-035 artifacts',
     'final proof command',
+    'direct, gate-specific final proof command',
+    'not a substitute for the concrete artifact validator with `--require-final`',
+    'must also be listed in that closure item',
     'final-mode validation for the concrete go/no-go, smoke/regression, compatibility-matrix, and design-parity artifacts',
     '--require-matrix',
     '--require-targets',
@@ -113,6 +116,15 @@ const validateRunbook = () => {
   for (const snippet of requiredSnippets) {
     if (!content.includes(snippet)) {
       fail(`Runbook ${files.runbook} must reference: ${snippet}`);
+    }
+  }
+
+  const forbiddenSnippets = [
+    'either the aggregate `pnpm release:qaf035:final` or a concrete artifact validator',
+  ];
+  for (const snippet of forbiddenSnippets) {
+    if (content.includes(snippet)) {
+      fail(`Runbook ${files.runbook} must not keep stale closure final-proof guidance: ${snippet}`);
     }
   }
 };
