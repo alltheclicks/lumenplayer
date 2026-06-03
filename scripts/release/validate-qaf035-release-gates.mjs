@@ -101,6 +101,7 @@ const validateRunbook = () => {
     'pnpm release:beta-ops:validate',
     'concrete QAF-035 artifacts',
     'final proof command',
+    'final-mode validation for the concrete go/no-go, smoke/regression, and design-parity artifacts',
   ];
 
   for (const snippet of requiredSnippets) {
@@ -254,7 +255,7 @@ const validatePackageScripts = () => {
 };
 
 const checks = [];
-const expectedFinalBlockers = [];
+const expectedFinalValidationFailures = [];
 const failures = [];
 
 const runNode = (label, commandArgs, options = {}) => {
@@ -272,7 +273,7 @@ const runNode = (label, commandArgs, options = {}) => {
     }
 
     const firstLine = (stderr || stdout).split(/\r?\n/).find(Boolean) ?? 'failed as expected';
-    expectedFinalBlockers.push(`${label}: ${firstLine}`);
+    expectedFinalValidationFailures.push(`${label}: ${firstLine}`);
     return;
   }
 
@@ -343,6 +344,9 @@ runNode('beta blocker closure plan', [
 ]);
 
 const finalValidators = [
+  ['final go/no-go checklist', ['scripts/release/validate-go-no-go.mjs', files.goNoGo, '--require-final']],
+  ['final smoke/regression matrix', ['scripts/release/validate-smoke-regression-matrix.mjs', files.smokeMatrix, '--require-final']],
+  ['final design parity evidence', ['scripts/release/validate-design-parity-evidence.mjs', files.designParity, '--require-final']],
   ['final release readiness', ['scripts/release/validate-release-readiness.mjs', files.readiness, '--require-final']],
   ['final provider owner signoff', ['scripts/release/validate-provider-owner-signoff.mjs', files.providerOwner, '--require-final']],
   ['final beta capacity evidence', ['scripts/release/validate-beta-capacity-evidence.mjs', files.betaCapacity, '--require-final']],
@@ -370,10 +374,10 @@ console.log(`[qaf035-release-gates] checks passed: ${checks.length}`);
 for (const check of checks) {
   console.log(`- ${check}`);
 }
-if (expectedFinalBlockers.length > 0) {
-  console.log('[qaf035-release-gates] expected final blockers:');
-  for (const blocker of expectedFinalBlockers) {
-    console.log(`- ${blocker}`);
+if (expectedFinalValidationFailures.length > 0) {
+  console.log('[qaf035-release-gates] expected final validation failures:');
+  for (const validationFailure of expectedFinalValidationFailures) {
+    console.log(`- ${validationFailure}`);
   }
 }
 console.log('[qaf035-release-gates] OK');

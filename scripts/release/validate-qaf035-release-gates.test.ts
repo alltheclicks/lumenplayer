@@ -14,7 +14,10 @@ describe('QAF-035 release gate aggregate validator', () => {
 
     expect(result.status).toBe(0);
     expect(result.stdout).toContain('mode: current-open-blockers');
-    expect(result.stdout).toContain('expected final blockers');
+    expect(result.stdout).toContain('expected final validation failures');
+    expect(result.stdout).toContain('final go/no-go checklist');
+    expect(result.stdout).toContain('final smoke/regression matrix');
+    expect(result.stdout).toContain('final design parity evidence');
     expect(result.stdout).toContain('final provider owner signoff');
     expect(result.stdout).toContain('final manual device QA');
     expect(result.stdout).toContain('pr-quality-gate-workflow');
@@ -32,6 +35,9 @@ describe('QAF-035 release gate aggregate validator', () => {
     const result = runValidator(['--require-final']);
 
     expect(result.status).toBe(2);
+    expect(result.stderr).toContain('final go/no-go checklist failed');
+    expect(result.stderr).toContain('final smoke/regression matrix failed');
+    expect(result.stderr).toContain('final design parity evidence failed');
     expect(result.stderr).toContain('final release readiness failed');
     expect(result.stderr).toContain('final provider owner signoff failed');
     expect(result.stderr).toContain('final performance evidence failed');
