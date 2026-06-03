@@ -125,7 +125,9 @@ describe('no-media evidence scan artifact', () => {
 
   it('fails validation when an existing source hash differs from the artifact digest', () => {
     const repoRoot = process.cwd();
-    const tmpDir = fs.mkdtempSync(path.join(repoRoot, 'output/playwright/manual-network-audit/hash-mismatch-'));
+    const ignoredParent = path.join(repoRoot, 'output/playwright/manual-network-audit');
+    fs.mkdirSync(ignoredParent, { recursive: true });
+    const tmpDir = fs.mkdtempSync(path.join(ignoredParent, 'hash-mismatch-'));
     const sourcePath = path.join(tmpDir, 'report.json');
     const invalidPath = path.join(tmpDir, 'hash-mismatch.json');
     const artifact = loadArtifact();
