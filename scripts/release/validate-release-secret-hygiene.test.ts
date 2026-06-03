@@ -25,7 +25,7 @@ describe('release secret hygiene scan', () => {
     expect(result.stdout).toContain('file(s) scanned');
   });
 
-  it('includes current handoff and backlog truth surfaces in the default scan', () => {
+  it('includes current handoff, backlog, vision, and catch-up evidence surfaces in the default scan', () => {
     const result = runValidator(['--list-files'], process.cwd());
 
     expect(result.status).toBe(0);
@@ -33,6 +33,8 @@ describe('release secret hygiene scan', () => {
     expect(scannedFiles).toEqual(expect.arrayContaining([
       'BACKLOG.md',
       'HANDOFF.md',
+      'VISION.md',
+      'docs/catchup-timeshift-hls-evidence.md',
       'docs/V3-QA-FIX-BACKLOG.md',
     ]));
   });

@@ -48,6 +48,8 @@ const isTextFile = (filePath) => (
 const defaultReleaseSecretHygieneFiles = new Set([
   'BACKLOG.md',
   'HANDOFF.md',
+  'VISION.md',
+  'docs/catchup-timeshift-hls-evidence.md',
   'docs/V3-QA-FIX-BACKLOG.md',
   'package.json',
 ]);
