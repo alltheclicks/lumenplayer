@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 
 interface ReleaseGate {
   id: string;
+  status: 'pending' | 'pass' | 'fail';
   evidenceRef: string;
 }
 
@@ -160,6 +161,10 @@ describe('release evidence link audit', () => {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-evidence-links-'));
     const invalidPath = path.join(tmpDir, 'no-open-blockers.json');
     const artifact = loadReadiness();
+    artifact.gates = artifact.gates.map((gate) => ({
+      ...gate,
+      status: 'pass',
+    }));
     artifact.blockerTriage.totalOpen = 0;
     artifact.blockerTriage.items = artifact.blockerTriage.items.map((item) => ({
       ...item,

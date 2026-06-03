@@ -24,6 +24,7 @@ interface ReleaseReadinessReview {
       disposition: string;
       owner: string;
       issueRef: string;
+      gateIds?: string[];
     }>;
   };
   rollback: {
@@ -156,13 +157,56 @@ describe('V1 final release readiness review template', () => {
   it('tracks the QAF-035 partial release readiness artifact without allowing final signoff', () => {
     const repoRoot = process.cwd();
     const artifactPath = 'artifacts/release/readiness/qaf035-release-readiness-20260602.json';
+    const artifact = JSON.parse(
+      fs.readFileSync(path.resolve(repoRoot, artifactPath), 'utf8'),
+    ) as ReleaseReadinessReview;
+    const pendingGateIds = artifact.gates
+      .filter((gate) => gate.status !== 'pass')
+      .map((gate) => gate.id);
+    const coveredGateIds = new Set(
+      artifact.blockerTriage.items.flatMap((item) => item.gateIds ?? []),
+    );
 
     const partialResult = runValidator([artifactPath], repoRoot);
     expect(partialResult.status).toBe(0);
+    expect(artifact.blockerTriage.totalOpen).toBe(9);
+    for (const gateId of pendingGateIds) {
+      expect(coveredGateIds.has(gateId), `missing blocker coverage for ${gateId}`).toBe(true);
+    }
 
     const finalResult = runValidator([artifactPath, '--require-final'], repoRoot);
     expect(finalResult.status).toBe(2);
     expect(finalResult.stderr).toContain('gate go-no-go-checklist is pending with --require-final');
+  });
+
+  it('fails validation when a triaged pending gate has no open blocker coverage', () => {
+    const repoRoot = process.cwd();
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-0346-readiness-'));
+    const invalidPath = path.join(tmpDir, 'missing-pending-gate-coverage.json');
+
+    const invalidArtifact = loadTemplate();
+    invalidArtifact.blockerTriage.totalOpen = 1;
+    invalidArtifact.blockerTriage.triagedAt = '2026-02-16T18:10:00.000Z';
+    invalidArtifact.blockerTriage.owner = 'release-manager';
+    invalidArtifact.blockerTriage.items = [
+      {
+        id: 'BLK-303',
+        summary: 'Only one pending gate is triaged',
+        status: 'open',
+        disposition: 'needs owner',
+        owner: 'release-manager',
+        issueRef: '',
+        gateIds: ['go-no-go-checklist'],
+      },
+    ];
+
+    fs.writeFileSync(invalidPath, `${JSON.stringify(invalidArtifact, null, 2)}\n`);
+
+    const result = runValidator([invalidPath], repoRoot);
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain('pending gate smoke-regression-matrix must be covered');
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
   it('fails strict validation when a required gate is missing', () => {

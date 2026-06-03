@@ -102,25 +102,89 @@
     }
   ],
   "blockerTriage": {
-    "totalOpen": 3,
-    "triagedAt": "2026-06-02T20:53:05Z",
+    "totalOpen": 9,
+    "triagedAt": "2026-06-03T11:55:00Z",
     "owner": "codex",
     "items": [
+      {
+        "id": "GO-NO-GO-SIGNOFF",
+        "summary": "Final go/no-go checklist and release-owner approval are not complete.",
+        "status": "open",
+        "disposition": "Complete the final go/no-go checklist only after every concrete gate is non-pending, every blocker is closed or mitigated, rollback ownership is assigned, and release-owner approval is recorded.",
+        "owner": "release-owner",
+        "issueRef": "",
+        "gateIds": [
+          "go-no-go-checklist"
+        ]
+      },
+      {
+        "id": "TARGET-MATRIX-DEVICES",
+        "summary": "Desktop/mobile/Cast/AirPlay/PWA compatibility and manual target evidence is incomplete.",
+        "status": "open",
+        "disposition": "Run real target evidence or approved device-lab evidence before final beta signoff; Playwright/headless evidence is not enough for real-device approval.",
+        "owner": "release-qa-owner",
+        "issueRef": "",
+        "gateIds": [
+          "smoke-regression-matrix",
+          "compatibility-matrix",
+          "manual-device-qa-evidence",
+          "design-parity-evidence"
+        ]
+      },
       {
         "id": "BETA-CAPACITY-OWNER",
         "summary": "Provider/XUI owner capacity approval for 300-500 beta users is missing.",
         "status": "open",
         "disposition": "Needs external owner confirmation in artifacts/release/provider/qaf035-provider-owner-signoff-20260603.json that the beta account/upstream service can support the cohort without XUI-side transcode/remux.",
         "owner": "provider-capacity-owner",
-        "issueRef": ""
+        "issueRef": "",
+        "gateIds": [
+          "beta-capacity-evidence"
+        ]
       },
       {
-        "id": "TARGET-MATRIX-DEVICES",
-        "summary": "Desktop/mobile/Cast/AirPlay/PWA compatibility target evidence is incomplete.",
+        "id": "PROVIDER-OWNER-SIGNOFF",
+        "summary": "Provider/XUI owner identity, rate-limit/escalation contact, and no-media-processing commitment are missing.",
         "status": "open",
-        "disposition": "Run real target evidence or approved device-lab evidence before final beta signoff.",
-        "owner": "release-qa-owner",
-        "issueRef": ""
+        "disposition": "Record the provider/XUI owner, upstream account scope, escalation path, and explicit commitment that broken catch-up will not be solved with XUI-side transcode/remux/generated HLS or other server-side media processing.",
+        "owner": "provider-owner",
+        "issueRef": "",
+        "gateIds": [
+          "provider-owner-signoff"
+        ]
+      },
+      {
+        "id": "PERFORMANCE-RELEASE-RUN",
+        "summary": "Approved release-run startup and RSS performance numbers are missing.",
+        "status": "open",
+        "disposition": "Record numeric startup p95/p99, RSS peak/p95, failed-run accounting, approved environment details, and release-owner performance signoff in the performance artifact.",
+        "owner": "release-performance-owner",
+        "issueRef": "",
+        "gateIds": [
+          "performance-evidence"
+        ]
+      },
+      {
+        "id": "RUNTIME-NO-MEDIA-OWNER",
+        "summary": "Runtime no-transcode/no-remux provider/XUI owner confirmation is missing.",
+        "status": "open",
+        "disposition": "Finalize runtime media policy only after owner-backed evidence confirms provider-direct/proxy-normalized playback remains the beta/prod path and no local ffmpeg, server-side transcode/remux, generated HLS, proxy-remuxed, remux-hls, or XUI-side media processing is allowed.",
+        "owner": "provider-xui-no-transcode-owner",
+        "issueRef": "",
+        "gateIds": [
+          "runtime-media-policy"
+        ]
+      },
+      {
+        "id": "OBSERVABILITY-BASELINE-OWNER",
+        "summary": "Beta alert routing, dashboard, response SLO, and observability owner are missing.",
+        "status": "open",
+        "disposition": "Assign beta alert owner/channel/dashboard/response SLO and record evidence that playback, cast, startup-timeout, and no-media stop triggers route to a real launch responder.",
+        "owner": "observability-owner",
+        "issueRef": "",
+        "gateIds": [
+          "observability-baseline"
+        ]
       },
       {
         "id": "BETA-OPS-SIGNOFF",
@@ -128,7 +192,21 @@
         "status": "open",
         "disposition": "Assign launch owners and record alert route, rollback/throttle decision path, and max decision time evidence.",
         "owner": "release-ops-owner",
-        "issueRef": ""
+        "issueRef": "",
+        "gateIds": [
+          "beta-ops-signoff"
+        ]
+      },
+      {
+        "id": "SECURITY-PRIVACY-OWNER",
+        "summary": "Security/privacy incident owner, runbook, response channel, and final signoff are missing.",
+        "status": "open",
+        "disposition": "Finalize the security/privacy baseline only after the incident runbook, named owner, response channel, notification SLA, and release-owner approval are recorded.",
+        "owner": "security-privacy-owner",
+        "issueRef": "",
+        "gateIds": [
+          "security-privacy-baseline"
+        ]
       }
     ]
   },

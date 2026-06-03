@@ -108,6 +108,8 @@ if (!Array.isArray(review.blockerTriage.items)) {
 }
 
 const seenBlockerIds = new Set();
+const pendingGateIds = new Set(review.gates.filter((gate) => gate.status !== 'pass').map((gate) => gate.id));
+const coveredPendingGateIds = new Set();
 let openBlockerCount = 0;
 for (const blocker of review.blockerTriage.items) {
   if (!blocker || typeof blocker !== 'object') {
@@ -143,6 +145,24 @@ for (const blocker of review.blockerTriage.items) {
     fail(`blocker ${blocker.id} issueRef must be a string.`);
   }
 
+  if (blocker.gateIds !== undefined) {
+    if (!Array.isArray(blocker.gateIds) || blocker.gateIds.length === 0) {
+      fail(`blocker ${blocker.id} gateIds must be a non-empty array when set.`);
+    }
+
+    for (const gateId of blocker.gateIds) {
+      if (typeof gateId !== 'string' || gateId.trim() === '') {
+        fail(`blocker ${blocker.id} gateIds must contain non-empty strings.`);
+      }
+      if (!seenGateIds.has(gateId)) {
+        fail(`blocker ${blocker.id} references unknown gateId: ${gateId}`);
+      }
+      if ((blocker.status === 'open' || blocker.status === 'mitigated') && pendingGateIds.has(gateId)) {
+        coveredPendingGateIds.add(gateId);
+      }
+    }
+  }
+
   if (blocker.status === 'open') {
     openBlockerCount += 1;
   }
@@ -150,6 +170,14 @@ for (const blocker of review.blockerTriage.items) {
 
 if (openBlockerCount !== review.blockerTriage.totalOpen) {
   fail(`blockerTriage.totalOpen (${review.blockerTriage.totalOpen}) does not match open blocker count (${openBlockerCount}).`);
+}
+
+if (review.blockerTriage.items.length > 0) {
+  for (const pendingGateId of pendingGateIds) {
+    if (!coveredPendingGateIds.has(pendingGateId)) {
+      fail(`pending gate ${pendingGateId} must be covered by an open/mitigated blockerTriage item gateIds.`);
+    }
+  }
 }
 
 if (!review.rollback || typeof review.rollback !== 'object') {

@@ -27,9 +27,10 @@
   - `scripts/release/validate-beta-ops-signoff.mjs` now requires passing no-media ops signal/check evidence to cite `release:no-media-evidence:scan`, a tracked no-media scan artifact, and the runtime media policy artifact
   - `scripts/release/validate-observability-baseline.mjs` now validates `artifacts/release/observability/qaf035-observability-baseline-20260603.json`, tying structured web events, playback/cast alert rules, beta alert routing, and no-media stop-trigger evidence into the QAF aggregate gate
   - `scripts/release/validate-security-privacy-baseline.mjs` now validates `artifacts/release/security/qaf035-security-privacy-baseline-20260603.json`, tying client storage inventory, credential cleanup, retention evidence, and incident-readiness placeholders into the QAF aggregate gate
+  - `scripts/release/validate-release-readiness.mjs` now requires each pending gate in a triaged readiness artifact to be covered by an open/mitigated `blockerTriage.items[].gateIds` entry, so the rollup cannot hide pending beta requirements behind a shorter blocker list
   - `pnpm release:secret-hygiene:validate` now scans release evidence/docs/templates plus `HANDOFF.md`, `BACKLOG.md`, `VISION.md`, `docs/V3-QA-FIX-BACKLOG.md`, and `docs/catchup-timeshift-hls-evidence.md`, so current-truth/provider-evidence docs cannot reintroduce non-redacted provider credentials
 - Current beta state:
-  - local/provider/browser/no-media/performance/observability/security source evidence is partial and useful, but final beta signoff remains pending on real provider/XUI owner confirmation, 300-500 user capacity approval, numeric release performance evidence, real device target matrix, beta alert route/dashboard/owners, security incident owner/runbook/channel, beta ops, and final go/no-go
+  - local/provider/browser/no-media/performance/observability/security source evidence is partial and useful, and the readiness rollup now tracks 9 explicit open blockers mapped to the pending gates; final beta signoff remains pending on real provider/XUI owner confirmation, 300-500 user capacity approval, numeric release performance evidence, real device target matrix, beta alert route/dashboard/owners, security incident owner/runbook/channel, beta ops, and final go/no-go
 
 ## Session 2026-06-02 — QAF-035 production web catch-up PR alignment
 
