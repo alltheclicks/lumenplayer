@@ -81,14 +81,15 @@ describe('QAF-035 beta closure plan', () => {
 
   it('fails when the source readiness artifact exists but does not validate', () => {
     const repoRoot = process.cwd();
-    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-beta-closure-'));
+    const tmpDir = fs.mkdtempSync(path.join(repoRoot, '.tmp-beta-closure-'));
     const invalidReadinessPath = path.join(tmpDir, 'invalid-readiness.json');
+    const invalidReadinessRef = path.relative(repoRoot, invalidReadinessPath);
     const invalidPlanPath = path.join(tmpDir, 'invalid-readiness-plan.json');
     const invalidPlan = loadPlan();
     const readinessArtifactPath = 'artifacts/release/readiness/qaf035-release-readiness-20260602.json';
     const readinessArtifact = JSON.parse(fs.readFileSync(path.resolve(repoRoot, readinessArtifactPath), 'utf8'));
     readinessArtifact.rollback.maxDecisionMinutes = 0;
-    invalidPlan.sourceReadinessArtifact = invalidReadinessPath;
+    invalidPlan.sourceReadinessArtifact = invalidReadinessRef;
 
     fs.writeFileSync(invalidReadinessPath, `${JSON.stringify(readinessArtifact, null, 2)}\n`);
     fs.writeFileSync(invalidPlanPath, `${JSON.stringify(invalidPlan, null, 2)}\n`);
@@ -97,6 +98,38 @@ describe('QAF-035 beta closure plan', () => {
     expect(result.status).toBe(2);
     expect(result.stderr).toContain('sourceReadinessArtifact failed linked validation');
     expect(result.stderr).toContain('rollback.maxDecisionMinutes must be a positive integer');
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('fails when the source readiness artifact uses an absolute local path', () => {
+    const repoRoot = process.cwd();
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-beta-closure-'));
+    const invalidPath = path.join(tmpDir, 'absolute-readiness-plan.json');
+    const invalidPlan = loadPlan();
+    invalidPlan.sourceReadinessArtifact = path.resolve(repoRoot, 'artifacts/release/readiness/qaf035-release-readiness-20260602.json');
+
+    fs.writeFileSync(invalidPath, `${JSON.stringify(invalidPlan, null, 2)}\n`);
+
+    const result = runValidator([invalidPath], repoRoot);
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain('sourceReadinessArtifact must be repo-relative without parent traversal');
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('fails when the source readiness artifact uses parent traversal', () => {
+    const repoRoot = process.cwd();
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-beta-closure-'));
+    const invalidPath = path.join(tmpDir, 'traversal-readiness-plan.json');
+    const invalidPlan = loadPlan();
+    invalidPlan.sourceReadinessArtifact = 'artifacts/release/readiness/../readiness/qaf035-release-readiness-20260602.json';
+
+    fs.writeFileSync(invalidPath, `${JSON.stringify(invalidPlan, null, 2)}\n`);
+
+    const result = runValidator([invalidPath], repoRoot);
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain('sourceReadinessArtifact must be repo-relative without parent traversal');
 
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
@@ -340,14 +373,15 @@ describe('QAF-035 beta closure plan', () => {
 
   it('fails when the tracked no-media scan artifact exists but does not validate', () => {
     const repoRoot = process.cwd();
-    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-beta-closure-'));
+    const tmpDir = fs.mkdtempSync(path.join(repoRoot, '.tmp-beta-closure-'));
     const invalidScanPath = path.join(tmpDir, 'invalid-no-media-scan.json');
+    const invalidScanRef = path.relative(repoRoot, invalidScanPath);
     const invalidPlanPath = path.join(tmpDir, 'invalid-scan-artifact-plan.json');
     const invalidPlan = loadPlan();
     const scanArtifactPath = 'artifacts/release/media-policy/qaf035-no-media-evidence-scan-20260602.json';
     const scanArtifact = JSON.parse(fs.readFileSync(path.resolve(repoRoot, scanArtifactPath), 'utf8'));
     scanArtifact.scan.command = 'cat output/playwright/manual-network-audit/report.json';
-    invalidPlan.noMediaInvariant.trackedScanArtifact = invalidScanPath;
+    invalidPlan.noMediaInvariant.trackedScanArtifact = invalidScanRef;
 
     fs.writeFileSync(invalidScanPath, `${JSON.stringify(scanArtifact, null, 2)}\n`);
     fs.writeFileSync(invalidPlanPath, `${JSON.stringify(invalidPlan, null, 2)}\n`);
@@ -356,6 +390,38 @@ describe('QAF-035 beta closure plan', () => {
     expect(result.status).toBe(2);
     expect(result.stderr).toContain('noMediaInvariant.trackedScanArtifact failed linked validation');
     expect(result.stderr).toContain('scan.command must reference release:no-media-evidence:scan');
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('fails when the tracked no-media scan artifact uses an absolute local path', () => {
+    const repoRoot = process.cwd();
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-beta-closure-'));
+    const invalidPath = path.join(tmpDir, 'absolute-scan-plan.json');
+    const invalidPlan = loadPlan();
+    invalidPlan.noMediaInvariant.trackedScanArtifact = path.resolve(repoRoot, 'artifacts/release/media-policy/qaf035-no-media-evidence-scan-20260602.json');
+
+    fs.writeFileSync(invalidPath, `${JSON.stringify(invalidPlan, null, 2)}\n`);
+
+    const result = runValidator([invalidPath], repoRoot);
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain('noMediaInvariant.trackedScanArtifact must be repo-relative without parent traversal');
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('fails when the tracked no-media scan artifact uses parent traversal', () => {
+    const repoRoot = process.cwd();
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-beta-closure-'));
+    const invalidPath = path.join(tmpDir, 'traversal-scan-plan.json');
+    const invalidPlan = loadPlan();
+    invalidPlan.noMediaInvariant.trackedScanArtifact = 'artifacts/release/media-policy/../media-policy/qaf035-no-media-evidence-scan-20260602.json';
+
+    fs.writeFileSync(invalidPath, `${JSON.stringify(invalidPlan, null, 2)}\n`);
+
+    const result = runValidator([invalidPath], repoRoot);
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain('noMediaInvariant.trackedScanArtifact must be repo-relative without parent traversal');
 
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });

@@ -174,6 +174,10 @@ if (!isNonEmptyString(plan.sourceReadinessArtifact)) {
   fail('sourceReadinessArtifact is required.');
 }
 
+if (!isRepoRelativePath(plan.sourceReadinessArtifact)) {
+  fail(`sourceReadinessArtifact must be repo-relative without parent traversal: ${plan.sourceReadinessArtifact}`);
+}
+
 if (!fs.existsSync(path.resolve(repoRoot, plan.sourceReadinessArtifact))) {
   fail(`sourceReadinessArtifact does not exist: ${plan.sourceReadinessArtifact}`);
 }
@@ -229,6 +233,10 @@ if (!isNonEmptyString(plan.noMediaInvariant.requiredScannerCommand) || !plan.noM
 
 if (!isNonEmptyString(plan.noMediaInvariant.trackedScanArtifact)) {
   fail('noMediaInvariant.trackedScanArtifact is required.');
+}
+
+if (!isRepoRelativePath(plan.noMediaInvariant.trackedScanArtifact)) {
+  fail(`noMediaInvariant.trackedScanArtifact must be repo-relative without parent traversal: ${plan.noMediaInvariant.trackedScanArtifact}`);
 }
 
 if (!fs.existsSync(path.resolve(repoRoot, plan.noMediaInvariant.trackedScanArtifact))) {
