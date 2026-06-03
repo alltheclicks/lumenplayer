@@ -52,6 +52,7 @@
       ],
       "validationCommands": [
         "pnpm release:go-no-go:validate",
+        "node scripts/release/validate-go-no-go.mjs artifacts/release/readiness/qaf035-go-no-go-20260603.json --require-final",
         "pnpm release:qaf035:validate",
         "pnpm release:qaf035:final"
       ],

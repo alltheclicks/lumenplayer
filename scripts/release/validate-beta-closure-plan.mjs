@@ -55,6 +55,7 @@ const finalProofFileArgsExist = (parts) => (
     )
   ))
 );
+const commandParts = (command) => command.trim().split(/\s+/).filter(Boolean);
 const allowedFinalProofScripts = new Set([
   'scripts/release/compatibility-matrix-task.mjs',
   'scripts/release/validate-beta-capacity-evidence.mjs',
@@ -76,7 +77,7 @@ const isConcreteFinalProofCommand = (command) => {
     return false;
   }
 
-  const parts = command.trim().split(/\s+/).filter(Boolean);
+  const parts = commandParts(command);
   if (parts.length === 2 && parts[0] === 'pnpm' && parts[1] === 'release:qaf035:final') {
     return true;
   }
@@ -97,7 +98,30 @@ const isConcreteFinalProofCommand = (command) => {
 const commandIncludesAll = (command, requiredParts) => (
   requiredParts.every((requiredPart) => command.includes(requiredPart))
 );
+const matchesFinalScript = (scriptRef, requiredParts = []) => (command) => {
+  const parts = commandParts(command);
+  return (
+    isConcreteFinalProofCommand(command)
+    && parts[0] === 'node'
+    && parts[1] === scriptRef
+    && commandIncludesAll(command, [scriptRef, '--require-final', ...requiredParts])
+  );
+};
 const requiredFinalProofByGate = new Map([
+  [
+    'go-no-go-checklist',
+    {
+      label: 'go/no-go final proof',
+      matches: matchesFinalScript('scripts/release/validate-go-no-go.mjs'),
+    },
+  ],
+  [
+    'smoke-regression-matrix',
+    {
+      label: 'smoke/regression final proof',
+      matches: matchesFinalScript('scripts/release/validate-smoke-regression-matrix.mjs'),
+    },
+  ],
   [
     'compatibility-matrix',
     {
@@ -111,6 +135,69 @@ const requiredFinalProofByGate = new Map([
           '--require-targets',
         ])
       ),
+    },
+  ],
+  [
+    'manual-device-qa-evidence',
+    {
+      label: 'manual device QA final proof',
+      matches: matchesFinalScript('scripts/release/validate-manual-device-qa.mjs'),
+    },
+  ],
+  [
+    'design-parity-evidence',
+    {
+      label: 'design parity final proof',
+      matches: matchesFinalScript('scripts/release/validate-design-parity-evidence.mjs'),
+    },
+  ],
+  [
+    'performance-evidence',
+    {
+      label: 'performance evidence final proof',
+      matches: matchesFinalScript('scripts/release/validate-performance-evidence.mjs'),
+    },
+  ],
+  [
+    'provider-owner-signoff',
+    {
+      label: 'provider owner final proof',
+      matches: matchesFinalScript('scripts/release/validate-provider-owner-signoff.mjs'),
+    },
+  ],
+  [
+    'beta-capacity-evidence',
+    {
+      label: 'beta capacity final proof',
+      matches: matchesFinalScript('scripts/release/validate-beta-capacity-evidence.mjs'),
+    },
+  ],
+  [
+    'runtime-media-policy',
+    {
+      label: 'runtime media policy final proof',
+      matches: matchesFinalScript('scripts/release/validate-runtime-media-policy.mjs'),
+    },
+  ],
+  [
+    'observability-baseline',
+    {
+      label: 'observability baseline final proof',
+      matches: matchesFinalScript('scripts/release/validate-observability-baseline.mjs'),
+    },
+  ],
+  [
+    'beta-ops-signoff',
+    {
+      label: 'beta ops final proof',
+      matches: matchesFinalScript('scripts/release/validate-beta-ops-signoff.mjs'),
+    },
+  ],
+  [
+    'security-privacy-baseline',
+    {
+      label: 'security/privacy final proof',
+      matches: matchesFinalScript('scripts/release/validate-security-privacy-baseline.mjs'),
     },
   ],
 ]);

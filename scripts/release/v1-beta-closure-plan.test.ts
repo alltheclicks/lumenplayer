@@ -368,6 +368,48 @@ describe('QAF-035 beta closure plan', () => {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
+  it('fails when any closure gate lacks its direct final proof command', () => {
+    const repoRoot = process.cwd();
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-beta-closure-'));
+    const cases = [
+      ['GO-NO-GO-SIGNOFF', 'scripts/release/validate-go-no-go.mjs', 'go/no-go final proof'],
+      ['TARGET-MATRIX-DEVICES', 'scripts/release/validate-smoke-regression-matrix.mjs', 'smoke/regression final proof'],
+      ['TARGET-MATRIX-DEVICES', 'scripts/release/compatibility-matrix-task.mjs', 'compatibility final matrix with required targets'],
+      ['TARGET-MATRIX-DEVICES', 'scripts/release/validate-manual-device-qa.mjs', 'manual device QA final proof'],
+      ['TARGET-MATRIX-DEVICES', 'scripts/release/validate-design-parity-evidence.mjs', 'design parity final proof'],
+      ['BETA-CAPACITY-OWNER', 'scripts/release/validate-beta-capacity-evidence.mjs', 'beta capacity final proof'],
+      ['PROVIDER-OWNER-SIGNOFF', 'scripts/release/validate-provider-owner-signoff.mjs', 'provider owner final proof'],
+      ['PERFORMANCE-RELEASE-RUN', 'scripts/release/validate-performance-evidence.mjs', 'performance evidence final proof'],
+      ['RUNTIME-NO-MEDIA-OWNER', 'scripts/release/validate-runtime-media-policy.mjs', 'runtime media policy final proof'],
+      ['OBSERVABILITY-BASELINE-OWNER', 'scripts/release/validate-observability-baseline.mjs', 'observability baseline final proof'],
+      ['BETA-OPS-SIGNOFF', 'scripts/release/validate-beta-ops-signoff.mjs', 'beta ops final proof'],
+      ['SECURITY-PRIVACY-OWNER', 'scripts/release/validate-security-privacy-baseline.mjs', 'security/privacy final proof'],
+    ] as const;
+
+    for (const [blockerId, commandSnippet, expectedMessage] of cases) {
+      const invalidPlan = loadPlan();
+      const item = invalidPlan.closureItems.find((entry) => entry.blockerId === blockerId);
+      if (!item) {
+        throw new Error(`Missing closure item for ${blockerId}`);
+      }
+
+      item.validationCommands = item.validationCommands.filter((command) => !(
+        command.includes(commandSnippet)
+        && command.includes('--require-final')
+      ));
+      item.validationCommands.push('pnpm release:qaf035:final');
+
+      const invalidPath = path.join(tmpDir, `${blockerId.toLowerCase()}-${path.basename(commandSnippet)}.json`);
+      fs.writeFileSync(invalidPath, `${JSON.stringify(invalidPlan, null, 2)}\n`);
+
+      const result = runValidator([invalidPath], repoRoot);
+      expect(result.status).toBe(2);
+      expect(result.stderr).toContain(`validationCommands must include ${expectedMessage}`);
+    }
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }, 20000);
+
   it('fails when the compatibility gate lacks a final matrix proof command', () => {
     const repoRoot = process.cwd();
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-beta-closure-'));
