@@ -60,6 +60,8 @@ const validateRunbook = () => {
     'pnpm release:qaf035:validate',
     'pnpm release:qaf035:final',
     'pnpm release:no-media-evidence:scan',
+    'pnpm release:proxy-no-media:validate',
+    'pnpm release:proxy-no-media:test',
     '300-500',
     'ffmpeg',
     'ffprobe',
@@ -92,6 +94,7 @@ const validatePrQualityGateWorkflow = () => {
     'pnpm release:qaf035:test',
     'pnpm release:guardrails:test',
     'pnpm release:no-media-evidence:test',
+    'pnpm release:proxy-no-media:validate',
     'pnpm release:proxy-no-media:test',
   ];
 
@@ -104,6 +107,14 @@ const validatePrQualityGateWorkflow = () => {
 
 const validatePackageScripts = () => {
   const packageJson = readJson(files.packageJson);
+  const proxyNoMediaValidator = packageJson.scripts?.['release:proxy-no-media:validate'];
+  if (typeof proxyNoMediaValidator !== 'string') {
+    fail('package.json must define scripts.release:proxy-no-media:validate.');
+  }
+  if (!proxyNoMediaValidator.includes('scripts/release/validate-proxy-no-media-runtime.mjs')) {
+    fail('package.json release:proxy-no-media:validate must reference scripts/release/validate-proxy-no-media-runtime.mjs');
+  }
+
   const proxyNoMediaScript = packageJson.scripts?.['release:proxy-no-media:test'];
   if (typeof proxyNoMediaScript !== 'string') {
     fail('package.json must define scripts.release:proxy-no-media:test.');
@@ -180,6 +191,10 @@ runNode('compatibility matrix status', [
   'status',
   '--run',
   files.compatibility,
+]);
+
+runNode('proxy no-media runtime guard', [
+  'scripts/release/validate-proxy-no-media-runtime.mjs',
 ]);
 
 const finalValidators = [

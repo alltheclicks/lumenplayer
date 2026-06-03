@@ -53,6 +53,7 @@
     "release:no-media-evidence:test": "vitest run scripts/release/validate-no-media-processing-evidence.test.ts",
     "release:no-media-scan-artifact:validate": "node scripts/release/validate-no-media-evidence-scan-artifact.mjs artifacts/release/media-policy/qaf035-no-media-evidence-scan-20260602.json",
     "release:no-media-scan-artifact:test": "vitest run scripts/release/validate-no-media-evidence-scan-artifact.test.ts",
+    "release:proxy-no-media:validate": "node scripts/release/validate-proxy-no-media-runtime.mjs",
     "release:proxy-no-media:test": "vitest run apps/proxy/src/catchup-remux.test.ts apps/proxy/src/catchup-gateway.test.ts apps/proxy/src/server.test.ts",
     "e2e:qa:simulate": "node scripts/playwright/run-qa-user-sim.mjs",
     "e2e:provider:preflight": "node scripts/playwright/run-provider-qa-preflight.mjs",

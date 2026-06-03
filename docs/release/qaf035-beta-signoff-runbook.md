@@ -85,11 +85,12 @@ For release evidence, keep the raw capture local/untracked and record a redacted
 On the local Lumen machine, also verify:
 
 ```sh
+pnpm release:proxy-no-media:validate
 pnpm release:proxy-no-media:test
 pgrep -fl '[f]fmpeg|[f]fprobe'
 ```
 
-The proxy no-media test proves env/debug remux attempts, direct `remux-hls` proxy requests, `__remux__` asset endpoints, and direct remux controller calls do not reach binary checks, process spawn, or remux playback. The process command should produce no active ffmpeg or ffprobe process.
+The proxy no-media validator proves the hard-disable guard and CI/package coverage are still present. The proxy no-media test proves env/debug remux attempts, direct `remux-hls` proxy requests, `__remux__` asset endpoints, and direct remux controller calls do not reach binary checks, process spawn, or remux playback. The process command should produce no active ffmpeg or ffprobe process.
 
 ## Provider And Capacity Owner Signoff
 

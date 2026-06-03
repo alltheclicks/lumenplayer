@@ -84,5 +84,8 @@ jobs:
       - name: Test no-media evidence scanner
         run: pnpm release:no-media-evidence:test
 
+      - name: Validate proxy no-media runtime guard
+        run: pnpm release:proxy-no-media:validate
+
       - name: Test proxy no-media runtime guard
         run: pnpm release:proxy-no-media:test

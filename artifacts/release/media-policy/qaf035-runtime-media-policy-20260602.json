@@ -35,8 +35,8 @@
       "description": "Proxy gateway and remux controller runtime do not offer proxy-remuxed playback or direct remux-hls handling, even when env/debug inputs try to allow remux.",
       "status": "pass",
       "owner": "codex-local-qa",
-      "evidence": "pnpm release:proxy-no-media:test",
-      "notes": "Proxy runtime strips proxy-remuxed from env allowed modes. Tests prove gateway resolve stays proxy-normalized, debug remux override does not bootstrap a session, direct remux-hls proxy requests are rejected before upstream fetch, __remux__ asset endpoints return remux_disabled, and direct remux controller calls fail before binary checks or process spawn."
+      "evidence": "pnpm release:proxy-no-media:validate; pnpm release:proxy-no-media:test",
+      "notes": "Static release validator proves the hard-disable guard and CI/package coverage are still present. Tests prove gateway resolve stays proxy-normalized, debug remux override does not bootstrap a session, direct remux-hls proxy requests are rejected before upstream fetch, __remux__ asset endpoints return remux_disabled, and direct remux controller calls fail before binary checks or process spawn."
     },
     {
       "id": "committed-env-no-remux",
