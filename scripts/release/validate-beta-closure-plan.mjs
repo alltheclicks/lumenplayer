@@ -55,6 +55,79 @@ const runLinkedValidator = (label, commandArgs) => {
     fail(`${label} failed linked validation: ${details}`);
   }
 };
+const artifactRefValidators = [
+  {
+    label: 'release readiness artifact',
+    matches: (fileRef) => fileRef.endsWith('release-readiness-20260602.json'),
+    commandArgs: (fileRef) => ['scripts/release/validate-release-readiness.mjs', fileRef],
+  },
+  {
+    label: 'go/no-go artifact',
+    matches: (fileRef) => fileRef.includes('/readiness/') && fileRef.includes('go-no-go'),
+    commandArgs: (fileRef) => ['scripts/release/validate-go-no-go.mjs', fileRef],
+  },
+  {
+    label: 'compatibility artifact',
+    matches: (fileRef) => fileRef.includes('/compatibility/'),
+    commandArgs: (fileRef) => ['scripts/release/compatibility-matrix-task.mjs', 'status', '--run', fileRef],
+  },
+  {
+    label: 'manual device QA artifact',
+    matches: (fileRef) => fileRef.includes('/manual-device-qa/'),
+    commandArgs: (fileRef) => ['scripts/release/validate-manual-device-qa.mjs', fileRef],
+  },
+  {
+    label: 'smoke/regression matrix artifact',
+    matches: (fileRef) => fileRef.includes('/smoke/'),
+    commandArgs: (fileRef) => ['scripts/release/validate-smoke-regression-matrix.mjs', fileRef],
+  },
+  {
+    label: 'design parity artifact',
+    matches: (fileRef) => fileRef.includes('/design/'),
+    commandArgs: (fileRef) => ['scripts/release/validate-design-parity-evidence.mjs', fileRef],
+  },
+  {
+    label: 'no-media scan artifact',
+    matches: (fileRef) => fileRef.includes('/media-policy/') && fileRef.includes('no-media'),
+    commandArgs: (fileRef) => ['scripts/release/validate-no-media-evidence-scan-artifact.mjs', fileRef],
+  },
+  {
+    label: 'runtime media policy artifact',
+    matches: (fileRef) => fileRef.includes('/media-policy/') && fileRef.includes('runtime-media-policy'),
+    commandArgs: (fileRef) => ['scripts/release/validate-runtime-media-policy.mjs', fileRef],
+  },
+  {
+    label: 'beta capacity artifact',
+    matches: (fileRef) => fileRef.includes('/capacity/'),
+    commandArgs: (fileRef) => ['scripts/release/validate-beta-capacity-evidence.mjs', fileRef],
+  },
+  {
+    label: 'provider owner artifact',
+    matches: (fileRef) => fileRef.includes('/provider/'),
+    commandArgs: (fileRef) => ['scripts/release/validate-provider-owner-signoff.mjs', fileRef],
+  },
+  {
+    label: 'beta ops artifact',
+    matches: (fileRef) => fileRef.includes('/ops/'),
+    commandArgs: (fileRef) => ['scripts/release/validate-beta-ops-signoff.mjs', fileRef],
+  },
+  {
+    label: 'performance evidence artifact',
+    matches: (fileRef) => fileRef.includes('/performance/'),
+    commandArgs: (fileRef) => ['scripts/release/validate-performance-evidence.mjs', fileRef],
+  },
+  {
+    label: 'observability baseline artifact',
+    matches: (fileRef) => fileRef.includes('/observability/'),
+    commandArgs: (fileRef) => ['scripts/release/validate-observability-baseline.mjs', fileRef],
+  },
+  {
+    label: 'security/privacy baseline artifact',
+    matches: (fileRef) => fileRef.includes('/security/'),
+    commandArgs: (fileRef) => ['scripts/release/validate-security-privacy-baseline.mjs', fileRef],
+  },
+];
+const findArtifactRefValidator = (fileRef) => artifactRefValidators.find((validator) => validator.matches(fileRef));
 
 const sameSet = (actual, expected) => {
   if (actual.size !== expected.size) {
@@ -169,6 +242,7 @@ if (!Array.isArray(plan.closureItems) || plan.closureItems.length === 0) {
 const openBlockersById = new Map(openBlockers.map((blocker) => [blocker.id, blocker]));
 const seenClosureIds = new Set();
 const closureByBlockerId = new Map();
+const validatedArtifactRefs = new Set();
 
 for (const item of plan.closureItems) {
   if (!item || typeof item !== 'object') {
@@ -239,6 +313,11 @@ for (const item of plan.closureItems) {
     }
     if (!fs.existsSync(path.resolve(repoRoot, artifactRef))) {
       fail(`closure item ${item.id} artifactRef does not exist: ${artifactRef}`);
+    }
+    const linkedValidator = findArtifactRefValidator(artifactRef);
+    if (linkedValidator && !validatedArtifactRefs.has(artifactRef)) {
+      runLinkedValidator(`closure item ${item.id} artifactRef ${artifactRef}`, linkedValidator.commandArgs(artifactRef));
+      validatedArtifactRefs.add(artifactRef);
     }
   }
 
