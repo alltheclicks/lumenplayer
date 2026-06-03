@@ -86,11 +86,12 @@ On the local Lumen machine, also verify:
 
 ```sh
 pnpm release:proxy-no-media:validate
+pnpm catchup:timeshift-hls:test
 pnpm release:proxy-no-media:test
 pgrep -fl '[f]fmpeg|[f]fprobe'
 ```
 
-The proxy no-media validator proves the hard-disable guard and CI/package coverage are still present. The proxy no-media test proves env/debug remux attempts, direct `remux-hls` proxy requests, `__remux__` asset endpoints, and direct remux controller calls do not reach binary checks, process spawn, or remux playback. The process command should produce no active ffmpeg or ffprobe process.
+The proxy no-media validator proves the hard-disable guard and CI/package coverage are still present. The disabled catch-up media probe test proves the historical local timeshift probe exits before local ffmpeg/ffprobe probing. The proxy no-media test proves env/debug remux attempts, direct `remux-hls` proxy requests, `__remux__` asset endpoints, and direct remux controller calls do not reach binary checks, process spawn, or remux playback. The process command should produce no active ffmpeg or ffprobe process.
 
 ## Provider And Capacity Owner Signoff
 

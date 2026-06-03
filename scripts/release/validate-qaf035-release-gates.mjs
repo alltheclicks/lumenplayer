@@ -60,6 +60,7 @@ const validateRunbook = () => {
     'pnpm release:qaf035:validate',
     'pnpm release:qaf035:final',
     'pnpm release:no-media-evidence:scan',
+    'pnpm catchup:timeshift-hls:test',
     'pnpm release:proxy-no-media:validate',
     'pnpm release:proxy-no-media:test',
     '300-500',
@@ -94,6 +95,7 @@ const validatePrQualityGateWorkflow = () => {
     'pnpm release:qaf035:test',
     'pnpm release:guardrails:test',
     'pnpm release:no-media-evidence:test',
+    'pnpm catchup:timeshift-hls:test',
     'pnpm release:proxy-no-media:validate',
     'pnpm release:proxy-no-media:test',
   ];
@@ -130,6 +132,11 @@ const validatePackageScripts = () => {
     if (!proxyNoMediaScript.includes(snippet)) {
       fail(`package.json release:proxy-no-media:test must reference: ${snippet}`);
     }
+  }
+
+  const disabledTimeshiftProbeTest = packageJson.scripts?.['catchup:timeshift-hls:test'];
+  if (disabledTimeshiftProbeTest !== 'vitest run scripts/catchup/probe-timeshift-hls.test.ts') {
+    fail('package.json scripts.catchup:timeshift-hls:test must run scripts/catchup/probe-timeshift-hls.test.ts.');
   }
 };
 

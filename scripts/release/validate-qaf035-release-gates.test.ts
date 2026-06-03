@@ -19,6 +19,7 @@ describe('QAF-035 release gate aggregate validator', () => {
     expect(result.stdout).toContain('final manual device QA');
     expect(result.stdout).toContain('pr-quality-gate-workflow');
     expect(result.stdout).toContain('package-scripts');
+    expect(result.stdout).toContain('qaf035-beta-signoff-runbook');
   });
 
   it('fails final mode until concrete owner and device evidence is complete', () => {

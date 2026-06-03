@@ -84,6 +84,9 @@ jobs:
       - name: Test no-media evidence scanner
         run: pnpm release:no-media-evidence:test
 
+      - name: Test disabled catch-up media probe
+        run: pnpm catchup:timeshift-hls:test
+
       - name: Validate proxy no-media runtime guard
         run: pnpm release:proxy-no-media:validate
 
