@@ -29,6 +29,7 @@ const files = {
   noMediaScanArtifact: 'artifacts/release/media-policy/qaf035-no-media-evidence-scan-20260602.json',
   observabilityBaseline: 'artifacts/release/observability/qaf035-observability-baseline-20260603.json',
   betaOps: 'artifacts/release/ops/qaf035-beta-ops-signoff-20260603.json',
+  securityBaseline: 'artifacts/release/security/qaf035-security-privacy-baseline-20260603.json',
   runbook: 'docs/release/qaf035-beta-signoff-runbook.md',
   prQualityGateWorkflow: '.github/workflows/pr-quality-gate.yml',
   packageJson: 'package.json',
@@ -62,12 +63,14 @@ const validateRunbook = () => {
     files.runtimeMedia,
     files.observabilityBaseline,
     files.betaOps,
+    files.securityBaseline,
     'pnpm release:qaf035:validate',
     'pnpm release:qaf035:final',
     'pnpm release:no-media-evidence:scan',
     'pnpm release:no-media-scan-artifact:validate',
     'pnpm release:perf-evidence:validate',
     'pnpm release:observability-baseline:validate',
+    'pnpm release:security-baseline:validate',
     'pnpm catchup:timeshift-hls:test',
     'pnpm release:proxy-no-media:validate',
     'pnpm release:proxy-no-media:test',
@@ -106,6 +109,7 @@ const validatePrQualityGateWorkflow = () => {
     'pnpm release:no-media-scan-artifact:validate',
     'pnpm release:perf-evidence:validate',
     'pnpm release:observability-baseline:validate',
+    'pnpm release:security-baseline:validate',
     'pnpm catchup:timeshift-hls:test',
     'pnpm release:proxy-no-media:validate',
     'pnpm release:proxy-no-media:test',
@@ -168,6 +172,11 @@ const validatePackageScripts = () => {
   const observabilityBaselineTest = packageJson.scripts?.['release:observability-baseline:test'];
   if (observabilityBaselineTest !== 'vitest run scripts/release/v1-observability-baseline.test.ts') {
     fail('package.json scripts.release:observability-baseline:test must run scripts/release/v1-observability-baseline.test.ts.');
+  }
+
+  const securityBaselineValidator = packageJson.scripts?.['release:security-baseline:validate'];
+  if (securityBaselineValidator !== `node scripts/release/validate-security-privacy-baseline.mjs ${files.securityBaseline}`) {
+    fail(`package.json scripts.release:security-baseline:validate must validate ${files.securityBaseline}.`);
   }
 };
 
@@ -250,6 +259,11 @@ runNode('observability baseline', [
   files.observabilityBaseline,
 ]);
 
+runNode('security/privacy baseline', [
+  'scripts/release/validate-security-privacy-baseline.mjs',
+  files.securityBaseline,
+]);
+
 const finalValidators = [
   ['final release readiness', ['scripts/release/validate-release-readiness.mjs', files.readiness, '--require-final']],
   ['final provider owner signoff', ['scripts/release/validate-provider-owner-signoff.mjs', files.providerOwner, '--require-final']],
@@ -259,6 +273,7 @@ const finalValidators = [
   ['final observability baseline', ['scripts/release/validate-observability-baseline.mjs', files.observabilityBaseline, '--require-final']],
   ['final manual device QA', ['scripts/release/validate-manual-device-qa.mjs', files.manualDeviceQa, '--require-final']],
   ['final beta ops signoff', ['scripts/release/validate-beta-ops-signoff.mjs', files.betaOps, '--require-final']],
+  ['final security/privacy baseline', ['scripts/release/validate-security-privacy-baseline.mjs', files.securityBaseline, '--require-final']],
 ];
 
 for (const [label, commandArgs] of finalValidators) {

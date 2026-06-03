@@ -74,6 +74,7 @@ const concreteArtifactGateIds = new Set([
   'runtime-media-policy',
   'observability-baseline',
   'beta-ops-signoff',
+  'security-privacy-baseline',
 ]);
 
 for (const gate of readiness.gates) {

@@ -93,6 +93,9 @@ jobs:
       - name: Validate observability baseline
         run: pnpm release:observability-baseline:validate
 
+      - name: Validate security/privacy baseline
+        run: pnpm release:security-baseline:validate
+
       - name: Test disabled catch-up media probe
         run: pnpm catchup:timeshift-hls:test
 

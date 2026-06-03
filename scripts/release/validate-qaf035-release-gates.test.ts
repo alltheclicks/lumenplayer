@@ -23,6 +23,7 @@ describe('QAF-035 release gate aggregate validator', () => {
     expect(result.stdout).toContain('no-media scan artifact');
     expect(result.stdout).toContain('performance evidence');
     expect(result.stdout).toContain('observability baseline');
+    expect(result.stdout).toContain('security/privacy baseline');
   });
 
   it('fails final mode until concrete owner and device evidence is complete', () => {
@@ -34,6 +35,7 @@ describe('QAF-035 release gate aggregate validator', () => {
     expect(result.stderr).toContain('final performance evidence failed');
     expect(result.stderr).toContain('final observability baseline failed');
     expect(result.stderr).toContain('final manual device QA failed');
+    expect(result.stderr).toContain('final security/privacy baseline failed');
   });
 
   it('rejects unknown flags', () => {

@@ -136,6 +136,25 @@ describe('release evidence link audit', () => {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
+  it('fails when the linked security/privacy artifact does not validate', () => {
+    const repoRoot = process.cwd();
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-evidence-links-'));
+    const readinessPath = path.join(tmpDir, 'invalid-linked-security.json');
+    const invalidSecurityRef = `artifacts/release/security/__invalid-security-test-${path.basename(tmpDir)}.json`;
+    const invalidSecurityPath = path.resolve(repoRoot, invalidSecurityRef);
+    const artifact = loadReadiness();
+    artifact.gates.find((gate) => gate.id === 'security-privacy-baseline')!.evidenceRef = invalidSecurityRef;
+    fs.writeFileSync(invalidSecurityPath, '{}\n');
+    fs.writeFileSync(readinessPath, `${JSON.stringify(artifact, null, 2)}\n`);
+
+    const result = runValidator([readinessPath], repoRoot);
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain('evidence validation for security-privacy-baseline failed');
+
+    fs.rmSync(invalidSecurityPath, { force: true });
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
   it('fails expected-open-blocker mode when the rollup has no open blockers', () => {
     const repoRoot = process.cwd();
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-evidence-links-'));

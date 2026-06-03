@@ -1,8 +1,8 @@
 {
   "release": "V1",
   "templateVersion": 1,
-  "generatedAt": "",
-  "owner": "",
+  "generatedAt": "2026-06-03T10:45:00Z",
+  "owner": "codex",
   "clientStorage": {
     "namespacedStorePrefix": "lumen-web:v1:",
     "encryptionAtRest": "Browser-managed storage only (no app-side encryption)",
@@ -11,43 +11,66 @@
         "key": "xtream_credentials",
         "storageType": "versioned-localStorage",
         "dataClass": "credential",
-        "retention": "Until explicit logout or credential replacement"
+        "retention": "Until explicit logout or credential replacement",
+        "sourceRefs": [
+          "apps/web/src/services/storage.ts",
+          "apps/web/src/services/xtreamCredentials.ts",
+          "apps/web/src/pages/Player.tsx"
+        ]
       },
       {
         "key": "app_settings",
         "storageType": "versioned-localStorage",
         "dataClass": "preference",
-        "retention": "Until user settings update/reset"
+        "retention": "Until user settings update/reset",
+        "sourceRefs": [
+          "apps/web/src/services/appSettings.ts"
+        ]
       },
       {
         "key": "theme_preference",
         "storageType": "localStorage",
         "dataClass": "preference",
-        "retention": "Until user changes theme"
+        "retention": "Until user changes theme",
+        "sourceRefs": [
+          "apps/web/src/services/appSettings.ts"
+        ]
       },
       {
         "key": "watch-history",
         "storageType": "versioned-localStorage",
         "dataClass": "usage-history",
-        "retention": "Max 100 entries (bounded by storage adapter)"
+        "retention": "Max 100 entries (bounded by storage adapter)",
+        "sourceRefs": [
+          "packages/storage/src/watch-history.ts"
+        ]
       },
       {
         "key": "push_subscriptions_v1",
         "storageType": "versioned-localStorage",
         "dataClass": "push-metadata",
-        "retention": "Until explicit unsubscribe/device removal"
+        "retention": "Until explicit unsubscribe/device removal",
+        "sourceRefs": [
+          "apps/web/src/services/pushSubscriptionBackend.ts"
+        ]
       },
       {
         "key": "push_device_id",
         "storageType": "localStorage",
         "dataClass": "device-identifier",
-        "retention": "Until browser storage clear"
+        "retention": "Until browser storage clear",
+        "sourceRefs": [
+          "apps/web/src/services/pushSubscriptionBackend.ts"
+        ]
       },
       {
         "key": "xmltv_epg_cache",
         "storageType": "versioned-localStorage",
         "dataClass": "epg-cache",
-        "retention": "6h TTL (default) or force refresh"
+        "retention": "6h TTL (default) or force refresh",
+        "sourceRefs": [
+          "apps/web/src/services/xmltvEpg.ts"
+        ]
       }
     ],
     "prohibitedPatterns": [
@@ -65,26 +88,26 @@
     "owner": "",
     "responseChannel": "",
     "notificationSlaHours": 24,
-    "notes": ""
+    "notes": "Incident owner/channel remain pending for final beta signoff."
   },
   "controls": [
     {
       "id": "storage-namespacing",
       "description": "Client storage keys are namespaced and versioned where applicable.",
-      "status": "pending",
-      "evidence": ""
+      "status": "pass",
+      "evidence": "apps/web/src/services/storage.ts; packages/storage/src/versioned-storage.ts; release:secret-hygiene:validate"
     },
     {
       "id": "credentials-clear-on-logout",
       "description": "Credential storage is removed on explicit logout path.",
-      "status": "pending",
-      "evidence": ""
+      "status": "pass",
+      "evidence": "apps/web/src/services/xtreamCredentials.ts; apps/web/src/pages/Player.tsx; release:secret-hygiene:validate"
     },
     {
       "id": "retention-defined",
       "description": "Retention bounds exist for each stored data class.",
-      "status": "pending",
-      "evidence": ""
+      "status": "pass",
+      "evidence": "artifacts/release/security/qaf035-security-privacy-baseline-20260603.json; packages/storage/src/watch-history.ts; apps/web/src/services/xmltvEpg.ts"
     },
     {
       "id": "incident-owner-assigned",
@@ -97,6 +120,6 @@
     "status": "pending",
     "approvedBy": "",
     "approvedAt": "",
-    "notes": ""
+    "notes": "Storage inventory and source evidence validate now; final beta security/privacy approval remains pending until incident owner, runbook, response channel, and release owner signoff are recorded."
   }
 }

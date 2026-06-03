@@ -96,9 +96,9 @@
       "id": "security-privacy-baseline",
       "name": "V1 security/privacy baseline review",
       "status": "pending",
-      "evidenceRef": "scripts/release/v1-security-privacy-baseline.template.json",
-      "checkedAt": "2026-06-02T20:53:05Z",
-      "notes": "Template/test coverage exists, but final security/privacy owner signoff remains pending."
+      "evidenceRef": "artifacts/release/security/qaf035-security-privacy-baseline-20260603.json",
+      "checkedAt": "2026-06-03T10:45:00Z",
+      "notes": "Concrete security/privacy baseline validates storage inventory source refs, credential cleanup evidence, retention evidence, and secret hygiene coverage. Incident owner/runbook/channel and final security/privacy signoff remain pending."
     }
   ],
   "blockerTriage": {

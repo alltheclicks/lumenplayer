@@ -38,6 +38,16 @@ const fail = (message) => {
   process.exit(2);
 };
 
+const repoRoot = process.cwd();
+const isNonEmptyString = (value) => typeof value === 'string' && value.trim() !== '';
+const readSource = (fileRef) => {
+  const sourcePath = path.resolve(repoRoot, fileRef);
+  if (!fs.existsSync(sourcePath)) {
+    fail(`sourceRef does not exist: ${fileRef}`);
+  }
+  return fs.readFileSync(sourcePath, 'utf8');
+};
+
 let baseline;
 try {
   baseline = JSON.parse(fs.readFileSync(filePath, 'utf8'));
@@ -97,6 +107,27 @@ for (const keyEntry of baseline.clientStorage.allowedKeys) {
     fail(`clientStorage key ${keyEntry.key} requires retention policy text.`);
   }
 
+  if (keyEntry.sourceRefs !== undefined) {
+    if (!Array.isArray(keyEntry.sourceRefs) || keyEntry.sourceRefs.length === 0) {
+      fail(`clientStorage key ${keyEntry.key} sourceRefs must be a non-empty array when set.`);
+    }
+
+    let keyFoundInSource = false;
+    for (const sourceRef of keyEntry.sourceRefs) {
+      if (!isNonEmptyString(sourceRef)) {
+        fail(`clientStorage key ${keyEntry.key} sourceRefs must contain non-empty strings.`);
+      }
+      const content = readSource(sourceRef);
+      if (content.includes(keyEntry.key)) {
+        keyFoundInSource = true;
+      }
+    }
+
+    if (!keyFoundInSource) {
+      fail(`clientStorage key ${keyEntry.key} must appear in at least one sourceRef.`);
+    }
+  }
+
   seenStorageKeys.add(keyEntry.key);
 }
 
@@ -146,6 +177,16 @@ for (const control of baseline.controls) {
 
   if (typeof control.description !== 'string' || control.description.trim() === '') {
     fail(`control ${control.id} requires description.`);
+  }
+
+  if (typeof control.evidence !== 'string') {
+    fail(`control ${control.id} evidence must be a string.`);
+  }
+
+  if (control.status === 'pass' || control.status === 'fail') {
+    if (!isNonEmptyString(control.evidence)) {
+      fail(`control ${control.id} evidence must be set when status is pass/fail.`);
+    }
   }
 
   seenControlIds.add(control.id);

@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 
 interface StorageKeyEntry {
   key: string;
+  sourceRefs?: string[];
 }
 
 interface SecurityBaseline {
@@ -15,6 +16,7 @@ interface SecurityBaseline {
   controls: Array<{
     id: string;
     status: 'pending' | 'pass' | 'fail';
+    evidence: string;
   }>;
   incidentReadiness: {
     runbookRef: string;
@@ -42,6 +44,15 @@ const loadTemplate = (): SecurityBaseline => {
   );
 
   return JSON.parse(fs.readFileSync(templatePath, 'utf8')) as SecurityBaseline;
+};
+
+const loadQafArtifact = (): SecurityBaseline => {
+  const artifactPath = path.resolve(
+    process.cwd(),
+    'artifacts/release/security/qaf035-security-privacy-baseline-20260603.json',
+  );
+
+  return JSON.parse(fs.readFileSync(artifactPath, 'utf8')) as SecurityBaseline;
 };
 
 describe('V1 security/privacy baseline template', () => {
@@ -78,6 +89,7 @@ describe('V1 security/privacy baseline template', () => {
     finalBaseline.controls = finalBaseline.controls.map((control) => ({
       ...control,
       status: 'pass',
+      evidence: `evidence://security/${control.id}`,
     }));
     finalBaseline.incidentReadiness.runbookRef = 'ops/security/runbook-v1';
     finalBaseline.incidentReadiness.owner = 'security-oncall';
@@ -103,6 +115,7 @@ describe('V1 security/privacy baseline template', () => {
     invalidBaseline.controls = invalidBaseline.controls.map((control) => ({
       ...control,
       status: 'pass',
+      evidence: `evidence://security/${control.id}`,
     }));
     invalidBaseline.incidentReadiness.runbookRef = '';
     invalidBaseline.incidentReadiness.owner = '';
@@ -137,6 +150,56 @@ describe('V1 security/privacy baseline template', () => {
     const result = runValidator([invalidPath], repoRoot);
     expect(result.status).toBe(2);
     expect(result.stderr).toContain('clientStorage.prohibitedPatterns must be a non-empty array');
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('validates the QAF-035 partial security/privacy baseline without final signoff', () => {
+    const repoRoot = process.cwd();
+    const artifactPath = 'artifacts/release/security/qaf035-security-privacy-baseline-20260603.json';
+
+    const partialResult = runValidator([artifactPath], repoRoot);
+    expect(partialResult.status).toBe(0);
+
+    const finalResult = runValidator([artifactPath, '--require-final'], repoRoot);
+    expect(finalResult.status).toBe(2);
+    expect(finalResult.stderr).toContain('controls cannot remain pending with --require-final');
+  });
+
+  it('fails validation when a declared storage source does not contain the storage key', () => {
+    const repoRoot = process.cwd();
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-0345-security-'));
+    const invalidPath = path.join(tmpDir, 'missing-key-source.json');
+    const invalidBaseline = loadQafArtifact();
+    const keyEntry = invalidBaseline.clientStorage.allowedKeys.find((entry) => entry.key === 'xmltv_epg_cache');
+    if (keyEntry) {
+      keyEntry.sourceRefs = ['apps/web/src/services/appSettings.ts'];
+    }
+
+    fs.writeFileSync(invalidPath, `${JSON.stringify(invalidBaseline, null, 2)}\n`);
+
+    const result = runValidator([invalidPath], repoRoot);
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain('clientStorage key xmltv_epg_cache must appear in at least one sourceRef');
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('fails validation when a passing control has no evidence', () => {
+    const repoRoot = process.cwd();
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-0345-security-'));
+    const invalidPath = path.join(tmpDir, 'missing-control-evidence.json');
+    const invalidBaseline = loadQafArtifact();
+    const control = invalidBaseline.controls.find((entry) => entry.id === 'credentials-clear-on-logout');
+    if (control) {
+      control.evidence = '';
+    }
+
+    fs.writeFileSync(invalidPath, `${JSON.stringify(invalidBaseline, null, 2)}\n`);
+
+    const result = runValidator([invalidPath], repoRoot);
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain('control credentials-clear-on-logout evidence must be set when status is pass/fail');
 
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
