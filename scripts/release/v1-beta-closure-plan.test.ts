@@ -13,6 +13,7 @@ interface ClosureItem {
 }
 
 interface BetaClosurePlan {
+  sourceReadinessArtifact: string;
   noMediaInvariant: {
     trackedScanArtifact: string;
   };
@@ -74,6 +75,28 @@ describe('QAF-035 beta closure plan', () => {
     const result = runValidator([invalidPath], repoRoot);
     expect(result.status).toBe(2);
     expect(result.stderr).toContain('gateIds must match source blocker BETA-CAPACITY-OWNER');
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('fails when the source readiness artifact exists but does not validate', () => {
+    const repoRoot = process.cwd();
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-beta-closure-'));
+    const invalidReadinessPath = path.join(tmpDir, 'invalid-readiness.json');
+    const invalidPlanPath = path.join(tmpDir, 'invalid-readiness-plan.json');
+    const invalidPlan = loadPlan();
+    const readinessArtifactPath = 'artifacts/release/readiness/qaf035-release-readiness-20260602.json';
+    const readinessArtifact = JSON.parse(fs.readFileSync(path.resolve(repoRoot, readinessArtifactPath), 'utf8'));
+    readinessArtifact.rollback.maxDecisionMinutes = 0;
+    invalidPlan.sourceReadinessArtifact = invalidReadinessPath;
+
+    fs.writeFileSync(invalidReadinessPath, `${JSON.stringify(readinessArtifact, null, 2)}\n`);
+    fs.writeFileSync(invalidPlanPath, `${JSON.stringify(invalidPlan, null, 2)}\n`);
+
+    const result = runValidator([invalidPlanPath], repoRoot);
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain('sourceReadinessArtifact failed linked validation');
+    expect(result.stderr).toContain('rollback.maxDecisionMinutes must be a positive integer');
 
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });

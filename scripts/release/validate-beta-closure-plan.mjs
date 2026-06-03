@@ -100,6 +100,11 @@ if (!fs.existsSync(path.resolve(repoRoot, plan.sourceReadinessArtifact))) {
   fail(`sourceReadinessArtifact does not exist: ${plan.sourceReadinessArtifact}`);
 }
 
+runLinkedValidator('sourceReadinessArtifact', [
+  'scripts/release/validate-release-readiness.mjs',
+  plan.sourceReadinessArtifact,
+]);
+
 const readiness = readJson(plan.sourceReadinessArtifact);
 const readinessGates = new Set((readiness.gates ?? []).map((gate) => gate.id));
 const openBlockers = (readiness.blockerTriage?.items ?? []).filter((item) => item.status === 'open');
