@@ -41,6 +41,14 @@ const assertIncludes = (label, content, snippets) => {
   }
 };
 
+const assertExcludes = (label, content, snippets) => {
+  for (const snippet of snippets) {
+    if (content.includes(snippet)) {
+      fail(`${label} must not include stale no-media wording: ${snippet}`);
+    }
+  }
+};
+
 const assertOrdered = (label, content, orderedSnippets) => {
   let cursor = -1;
   for (const snippet of orderedSnippets) {
@@ -139,6 +147,10 @@ assertIncludes('HANDOFF.md QAF-035 current no-media direction', handoff, [
   'Session 2026-06-03 — QAF-035 no-media production guard alignment',
   'historical March remux/transcode branches and notes below are preserved for audit context only',
   'apps/proxy/src/catchup-remux.ts` hard-disables direct controller calls before binary checks or process spawn',
+  'The later remux/transcode fallback direction is superseded by the current no-media production policy at the top of this handoff.',
+]);
+assertExcludes('HANDOFF.md QAF-035 current no-media direction', handoff, [
+  'appears to require real transport normalization/remux work',
 ]);
 
 assertIncludes('docs/V3-QA-FIX-BACKLOG.md QAF-035 current no-media direction', qaFixBacklog, [
@@ -146,6 +158,11 @@ assertIncludes('docs/V3-QA-FIX-BACKLOG.md QAF-035 current no-media direction', q
   'Current no-media production note (2026-06-03)',
   'This supersedes older March/April remux fallback notes for beta/release direction.',
   'Historical remux/transcode evidence remains below for audit context only',
+  'Historical next ready queue (superseded by current no-media note)',
+  'proxy-normalized manifest handling or unsupported overlay is required',
+]);
+assertExcludes('docs/V3-QA-FIX-BACKLOG.md QAF-035 current no-media direction', qaFixBacklog, [
+  'gateway normalization/remux is required',
 ]);
 
 console.log('[proxy-no-media-runtime] OK: remux controller hard-disable and release guard coverage verified');

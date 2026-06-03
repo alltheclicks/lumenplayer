@@ -311,7 +311,7 @@ Current shadow-runtime note (2026-04-03):
     - `pnpm --filter @lumen/web exec vitest run src/components/player/catchupSource.test.ts src/components/player/catchupTransport.test.ts src/components/player/catchupProgramNavigation.test.ts src/adapters/HlsPlayerAdapter.test.ts`
     - `pnpm --filter @lumen/web typecheck`
 
-## Next ready queue (strict order)
+## Historical next ready queue (superseded by current no-media note)
 
 1. `QAF-035` clean continuation setup:
    - continue only from `origin/main` baseline
@@ -323,7 +323,7 @@ Current shadow-runtime note (2026-04-03):
    - Greptile follow-up fixes (`cache sweep`, async error handling, PiP exit, enum validation, lockfile parity)
 3. Keep `QAF-034` evidence track alive:
    - preserve TiviMate/native tuple evidence as acceptance input
-   - use it to decide when `provider-direct` is still allowed vs when gateway normalization/remux is required
+   - use it to decide when `provider-direct` is still allowed vs when proxy-normalized manifest handling or unsupported overlay is required
    - latest required evidence is specifically on the new provider `timeshift_hls` path reached through the real `serv2 -> 302 -> archive-host` flow, not direct archive-host login
 4. After clean gateway baseline is green:
    - continue startup/warm-open improvements first

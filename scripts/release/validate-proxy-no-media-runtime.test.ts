@@ -84,12 +84,15 @@ const createFixture = (overrides: Record<string, string> = {}) => {
       'Session 2026-06-03 — QAF-035 no-media production guard alignment',
       'historical March remux/transcode branches and notes below are preserved for audit context only',
       'apps/proxy/src/catchup-remux.ts` hard-disables direct controller calls before binary checks or process spawn',
+      'The later remux/transcode fallback direction is superseded by the current no-media production policy at the top of this handoff.',
     ].join('\n'),
     'docs/V3-QA-FIX-BACKLOG.md': [
       'without transcode/remux fallback',
       'Current no-media production note (2026-06-03)',
       'This supersedes older March/April remux fallback notes for beta/release direction.',
       'Historical remux/transcode evidence remains below for audit context only',
+      'Historical next ready queue (superseded by current no-media note)',
+      'proxy-normalized manifest handling or unsupported overlay is required',
     ].join('\n'),
     ...overrides,
   };
@@ -136,5 +139,22 @@ describe('proxy no-media runtime validator', () => {
 
     expect(result.status).toBe(2);
     expect(result.stderr).toContain('catchup-remux.ts must include');
+  });
+
+  it('fails when current-truth docs reintroduce stale remux-required wording', () => {
+    const result = runValidator(createFixture({
+      'docs/V3-QA-FIX-BACKLOG.md': [
+        'without transcode/remux fallback',
+        'Current no-media production note (2026-06-03)',
+        'This supersedes older March/April remux fallback notes for beta/release direction.',
+        'Historical remux/transcode evidence remains below for audit context only',
+        'Historical next ready queue (superseded by current no-media note)',
+        'proxy-normalized manifest handling or unsupported overlay is required',
+        'gateway normalization/remux is required',
+      ].join('\n'),
+    }));
+
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain('must not include stale no-media wording');
   });
 });

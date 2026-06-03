@@ -420,7 +420,7 @@
   - `pnpm --filter @lumen/proxy exec vitest run src/server.test.ts src/catchup-gateway.test.ts`
 - Status:
   - gateway/browser integration is cleaner now: no preflight failure, and canonical query-first startup is in place.
-  - the user-visible 40s catch-up stall is **not** fully resolved yet; the remaining blocker appears to require real transport normalization/remux work rather than more metadata/restore tweaks.
+  - at that March checkpoint, the user-visible 40s catch-up stall was **not** fully resolved; the remaining blocker pointed to real transport normalization work rather than more metadata/restore tweaks. The later remux/transcode fallback direction is superseded by the current no-media production policy at the top of this handoff.
 
 ## Session 2026-03-06 — QAF-035 restore/session metadata continuity (`codex/qaf-035-clean-continuation`)
 
