@@ -12,6 +12,7 @@ pnpm release:no-media-scan-artifact:validate
 pnpm release:perf-evidence:validate
 pnpm release:observability-baseline:validate
 pnpm release:security-baseline:validate
+pnpm release:beta-closure-plan:validate
 pnpm release:qaf035:final
 ```
 
@@ -20,6 +21,7 @@ pnpm release:qaf035:final
 `pnpm release:perf-evidence:validate` must pass on the concrete performance artifact so local benchmark coverage and failed-run accounting are checked before final beta performance signoff.
 `pnpm release:observability-baseline:validate` must pass on the concrete observability artifact so structured event coverage, playback/cast burst alert rules, beta alert routing, and no-media stop-trigger evidence are checked before signoff.
 `pnpm release:security-baseline:validate` must pass on the concrete security/privacy artifact so client storage inventory, credential cleanup, retention evidence, and incident-readiness placeholders are checked before signoff.
+`pnpm release:beta-closure-plan:validate` must pass on the concrete closure plan so every open readiness blocker has an owner, gate mapping, artifact refs, validation commands, and no-media-safe completion recipe.
 
 ## Automated Evidence Refresh
 
@@ -53,8 +55,11 @@ Record final evidence only in the concrete QAF-035 artifacts:
 - `artifacts/release/observability/qaf035-observability-baseline-20260603.json`
 - `artifacts/release/ops/qaf035-beta-ops-signoff-20260603.json`
 - `artifacts/release/security/qaf035-security-privacy-baseline-20260603.json`
+- `artifacts/release/readiness/qaf035-beta-closure-plan-20260603.json`
 
 Do not mark the PR ready for beta just because template validators pass. The concrete artifacts above are the release state.
+
+The closure plan is the next-dev checklist for closing the current 9 open blockers. Keep it in sync with `blockerTriage.items[]`: each open blocker must have a matching closure item with the same `gateIds`, concrete artifact refs, and validation commands. The closure plan must never propose local ffmpeg/ffprobe, server-side transcode/remux, generated HLS, proxy-remuxed/remux-hls, or XUI-side media processing as a catch-up fix.
 
 ## Real Device Matrix
 

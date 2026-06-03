@@ -30,6 +30,7 @@ const files = {
   observabilityBaseline: 'artifacts/release/observability/qaf035-observability-baseline-20260603.json',
   betaOps: 'artifacts/release/ops/qaf035-beta-ops-signoff-20260603.json',
   securityBaseline: 'artifacts/release/security/qaf035-security-privacy-baseline-20260603.json',
+  betaClosurePlan: 'artifacts/release/readiness/qaf035-beta-closure-plan-20260603.json',
   runbook: 'docs/release/qaf035-beta-signoff-runbook.md',
   prQualityGateWorkflow: '.github/workflows/pr-quality-gate.yml',
   packageJson: 'package.json',
@@ -64,6 +65,7 @@ const validateRunbook = () => {
     files.observabilityBaseline,
     files.betaOps,
     files.securityBaseline,
+    files.betaClosurePlan,
     'pnpm release:qaf035:validate',
     'pnpm release:qaf035:final',
     'pnpm release:no-media-evidence:scan',
@@ -71,6 +73,7 @@ const validateRunbook = () => {
     'pnpm release:perf-evidence:validate',
     'pnpm release:observability-baseline:validate',
     'pnpm release:security-baseline:validate',
+    'pnpm release:beta-closure-plan:validate',
     'pnpm catchup:timeshift-hls:test',
     'pnpm release:proxy-no-media:validate',
     'pnpm release:proxy-no-media:test',
@@ -110,6 +113,7 @@ const validatePrQualityGateWorkflow = () => {
     'pnpm release:perf-evidence:validate',
     'pnpm release:observability-baseline:validate',
     'pnpm release:security-baseline:validate',
+    'pnpm release:beta-closure-plan:validate',
     'pnpm catchup:timeshift-hls:test',
     'pnpm release:proxy-no-media:validate',
     'pnpm release:proxy-no-media:test',
@@ -177,6 +181,11 @@ const validatePackageScripts = () => {
   const securityBaselineValidator = packageJson.scripts?.['release:security-baseline:validate'];
   if (securityBaselineValidator !== `node scripts/release/validate-security-privacy-baseline.mjs ${files.securityBaseline}`) {
     fail(`package.json scripts.release:security-baseline:validate must validate ${files.securityBaseline}.`);
+  }
+
+  const betaClosurePlanValidator = packageJson.scripts?.['release:beta-closure-plan:validate'];
+  if (betaClosurePlanValidator !== `node scripts/release/validate-beta-closure-plan.mjs ${files.betaClosurePlan}`) {
+    fail(`package.json scripts.release:beta-closure-plan:validate must validate ${files.betaClosurePlan}.`);
   }
 };
 
@@ -262,6 +271,11 @@ runNode('observability baseline', [
 runNode('security/privacy baseline', [
   'scripts/release/validate-security-privacy-baseline.mjs',
   files.securityBaseline,
+]);
+
+runNode('beta blocker closure plan', [
+  'scripts/release/validate-beta-closure-plan.mjs',
+  files.betaClosurePlan,
 ]);
 
 const finalValidators = [

@@ -1,0 +1,342 @@
+{
+  "release": "V1",
+  "templateVersion": 1,
+  "generatedAt": "2026-06-03T12:35:00Z",
+  "owner": "codex",
+  "sourceReadinessArtifact": "artifacts/release/readiness/qaf035-release-readiness-20260602.json",
+  "noMediaInvariant": {
+    "allowedOutcomes": [
+      "provider-direct/provider bytes",
+      "proxy-normalized manifest without media processing",
+      "clear unsupported/failure overlay"
+    ],
+    "forbiddenResolution": [
+      "local ffmpeg",
+      "local ffprobe",
+      "server-side transcode",
+      "server-side remux",
+      "generated HLS",
+      "proxy-remuxed",
+      "remux-hls",
+      "XUI-side transcode",
+      "XUI-side remux"
+    ],
+    "requiredScannerCommand": "pnpm release:no-media-evidence:scan -- <capture.har-or-json-or-log>",
+    "trackedScanArtifact": "artifacts/release/media-policy/qaf035-no-media-evidence-scan-20260602.json"
+  },
+  "closureItems": [
+    {
+      "id": "close-go-no-go-signoff",
+      "blockerId": "GO-NO-GO-SIGNOFF",
+      "status": "open",
+      "owner": "release-owner",
+      "gateIds": [
+        "go-no-go-checklist"
+      ],
+      "artifactRefs": [
+        "artifacts/release/readiness/qaf035-release-readiness-20260602.json",
+        "scripts/release/v1-go-no-go.template.json",
+        "docs/release/qaf035-beta-signoff-runbook.md"
+      ],
+      "requiredFields": [
+        "readiness.signoff.status",
+        "readiness.signoff.approvedBy",
+        "readiness.signoff.approvedAt",
+        "readiness.rollback.owner",
+        "readiness.rollback.notificationChannel"
+      ],
+      "evidenceRequirements": [
+        "Every concrete gate is non-pending.",
+        "Every blockerTriage item is closed or mitigated with evidence.",
+        "Release owner approves the final go/no-go decision after latest CI is green."
+      ],
+      "validationCommands": [
+        "pnpm release:qaf035:validate",
+        "pnpm release:qaf035:final"
+      ],
+      "completionCriteria": [
+        "Final QAF gate passes without expected blockers.",
+        "PR remains green on the final head."
+      ]
+    },
+    {
+      "id": "close-target-matrix-devices",
+      "blockerId": "TARGET-MATRIX-DEVICES",
+      "status": "open",
+      "owner": "release-qa-owner",
+      "gateIds": [
+        "smoke-regression-matrix",
+        "compatibility-matrix",
+        "manual-device-qa-evidence",
+        "design-parity-evidence"
+      ],
+      "artifactRefs": [
+        "artifacts/release/compatibility/qaf035-provider-local-20260602.json",
+        "artifacts/release/manual-device-qa/qaf035-manual-device-qa-20260603.json",
+        "scripts/release/v1-smoke-regression-matrix.template.json",
+        "scripts/release/v1-design-parity-evidence.template.json",
+        "artifacts/release/media-policy/qaf035-no-media-evidence-scan-20260602.json"
+      ],
+      "requiredFields": [
+        "compatibility targets for Windows Chrome, macOS Safari, Android Chrome, iOS Safari, Chromecast, AirPlay/Apple TV, and PWA install/offline",
+        "manual-device targets owner/device/browser/evidenceRefs/mediaProcessingAudit",
+        "design parity rendered evidence and owner approval"
+      ],
+      "evidenceRequirements": [
+        "Real target/device or approved device-lab evidence; local Playwright/headless evidence is not final signoff.",
+        "Each passing mediaProcessingAudit cites release:no-media-evidence:scan and a tracked redacted no-media scan artifact.",
+        "No target evidence contains local ffmpeg, server-side transcode/remux, generated HLS, proxy-remuxed, remux-hls, or XUI-side media processing."
+      ],
+      "validationCommands": [
+        "node scripts/release/compatibility-matrix-task.mjs status --run artifacts/release/compatibility/qaf035-provider-local-20260602.json",
+        "node scripts/release/validate-manual-device-qa.mjs artifacts/release/manual-device-qa/qaf035-manual-device-qa-20260603.json",
+        "pnpm release:no-media-scan-artifact:validate",
+        "pnpm release:no-media-evidence:scan -- <target-capture>"
+      ],
+      "completionCriteria": [
+        "All required real-device/manual targets pass or have approved mitigations.",
+        "No release-blocker target failures remain."
+      ]
+    },
+    {
+      "id": "close-beta-capacity-owner",
+      "blockerId": "BETA-CAPACITY-OWNER",
+      "status": "open",
+      "owner": "provider-capacity-owner",
+      "gateIds": [
+        "beta-capacity-evidence"
+      ],
+      "artifactRefs": [
+        "artifacts/release/capacity/qaf035-beta-capacity-20260602.json",
+        "artifacts/release/provider/qaf035-provider-owner-signoff-20260603.json",
+        "artifacts/release/ops/qaf035-beta-ops-signoff-20260603.json",
+        "artifacts/release/media-policy/qaf035-no-media-evidence-scan-20260602.json"
+      ],
+      "requiredFields": [
+        "capacity.provider.owner",
+        "capacity.provider.approvedConcurrentUsers",
+        "capacity.provider.rateLimitPolicy",
+        "capacity.signoff.approvedBy"
+      ],
+      "evidenceRequirements": [
+        "Provider/XUI owner confirms 300-500 beta capacity and escalation path.",
+        "Capacity no-media-processing evidence cites the scanner and tracked redacted scan artifact.",
+        "Capacity evidence explicitly keeps XUI-side transcode/remux disabled."
+      ],
+      "validationCommands": [
+        "node scripts/release/validate-beta-capacity-evidence.mjs artifacts/release/capacity/qaf035-beta-capacity-20260602.json",
+        "node scripts/release/validate-provider-owner-signoff.mjs artifacts/release/provider/qaf035-provider-owner-signoff-20260603.json",
+        "pnpm release:no-media-scan-artifact:validate"
+      ],
+      "completionCriteria": [
+        "Beta capacity artifact passes --require-final.",
+        "Provider owner artifact passes --require-final."
+      ]
+    },
+    {
+      "id": "close-provider-owner-signoff",
+      "blockerId": "PROVIDER-OWNER-SIGNOFF",
+      "status": "open",
+      "owner": "provider-owner",
+      "gateIds": [
+        "provider-owner-signoff"
+      ],
+      "artifactRefs": [
+        "artifacts/release/provider/qaf035-provider-owner-signoff-20260603.json",
+        "artifacts/release/media-policy/qaf035-runtime-media-policy-20260602.json"
+      ],
+      "requiredFields": [
+        "provider.ownerName",
+        "provider.ownerRole",
+        "provider.contact",
+        "provider.accountScope",
+        "noMediaProcessingCommitment.approvedBy"
+      ],
+      "evidenceRequirements": [
+        "Provider/XUI owner identity and escalation path are recorded.",
+        "Owner explicitly commits that broken catch-up will not be solved with local ffmpeg, server-side transcode/remux, generated HLS, proxy-remuxed/remux-hls, or XUI-side transcode/remux."
+      ],
+      "validationCommands": [
+        "node scripts/release/validate-provider-owner-signoff.mjs artifacts/release/provider/qaf035-provider-owner-signoff-20260603.json",
+        "node scripts/release/validate-runtime-media-policy.mjs artifacts/release/media-policy/qaf035-runtime-media-policy-20260602.json"
+      ],
+      "completionCriteria": [
+        "Provider owner artifact passes --require-final.",
+        "Runtime media policy owner confirmation is no longer pending."
+      ]
+    },
+    {
+      "id": "close-performance-release-run",
+      "blockerId": "PERFORMANCE-RELEASE-RUN",
+      "status": "open",
+      "owner": "release-performance-owner",
+      "gateIds": [
+        "performance-evidence"
+      ],
+      "artifactRefs": [
+        "artifacts/release/performance/qaf035-performance-evidence-20260603.json"
+      ],
+      "requiredFields": [
+        "metrics.startup.p95",
+        "metrics.startup.p99",
+        "metrics.memory.peakRssMb",
+        "metrics.memory.p95RssMb",
+        "metrics.failureRate.ratePercent",
+        "signoff.approvedBy"
+      ],
+      "evidenceRequirements": [
+        "Approved release-run environment is recorded.",
+        "Startup p95/p99 and RSS peak/p95 are numeric and within threshold or explicitly failed.",
+        "Failure-rate accounting matches recorded runs."
+      ],
+      "validationCommands": [
+        "pnpm perf:ttfc",
+        "pnpm perf:rss",
+        "node scripts/release/validate-performance-evidence.mjs artifacts/release/performance/qaf035-performance-evidence-20260603.json"
+      ],
+      "completionCriteria": [
+        "Performance evidence artifact passes --require-final.",
+        "Release owner approves performance signoff."
+      ]
+    },
+    {
+      "id": "close-runtime-no-media-owner",
+      "blockerId": "RUNTIME-NO-MEDIA-OWNER",
+      "status": "open",
+      "owner": "provider-xui-no-transcode-owner",
+      "gateIds": [
+        "runtime-media-policy"
+      ],
+      "artifactRefs": [
+        "artifacts/release/media-policy/qaf035-runtime-media-policy-20260602.json",
+        "artifacts/release/provider/qaf035-provider-owner-signoff-20260603.json",
+        "artifacts/release/media-policy/qaf035-no-media-evidence-scan-20260602.json"
+      ],
+      "requiredFields": [
+        "runtime-media-policy checks.provider-xui-no-transcode-owner",
+        "provider noMediaProcessingCommitment",
+        "tracked no-media scan artifact hashes and zero-hit summary"
+      ],
+      "evidenceRequirements": [
+        "Runtime and provider owner evidence keep catch-up on provider-direct/proxy-normalized bytes or unsupported overlay.",
+        "No local ffmpeg, server-side transcode/remux, generated HLS, proxy-remuxed, remux-hls, or XUI-side media processing is accepted for beta/prod.",
+        "Manual/network evidence scan remains zero-hit for forbidden media processing."
+      ],
+      "validationCommands": [
+        "pnpm release:proxy-no-media:validate",
+        "pnpm release:proxy-no-media:test",
+        "pnpm release:no-media-scan-artifact:validate",
+        "node scripts/release/validate-runtime-media-policy.mjs artifacts/release/media-policy/qaf035-runtime-media-policy-20260602.json"
+      ],
+      "completionCriteria": [
+        "Runtime media policy passes --require-final.",
+        "Provider owner no-media-processing commitment is approved."
+      ]
+    },
+    {
+      "id": "close-observability-baseline-owner",
+      "blockerId": "OBSERVABILITY-BASELINE-OWNER",
+      "status": "open",
+      "owner": "observability-owner",
+      "gateIds": [
+        "observability-baseline"
+      ],
+      "artifactRefs": [
+        "artifacts/release/observability/qaf035-observability-baseline-20260603.json",
+        "artifacts/release/ops/qaf035-beta-ops-signoff-20260603.json",
+        "artifacts/release/media-policy/qaf035-no-media-evidence-scan-20260602.json"
+      ],
+      "requiredFields": [
+        "betaRouting.owner",
+        "betaRouting.channel",
+        "betaRouting.dashboardRef",
+        "betaRouting.responseSloMinutes",
+        "stopTriggers owners"
+      ],
+      "evidenceRequirements": [
+        "Playback, cast, startup-timeout, and no-media stop triggers route to a real beta responder.",
+        "No-media stop trigger evidence cites release:no-media-evidence:scan, tracked redacted scan artifact, and runtime media policy."
+      ],
+      "validationCommands": [
+        "pnpm release:observability-baseline:validate",
+        "node scripts/release/validate-beta-ops-signoff.mjs artifacts/release/ops/qaf035-beta-ops-signoff-20260603.json"
+      ],
+      "completionCriteria": [
+        "Observability baseline passes --require-final.",
+        "Beta ops signoff has owner-backed alert routing."
+      ]
+    },
+    {
+      "id": "close-beta-ops-signoff",
+      "blockerId": "BETA-OPS-SIGNOFF",
+      "status": "open",
+      "owner": "release-ops-owner",
+      "gateIds": [
+        "beta-ops-signoff"
+      ],
+      "artifactRefs": [
+        "artifacts/release/ops/qaf035-beta-ops-signoff-20260603.json",
+        "artifacts/release/capacity/qaf035-beta-capacity-20260602.json",
+        "artifacts/release/media-policy/qaf035-runtime-media-policy-20260602.json"
+      ],
+      "requiredFields": [
+        "observability.owner",
+        "observability.alertChannel",
+        "rollbackThrottle.owner",
+        "rollbackThrottle.decisionAuthority",
+        "signoff.approvedBy"
+      ],
+      "evidenceRequirements": [
+        "Rollback/throttle owner and decision authority are named.",
+        "Maximum decision time and notification route are recorded.",
+        "No-media-processing violation remains a beta stop trigger."
+      ],
+      "validationCommands": [
+        "node scripts/release/validate-beta-ops-signoff.mjs artifacts/release/ops/qaf035-beta-ops-signoff-20260603.json",
+        "node scripts/release/validate-beta-capacity-evidence.mjs artifacts/release/capacity/qaf035-beta-capacity-20260602.json"
+      ],
+      "completionCriteria": [
+        "Beta ops artifact passes --require-final.",
+        "Capacity artifact references finalized ops evidence."
+      ]
+    },
+    {
+      "id": "close-security-privacy-owner",
+      "blockerId": "SECURITY-PRIVACY-OWNER",
+      "status": "open",
+      "owner": "security-privacy-owner",
+      "gateIds": [
+        "security-privacy-baseline"
+      ],
+      "artifactRefs": [
+        "artifacts/release/security/qaf035-security-privacy-baseline-20260603.json"
+      ],
+      "requiredFields": [
+        "incidentReadiness.runbookRef",
+        "incidentReadiness.owner",
+        "incidentReadiness.responseChannel",
+        "signoff.approvedBy",
+        "signoff.approvedAt"
+      ],
+      "evidenceRequirements": [
+        "Security/privacy incident runbook, owner, response channel, and notification SLA are recorded.",
+        "Client storage inventory and retention evidence remain source-backed.",
+        "Credential cleanup and secret hygiene controls remain passing."
+      ],
+      "validationCommands": [
+        "pnpm release:security-baseline:validate",
+        "node scripts/release/validate-security-privacy-baseline.mjs artifacts/release/security/qaf035-security-privacy-baseline-20260603.json"
+      ],
+      "completionCriteria": [
+        "Security/privacy baseline passes --require-final.",
+        "Release owner approves security/privacy signoff."
+      ]
+    }
+  ],
+  "signoff": {
+    "status": "pending",
+    "approvedBy": "",
+    "approvedAt": "",
+    "notes": "Closure plan is intentionally non-final while QAF readiness has open blockers. Use it as the next-dev checklist for collecting real owner/device/performance/security evidence without any media-processing workaround."
+  }
+}

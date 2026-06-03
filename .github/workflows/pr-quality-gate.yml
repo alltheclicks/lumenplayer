@@ -96,6 +96,9 @@ jobs:
       - name: Validate security/privacy baseline
         run: pnpm release:security-baseline:validate
 
+      - name: Validate beta closure plan
+        run: pnpm release:beta-closure-plan:validate
+
       - name: Test disabled catch-up media probe
         run: pnpm catchup:timeshift-hls:test
 

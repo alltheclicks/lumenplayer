@@ -24,6 +24,8 @@ describe('QAF-035 release gate aggregate validator', () => {
     expect(result.stdout).toContain('performance evidence');
     expect(result.stdout).toContain('observability baseline');
     expect(result.stdout).toContain('security/privacy baseline');
+    expect(result.stdout).toContain('beta blocker closure plan');
+    expect(result.stdout).toContain('checks passed: 13');
   });
 
   it('fails final mode until concrete owner and device evidence is complete', () => {

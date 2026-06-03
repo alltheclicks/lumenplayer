@@ -43,6 +43,8 @@
     "release:security-baseline:test": "vitest run scripts/release/v1-security-privacy-baseline.test.ts",
     "release:readiness:validate": "node scripts/release/validate-release-readiness.mjs scripts/release/v1-release-readiness-review.template.json",
     "release:readiness:test": "vitest run scripts/release/v1-release-readiness-review.test.ts",
+    "release:beta-closure-plan:validate": "node scripts/release/validate-beta-closure-plan.mjs artifacts/release/readiness/qaf035-beta-closure-plan-20260603.json",
+    "release:beta-closure-plan:test": "vitest run scripts/release/v1-beta-closure-plan.test.ts",
     "release:evidence-links:validate": "node scripts/release/validate-release-evidence-links.mjs artifacts/release/readiness/qaf035-release-readiness-20260602.json --expect-open-blockers",
     "release:evidence-links:test": "vitest run scripts/release/validate-release-evidence-links.test.ts",
     "release:secret-hygiene:validate": "node scripts/release/validate-release-secret-hygiene.mjs",
