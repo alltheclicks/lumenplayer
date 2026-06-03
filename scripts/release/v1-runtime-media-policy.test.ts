@@ -58,7 +58,7 @@ const finalizeArtifact = (): RuntimeMediaPolicyArtifact => {
     check.owner = 'release-owner';
     check.evidence = `evidence://${check.id}`;
     if (check.id === 'no-media-evidence-scan') {
-      check.evidence = 'pnpm release:no-media-evidence:scan -- evidence/manual-network-audit/report.json';
+      check.evidence = 'pnpm release:no-media-evidence:scan -- evidence/manual-network-audit/report.json; artifacts/release/media-policy/qaf035-no-media-evidence-scan-20260602.json';
     }
   }
   artifact.signoff.status = 'pass';
@@ -181,6 +181,24 @@ describe('V1 runtime media policy artifact', () => {
     const result = runValidator([invalidPath, '--require-final'], repoRoot);
     expect(result.status).toBe(2);
     expect(result.stderr).toContain('check no-media-evidence-scan evidence must reference release:no-media-evidence:scan');
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('fails if passing no-media evidence scan does not cite a tracked scan artifact', () => {
+    const repoRoot = process.cwd();
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-runtime-media-'));
+    const invalidPath = path.join(tmpDir, 'no-media-scan-missing-artifact.json');
+    const artifact = finalizeArtifact();
+    const check = artifact.checks.find((entry) => entry.id === 'no-media-evidence-scan');
+    if (check) {
+      check.evidence = 'pnpm release:no-media-evidence:scan -- evidence/manual-network-audit/report.json';
+    }
+    fs.writeFileSync(invalidPath, `${JSON.stringify(artifact, null, 2)}\n`);
+
+    const result = runValidator([invalidPath, '--require-final'], repoRoot);
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain('no-media-evidence-scan evidence must reference a tracked no-media scan artifact');
 
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });

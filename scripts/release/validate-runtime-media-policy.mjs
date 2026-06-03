@@ -2,6 +2,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 
 const allowedStatus = new Set(['pending', 'pass', 'fail']);
 const disallowedTransportModes = new Set(['proxy-remuxed', 'remux-hls']);
@@ -145,11 +146,34 @@ for (const requiredCheckId of requiredCheckIds) {
 }
 
 const noMediaEvidenceScan = artifact.checks.find((check) => check.id === 'no-media-evidence-scan');
-if (
-  noMediaEvidenceScan?.status === 'pass'
-  && !noMediaEvidenceScan.evidence.includes('release:no-media-evidence:scan')
-) {
-  fail('check no-media-evidence-scan evidence must reference release:no-media-evidence:scan when passing.');
+if (noMediaEvidenceScan?.status === 'pass') {
+  if (!noMediaEvidenceScan.evidence.includes('release:no-media-evidence:scan')) {
+    fail('check no-media-evidence-scan evidence must reference release:no-media-evidence:scan when passing.');
+  }
+
+  const scanArtifactRef = noMediaEvidenceScan.evidence
+    .split(/[;\s]+/)
+    .find((token) => (
+      token.startsWith('artifacts/release/')
+      && token.endsWith('.json')
+      && token.includes('no-media')
+    ));
+  if (!scanArtifactRef) {
+    fail('check no-media-evidence-scan evidence must reference a tracked no-media scan artifact when passing.');
+  }
+
+  const scanArtifactResult = spawnSync(process.execPath, [
+    'scripts/release/validate-no-media-evidence-scan-artifact.mjs',
+    scanArtifactRef,
+  ], {
+    cwd: process.cwd(),
+    encoding: 'utf8',
+  });
+  if (scanArtifactResult.status !== 0) {
+    const stderr = scanArtifactResult.stderr?.trim();
+    const stdout = scanArtifactResult.stdout?.trim();
+    fail(`check no-media-evidence-scan linked artifact failed validation${stderr ? `: ${stderr}` : stdout ? `: ${stdout}` : ''}`);
+  }
 }
 
 if (!artifact.signoff || typeof artifact.signoff !== 'object') {

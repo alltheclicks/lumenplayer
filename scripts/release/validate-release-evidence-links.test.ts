@@ -83,7 +83,7 @@ describe('release evidence link audit', () => {
     const repoRoot = process.cwd();
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-evidence-links-'));
     const readinessPath = path.join(tmpDir, 'invalid-linked-artifact.json');
-    const invalidProviderRef = 'artifacts/release/provider/__invalid-provider-test.json';
+    const invalidProviderRef = `artifacts/release/provider/__invalid-provider-test-${path.basename(tmpDir)}.json`;
     const invalidProviderPath = path.resolve(repoRoot, invalidProviderRef);
     const artifact = loadReadiness();
     artifact.gates.find((gate) => gate.id === 'provider-owner-signoff')!.evidenceRef = invalidProviderRef;

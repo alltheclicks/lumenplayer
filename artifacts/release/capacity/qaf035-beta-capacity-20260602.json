@@ -17,7 +17,7 @@
     "usesGeneratedHls": false,
     "usesXuiSideTranscode": false,
     "usesXuiSideRemux": false,
-    "evidence": "output/playwright/manual-network-audit/REPORT.md; pnpm release:no-media-evidence:scan -- output/playwright/manual-network-audit/report.json; artifacts/release/compatibility/qaf035-provider-local-20260602.json; pnpm --filter @lumen/web exec vitest run src/components/player/catchupGateway.test.ts src/components/player/catchupSource.test.ts"
+    "evidence": "output/playwright/manual-network-audit/REPORT.md; pnpm release:no-media-evidence:scan -- output/playwright/manual-network-audit/report.json; artifacts/release/media-policy/qaf035-no-media-evidence-scan-20260602.json; artifacts/release/compatibility/qaf035-provider-local-20260602.json; pnpm --filter @lumen/web exec vitest run src/components/player/catchupGateway.test.ts src/components/player/catchupSource.test.ts"
   },
   "checks": [
     {
@@ -41,7 +41,7 @@
       "description": "Browser/network/process evidence shows catch-up failures are handled with provider bytes, normalized manifests, or unsupported overlays, not ffmpeg/remux/transcode/generated HLS.",
       "status": "pass",
       "owner": "codex-local-qa",
-      "evidence": "output/playwright/manual-network-audit/REPORT.md; pnpm release:no-media-evidence:scan -- output/playwright/manual-network-audit/report.json; artifacts/release/compatibility/qaf035-provider-local-20260602.json; artifacts/release/media-policy/qaf035-runtime-media-policy-20260602.json",
+      "evidence": "output/playwright/manual-network-audit/REPORT.md; pnpm release:no-media-evidence:scan -- output/playwright/manual-network-audit/report.json; artifacts/release/media-policy/qaf035-no-media-evidence-scan-20260602.json; artifacts/release/compatibility/qaf035-provider-local-20260602.json; artifacts/release/media-policy/qaf035-runtime-media-policy-20260602.json",
       "notes": "Manual browser/network audit captured 0 disallowed media-processing URL hits and 0 media-processing processes. The no-media evidence scanner also passed against the captured audit report and would fail on remux/transcode/ffmpeg/ffprobe/generated-HLS/XUI-side evidence. Compatibility artifact has provider/no-media/gateway slices passing and device slices still pending. Runtime media policy now also proves proxy defaults do not offer remux without explicit lab override."
     },
     {

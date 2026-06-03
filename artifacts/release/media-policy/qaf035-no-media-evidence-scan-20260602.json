@@ -1,0 +1,51 @@
+{
+  "release": "V1",
+  "templateVersion": 1,
+  "generatedAt": "2026-06-02T14:53:30.713Z",
+  "runOwner": "codex",
+  "source": {
+    "evidenceRef": "output/playwright/manual-network-audit/report.json",
+    "reportRef": "output/playwright/manual-network-audit/REPORT.md",
+    "rawEvidenceTracked": false,
+    "rawEvidencePolicy": "Raw Network/CDP capture remains untracked to avoid publishing provider URLs, tokens, or credentials.",
+    "evidenceSha256": "ef68b091dbbc3e586c9e93b16d8cf8ba2f3c7529f84f1e6979f284de037ac617",
+    "reportSha256": "2b9581474897ec03e5213bd4b16fb5c398dc411bebc266fd7d01909e2d217942"
+  },
+  "scan": {
+    "command": "pnpm release:no-media-evidence:scan -- output/playwright/manual-network-audit/report.json",
+    "status": "pass",
+    "scannedFiles": 1,
+    "forbiddenHits": [],
+    "forbiddenPatterns": [
+      "__remux__",
+      "__lumenTransport=remux-hls",
+      "LUMEN_PROXY_REMUX_ENABLED=1",
+      "proxy-remuxed",
+      "remux-hls",
+      "remux",
+      "ffmpeg",
+      "ffprobe",
+      "transcode",
+      "server-side media processing",
+      "server-side transcode",
+      "server-side remux",
+      "generated HLS",
+      "XUI media processing",
+      "XUI-side media processing"
+    ]
+  },
+  "summary": {
+    "status": "pass",
+    "requestsCaptured": 31,
+    "responsesCaptured": 30,
+    "cdpEventsCaptured": 55,
+    "disallowedMediaProcessingUrlHits": 0,
+    "mediaProcessingProcessesObserved": 0,
+    "observedHosts": [
+      "edge3.castcdn.net",
+      "edge6.castcdn.net",
+      "localhost:8080"
+    ],
+    "notes": "Manual browser/network audit captured live playback and a catch-up attempt without remux/transcode/ffmpeg/ffprobe/generated-HLS/XUI-side media-processing evidence."
+  }
+}

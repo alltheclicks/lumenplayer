@@ -59,7 +59,7 @@
       "description": "Captured HAR/JSON/log evidence is scanned with the release no-media evidence scanner for remux, transcode, ffmpeg, ffprobe, generated HLS, and XUI-side media-processing indicators.",
       "status": "pass",
       "owner": "codex-local-qa",
-      "evidence": "pnpm release:no-media-evidence:scan -- output/playwright/manual-network-audit/report.json",
+      "evidence": "pnpm release:no-media-evidence:scan -- output/playwright/manual-network-audit/report.json; artifacts/release/media-policy/qaf035-no-media-evidence-scan-20260602.json",
       "notes": "Scanner returned OK for the manual network audit report and would fail on __remux__, remux, remux-hls, proxy-remuxed, ffmpeg, ffprobe, transcode, generated HLS, server-side remux, or XUI-side media processing/transcode/remux evidence."
     },
     {
