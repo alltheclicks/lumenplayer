@@ -28,6 +28,7 @@ const files = {
   betaOps: 'artifacts/release/ops/qaf035-beta-ops-signoff-20260603.json',
   runbook: 'docs/release/qaf035-beta-signoff-runbook.md',
   prQualityGateWorkflow: '.github/workflows/pr-quality-gate.yml',
+  packageJson: 'package.json',
 };
 
 const readJson = (filePath) => {
@@ -101,6 +102,26 @@ const validatePrQualityGateWorkflow = () => {
   }
 };
 
+const validatePackageScripts = () => {
+  const packageJson = readJson(files.packageJson);
+  const proxyNoMediaScript = packageJson.scripts?.['release:proxy-no-media:test'];
+  if (typeof proxyNoMediaScript !== 'string') {
+    fail('package.json must define scripts.release:proxy-no-media:test.');
+  }
+
+  const requiredSnippets = [
+    'apps/proxy/src/catchup-remux.test.ts',
+    'apps/proxy/src/catchup-gateway.test.ts',
+    'apps/proxy/src/server.test.ts',
+  ];
+
+  for (const snippet of requiredSnippets) {
+    if (!proxyNoMediaScript.includes(snippet)) {
+      fail(`package.json release:proxy-no-media:test must reference: ${snippet}`);
+    }
+  }
+};
+
 const checks = [];
 const expectedFinalBlockers = [];
 const failures = [];
@@ -136,6 +157,8 @@ validateRunbook();
 checks.push('qaf035-beta-signoff-runbook');
 validatePrQualityGateWorkflow();
 checks.push('pr-quality-gate-workflow');
+validatePackageScripts();
+checks.push('package-scripts');
 
 runNode('release readiness artifact', [
   'scripts/release/validate-release-readiness.mjs',

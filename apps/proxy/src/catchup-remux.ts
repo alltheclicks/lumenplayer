@@ -557,6 +557,13 @@ const toRemuxError = (code: string, error: unknown, fallbackMessage: string): Ca
   return new CatchUpRemuxError(code, message);
 };
 
+const createRemuxDisabledError = (): CatchUpRemuxError => new CatchUpRemuxError(
+  "remux-disabled",
+  "Catch-up remux/transcode playback is disabled by the no-media-processing runtime policy.",
+);
+
+const isCatchUpRemuxRuntimeDisabled = (): boolean => true;
+
 export const createCatchUpRemuxController = (options: {
   logger: GatewayLogger;
   env?: NodeJS.ProcessEnv;
@@ -986,6 +993,10 @@ export const createCatchUpRemuxController = (options: {
   const prepareSession = async (
     input: CatchUpRemuxPrepareInput,
   ): Promise<CatchUpRemuxSessionRecord> => {
+    if (isCatchUpRemuxRuntimeDisabled()) {
+      throw createRemuxDisabledError();
+    }
+
     ensureBinaryAvailability();
 
     const sanitizedUpstreamUrl = sanitizeLocalParams(input.upstreamUrl);
@@ -1053,6 +1064,10 @@ export const createCatchUpRemuxController = (options: {
   };
 
   const getAsset = async (input: CatchUpRemuxAssetRequest): Promise<Buffer> => {
+    if (isCatchUpRemuxRuntimeDisabled()) {
+      throw createRemuxDisabledError();
+    }
+
     const session = getSession(input.sessionId);
     if (!session) {
       throw new CatchUpRemuxError("remux-asset-missing", "Remux session not found or expired.");
@@ -1078,6 +1093,10 @@ export const createCatchUpRemuxController = (options: {
     request: CatchUpGatewayResolveRequest;
     candidateUrl: string | null;
   }): boolean => {
+    if (isCatchUpRemuxRuntimeDisabled()) {
+      return false;
+    }
+
     if (!featureGate.enabled || !candidateUrl) {
       return false;
     }

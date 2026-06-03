@@ -42,7 +42,7 @@
       "status": "pass",
       "owner": "codex-local-qa",
       "evidence": "output/playwright/manual-network-audit/REPORT.md; pnpm release:no-media-evidence:scan -- output/playwright/manual-network-audit/report.json; artifacts/release/media-policy/qaf035-no-media-evidence-scan-20260602.json; artifacts/release/compatibility/qaf035-provider-local-20260602.json; artifacts/release/media-policy/qaf035-runtime-media-policy-20260602.json",
-      "notes": "Manual browser/network audit captured 0 disallowed media-processing URL hits and 0 media-processing processes. The no-media evidence scanner also passed against the captured audit report and would fail on remux/transcode/ffmpeg/ffprobe/generated-HLS/XUI-side evidence. Compatibility artifact has provider/no-media/gateway slices passing and device slices still pending. Runtime media policy now also proves proxy runtime rejects remux even when env/debug inputs try to allow it."
+      "notes": "Manual browser/network audit captured 0 disallowed media-processing URL hits and 0 media-processing processes. The no-media evidence scanner also passed against the captured audit report and would fail on remux/transcode/ffmpeg/ffprobe/generated-HLS/XUI-side evidence. Compatibility artifact has provider/no-media/gateway slices passing and device slices still pending. Runtime media policy now also proves proxy and remux-controller runtime reject remux even when env/debug inputs try to allow it."
     },
     {
       "id": "observability-slo",

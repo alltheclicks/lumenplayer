@@ -89,7 +89,7 @@ pnpm release:proxy-no-media:test
 pgrep -fl '[f]fmpeg|[f]fprobe'
 ```
 
-The proxy no-media test proves env/debug remux attempts, direct `remux-hls` proxy requests, and `__remux__` asset endpoints do not reach remux playback. The process command should produce no active ffmpeg or ffprobe process.
+The proxy no-media test proves env/debug remux attempts, direct `remux-hls` proxy requests, `__remux__` asset endpoints, and direct remux controller calls do not reach binary checks, process spawn, or remux playback. The process command should produce no active ffmpeg or ffprobe process.
 
 ## Provider And Capacity Owner Signoff
 

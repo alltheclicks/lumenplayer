@@ -32,7 +32,7 @@
     },
     {
       "id": "gateway-default-disallows-remux",
-      "description": "Proxy gateway runtime does not offer proxy-remuxed playback or direct remux-hls handling, even when env/debug inputs try to allow remux.",
+      "description": "Proxy gateway and remux controller runtime do not offer proxy-remuxed playback or direct remux-hls handling, even when env/debug inputs try to allow remux.",
       "status": "pending",
       "owner": "",
       "evidence": "",
