@@ -87,6 +87,13 @@ const validateRunbook = () => {
     'generated HLS',
     'XUI-side',
     ...targetIds,
+    'pnpm release:readiness:validate',
+    'pnpm release:provider-owner:validate',
+    'pnpm release:beta-capacity:validate',
+    'pnpm release:runtime-media:validate',
+    'pnpm release:manual-device-qa:validate',
+    'pnpm release:beta-ops:validate',
+    'concrete QAF-035 artifacts',
   ];
 
   for (const snippet of requiredSnippets) {
@@ -168,6 +175,31 @@ const validatePackageScripts = () => {
     fail(`package.json scripts.release:perf-evidence:validate must validate ${files.performanceEvidence}.`);
   }
 
+  const betaCapacityValidator = packageJson.scripts?.['release:beta-capacity:validate'];
+  if (betaCapacityValidator !== `node scripts/release/validate-beta-capacity-evidence.mjs ${files.betaCapacity}`) {
+    fail(`package.json scripts.release:beta-capacity:validate must validate ${files.betaCapacity}.`);
+  }
+
+  const runtimeMediaValidator = packageJson.scripts?.['release:runtime-media:validate'];
+  if (runtimeMediaValidator !== `node scripts/release/validate-runtime-media-policy.mjs ${files.runtimeMedia}`) {
+    fail(`package.json scripts.release:runtime-media:validate must validate ${files.runtimeMedia}.`);
+  }
+
+  const manualDeviceQaValidator = packageJson.scripts?.['release:manual-device-qa:validate'];
+  if (manualDeviceQaValidator !== `node scripts/release/validate-manual-device-qa.mjs ${files.manualDeviceQa}`) {
+    fail(`package.json scripts.release:manual-device-qa:validate must validate ${files.manualDeviceQa}.`);
+  }
+
+  const betaOpsValidator = packageJson.scripts?.['release:beta-ops:validate'];
+  if (betaOpsValidator !== `node scripts/release/validate-beta-ops-signoff.mjs ${files.betaOps}`) {
+    fail(`package.json scripts.release:beta-ops:validate must validate ${files.betaOps}.`);
+  }
+
+  const providerOwnerValidator = packageJson.scripts?.['release:provider-owner:validate'];
+  if (providerOwnerValidator !== `node scripts/release/validate-provider-owner-signoff.mjs ${files.providerOwner}`) {
+    fail(`package.json scripts.release:provider-owner:validate must validate ${files.providerOwner}.`);
+  }
+
   const observabilityBaselineValidator = packageJson.scripts?.['release:observability-baseline:validate'];
   if (observabilityBaselineValidator !== `node scripts/release/validate-observability-baseline.mjs ${files.observabilityBaseline}`) {
     fail(`package.json scripts.release:observability-baseline:validate must validate ${files.observabilityBaseline}.`);
@@ -186,6 +218,11 @@ const validatePackageScripts = () => {
   const betaClosurePlanValidator = packageJson.scripts?.['release:beta-closure-plan:validate'];
   if (betaClosurePlanValidator !== `node scripts/release/validate-beta-closure-plan.mjs ${files.betaClosurePlan}`) {
     fail(`package.json scripts.release:beta-closure-plan:validate must validate ${files.betaClosurePlan}.`);
+  }
+
+  const readinessValidator = packageJson.scripts?.['release:readiness:validate'];
+  if (readinessValidator !== `node scripts/release/validate-release-readiness.mjs ${files.readiness}`) {
+    fail(`package.json scripts.release:readiness:validate must validate ${files.readiness}.`);
   }
 };
 

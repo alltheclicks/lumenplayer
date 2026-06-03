@@ -8,15 +8,22 @@ Run these from the QAF-035 production worktree:
 
 ```sh
 pnpm release:qaf035:validate
+pnpm release:readiness:validate
+pnpm release:provider-owner:validate
+pnpm release:beta-capacity:validate
+pnpm release:runtime-media:validate
+pnpm release:manual-device-qa:validate
 pnpm release:no-media-scan-artifact:validate
 pnpm release:perf-evidence:validate
 pnpm release:observability-baseline:validate
+pnpm release:beta-ops:validate
 pnpm release:security-baseline:validate
 pnpm release:beta-closure-plan:validate
 pnpm release:qaf035:final
 ```
 
 `pnpm release:qaf035:validate` must pass while final owner/device blockers are still open. `pnpm release:qaf035:final` must fail until every real-device, provider, capacity, ops, rollback, and no-media-processing owner field is complete.
+The individual `pnpm release:*:validate` commands above validate the concrete QAF-035 artifacts, not generic templates. `pnpm release:readiness:validate` must report the current open blocker count until those blockers are genuinely closed.
 `pnpm release:no-media-scan-artifact:validate` must pass on the tracked redacted scan-result artifact so the local Chrome Network/CDP evidence hashes, forbidden-pattern list, zero-hit summary, and raw-evidence-untracked policy stay mechanically checked in CI.
 `pnpm release:perf-evidence:validate` must pass on the concrete performance artifact so local benchmark coverage and failed-run accounting are checked before final beta performance signoff.
 `pnpm release:observability-baseline:validate` must pass on the concrete observability artifact so structured event coverage, playback/cast burst alert rules, beta alert routing, and no-media stop-trigger evidence are checked before signoff.
