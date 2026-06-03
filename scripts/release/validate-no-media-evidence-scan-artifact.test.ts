@@ -6,7 +6,11 @@ import { describe, expect, it } from 'vitest';
 
 interface NoMediaEvidenceScanArtifact {
   source: {
+    evidenceRef: string;
+    reportRef: string;
     rawEvidenceTracked: boolean;
+    evidenceSha256: string;
+    reportSha256: string;
   };
   scan: {
     status: 'pending' | 'pass' | 'fail';
@@ -67,6 +71,39 @@ describe('no-media evidence scan artifact', () => {
     const result = runValidator([invalidPath], repoRoot);
     expect(result.status).toBe(2);
     expect(result.stderr).toContain('source.rawEvidenceTracked must be false');
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('fails validation when a source ref is tracked by git', () => {
+    const repoRoot = process.cwd();
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-no-media-scan-artifact-'));
+    const invalidPath = path.join(tmpDir, 'source-ref-tracked.json');
+    const artifact = loadArtifact();
+    artifact.source.evidenceRef = 'package.json';
+    fs.writeFileSync(invalidPath, `${JSON.stringify(artifact, null, 2)}\n`);
+
+    const result = runValidator([invalidPath], repoRoot);
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain('source.evidenceRef must not be tracked by git');
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('fails validation when an existing source hash differs from the artifact digest', () => {
+    const repoRoot = process.cwd();
+    const tmpDir = fs.mkdtempSync(path.join(repoRoot, '.tmp-no-media-scan-artifact-'));
+    const sourcePath = path.join(tmpDir, 'report.json');
+    const invalidPath = path.join(tmpDir, 'hash-mismatch.json');
+    const artifact = loadArtifact();
+    fs.writeFileSync(sourcePath, '{ "status": "changed" }\n');
+    artifact.source.evidenceRef = path.relative(repoRoot, sourcePath);
+    artifact.source.evidenceSha256 = '0'.repeat(64);
+    fs.writeFileSync(invalidPath, `${JSON.stringify(artifact, null, 2)}\n`);
+
+    const result = runValidator([invalidPath], repoRoot);
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain('source.evidenceSha256 does not match current');
 
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });

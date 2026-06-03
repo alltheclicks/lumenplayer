@@ -2,6 +2,8 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
+import { spawnSync } from 'node:child_process';
 
 const allowedStatus = new Set(['pending', 'pass', 'fail']);
 const requiredForbiddenPatterns = [
@@ -42,6 +44,22 @@ const fail = (message) => {
 
 const isNonEmptyString = (value) => typeof value === 'string' && value.trim() !== '';
 const isSha256 = (value) => typeof value === 'string' && /^[a-f0-9]{64}$/i.test(value);
+const isRepoRelativePath = (value) => (
+  isNonEmptyString(value)
+  && !path.isAbsolute(value)
+  && !value.split(/[\\/]/).includes('..')
+);
+
+const sha256File = (filePath) => crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex');
+const ensureSourceRefUntracked = (fieldName, fileRef) => {
+  const result = spawnSync('git', ['ls-files', '--error-unmatch', '--', fileRef], {
+    cwd: process.cwd(),
+    encoding: 'utf8',
+  });
+  if (result.status === 0) {
+    fail(`source.${fieldName} must not be tracked by git: ${fileRef}`);
+  }
+};
 
 let artifact;
 try {
@@ -58,6 +76,12 @@ for (const field of ['evidenceRef', 'reportRef', 'rawEvidencePolicy', 'evidenceS
     fail(`source.${field} must be a non-empty string.`);
   }
 }
+for (const field of ['evidenceRef', 'reportRef']) {
+  if (!isRepoRelativePath(artifact.source[field])) {
+    fail(`source.${field} must be a repo-relative path without parent traversal.`);
+  }
+  ensureSourceRefUntracked(field, artifact.source[field]);
+}
 if (artifact.source.rawEvidenceTracked !== false) {
   fail('source.rawEvidenceTracked must be false.');
 }
@@ -66,6 +90,19 @@ if (!isSha256(artifact.source.evidenceSha256)) {
 }
 if (!isSha256(artifact.source.reportSha256)) {
   fail('source.reportSha256 must be a SHA-256 hex digest.');
+}
+
+for (const [fieldName, hashField] of [
+  ['evidenceRef', 'evidenceSha256'],
+  ['reportRef', 'reportSha256'],
+]) {
+  const sourcePath = path.resolve(process.cwd(), artifact.source[fieldName]);
+  if (fs.existsSync(sourcePath)) {
+    const actualHash = sha256File(sourcePath);
+    if (actualHash !== artifact.source[hashField]) {
+      fail(`source.${hashField} does not match current ${artifact.source[fieldName]}.`);
+    }
+  }
 }
 
 if (!artifact.scan || typeof artifact.scan !== 'object') {
