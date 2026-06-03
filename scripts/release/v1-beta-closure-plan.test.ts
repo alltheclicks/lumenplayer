@@ -92,7 +92,45 @@ describe('QAF-035 beta closure plan', () => {
 
     const result = runValidator([invalidPath], repoRoot);
     expect(result.status).toBe(2);
-    expect(result.stderr).toContain('validationCommands must not invoke ffmpeg/ffprobe');
+    expect(result.stderr).toContain('validationCommands must not reference ffmpeg/ffprobe');
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('fails when a closure validation command references media tools through a local path', () => {
+    const repoRoot = process.cwd();
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-beta-closure-'));
+    const invalidPath = path.join(tmpDir, 'bad-path-command.json');
+    const invalidPlan = loadPlan();
+    const item = invalidPlan.closureItems.find((entry) => entry.blockerId === 'RUNTIME-NO-MEDIA-OWNER');
+    if (item) {
+      item.validationCommands.push('./bin/ffprobe broken-catchup.ts');
+    }
+
+    fs.writeFileSync(invalidPath, `${JSON.stringify(invalidPlan, null, 2)}\n`);
+
+    const result = runValidator([invalidPath], repoRoot);
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain('validationCommands must not reference ffmpeg/ffprobe');
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('fails when a closure validation command references media tools through environment variables', () => {
+    const repoRoot = process.cwd();
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-beta-closure-'));
+    const invalidPath = path.join(tmpDir, 'bad-env-command.json');
+    const invalidPlan = loadPlan();
+    const item = invalidPlan.closureItems.find((entry) => entry.blockerId === 'RUNTIME-NO-MEDIA-OWNER');
+    if (item) {
+      item.validationCommands.push('FFMPEG_BIN=ffmpeg pnpm release:runtime-media:validate');
+    }
+
+    fs.writeFileSync(invalidPath, `${JSON.stringify(invalidPlan, null, 2)}\n`);
+
+    const result = runValidator([invalidPath], repoRoot);
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain('validationCommands must not reference ffmpeg/ffprobe');
 
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
