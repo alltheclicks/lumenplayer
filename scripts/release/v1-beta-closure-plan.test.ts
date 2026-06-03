@@ -267,7 +267,7 @@ describe('QAF-035 beta closure plan', () => {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  it('fails when an open closure item has no final proof command', () => {
+  it('fails when an open closure item has no concrete final proof command', () => {
     const repoRoot = process.cwd();
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-beta-closure-'));
     const invalidPath = path.join(tmpDir, 'missing-final-proof.json');
@@ -281,7 +281,48 @@ describe('QAF-035 beta closure plan', () => {
 
     const result = runValidator([invalidPath], repoRoot);
     expect(result.status).toBe(2);
-    expect(result.stderr).toContain('validationCommands must include a final proof command');
+    expect(result.stderr).toContain('validationCommands must include a concrete final proof command');
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('fails when an open closure item spoofs final proof with an arbitrary command', () => {
+    const repoRoot = process.cwd();
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-beta-closure-'));
+    const invalidPath = path.join(tmpDir, 'spoofed-final-proof.json');
+    const invalidPlan = loadPlan();
+    const item = invalidPlan.closureItems.find((entry) => entry.blockerId === 'PERFORMANCE-RELEASE-RUN');
+    if (item) {
+      item.validationCommands = ['echo --require-final'];
+    }
+
+    fs.writeFileSync(invalidPath, `${JSON.stringify(invalidPlan, null, 2)}\n`);
+
+    const result = runValidator([invalidPath], repoRoot);
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain('validationCommands must include a concrete final proof command');
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('fails when the compatibility gate lacks a final matrix proof command', () => {
+    const repoRoot = process.cwd();
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-beta-closure-'));
+    const invalidPath = path.join(tmpDir, 'missing-compatibility-final-proof.json');
+    const invalidPlan = loadPlan();
+    const item = invalidPlan.closureItems.find((entry) => entry.blockerId === 'TARGET-MATRIX-DEVICES');
+    if (item) {
+      item.validationCommands = item.validationCommands.filter((command) => !(
+        command.includes('scripts/release/compatibility-matrix-task.mjs')
+        && command.includes('--require-final')
+      ));
+    }
+
+    fs.writeFileSync(invalidPath, `${JSON.stringify(invalidPlan, null, 2)}\n`);
+
+    const result = runValidator([invalidPath], repoRoot);
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain('validationCommands must include compatibility final matrix with required targets');
 
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });

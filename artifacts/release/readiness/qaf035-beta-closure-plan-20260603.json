@@ -92,6 +92,7 @@
         "pnpm release:smoke-matrix:validate",
         "node scripts/release/validate-smoke-regression-matrix.mjs artifacts/release/smoke/qaf035-smoke-regression-matrix-20260603.json --require-final",
         "node scripts/release/compatibility-matrix-task.mjs status --run artifacts/release/compatibility/qaf035-provider-local-20260602.json",
+        "node scripts/release/compatibility-matrix-task.mjs status --run artifacts/release/compatibility/qaf035-provider-local-20260602.json --require-final --require-matrix artifacts/release/smoke/qaf035-smoke-regression-matrix-20260603.json --require-targets scripts/release/v1-compatibility-targets.template.json",
         "node scripts/release/validate-manual-device-qa.mjs artifacts/release/manual-device-qa/qaf035-manual-device-qa-20260603.json",
         "node scripts/release/validate-manual-device-qa.mjs artifacts/release/manual-device-qa/qaf035-manual-device-qa-20260603.json --require-final",
         "pnpm release:design-parity:validate",

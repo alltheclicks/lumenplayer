@@ -7,7 +7,6 @@ import { spawnSync } from 'node:child_process';
 const allowedStatus = new Set(['open', 'mitigated', 'closed']);
 const allowedSignoffStatus = new Set(['pending', 'pass', 'fail']);
 const repoRoot = process.cwd();
-const finalProofPattern = /(^|\s)(--require-final|release:qaf035:final)(\s|$)/;
 const forbiddenMediaToolReferencePattern = /(^|[^a-z0-9_-])(ffmpeg|ffprobe)([^a-z0-9_-]|$)/i;
 const forbiddenMediaProcessingCommandPatterns = [
   ['LUMEN_PROXY_REMUX_ENABLED', /\bLUMEN_PROXY_REMUX_ENABLED\b/i],
@@ -41,6 +40,60 @@ const isRepoRelativePath = (value) => (
   && !path.isAbsolute(value)
   && !value.split(/[\\/]/).includes('..')
 );
+const allowedFinalProofScripts = new Set([
+  'scripts/release/compatibility-matrix-task.mjs',
+  'scripts/release/validate-beta-capacity-evidence.mjs',
+  'scripts/release/validate-beta-ops-signoff.mjs',
+  'scripts/release/validate-design-parity-evidence.mjs',
+  'scripts/release/validate-go-no-go.mjs',
+  'scripts/release/validate-manual-device-qa.mjs',
+  'scripts/release/validate-observability-baseline.mjs',
+  'scripts/release/validate-performance-evidence.mjs',
+  'scripts/release/validate-provider-owner-signoff.mjs',
+  'scripts/release/validate-qaf035-release-gates.mjs',
+  'scripts/release/validate-release-readiness.mjs',
+  'scripts/release/validate-runtime-media-policy.mjs',
+  'scripts/release/validate-security-privacy-baseline.mjs',
+  'scripts/release/validate-smoke-regression-matrix.mjs',
+]);
+const isConcreteFinalProofCommand = (command) => {
+  const parts = command.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 2 && parts[0] === 'pnpm' && parts[1] === 'release:qaf035:final') {
+    return true;
+  }
+
+  if (parts.length < 3 || parts[0] !== 'node') {
+    return false;
+  }
+
+  const scriptRef = parts[1];
+  return (
+    allowedFinalProofScripts.has(scriptRef)
+    && isRepoRelativePath(scriptRef)
+    && fs.existsSync(path.resolve(repoRoot, scriptRef))
+    && parts.includes('--require-final')
+  );
+};
+const commandIncludesAll = (command, requiredParts) => (
+  requiredParts.every((requiredPart) => command.includes(requiredPart))
+);
+const requiredFinalProofByGate = new Map([
+  [
+    'compatibility-matrix',
+    {
+      label: 'compatibility final matrix with required targets',
+      matches: (command) => (
+        isConcreteFinalProofCommand(command)
+        && commandIncludesAll(command, [
+          'scripts/release/compatibility-matrix-task.mjs',
+          '--require-final',
+          '--require-matrix',
+          '--require-targets',
+        ])
+      ),
+    },
+  ],
+]);
 const readJson = (fileRef) => {
   const filePath = path.resolve(repoRoot, fileRef);
   try {
@@ -365,8 +418,16 @@ for (const item of plan.closureItems) {
     }
   }
 
-  if (item.status !== 'closed' && !item.validationCommands.some((command) => finalProofPattern.test(command))) {
-    fail(`closure item ${item.id} validationCommands must include a final proof command with --require-final or release:qaf035:final.`);
+  const concreteFinalProofCommands = item.validationCommands.filter(isConcreteFinalProofCommand);
+  if (item.status !== 'closed' && concreteFinalProofCommands.length === 0) {
+    fail(`closure item ${item.id} validationCommands must include a concrete final proof command.`);
+  }
+
+  for (const gateId of item.gateIds) {
+    const requiredFinalProof = requiredFinalProofByGate.get(gateId);
+    if (requiredFinalProof && !item.validationCommands.some(requiredFinalProof.matches)) {
+      fail(`closure item ${item.id} validationCommands must include ${requiredFinalProof.label}.`);
+    }
   }
 }
 
