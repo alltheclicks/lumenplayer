@@ -94,7 +94,7 @@ describe("parseAllowedHosts", () => {
 });
 
 describe("createProxyServer", () => {
-  it("returns proxy-remuxed from gateway resolve only after remux bootstrap succeeds", async () => {
+  it("does not return proxy-remuxed from gateway resolve even when env tries to allow remux", async () => {
     const app = createProxyServer({
       allowedHosts: ["*"],
       env: REMUX_ALLOWED_ENV,
@@ -142,24 +142,24 @@ describe("createProxyServer", () => {
     expect(first.json()).toMatchObject({
       channelId: "channel-1",
       programId: "program-1",
-      transportMode: "proxy-remuxed",
+      transportMode: "proxy-normalized",
       hotStart: false,
       assetState: "ready",
     });
     expect(second.json()).toMatchObject({
       channelId: "channel-1",
       programId: "program-1",
-      transportMode: "proxy-remuxed",
+      transportMode: "proxy-normalized",
       hotStart: true,
       assetState: "ready",
     });
-    expect(first.json().playbackUrl).toContain("__lumenTransport=remux-hls");
-    expect(first.json().playbackUrl).toContain("/timeshift/user/pass/1800/2026-03-08:08-30/112.ts");
+    expect(first.json().playbackUrl).toContain("__lumenTransport=normalized");
+    expect(first.json().playbackUrl).not.toContain("__lumenTransport=remux-hls");
 
     await app.close();
   });
 
-  it("does not serve direct remux playback requests unless remux is explicitly allowed", async () => {
+  it("rejects direct remux playback requests before any upstream fetch", async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response("upstream-body", {
       status: 200,
       headers: {
@@ -179,10 +179,11 @@ describe("createProxyServer", () => {
       url: `/xui-api/${encodeTarget("https://login.example")}/timeshift/user/pass/1800/2026-03-08:08-30/112.ts?__lumenTransport=remux-hls&__lumenProgramId=program-1`,
     });
 
-    expect(response.statusCode).toBe(200);
-    expect(response.headers["content-type"]).toContain("video/mp2t");
-    expect(response.payload).toBe("upstream-body");
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(response.statusCode).toBe(410);
+    expect(response.json()).toMatchObject({
+      error: "remux_disabled",
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
 
     await app.close();
   });
@@ -231,7 +232,7 @@ describe("createProxyServer", () => {
     await app.close();
   });
 
-  it("returns remux manifest bodies for remux-hls catch-up proxy requests", async () => {
+  it("rejects remux manifest requests even when env tries to allow remux", async () => {
     const app = createProxyServer({
       allowedHosts: ["*"],
       env: REMUX_ALLOWED_ENV,
@@ -245,16 +246,15 @@ describe("createProxyServer", () => {
       url: `/xui-api/${encodeTarget("https://login.example")}/timeshift/user/pass/1800/2026-03-08:08-30/112.ts?__lumenTransport=remux-hls&__lumenProgramId=program-1`,
     });
 
-    expect(response.statusCode).toBe(200);
-    expect(response.headers["content-type"]).toContain("application/vnd.apple.mpegurl");
-    expect(response.payload).toContain("#EXTM3U");
-    expect(response.payload).toContain("/xui-api/__remux__/session/");
-    expect(response.payload).toContain("/segment/0.m4s");
+    expect(response.statusCode).toBe(410);
+    expect(response.json()).toMatchObject({
+      error: "remux_disabled",
+    });
 
     await app.close();
   });
 
-  it("serves remux asset endpoints as video/mp4 with CORS headers", async () => {
+  it("rejects remux asset endpoints with CORS headers", async () => {
     const app = createProxyServer({
       allowedHosts: ["*"],
       env: REMUX_ALLOWED_ENV,
@@ -263,34 +263,24 @@ describe("createProxyServer", () => {
       remuxController: createTestRemuxController(),
     });
 
-    const manifest = await app.inject({
-      method: "GET",
-      url: `/xui-api/${encodeTarget("https://login.example")}/timeshift/user/pass/1800/2026-03-08:08-30/112.ts?__lumenTransport=remux-hls&__lumenProgramId=program-1`,
-    });
-    const initPath = manifest.payload.match(/URI="([^"]+)"/)?.[1];
-    const segmentPath = manifest.payload
-      .split("\n")
-      .find((line) => line.includes("/segment/0.m4s"));
-
-    expect(initPath).toBeTruthy();
-    expect(segmentPath).toBeTruthy();
-
     const initResponse = await app.inject({
       method: "GET",
-      url: initPath ?? "",
+      url: "/xui-api/__remux__/session/session-1/init.mp4",
     });
     const segmentResponse = await app.inject({
       method: "GET",
-      url: segmentPath ?? "",
+      url: "/xui-api/__remux__/session/session-1/segment/0.m4s",
     });
 
-    expect(initResponse.statusCode).toBe(200);
-    expect(initResponse.headers["content-type"]).toContain("video/mp4");
+    expect(initResponse.statusCode).toBe(410);
     expect(initResponse.headers["access-control-allow-origin"]).toBe("*");
-    expect(initResponse.payload).toBe("init-body");
-    expect(segmentResponse.statusCode).toBe(200);
-    expect(segmentResponse.headers["content-type"]).toContain("video/mp4");
-    expect(segmentResponse.payload).toBe("segment-zero");
+    expect(initResponse.json()).toMatchObject({
+      error: "remux_disabled",
+    });
+    expect(segmentResponse.statusCode).toBe(410);
+    expect(segmentResponse.json()).toMatchObject({
+      error: "remux_disabled",
+    });
 
     await app.close();
   });

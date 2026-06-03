@@ -114,22 +114,9 @@ describe("createCatchUpGateway", () => {
     expect(prepareSession).not.toHaveBeenCalled();
   });
 
-  it("chooses the raw redirect .ts candidate for explicitly allowed remux mode and bootstraps it before resolve", async () => {
+  it("ignores explicitly allowed remux mode and keeps normalized proxy playback", async () => {
     const logger = createLogger();
-    const prepareSession = vi.fn().mockResolvedValue({
-      sessionId: "session-1",
-      requestKey: "request-key",
-      upstreamUrl: "https://login.example/timeshift/user/pass/1800/2026-03-08:08-30/112.ts",
-      tempDir: "/tmp/lumen-catchup-remux/session-1",
-      status: "ready",
-      processHandle: null,
-      playlistPath: "/tmp/lumen-catchup-remux/session-1/index.m3u8",
-      initPath: "/tmp/lumen-catchup-remux/session-1/init.mp4",
-      segmentDir: "/tmp/lumen-catchup-remux/session-1/segment",
-      createdAtMs: 0,
-      lastAccessAtMs: 0,
-      errorMessage: null,
-    });
+    const prepareSession = vi.fn();
     const gateway = createCatchUpGateway({
       logger,
       remuxController: createStubRemuxController({
@@ -144,24 +131,50 @@ describe("createCatchUpGateway", () => {
       requestBaseUrl: "http://localhost:8788/catchup-gateway/resolve",
     });
 
-    expect(result.transportMode).toBe("proxy-remuxed");
-    expect(result.playbackUrl).toContain("/timeshift/user/pass/1800/2026-03-08:08-30/112.ts");
-    expect(result.playbackUrl).toContain("__lumenTransport=remux-hls");
-    expect(result.playbackUrl).not.toContain("/streaming/timeshift.php");
-    expect(prepareSession).toHaveBeenCalledTimes(1);
-    const preparedUpstreamUrl = prepareSession.mock.calls[0]?.[0]?.upstreamUrl;
-    expect(preparedUpstreamUrl).toBeInstanceOf(URL);
-    expect((preparedUpstreamUrl as URL).pathname).toBe("/timeshift/user/pass/1800/2026-03-08:08-30/112.ts");
+    expect(result.transportMode).toBe("proxy-normalized");
+    expect(result.playbackUrl).toContain("__lumenTransport=normalized");
+    expect(result.playbackUrl).not.toContain("__lumenTransport=remux-hls");
+    expect(prepareSession).not.toHaveBeenCalled();
   });
 
-  it("downgrades to proxy-normalized when remux binaries are unavailable", async () => {
+  it("ignores debug remux override and does not bootstrap a remux session", async () => {
     const logger = createLogger();
+    const prepareSession = vi.fn();
+    const gateway = createCatchUpGateway({
+      logger,
+      remuxController: createStubRemuxController({
+        matchesFeatureGate: () => true,
+        prepareSession,
+      }),
+      env: REMUX_ALLOWED_ENV,
+    });
+
+    const result = await gateway.resolve({
+      request: {
+        ...createRequest(),
+        debugOverride: {
+          enabled: true,
+          transportMode: "proxy-remuxed" as const,
+        },
+      },
+      requestBaseUrl: "http://localhost:8788/catchup-gateway/resolve",
+    });
+
+    expect(result.transportMode).toBe("proxy-normalized");
+    expect(result.playbackUrl).toContain("__lumenTransport=normalized");
+    expect(result.playbackUrl).not.toContain("__lumenTransport=remux-hls");
+    expect(prepareSession).not.toHaveBeenCalled();
+  });
+
+  it("does not consult remux binaries when the env tries to enable remux", async () => {
+    const logger = createLogger();
+    const checkBinary = vi.fn(() => false);
     const remuxController = createCatchUpRemuxController({
       logger,
       env: {
         LUMEN_PROXY_REMUX_ENABLED: "1",
       },
-      checkBinary: () => false,
+      checkBinary,
     });
     const gateway = createCatchUpGateway({
       logger,
@@ -176,30 +189,8 @@ describe("createCatchUpGateway", () => {
 
     expect(result.transportMode).toBe("proxy-normalized");
     expect(result.playbackUrl).toContain("__lumenTransport=normalized");
-    expect(result.fallbackReason).toBe("remux-binaries-missing");
-  });
-
-  it("downgrades cleanly when remux bootstrap fails", async () => {
-    const logger = createLogger();
-    const gateway = createCatchUpGateway({
-      logger,
-      remuxController: createStubRemuxController({
-        matchesFeatureGate: () => true,
-        prepareSession: async () => {
-          throw new Error("ffmpeg exploded");
-        },
-      }),
-      env: REMUX_ALLOWED_ENV,
-    });
-
-    const result = await gateway.resolve({
-      request: createRequest(),
-      requestBaseUrl: "http://localhost:8788/catchup-gateway/resolve",
-    });
-
-    expect(result.transportMode).toBe("proxy-normalized");
-    expect(result.playbackUrl).toContain("__lumenTransport=normalized");
-    expect(result.fallbackReason).toBe("remux-unavailable");
+    expect(result.fallbackReason).toBe("gateway-normalized");
+    expect(checkBinary).not.toHaveBeenCalled();
   });
 
   it("disables provider-direct for mediaking hosts and keeps normalized proxy as floor", async () => {

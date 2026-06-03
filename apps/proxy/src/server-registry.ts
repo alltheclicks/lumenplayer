@@ -22,6 +22,9 @@ const DEFAULT_ALLOWED_MODES: CatchUpGatewayTransportMode[] = [
   "provider-direct",
   "proxy-normalized",
 ];
+const DISALLOWED_RUNTIME_MODES = new Set<CatchUpGatewayTransportMode>([
+  "proxy-remuxed",
+]);
 
 const DEFAULT_POLICY: CatchUpGatewayServerPolicy = {
   catchupGatewayEnabled: true,
@@ -60,9 +63,9 @@ const parseAllowedModes = (
       entry === "proxy-normalized" ||
       entry === "proxy-remuxed"
     ),
-  );
+  ).filter((entry) => !DISALLOWED_RUNTIME_MODES.has(entry));
 
-  return modes.length > 0 ? modes : null;
+  return modes;
 };
 
 const normalizeServerUrl = (value: string): string => {

@@ -91,6 +91,7 @@ const validatePrQualityGateWorkflow = () => {
     'pnpm release:qaf035:test',
     'pnpm release:guardrails:test',
     'pnpm release:no-media-evidence:test',
+    'pnpm release:proxy-no-media:test',
   ];
 
   for (const snippet of requiredSnippets) {

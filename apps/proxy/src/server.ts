@@ -4,7 +4,6 @@ import { Writable } from "node:stream";
 import { createCatchUpGateway } from "./catchup-gateway.js";
 import {
   createCatchUpRemuxController,
-  type CatchUpRemuxAssetRequest,
   type CatchUpRemuxController,
 } from "./catchup-remux.js";
 import {
@@ -586,21 +585,34 @@ const isCatchUpRequestUrl = (upstreamUrl: URL): boolean => {
   );
 };
 
+const isRemuxPlaybackHint = (upstreamUrl: URL): boolean => (
+  upstreamUrl.searchParams.get("__lumenTransport") === "remux-hls"
+);
+
 const buildRequestBaseUrl = (request: FastifyRequest): string => {
   const host = request.headers.host ?? "localhost";
   return `${request.protocol}://${host}${request.url}`;
 };
 
+const sendRemuxDisabledError = (
+  reply: FastifyReply,
+  message = "Catch-up remux/transcode playback is disabled by the no-media-processing runtime policy.",
+): FastifyReply => (
+  reply
+    .code(410)
+    .type("application/json; charset=utf-8")
+    .send({
+      error: "remux_disabled",
+      message,
+    })
+);
+
 const buildRemuxAssetResponse = async ({
   request,
   reply,
-  remuxController,
-  assetRequest,
 }: {
   request: FastifyRequest;
   reply: FastifyReply;
-  remuxController: CatchUpRemuxController;
-  assetRequest: CatchUpRemuxAssetRequest;
 }): Promise<void> => {
   applyCorsHeaders(reply);
 
@@ -609,18 +621,7 @@ const buildRemuxAssetResponse = async ({
     return;
   }
 
-  try {
-    const assetBody = await remuxController.getAsset(assetRequest);
-    reply.code(200).type("video/mp4");
-    if (request.method === "HEAD") {
-      reply.send();
-      return;
-    }
-    reply.send(assetBody);
-  } catch (error) {
-    const message = toErrorMessage(error, "Remux asset is unavailable.");
-    sendRemuxError(reply, 502, message);
-  }
+  sendRemuxDisabledError(reply);
 };
 
 export const createProxyServer = (options: ProxyServerOptions = {}): FastifyInstance => {
@@ -712,6 +713,15 @@ export const createProxyServer = (options: ProxyServerOptions = {}): FastifyInst
     const upstreamUrl = buildUpstreamUrl(parsedTarget.baseUrl, suffixPath, requestUrl.search);
     const requestHeaders = buildForwardHeaders(request.headers);
     const requestMethod = request.method.toUpperCase();
+
+    if (isCatchUpRequestUrl(upstreamUrl) && isRemuxPlaybackHint(upstreamUrl)) {
+      request.log.warn({
+        event: "catchup.remux_disabled",
+        upstreamUrl: upstreamUrl.toString(),
+      });
+      sendRemuxDisabledError(reply);
+      return;
+    }
 
     if (
       RETRYABLE_METHODS.has(requestMethod) &&
@@ -915,19 +925,9 @@ export const createProxyServer = (options: ProxyServerOptions = {}): FastifyInst
     "/xui-api/__remux__/session/:sessionId/init.mp4",
     async (request, reply) => {
       applyCorsHeaders(reply);
-      const assetRequest = remuxController.parseAssetRequest(
-        new URL(request.raw.url ?? "/", "http://lumen-proxy.local"),
-      );
-      if (!assetRequest) {
-        sendRemuxError(reply, 404, "Remux asset not found.");
-        return;
-      }
-
       await buildRemuxAssetResponse({
         request,
         reply,
-        remuxController,
-        assetRequest,
       });
     },
   );
@@ -936,19 +936,9 @@ export const createProxyServer = (options: ProxyServerOptions = {}): FastifyInst
     "/xui-api/__remux__/session/:sessionId/segment/:index.m4s",
     async (request, reply) => {
       applyCorsHeaders(reply);
-      const assetRequest = remuxController.parseAssetRequest(
-        new URL(request.raw.url ?? "/", "http://lumen-proxy.local"),
-      );
-      if (!assetRequest) {
-        sendRemuxError(reply, 404, "Remux asset not found.");
-        return;
-      }
-
       await buildRemuxAssetResponse({
         request,
         reply,
-        remuxController,
-        assetRequest,
       });
     },
   );
