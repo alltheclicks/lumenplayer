@@ -105,6 +105,7 @@ const validateRunbook = () => {
     'final proof command',
     'final-mode validation for the concrete go/no-go, smoke/regression, compatibility-matrix, and design-parity artifacts',
     '--require-targets',
+    'narrower platform/device/browser/tag profile',
   ];
 
   for (const snippet of requiredSnippets) {

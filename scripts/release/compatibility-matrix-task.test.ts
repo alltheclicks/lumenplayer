@@ -462,4 +462,97 @@ describe('compatibility-matrix-task', () => {
 
     fs.rmSync(tempDir, { recursive: true, force: true });
   });
+
+  it('fails final status when a required target profile is narrowed under the same id', () => {
+    const repoRoot = process.cwd();
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-0342-compat-'));
+    const matrixPath = path.join(tempDir, 'matrix.json');
+    const targetsPath = path.join(tempDir, 'targets.json');
+    const outPath = path.join(tempDir, 'run.json');
+
+    fs.writeFileSync(matrixPath, JSON.stringify({
+      release: 'V1',
+      templateVersion: 1,
+      cases: [
+        {
+          id: 'CASE-TARGET-SAFARI',
+          suite: 'smoke',
+          title: 'case target Safari',
+          platform: 'desktop',
+          device: 'Mac',
+          browser: 'Safari',
+          tags: ['target-safari'],
+          releaseBlocker: true,
+        },
+      ],
+    }, null, 2));
+
+    fs.writeFileSync(targetsPath, JSON.stringify({
+      targets: [
+        {
+          id: 'target-safari',
+          name: 'Target Safari',
+          platform: 'desktop',
+          device: 'Mac',
+          browser: 'Safari',
+          requiredTags: ['target-safari'],
+        },
+      ],
+    }, null, 2));
+
+    const init = runTask([
+      'init',
+      '--matrix', matrixPath,
+      '--targets', targetsPath,
+      '--out', outPath,
+      '--run-id', 'compat-test-run-8',
+      '--operator', 'ci-test',
+    ], repoRoot);
+    expect(init.status).toBe(0);
+
+    const set = runTask([
+      'set',
+      '--run', outPath,
+      '--case', 'CASE-TARGET-SAFARI',
+      '--target', 'target-safari',
+      '--status', 'pass',
+      '--executor', 'ci-test',
+      '--evidence', 'manual-safari',
+    ], repoRoot);
+    expect(set.status).toBe(0);
+
+    const finalize = runTask([
+      'finalize',
+      '--run', outPath,
+      '--signoff', 'pass',
+      '--approved-by', 'release-owner',
+    ], repoRoot);
+    expect(finalize.status).toBe(0);
+
+    const run = JSON.parse(fs.readFileSync(outPath, 'utf8')) as {
+      targets: Array<{ id: string; browser: string }>;
+      results: Array<{ targetId: string; browser: string; targetBrowser: string }>;
+    };
+    const target = run.targets.find((entry) => entry.id === 'target-safari');
+    if (target) {
+      target.browser = 'Chrome';
+    }
+    const result = run.results.find((entry) => entry.targetId === 'target-safari');
+    if (result) {
+      result.browser = 'Chrome';
+      result.targetBrowser = 'Chrome';
+    }
+    fs.writeFileSync(outPath, `${JSON.stringify(run, null, 2)}\n`);
+
+    const finalStatus = runTask([
+      'status',
+      '--run', outPath,
+      '--require-final',
+      '--require-targets', targetsPath,
+    ], repoRoot);
+    expect(finalStatus.status).toBe(2);
+    expect(finalStatus.stderr).toContain('target target-safari browser to match required target profile');
+
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  });
 });

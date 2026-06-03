@@ -13,6 +13,13 @@ const fail = (message) => {
 };
 
 const isNonEmptyString = (value) => typeof value === 'string' && value.trim() !== '';
+const sortedStrings = (values) => values.map(String).sort((a, b) => a.localeCompare(b));
+const sameStringSet = (left, right) => {
+  const sortedLeft = sortedStrings(left);
+  const sortedRight = sortedStrings(right);
+  return sortedLeft.length === sortedRight.length
+    && sortedLeft.every((value, index) => value === sortedRight[index]);
+};
 
 const nowIso = () => new Date().toISOString();
 
@@ -428,6 +435,9 @@ const statusCommand = (args) => {
   const runTargetIds = new Set((Array.isArray(run.targets) ? run.targets : [])
     .map((target) => target.id)
     .filter(isNonEmptyString));
+  const runTargetsById = new Map((Array.isArray(run.targets) ? run.targets : [])
+    .filter((target) => isNonEmptyString(target.id))
+    .map((target) => [target.id, target]));
   const resultTargetIds = new Set(run.results
     .map((result) => result.targetId)
     .filter(isNonEmptyString));
@@ -470,6 +480,33 @@ const statusCommand = (args) => {
 
       if (!resultTargetIds.has(target.id)) {
         fail(`status --require-final requires at least one result for target ${target.id}.`);
+      }
+
+      const runTarget = runTargetsById.get(target.id);
+      for (const field of ['name', 'platform', 'device', 'browser', 'matchMode']) {
+        if (runTarget[field] !== target[field]) {
+          fail(`status --require-final requires target ${target.id} ${field} to match required target profile.`);
+        }
+      }
+
+      if (!Array.isArray(runTarget.requiredTags) || !sameStringSet(runTarget.requiredTags, target.requiredTags)) {
+        fail(`status --require-final requires target ${target.id} requiredTags to match required target profile.`);
+      }
+
+      const targetResults = run.results.filter((result) => result.targetId === target.id);
+      for (const result of targetResults) {
+        for (const [field, expected] of [
+          ['platform', target.platform],
+          ['device', target.device],
+          ['browser', target.browser],
+          ['targetPlatform', target.platform],
+          ['targetDevice', target.device],
+          ['targetBrowser', target.browser],
+        ]) {
+          if (result[field] !== expected) {
+            fail(`status --require-final requires result ${result.caseId} on ${target.id} ${field} to match required target profile.`);
+          }
+        }
       }
     }
   }
