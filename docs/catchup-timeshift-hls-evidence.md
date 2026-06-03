@@ -1,5 +1,11 @@
 # Catch-up Streaming Evidence Flow
 
+Current QAF-035 no-media note (2026-06-03):
+
+- This file is historical provider evidence.
+- Do not run the old local `ffmpeg`/`ffprobe` probe for beta/release alignment.
+- `scripts/catchup/probe-timeshift-hls.mjs` now exits before local media-tool probing. Use browser/provider-byte evidence plus `pnpm release:no-media-evidence:scan` instead.
+
 Purpose:
 - collect provider-facing evidence on the real browser catch-up path
 - keep `QAF-034` focused on proof of provider media failure, not stale URL-shape assumptions

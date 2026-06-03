@@ -238,6 +238,7 @@ Current no-media production note (2026-06-03):
   - This supersedes older March/April remux fallback notes for beta/release direction.
   - `proxy-remuxed`, `remux-hls`, local ffmpeg/ffprobe, server-side transcode/remux, generated HLS, and XUI-side transcode/remux are not accepted paths for broken catch-up channels.
   - PR #224 on `codex/qaf-035-production-web-catchup` hard-disables the proxy remux controller before binary checks or process spawn.
+  - The historical `scripts/catchup/probe-timeshift-hls.mjs` CLI now exits before local ffmpeg/ffprobe probing; keep future evidence on browser/provider bytes and `release:no-media-evidence:scan`.
   - CI/release guardrails now enforce:
     - `pnpm release:proxy-no-media:validate`
     - `pnpm release:proxy-no-media:test`

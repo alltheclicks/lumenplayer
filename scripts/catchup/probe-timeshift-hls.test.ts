@@ -1,8 +1,29 @@
+import { spawnSync } from "node:child_process";
+
 import { describe, expect, it } from "vitest";
 
 import { parseManifest, pickSampleSegments } from "./probe-timeshift-hls.mjs";
 
 describe("probe-timeshift-hls helpers", () => {
+  it("blocks direct CLI probes before local media tools can run", () => {
+    const result = spawnSync(process.execPath, [
+      "scripts/catchup/probe-timeshift-hls.mjs",
+      "--url",
+      "https://edge.example/archive/index.m3u8",
+      "--ffmpeg-bin",
+      "should-not-run",
+      "--ffprobe-bin",
+      "should-not-run",
+    ], {
+      cwd: process.cwd(),
+      encoding: "utf8",
+    });
+
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain("Local timeshift HLS ffmpeg/ffprobe probing is disabled");
+    expect(result.stderr).not.toContain("should-not-run");
+  });
+
   it("parses media segments and cumulative durations from an HLS manifest", () => {
     const manifest = parseManifest(
       [

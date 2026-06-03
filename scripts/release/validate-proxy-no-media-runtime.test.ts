@@ -57,6 +57,7 @@ const createFixture = (overrides: Record<string, string> = {}) => {
     ].join('\n'),
     'package.json': JSON.stringify({
       scripts: {
+        'catchup:timeshift-hls:probe': 'node scripts/catchup/probe-timeshift-hls.mjs',
         'release:proxy-no-media:validate': 'node scripts/release/validate-proxy-no-media-runtime.mjs',
         'release:proxy-no-media:test': 'vitest run apps/proxy/src/catchup-remux.test.ts apps/proxy/src/catchup-gateway.test.ts apps/proxy/src/server.test.ts',
       },
@@ -75,6 +76,17 @@ const createFixture = (overrides: Record<string, string> = {}) => {
       'direct remux controller calls do not reach binary checks, process spawn, or remux playback',
       'pnpm release:proxy-no-media:test',
     ].join('\n'),
+    'scripts/catchup/probe-timeshift-hls.mjs': [
+      'const LOCAL_MEDIA_PROBE_DISABLED_MESSAGE = "Local timeshift HLS ffmpeg/ffprobe probing is disabled by the QAF-035 no-media policy. Use browser/provider-byte evidence and pnpm release:no-media-evidence:scan instead.";',
+      'const main = async () => {',
+      '  fail(LOCAL_MEDIA_PROBE_DISABLED_MESSAGE, 2);',
+      '  const args = parseArgs(process.argv.slice(2));',
+    ].join('\n'),
+    'scripts/catchup/probe-timeshift-hls.test.ts': [
+      'blocks direct CLI probes before local media tools can run',
+      'should-not-run',
+      'Local timeshift HLS ffmpeg/ffprobe probing is disabled',
+    ].join('\n'),
     'BACKLOG.md': [
       'no transcode/remux fallback',
       'active invariant: broken catch-up channels must stay on provider bytes, proxy-normalized manifests, or unsupported overlay',
@@ -84,6 +96,7 @@ const createFixture = (overrides: Record<string, string> = {}) => {
       'Session 2026-06-03 — QAF-035 no-media production guard alignment',
       'historical March remux/transcode branches and notes below are preserved for audit context only',
       'apps/proxy/src/catchup-remux.ts` hard-disables direct controller calls before binary checks or process spawn',
+      'scripts/catchup/probe-timeshift-hls.mjs` is preserved only as a historical parser/audit helper; direct CLI use now exits before local `ffmpeg/ffprobe` probing',
       'The later remux/transcode fallback direction is superseded by the current no-media production policy at the top of this handoff.',
     ].join('\n'),
     'docs/V3-QA-FIX-BACKLOG.md': [
@@ -91,6 +104,7 @@ const createFixture = (overrides: Record<string, string> = {}) => {
       'Current no-media production note (2026-06-03)',
       'This supersedes older March/April remux fallback notes for beta/release direction.',
       'Historical remux/transcode evidence remains below for audit context only',
+      'The historical `scripts/catchup/probe-timeshift-hls.mjs` CLI now exits before local ffmpeg/ffprobe probing',
       'Historical next ready queue (superseded by current no-media note)',
       'proxy-normalized manifest handling or unsupported overlay is required',
     ].join('\n'),
@@ -141,6 +155,21 @@ describe('proxy no-media runtime validator', () => {
     expect(result.stderr).toContain('catchup-remux.ts must include');
   });
 
+  it('fails when the local timeshift probe can reach argument parsing', () => {
+    const result = runValidator(createFixture({
+      'scripts/catchup/probe-timeshift-hls.mjs': [
+        'const LOCAL_MEDIA_PROBE_DISABLED_MESSAGE = "Local timeshift HLS ffmpeg/ffprobe probing is disabled by the QAF-035 no-media policy. Use browser/provider-byte evidence and pnpm release:no-media-evidence:scan instead.";',
+        'const main = async () => {',
+        '  const args = parseArgs(process.argv.slice(2));',
+        '  fail(LOCAL_MEDIA_PROBE_DISABLED_MESSAGE, 2);',
+        '  runFfprobe(args.ffprobeBin, args.url);',
+      ].join('\n'),
+    }));
+
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain('direct CLI hard-disable');
+  });
+
   it('fails when current-truth docs reintroduce stale remux-required wording', () => {
     const result = runValidator(createFixture({
       'docs/V3-QA-FIX-BACKLOG.md': [
@@ -148,6 +177,7 @@ describe('proxy no-media runtime validator', () => {
         'Current no-media production note (2026-06-03)',
         'This supersedes older March/April remux fallback notes for beta/release direction.',
         'Historical remux/transcode evidence remains below for audit context only',
+        'The historical `scripts/catchup/probe-timeshift-hls.mjs` CLI now exits before local ffmpeg/ffprobe probing',
         'Historical next ready queue (superseded by current no-media note)',
         'proxy-normalized manifest handling or unsupported overlay is required',
         'gateway normalization/remux is required',

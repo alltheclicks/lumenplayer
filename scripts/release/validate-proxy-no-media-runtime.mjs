@@ -66,6 +66,8 @@ const packageJson = JSON.parse(readText('package.json'));
 const workflow = readText('.github/workflows/pr-quality-gate.yml');
 const runtimePolicy = readText('artifacts/release/media-policy/qaf035-runtime-media-policy-20260602.json');
 const runbook = readText('docs/release/qaf035-beta-signoff-runbook.md');
+const catchupTimeshiftProbe = readText('scripts/catchup/probe-timeshift-hls.mjs');
+const catchupTimeshiftProbeTest = readText('scripts/catchup/probe-timeshift-hls.test.ts');
 const backlog = readText('BACKLOG.md');
 const handoff = readText('HANDOFF.md');
 const qaFixBacklog = readText('docs/V3-QA-FIX-BACKLOG.md');
@@ -120,6 +122,14 @@ assertIncludes('package.json release:proxy-no-media:test', proxyNoMediaScript, [
   'apps/proxy/src/server.test.ts',
 ]);
 
+const catchupProbeScript = packageJson.scripts?.['catchup:timeshift-hls:probe'];
+if (typeof catchupProbeScript !== 'string') {
+  fail('package.json must keep scripts.catchup:timeshift-hls:probe as a disabled historical entry.');
+}
+if (catchupProbeScript !== 'node scripts/catchup/probe-timeshift-hls.mjs') {
+  fail('package.json catchup:timeshift-hls:probe must point only at the disabled historical probe script.');
+}
+
 assertIncludes('.github/workflows/pr-quality-gate.yml', workflow, [
   'Test proxy no-media runtime guard',
   'pnpm release:proxy-no-media:test',
@@ -137,6 +147,22 @@ assertIncludes('QAF-035 beta signoff runbook', runbook, [
   'pnpm release:proxy-no-media:test',
 ]);
 
+assertIncludes('scripts/catchup/probe-timeshift-hls.mjs disabled local media probe', catchupTimeshiftProbe, [
+  'LOCAL_MEDIA_PROBE_DISABLED_MESSAGE',
+  'Local timeshift HLS ffmpeg/ffprobe probing is disabled by the QAF-035 no-media policy.',
+  'Use browser/provider-byte evidence and pnpm release:no-media-evidence:scan instead.',
+]);
+assertOrdered('scripts/catchup/probe-timeshift-hls.mjs direct CLI hard-disable', catchupTimeshiftProbe, [
+  'const main = async () => {',
+  'fail(LOCAL_MEDIA_PROBE_DISABLED_MESSAGE, 2);',
+  'const args = parseArgs(process.argv.slice(2));',
+]);
+assertIncludes('scripts/catchup/probe-timeshift-hls.test.ts disabled local media probe', catchupTimeshiftProbeTest, [
+  'blocks direct CLI probes before local media tools can run',
+  'should-not-run',
+  'Local timeshift HLS ffmpeg/ffprobe probing is disabled',
+]);
+
 assertIncludes('BACKLOG.md QAF-035 current no-media direction', backlog, [
   'no transcode/remux fallback',
   'active invariant: broken catch-up channels must stay on provider bytes, proxy-normalized manifests, or unsupported overlay',
@@ -147,6 +173,7 @@ assertIncludes('HANDOFF.md QAF-035 current no-media direction', handoff, [
   'Session 2026-06-03 — QAF-035 no-media production guard alignment',
   'historical March remux/transcode branches and notes below are preserved for audit context only',
   'apps/proxy/src/catchup-remux.ts` hard-disables direct controller calls before binary checks or process spawn',
+  'scripts/catchup/probe-timeshift-hls.mjs` is preserved only as a historical parser/audit helper; direct CLI use now exits before local `ffmpeg/ffprobe` probing',
   'The later remux/transcode fallback direction is superseded by the current no-media production policy at the top of this handoff.',
 ]);
 assertExcludes('HANDOFF.md QAF-035 current no-media direction', handoff, [
@@ -158,6 +185,7 @@ assertIncludes('docs/V3-QA-FIX-BACKLOG.md QAF-035 current no-media direction', q
   'Current no-media production note (2026-06-03)',
   'This supersedes older March/April remux fallback notes for beta/release direction.',
   'Historical remux/transcode evidence remains below for audit context only',
+  'The historical `scripts/catchup/probe-timeshift-hls.mjs` CLI now exits before local ffmpeg/ffprobe probing',
   'Historical next ready queue (superseded by current no-media note)',
   'proxy-normalized manifest handling or unsupported overlay is required',
 ]);

@@ -17,6 +17,7 @@
   - web catch-up rejects `proxy-remuxed`
   - proxy runtime strips `proxy-remuxed`, rejects direct `remux-hls`, and returns `remux_disabled` from `__remux__` asset endpoints
   - `apps/proxy/src/catchup-remux.ts` hard-disables direct controller calls before binary checks or process spawn
+  - `scripts/catchup/probe-timeshift-hls.mjs` is preserved only as a historical parser/audit helper; direct CLI use now exits before local `ffmpeg/ffprobe` probing
   - `pnpm release:proxy-no-media:validate` statically verifies the hard-disable guard, CI workflow, package script, release artifact, and runbook coverage
   - `pnpm release:proxy-no-media:test` covers controller, gateway, and server behavior
   - `pnpm release:secret-hygiene:validate` now scans release evidence/docs/templates plus `HANDOFF.md`, `BACKLOG.md`, and `docs/V3-QA-FIX-BACKLOG.md`, so current-truth docs cannot reintroduce non-redacted provider credentials

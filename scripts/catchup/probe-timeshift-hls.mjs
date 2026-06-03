@@ -8,11 +8,17 @@ const DEFAULT_REDIRECT_LIMIT = 5;
 const DEFAULT_CHECKPOINTS_SECONDS = [0, 60, 120];
 const DEFAULT_DECODE_SEGMENT_FRAMES = 180;
 const DEFAULT_PLAYLIST_DECODE_SECONDS = 150;
+const LOCAL_MEDIA_PROBE_DISABLED_MESSAGE = [
+  "Local timeshift HLS ffmpeg/ffprobe probing is disabled by the QAF-035 no-media policy.",
+  "Use browser/provider-byte evidence and pnpm release:no-media-evidence:scan instead.",
+].join(" ");
 
 const usage = () => {
   console.error(
     [
       "Usage: node scripts/catchup/probe-timeshift-hls.mjs --url <timeshift-url> [options]",
+      "",
+      "DISABLED: this historical local ffmpeg/ffprobe probe is not allowed for QAF-035 beta/release work.",
       "",
       "Options:",
       "  --output <file>                 Write JSON artifact to file.",
@@ -336,6 +342,8 @@ const buildConsoleSummary = (artifact) => {
 };
 
 const main = async () => {
+  fail(LOCAL_MEDIA_PROBE_DISABLED_MESSAGE, 2);
+
   const args = parseArgs(process.argv.slice(2));
   const initialUrl = new URL(args.url).toString();
   const redirectResult = await resolveRedirectChain(initialUrl, args.redirectLimit);
