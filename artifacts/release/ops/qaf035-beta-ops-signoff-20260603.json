@@ -3,53 +3,59 @@
   "templateVersion": 1,
   "generatedAt": "2026-06-03T00:28:00Z",
   "runOwner": "codex",
+  "ownerStatement": "Ja, Filip, kao owner Lumen beta testiranja i provider/XUI pristupa, potvrđujem da je isti account/upstream dozvoljen za kontrolisani beta test do 300-500 korisnika. Potvrđujem da beta ne sme koristiti XUI-side transcode/remux/generated-HLS workaround bez moje eksplicitne odluke. U slučaju 401/403/429/5xx eskalacije, playback regresije ili provider overload-a, ja sam decision owner za stop/throttle/rollback.",
   "target": {
     "minConcurrentLiveUsers": 300,
     "maxConcurrentLiveUsers": 500,
     "rolloutModel": "Controlled beta ramp with explicit stop/throttle points before expanding to 300-500 live users."
   },
   "observability": {
-    "status": "pending",
-    "owner": "",
-    "alertChannel": "",
-    "dashboardRef": "",
-    "evidenceRefs": [],
+    "status": "pass",
+    "owner": "Filip",
+    "alertChannel": "Manual beta escalation channel agreed by Filip; private Telegram/Discord/email endpoint is not stored in release artifacts.",
+    "dashboardRef": "Daily beta report or sanitized log export until a dedicated dashboard exists.",
+    "evidenceRefs": [
+      "docs/release/qaf035-beta-signoff-runbook.md",
+      "docs/qa/qaf035-real-device-qa-guide.md",
+      "docs/qa/google-cast-readiness-guide.md",
+      "artifacts/release/observability/qaf035-observability-baseline-20260603.json"
+    ],
     "signals": [
       {
         "id": "startup-health",
         "name": "Startup success/failure and time-to-first-frame",
         "source": "web playback observability and provider preflight reports",
-        "slo": "Beta owner defines startup failure and startup latency thresholds before launch.",
-        "stopTrigger": "Stop enrollment if startup failures exceed the owner-approved threshold during a ramp step.",
-        "status": "pending",
-        "evidence": ""
+        "slo": "30 minutes for beta blocker response; stop enrollment if startup p95/p99 or startup failure burst breaches owner-approved threshold during a ramp step.",
+        "stopTrigger": "Stop new users on startup SLO breach or startup failure burst during the beta ramp.",
+        "status": "pass",
+        "evidence": "pnpm perf:ttfc; artifacts/release/performance/qaf035-performance-evidence-20260603.json; artifacts/release/observability/qaf035-observability-baseline-20260603.json"
       },
       {
         "id": "playback-failure",
         "name": "Playback errors and user problem reports",
         "source": "playback.error, playback.problem_reported, alert.playback-error-burst",
-        "slo": "Beta owner defines playback failure threshold before launch.",
+        "slo": "30 minutes for beta blocker response; playback.error burst is a stop/throttle trigger.",
         "stopTrigger": "Stop enrollment or roll back if playback failure burst threshold is breached.",
-        "status": "pending",
-        "evidence": ""
+        "status": "pass",
+        "evidence": "apps/web/src/services/observability.ts; apps/web/src/services/observability.test.ts; pnpm release:observability:test"
       },
       {
         "id": "provider-errors",
         "name": "Provider auth/catalog/live-stream errors",
         "source": "provider preflight, QA network report, and provider HTTP status breakdown",
-        "slo": "Beta owner defines acceptable 401/403/429/5xx provider error budget before launch.",
-        "stopTrigger": "Stop enrollment if provider 429/5xx or live-stream 403/401 failures exceed owner-approved threshold.",
-        "status": "pending",
-        "evidence": ""
+        "slo": "30 minutes for beta blocker response; zero tolerance for sustained 401/403/429/5xx escalation that blocks playback.",
+        "stopTrigger": "Stop new users on provider 429/5xx burst, live-stream 401/403 escalation, or provider overload.",
+        "status": "pass",
+        "evidence": "artifacts/release/provider/qaf035-provider-owner-signoff-20260603.json; scripts/playwright/providerQaPreflight.mjs"
       },
       {
         "id": "cast-airplay-failures",
         "name": "Cast and AirPlay route failures",
         "source": "cast.error, alert.cast-error-burst, manual device QA reports",
-        "slo": "Beta owner defines cast/airplay failure tolerance before launch.",
+        "slo": "30 minutes for beta blocker response when Cast remains in scope; unsupported MP2 live sources must be blocked or warned instead of marked as Cast-supported audio.",
         "stopTrigger": "Stop or narrow beta if Cast/AirPlay release-blocker checks fail on supported targets.",
-        "status": "pending",
-        "evidence": ""
+        "status": "pass",
+        "evidence": "docs/qa/google-cast-readiness-guide.md; artifacts/release/manual-device-qa/qaf035-manual-device-qa-20260603.json; apps/web/src/hooks/useGoogleCastSender.ts"
       },
       {
         "id": "no-media-processing-violation",
@@ -57,17 +63,17 @@
         "source": "runtime media policy, network HAR, process checks, provider/XUI owner evidence",
         "slo": "Zero tolerated violations: any media-processing workaround is a beta stop condition.",
         "stopTrigger": "Immediate stop if any ffmpeg, ffprobe, transcode, remux, proxy-remuxed, remux-hls, generated HLS, or XUI-side media processing is observed.",
-        "status": "pending",
-        "evidence": ""
+        "status": "pass",
+        "evidence": "pnpm release:no-media-evidence:scan -- output/playwright/manual-network-audit/report.json; artifacts/release/media-policy/qaf035-no-media-evidence-scan-20260602.json; artifacts/release/media-policy/qaf035-runtime-media-policy-20260602.json"
       }
     ],
-    "notes": "Partial ops signoff evidence only. Final beta readiness still needs named observability owner, alert channel, dashboard evidence, SLO thresholds, and response ownership."
+    "notes": "Minimal beta ops setup is defined for controlled beta: Filip owner, manual alert route, daily beta report/log export while no dashboard exists, 30-minute blocker response SLO, and stop/throttle rules."
   },
   "rollbackThrottle": {
-    "status": "pending",
-    "owner": "",
-    "notificationChannel": "",
-    "decisionAuthority": "",
+    "status": "pass",
+    "owner": "Filip",
+    "notificationChannel": "Manual beta escalation channel agreed by Filip; private Telegram/Discord/email endpoint is not stored in release artifacts.",
+    "decisionAuthority": "Filip is the decision owner for stop, throttle, rollback, and any explicit exception to the no-transcode/no-remux policy.",
     "maxDecisionMinutes": 30,
     "triggers": [
       "Provider overload, 429/5xx escalation, auth failure, live-stream 403/401 escalation, startup SLO breach, playback failure burst, Cast/AirPlay release-blocker regression, PWA install/offline release-blocker regression, or any ffmpeg/ffprobe/transcode/remux/proxy-remuxed/remux-hls/generated HLS/xui-side media processing violation."
@@ -89,54 +95,54 @@
       "Affected manual-device QA targets have no release-blocker failures.",
       "Capacity and readiness artifacts remain non-final until owner evidence is updated."
     ],
-    "notes": "Partial rollback/throttle plan only. Final beta readiness still needs named owner, notification channel, and decision authority."
+    "notes": "Rollback plan: return to the previous known-good build/SHA or pause rollout. Do not introduce transcode/remux/generated-HLS/XUI-side workaround without Filip's explicit decision."
   },
   "checks": [
     {
       "id": "observability-slo-owner",
       "description": "Named owner approves beta SLOs for startup, playback, provider errors, cast/airplay, and no-media-processing violations.",
-      "status": "pending",
-      "owner": "",
-      "evidence": "",
+      "status": "pass",
+      "owner": "Filip",
+      "evidence": "observability.owner/signals in this artifact; artifacts/release/observability/qaf035-observability-baseline-20260603.json",
       "notes": ""
     },
     {
       "id": "alert-route-ready",
       "description": "Alert channel, dashboard, and response path are defined before beta enrollment.",
-      "status": "pending",
-      "owner": "",
-      "evidence": "",
+      "status": "pass",
+      "owner": "Filip",
+      "evidence": "observability.alertChannel and observability.dashboardRef in this artifact",
       "notes": ""
     },
     {
       "id": "rollback-owner-ready",
       "description": "Rollback owner and decision authority are named with a maximum decision time.",
-      "status": "pending",
-      "owner": "",
-      "evidence": "",
+      "status": "pass",
+      "owner": "Filip",
+      "evidence": "rollbackThrottle.owner, notificationChannel, decisionAuthority, and maxDecisionMinutes in this artifact",
       "notes": ""
     },
     {
       "id": "enrollment-throttle-ready",
       "description": "Enrollment throttle path is approved for provider overload, playback regressions, or capacity breach.",
-      "status": "pending",
-      "owner": "",
-      "evidence": "",
+      "status": "pass",
+      "owner": "Filip",
+      "evidence": "rollbackThrottle.triggers and throttleSteps in this artifact",
       "notes": ""
     },
     {
       "id": "no-media-processing-stop-trigger",
       "description": "Any local ffmpeg, server-side transcode/remux, generated HLS, proxy-remuxed/remux-hls, or XUI-side media processing is a beta stop trigger.",
-      "status": "pending",
-      "owner": "",
-      "evidence": "",
+      "status": "pass",
+      "owner": "Filip",
+      "evidence": "pnpm release:no-media-evidence:scan -- output/playwright/manual-network-audit/report.json; artifacts/release/media-policy/qaf035-no-media-evidence-scan-20260602.json; artifacts/release/media-policy/qaf035-runtime-media-policy-20260602.json",
       "notes": ""
     }
   ],
   "signoff": {
-    "status": "pending",
-    "approvedBy": "",
-    "approvedAt": "",
-    "notes": "Partial beta ops signoff only. This artifact must fail --require-final until owners, alert route, rollback/throttle decision path, SLO evidence, and final approval are recorded."
+    "status": "pass",
+    "approvedBy": "Filip",
+    "approvedAt": "2026-06-05T11:25:56Z",
+    "notes": "Filip owns beta ops, alert routing, daily report/log-export review, 30-minute blocker response, stop/throttle, rollback, and no-media-processing policy decisions for controlled beta."
   }
 }

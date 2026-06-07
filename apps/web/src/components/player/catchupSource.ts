@@ -292,6 +292,22 @@ const resolveProviderSafeStartPositionSeconds = ({
   );
 };
 
+const buildProviderSafeStartMetadata = (
+  metadata: ReturnType<typeof buildCatchUpMetadata>,
+  gateway: CatchUpGatewayPlaybackMetadata | null | undefined,
+  providerSafeStartPositionSeconds: number,
+): ReturnType<typeof buildCatchUpMetadata> => ({
+  ...metadata,
+  ...(gateway ? { gateway } : {}),
+  ...(providerSafeStartPositionSeconds > 0
+    ? {
+      catchUpHlsStartupMode: 'progressive' as const,
+      catchUpHlsStartPositionSeconds: 0,
+      catchUpProviderSafeStartPositionSeconds: providerSafeStartPositionSeconds,
+    }
+    : {}),
+});
+
 const buildBlockedCatchUpPlaybackSourceResult = ({
   channel,
   program,
@@ -415,7 +431,6 @@ export const resolveCatchUpPlaybackSource = async ({
   fallbackStreamIds = [],
   durationSeconds,
   preferredPositionSeconds = 0,
-  initialPositionGuardSeconds = 15,
   channelTitle,
   gatewayOptions,
   shadowValidation = CATCHUP_SHADOW_VALIDATION_ENABLED,
@@ -446,12 +461,9 @@ export const resolveCatchUpPlaybackSource = async ({
     durationSeconds: resolvedDurationSeconds,
   });
   const minuteAlignedStartTimestamp = alignTimestampToMinute(startTimestamp);
-  const baseInitialPositionSeconds = preferredPositionSeconds > 0
+  const timelineInitialPositionSeconds = preferredPositionSeconds > 0
     ? Math.max(0, Math.min(resolvedDurationSeconds, preferredPositionSeconds))
-    : Math.max(
-      0,
-      Math.min(resolvedDurationSeconds, initialPositionGuardSeconds),
-    );
+    : 0;
   const capability = resolveCatchUpWebCapability(channel);
   if (capability.blockPlayback) {
     return buildBlockedCatchUpPlaybackSourceResult({
@@ -461,7 +473,7 @@ export const resolveCatchUpPlaybackSource = async ({
       capability,
       minuteAlignedStartTimestamp,
       resolvedDurationSeconds,
-      initialPositionSeconds: baseInitialPositionSeconds,
+      initialPositionSeconds: timelineInitialPositionSeconds,
       fullDurationSeconds,
       channelTitle,
     });
@@ -502,28 +514,23 @@ export const resolveCatchUpPlaybackSource = async ({
       durationSeconds: resolvedDurationSeconds,
       streamId: channel.streamId,
     });
-    const initialPositionSeconds = Math.max(
-      baseInitialPositionSeconds,
+    const stableStartupMetadata = buildProviderSafeStartMetadata(
+      metadata,
+      shadowGateway,
       providerSafeStartPositionSeconds,
     );
-    const stableStartupMetadata = providerSafeStartPositionSeconds > 0
-      ? { ...metadata, gateway: shadowGateway, catchUpHlsStartupMode: 'progressive' as const }
-      : { ...metadata, gateway: shadowGateway };
     const resolvedSource = buildCatchUpSessionSourceFromMetadata({
       channel,
       metadata: stableStartupMetadata,
       channelTitle,
       urlBuilder,
-      preferredPositionSeconds: initialPositionSeconds,
-      initialPositionGuardSeconds: Math.max(
-        initialPositionGuardSeconds,
-        providerSafeStartPositionSeconds,
-      ),
+      preferredPositionSeconds: timelineInitialPositionSeconds,
+      initialPositionGuardSeconds: 0,
     });
     const result = {
       source: resolvedSource.source,
       transportPlan: resolvedSource.transportPlan,
-      initialPositionSeconds,
+      initialPositionSeconds: timelineInitialPositionSeconds,
       fullDurationSeconds,
       gateway: shadowGateway,
     };
@@ -549,33 +556,24 @@ export const resolveCatchUpPlaybackSource = async ({
     durationSeconds: resolvedDurationSeconds,
     streamId: channel.streamId,
   });
-  const initialPositionSeconds = Math.max(
-    baseInitialPositionSeconds,
+  const stableStartupMetadata = buildProviderSafeStartMetadata(
+    metadata,
+    gateway,
     providerSafeStartPositionSeconds,
   );
-  const stableStartupMetadata = providerSafeStartPositionSeconds > 0
-    ? {
-      ...metadata,
-      ...(gateway ? { gateway } : {}),
-      catchUpHlsStartupMode: 'progressive' as const,
-    }
-    : (gateway ? { ...metadata, gateway } : metadata);
   const resolvedSource = buildCatchUpSessionSourceFromMetadata({
     channel,
     metadata: stableStartupMetadata,
     channelTitle,
     urlBuilder,
-    preferredPositionSeconds: initialPositionSeconds,
-    initialPositionGuardSeconds: Math.max(
-      initialPositionGuardSeconds,
-      providerSafeStartPositionSeconds,
-    ),
+    preferredPositionSeconds: timelineInitialPositionSeconds,
+    initialPositionGuardSeconds: 0,
   });
 
   const result = {
     source: resolvedSource.source,
     transportPlan: resolvedSource.transportPlan,
-    initialPositionSeconds,
+    initialPositionSeconds: timelineInitialPositionSeconds,
     fullDurationSeconds,
     gateway,
   };

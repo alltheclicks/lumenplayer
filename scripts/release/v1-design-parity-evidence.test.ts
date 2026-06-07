@@ -31,6 +31,17 @@ interface DesignParityEvidence {
     referenceManifest: string;
     referenceCommit: string;
   };
+  reviewIntake: {
+    status: Status;
+    owner: string;
+    captureReportRef: string;
+    reviewGuideRef: string;
+    requiredScreenIds: string[];
+    requiredViewportModes: string[];
+    requiredReviewFields: string[];
+    finalRules: string[];
+    notes: string;
+  };
   screens: DesignParityScreen[];
   signoff: {
     status: Status;
@@ -63,6 +74,9 @@ const writeEvidenceFile = (tmpDir: string, fileName: string) => {
 
 const finalizeArtifact = (tmpDir: string): DesignParityEvidence => {
   const finalArtifact = structuredClone(loadTemplate());
+  finalArtifact.reviewIntake.status = 'pass';
+  finalArtifact.reviewIntake.owner = 'design-qa';
+  finalArtifact.reviewIntake.notes = 'Design owner parity review is complete for every required screen.';
   for (const screen of finalArtifact.screens) {
     screen.desktop.status = 'pass';
     screen.desktop.referenceRef = writeEvidenceFile(tmpDir, `${screen.id}-desktop-reference.png`);
@@ -89,6 +103,14 @@ describe('V1 design parity evidence artifact', () => {
 
     expect(template.sourceOfTruth.repoPath).toContain('/balkan-stream');
     expect(template.sourceOfTruth.referenceManifest).toContain('reference-manifest.json');
+    expect(template.reviewIntake.captureReportRef).toBe('output/playwright/lp-0373/CAPTURE-REPORT.md');
+    expect(template.reviewIntake.requiredViewportModes).toEqual(expect.arrayContaining(['desktop', 'mobile']));
+    expect(template.reviewIntake.requiredReviewFields).toEqual(expect.arrayContaining([
+      'reviewedBy',
+      'reviewedAt',
+      'notes',
+    ]));
+    expect(template.reviewIntake.finalRules.join('\n')).toContain('Rendered capture status pass is not final owner approval.');
 
     const required = ['login', 'player', 'movies', 'series', 'epg'];
     for (const screenId of required) {
@@ -136,10 +158,32 @@ describe('V1 design parity evidence artifact', () => {
     const artifactPath = 'artifacts/release/design/qaf035-design-parity-20260603.json';
     const partialResult = runValidator([artifactPath], repoRoot);
     expect(partialResult.status).toBe(0);
+    const partialArtifact = JSON.parse(fs.readFileSync(path.resolve(repoRoot, artifactPath), 'utf8')) as DesignParityEvidence;
+    expect(partialArtifact.reviewIntake.status).toBe('pending');
+    expect(partialArtifact.reviewIntake.requiredScreenIds).toContain('player');
+    expect(partialArtifact.reviewIntake.finalRules.join('\n')).toContain('not final owner approval');
 
     const finalResult = runValidator([artifactPath, '--require-final'], repoRoot);
     expect(finalResult.status).toBe(2);
-    expect(finalResult.stderr).toContain('desktop.status cannot be pending with --require-final');
+    expect(finalResult.stderr).toContain('parityReview.status cannot be pending with --require-final');
+  });
+
+  it('fails validation when review intake omits the owner-approval guardrail', () => {
+    const repoRoot = process.cwd();
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-0373-design-parity-'));
+    const invalidPath = path.join(tmpDir, 'weak-review-intake.json');
+
+    const invalidArtifact = structuredClone(loadTemplate());
+    invalidArtifact.reviewIntake.finalRules = invalidArtifact.reviewIntake.finalRules.filter((rule) => (
+      !rule.includes('not final owner approval')
+    ));
+    fs.writeFileSync(invalidPath, `${JSON.stringify(invalidArtifact, null, 2)}\n`);
+
+    const result = runValidator([invalidPath], repoRoot);
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain('reviewIntake.finalRules must include not final owner approval');
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
   it('fails strict validation when rendered evidence files are missing', () => {

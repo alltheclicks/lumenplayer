@@ -154,7 +154,7 @@ describe('V1 security/privacy baseline template', () => {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  it('validates the QAF-035 partial security/privacy baseline without final signoff', () => {
+  it('validates the finalized QAF-035 security/privacy baseline', () => {
     const repoRoot = process.cwd();
     const artifactPath = 'artifacts/release/security/qaf035-security-privacy-baseline-20260603.json';
 
@@ -162,8 +162,7 @@ describe('V1 security/privacy baseline template', () => {
     expect(partialResult.status).toBe(0);
 
     const finalResult = runValidator([artifactPath, '--require-final'], repoRoot);
-    expect(finalResult.status).toBe(2);
-    expect(finalResult.stderr).toContain('controls cannot remain pending with --require-final');
+    expect(finalResult.status).toBe(0);
   });
 
   it('fails validation when a declared storage source does not contain the storage key', () => {

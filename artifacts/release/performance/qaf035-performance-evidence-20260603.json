@@ -12,21 +12,21 @@
     "startup": {
       "metric": "time-to-first-channel-ms",
       "samples": 20,
-      "p95": null,
-      "p99": null,
+      "p95": 57.986,
+      "p99": 59.667,
       "thresholdP95": 3000,
       "thresholdP99": 3500,
-      "status": "pending",
-      "evidence": "pnpm perf:ttfc; scripts/perf/time-to-first-channel.test.ts"
+      "status": "pass",
+      "evidence": "pnpm perf:ttfc PASS 2026-06-05T14:05:12Z; [perf:ttfc] samples=20 medianMs=24.124 p95Ms=57.986 p99Ms=59.667 maxMs=60.087; scripts/perf/time-to-first-channel.test.ts"
     },
     "memory": {
       "metric": "rss-mb",
       "samples": 1,
-      "peakRssMb": null,
-      "p95RssMb": null,
+      "peakRssMb": 109.453,
+      "p95RssMb": 109.453,
       "thresholdPeakMb": 200,
-      "status": "pending",
-      "evidence": "pnpm perf:rss; scripts/perf/memory-cap.test.ts"
+      "status": "pass",
+      "evidence": "pnpm perf:rss PASS 2026-06-05T14:05:12Z; [perf:rss] samples=1 baselineRssMb=57.844 peakRssMb=109.453 p95RssMb=109.453 deltaMb=51.609; scripts/perf/memory-cap.test.ts"
     },
     "failureRate": {
       "metric": "failed-runs-percent",
@@ -39,9 +39,9 @@
     }
   },
   "signoff": {
-    "status": "pending",
-    "approvedBy": "",
-    "approvedAt": "",
-    "notes": "Concrete local benchmark coverage is wired, but final beta performance signoff remains pending until a named release owner records numeric startup/RSS evidence from an approved release run."
+    "status": "pass",
+    "approvedBy": "Filip",
+    "approvedAt": "2026-06-05T14:05:12Z",
+    "notes": "Numeric startup and RSS evidence from local QAF-035 benchmark run is recorded and within thresholds."
   }
 }

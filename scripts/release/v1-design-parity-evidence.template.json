@@ -8,6 +8,22 @@
     "referenceManifest": "docs/design-parity/balkan-stream/reference-manifest.json",
     "referenceCommit": "e7013011d81b384b3a1cd658e77d9a4ffb8f7c64"
   },
+  "reviewIntake": {
+    "status": "pending",
+    "owner": "",
+    "captureReportRef": "output/playwright/lp-0373/CAPTURE-REPORT.md",
+    "reviewGuideRef": "docs/release/qaf035-beta-signoff-runbook.md",
+    "requiredScreenIds": ["login", "player", "movies", "series", "epg"],
+    "requiredViewportModes": ["desktop", "mobile"],
+    "requiredReviewFields": ["reviewedBy", "reviewedAt", "notes"],
+    "finalRules": [
+      "Fresh desktop and mobile captures are required for every screen.",
+      "Rendered capture status pass is not final owner approval.",
+      "Every screen parityReview must be pass or fail with reviewedBy, reviewedAt, and notes.",
+      "Final signoff can pass only when every desktop, mobile, and parityReview status is pass."
+    ],
+    "notes": "Pending design owner parity review."
+  },
   "screens": [
     {
       "id": "login",

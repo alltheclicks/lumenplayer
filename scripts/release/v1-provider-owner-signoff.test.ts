@@ -154,7 +154,7 @@ describe('V1 provider owner signoff artifact', () => {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  it('tracks the QAF-035 partial provider owner artifact without allowing final signoff', () => {
+  it('tracks the finalized QAF-035 provider owner artifact', () => {
     const repoRoot = process.cwd();
     const artifactPath = 'artifacts/release/provider/qaf035-provider-owner-signoff-20260603.json';
 
@@ -162,8 +162,7 @@ describe('V1 provider owner signoff artifact', () => {
     expect(partialResult.status).toBe(0);
 
     const finalResult = runValidator([artifactPath, '--require-final'], repoRoot);
-    expect(finalResult.status).toBe(2);
-    expect(finalResult.stderr).toContain('provider.ownerName must be set with --require-final');
+    expect(finalResult.status).toBe(0);
   });
 
   it('fails validation when XUI-side transcode is enabled', () => {

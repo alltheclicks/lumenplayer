@@ -305,7 +305,7 @@ describe('resolveCatchUpPlaybackSource', () => {
     expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 
-  it('starts MediaKing catch-up at the first browser-safe archive segment', async () => {
+  it('keeps MediaKing catch-up on the user timeline start while retaining a provider safe-start recovery hint', async () => {
     const fetchImpl = vi.fn().mockRejectedValue(new Error('gateway unavailable'));
 
     const result = await resolveCatchUpPlaybackSource({
@@ -330,10 +330,11 @@ describe('resolveCatchUpPlaybackSource', () => {
       shadowValidation: false,
     });
 
-    expect(result.initialPositionSeconds).toBe(75);
+    expect(result.initialPositionSeconds).toBe(0);
     expect(result.source.metadata).toMatchObject({
       catchUpHlsStartupMode: 'progressive',
-      catchUpHlsStartPositionSeconds: 75,
+      catchUpHlsStartPositionSeconds: 0,
+      catchUpProviderSafeStartPositionSeconds: 75,
     });
   });
 
@@ -362,10 +363,11 @@ describe('resolveCatchUpPlaybackSource', () => {
       shadowValidation: false,
     });
 
-    expect(result.initialPositionSeconds).toBe(75);
+    expect(result.initialPositionSeconds).toBe(0);
     expect(result.source.metadata).toMatchObject({
       catchUpHlsStartupMode: 'progressive',
-      catchUpHlsStartPositionSeconds: 75,
+      catchUpHlsStartPositionSeconds: 0,
+      catchUpProviderSafeStartPositionSeconds: 75,
     });
   });
 
@@ -394,10 +396,11 @@ describe('resolveCatchUpPlaybackSource', () => {
       shadowValidation: false,
     });
 
-    expect(result.initialPositionSeconds).toBe(75);
+    expect(result.initialPositionSeconds).toBe(0);
     expect(result.source.metadata).toMatchObject({
       catchUpHlsStartupMode: 'progressive',
-      catchUpHlsStartPositionSeconds: 75,
+      catchUpHlsStartPositionSeconds: 0,
+      catchUpProviderSafeStartPositionSeconds: 75,
     });
   });
 });

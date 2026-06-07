@@ -13,9 +13,26 @@ interface MatrixCase {
   evidence?: string;
 }
 
+interface EvidenceIntake {
+  status: 'pending' | 'pass' | 'fail';
+  owner: string;
+  completedBy?: string;
+  completedAt?: string;
+  requiredCaseIds: string[];
+  requiredEvidenceRefs: string[];
+  finalRules: string[];
+}
+
 interface MatrixTemplate {
   requiredCoverageTags: string[];
+  evidenceIntake?: EvidenceIntake;
   cases: MatrixCase[];
+  signoff?: {
+    status: 'pending' | 'pass' | 'fail';
+    approvedBy: string;
+    approvedAt: string;
+    notes?: string;
+  };
 }
 
 const loadTemplate = (): MatrixTemplate => {
@@ -100,9 +117,23 @@ describe('V1 smoke/regression matrix template', () => {
     expect(result.status).toBe(0);
     expect(result.stdout).toContain('cases: 18');
 
+    const artifact = loadQafArtifact();
+    expect(artifact.evidenceIntake?.requiredEvidenceRefs).toEqual(expect.arrayContaining([
+      'manualDeviceTargetRef',
+      'networkEvidenceRef',
+      'noMediaScanArtifactRef',
+      'perCaseEvidenceRef',
+    ]));
+    expect(artifact.evidenceIntake?.requiredCaseIds).toEqual(expect.arrayContaining([
+      'SMK-DESKTOP-CHROME-LIVE',
+      'SMK-MOBILE-IOS-SAFARI-LIVE',
+      'SMK-CAST-CONNECT-PLAY',
+      'REG-PWA-OFFLINE-RECOVERY',
+    ]));
+
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-smoke-matrix-'));
     const invalidPath = path.join(tmpDir, 'missing-no-media-scan.json');
-    const invalidArtifact = loadQafArtifact();
+    const invalidArtifact = artifact;
     const noMediaCase = invalidArtifact.cases.find((testCase) => (
       testCase.id === 'SMK-PROVIDER-CATCHUP-NO-MEDIA-PROCESSING'
     ));
@@ -115,6 +146,76 @@ describe('V1 smoke/regression matrix template', () => {
     const invalidResult = runValidator([invalidPath], repoRoot);
     expect(invalidResult.status).toBe(2);
     expect(invalidResult.stderr).toContain('release:no-media-evidence:scan');
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('accepts a finalized matrix only when intake and signoff are complete', () => {
+    const repoRoot = process.cwd();
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-smoke-matrix-'));
+    const finalPath = path.join(tmpDir, 'finalized-smoke-matrix.json');
+    const finalizedArtifact = loadQafArtifact();
+
+    finalizedArtifact.cases = finalizedArtifact.cases.map((testCase) => ({
+      ...testCase,
+      status: 'pass',
+      evidence: testCase.evidence || 'artifacts/release/manual-device-qa/qaf035-manual-device-qa-20260603.json',
+    }));
+    finalizedArtifact.evidenceIntake = {
+      ...finalizedArtifact.evidenceIntake!,
+      status: 'pass',
+      completedBy: 'release-qa-owner',
+      completedAt: '2026-06-05T12:00:00Z',
+    };
+    finalizedArtifact.signoff = {
+      status: 'pass',
+      approvedBy: 'release-qa-owner',
+      approvedAt: '2026-06-05T12:05:00Z',
+      notes: 'Synthetic finalized artifact for validator coverage.',
+    };
+
+    fs.writeFileSync(finalPath, `${JSON.stringify(finalizedArtifact, null, 2)}\n`);
+
+    const result = runValidator([finalPath, '--require-final'], repoRoot);
+    expect(result.status).toBe(0);
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('fails when evidence intake drops a pending case from the required case list', () => {
+    const repoRoot = process.cwd();
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-smoke-matrix-'));
+    const invalidPath = path.join(tmpDir, 'missing-pending-case-intake.json');
+    const invalidArtifact = loadQafArtifact();
+
+    invalidArtifact.evidenceIntake!.requiredCaseIds = invalidArtifact.evidenceIntake!.requiredCaseIds.filter(
+      (caseId) => caseId !== 'SMK-MOBILE-IOS-SAFARI-LIVE',
+    );
+
+    fs.writeFileSync(invalidPath, `${JSON.stringify(invalidArtifact, null, 2)}\n`);
+
+    const result = runValidator([invalidPath], repoRoot);
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain('Pending case SMK-MOBILE-IOS-SAFARI-LIVE must be listed');
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('fails when evidence intake drops no-media scan requirements', () => {
+    const repoRoot = process.cwd();
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-smoke-matrix-'));
+    const invalidPath = path.join(tmpDir, 'missing-no-media-intake.json');
+    const invalidArtifact = loadQafArtifact();
+
+    invalidArtifact.evidenceIntake!.requiredEvidenceRefs = invalidArtifact.evidenceIntake!.requiredEvidenceRefs.filter(
+      (ref) => ref !== 'noMediaScanArtifactRef',
+    );
+
+    fs.writeFileSync(invalidPath, `${JSON.stringify(invalidArtifact, null, 2)}\n`);
+
+    const result = runValidator([invalidPath], repoRoot);
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain('requiredEvidenceRefs must include noMediaScanArtifactRef');
 
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });

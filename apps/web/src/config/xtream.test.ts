@@ -11,6 +11,7 @@ describe("resolveXtreamApiServer", () => {
       resolveXtreamApiServer("https://gw.castcdn.net:443/", {
         isDev: false,
         origin: "http://localhost:8080",
+        proxyOrigin: "",
       }),
     ).toBe("https://gw.castcdn.net:443");
   });
@@ -30,6 +31,7 @@ describe("resolveXtreamApiServer", () => {
       resolveXtreamApiServer("https://gw.castcdn.net:443", {
         isDev: true,
         origin: "http://localhost:8080/",
+        proxyOrigin: "",
       }),
     ).toBe("http://localhost:8080/xui-api/https%3A%2F%2Fgw.castcdn.net%3A443");
   });
@@ -49,6 +51,7 @@ describe("resolveXtreamApiServer", () => {
       resolveXtreamApiServer("https://gw.castcdn.net:443", {
         isDev: true,
         origin: null,
+        proxyOrigin: "",
       }),
     ).toBe("https://gw.castcdn.net:443");
   });
@@ -66,6 +69,7 @@ describe("resolveXtreamRuntimeCredentials", () => {
         {
           isDev: true,
           origin: "http://localhost:8080",
+          proxyOrigin: "",
         },
       ),
     ).toEqual({
@@ -107,6 +111,7 @@ describe("resolveXtreamRuntimeCredentials", () => {
         {
           isDev: false,
           origin: "http://localhost:8080",
+          proxyOrigin: "",
         },
       ),
     ).toEqual({

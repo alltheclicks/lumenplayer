@@ -42,13 +42,13 @@ const AppShell = () => {
 
   return (
     <div className={shellRootClassName}>
-      <div className={isPlayerRoute ? 'h-full' : hasRouteOwnedMobileNav ? '' : 'pb-16 md:pb-0'}>
+      <div className={isPlayerRoute ? 'h-full min-h-0 w-full max-w-[100vw] overflow-hidden' : hasRouteOwnedMobileNav ? '' : 'pb-16 md:pb-0'}>
         <Outlet />
       </div>
 
       {!isPlayerRoute && !hasRouteOwnedMobileNav && (
-        <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-border bg-card/95 backdrop-blur-md md:hidden pb-[env(safe-area-inset-bottom)]">
-          <div className="flex items-center justify-around py-2">
+        <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-border bg-card/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-md md:hidden">
+          <div className="flex items-center justify-around py-1.5">
             {NAV_ITEMS.map((item) => {
               const active = isActiveRoute(item.path, pathname);
               return (
@@ -63,12 +63,13 @@ const AppShell = () => {
                     event.preventDefault();
                     switchToLiveMode();
                   }}
-                  className={`flex flex-col items-center gap-1 px-4 py-2 transition-colors ${
+                  className={`flex min-w-0 flex-1 flex-col items-center gap-0.5 px-1.5 py-1.5 transition-colors ${
                     active ? 'text-primary' : 'text-muted-foreground'
                   }`}
                 >
-                  <item.icon className="h-5 w-5" />
-                  <span className="text-xs font-medium">{item.label}</span>
+                  <item.icon className="h-4 w-4" />
+                  <span className="text-[10px] font-medium sm:hidden">{item.shortLabel}</span>
+                  <span className="hidden text-xs font-medium sm:inline">{item.label}</span>
                 </NavLink>
               );
             })}

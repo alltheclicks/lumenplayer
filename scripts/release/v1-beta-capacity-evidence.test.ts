@@ -29,6 +29,33 @@ interface BetaCapacityEvidenceArtifact {
     usesXuiSideRemux: boolean;
     evidence: string;
   };
+  deployedEdgeLoadEvidence: {
+    status: CapacityStatus;
+    owner: string;
+    environment: string;
+    deploymentRef: string;
+    testedAt: string;
+    targetConcurrentUsers: number;
+    durationMinutes: number;
+    appUrl: string;
+    proxyUrl: string;
+    loadReportRef: string;
+    capacityPlanRef: string;
+    noProviderMediaStreams: boolean;
+    endpoints: Array<{
+      id: string;
+      url: string;
+      requests: number;
+      concurrency: number;
+      ok: number;
+      failed: number;
+      p95Ms: number;
+      p99Ms: number;
+      maxMs: number;
+    }>;
+    scope: string;
+    notes: string;
+  };
   checks: CapacityCheck[];
   signoff: {
     status: CapacityStatus;
@@ -56,10 +83,75 @@ const loadTemplate = (): BetaCapacityEvidenceArtifact => {
 const finalizeArtifact = (): BetaCapacityEvidenceArtifact => {
   const artifact = loadTemplate();
   artifact.mediaPath.evidence = 'output/playwright/manual-network-audit/REPORT.md; pnpm release:no-media-evidence:scan -- output/playwright/manual-network-audit/report.json; artifacts/release/media-policy/qaf035-no-media-evidence-scan-20260602.json; provider/XUI owner capacity statement';
+  artifact.deployedEdgeLoadEvidence = {
+    status: 'pass',
+    owner: 'capacity-owner',
+    environment: 'deployed-beta-edge',
+    deploymentRef: 'deploy://lumen/qaf035-beta-edge',
+    testedAt: '2026-06-02T15:20:00.000Z',
+    targetConcurrentUsers: 500,
+    durationMinutes: 15,
+    appUrl: 'https://app.lumen.example',
+    proxyUrl: 'https://proxy.lumen.example',
+    loadReportRef: 'artifacts/release/capacity/qaf035-deployed-edge-load-redacted.json',
+    capacityPlanRef: 'docs/release/qaf035-beta-capacity-plan.md',
+    noProviderMediaStreams: true,
+    endpoints: [
+      {
+        id: 'web-player',
+        url: 'https://app.lumen.example/player',
+        requests: 500,
+        concurrency: 500,
+        ok: 500,
+        failed: 0,
+        p95Ms: 180,
+        p99Ms: 220,
+        maxMs: 250,
+      },
+      {
+        id: 'web-manifest',
+        url: 'https://app.lumen.example/manifest.webmanifest',
+        requests: 500,
+        concurrency: 500,
+        ok: 500,
+        failed: 0,
+        p95Ms: 90,
+        p99Ms: 120,
+        maxMs: 140,
+      },
+      {
+        id: 'cast-receiver',
+        url: 'https://app.lumen.example/receiver.html',
+        requests: 500,
+        concurrency: 500,
+        ok: 500,
+        failed: 0,
+        p95Ms: 95,
+        p99Ms: 130,
+        maxMs: 160,
+      },
+      {
+        id: 'proxy-health',
+        url: 'https://proxy.lumen.example/health',
+        requests: 500,
+        concurrency: 500,
+        ok: 500,
+        failed: 0,
+        p95Ms: 80,
+        p99Ms: 110,
+        maxMs: 150,
+      },
+    ],
+    scope: 'Deployed Lumen web/proxy edge load proof for 300-500 beta users with no provider media streams.',
+    notes: 'Final deployed capacity evidence covers the 500-user beta edge target and does not request provider media streams.',
+  };
   for (const check of artifact.checks) {
     check.status = 'pass';
     check.owner = 'release-owner';
     check.evidence = `evidence://${check.id}`;
+    if (check.id === 'lumen-edge-capacity') {
+      check.evidence = `deployedEdgeLoadEvidence; ${artifact.deployedEdgeLoadEvidence.loadReportRef}`;
+    }
     if (check.id === 'no-media-processing-verification') {
       check.evidence = 'pnpm release:no-media-evidence:scan -- output/playwright/manual-network-audit/report.json; artifacts/release/media-policy/qaf035-no-media-evidence-scan-20260602.json';
     }
@@ -114,7 +206,95 @@ describe('V1 beta capacity evidence artifact', () => {
 
     const finalResult = runValidator([artifactPath, '--require-final'], repoRoot);
     expect(finalResult.status).toBe(2);
-    expect(finalResult.stderr).toContain('check provider-capacity-owner is pending with --require-final');
+    expect(finalResult.stderr).toContain('deployedEdgeLoadEvidence.status must be pass with --require-final');
+  });
+
+  it('records QAF-035 HTTPS staging edge smoke without treating it as final capacity proof', () => {
+    const artifactPath = path.resolve(
+      process.cwd(),
+      'artifacts/release/capacity/qaf035-beta-capacity-20260602.json',
+    );
+    const artifact = JSON.parse(fs.readFileSync(artifactPath, 'utf8'));
+
+    expect(artifact.httpsStagingEdgeSmoke.status).toBe('pass');
+    expect(artifact.httpsStagingEdgeSmoke.appUrl).toMatch(/^https:\/\//);
+    expect(artifact.httpsStagingEdgeSmoke.proxyUrl).toMatch(/^https:\/\//);
+    expect(artifact.httpsStagingEdgeSmoke.command).toContain('pnpm perf:staging-capacity');
+    expect(artifact.httpsStagingEdgeSmoke.reportRef).toBe('output/perf/staging-capacity-smoke/REPORT.md');
+    expect(artifact.httpsStagingEdgeSmoke.endpoints.every((endpoint) => endpoint.failed === 0)).toBe(true);
+
+    const edgeCapacityCheck = artifact.checks.find((check) => check.id === 'lumen-edge-capacity');
+    expect(edgeCapacityCheck.status).toBe('pending');
+    expect(edgeCapacityCheck.evidence).toContain('httpsStagingEdgeSmoke');
+
+    expect(artifact.deployedEdgeLoadEvidence.status).toBe('pending');
+    expect(artifact.deployedEdgeLoadEvidence.targetConcurrentUsers).toBe(500);
+    expect(artifact.deployedEdgeLoadEvidence.noProviderMediaStreams).toBe(true);
+    expect(edgeCapacityCheck.evidence).toContain('deployedEdgeLoadEvidence');
+  });
+
+  it('fails validation if HTTPS staging smoke omits the replay command guardrails', () => {
+    const repoRoot = process.cwd();
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-beta-capacity-'));
+    const invalidPath = path.join(tmpDir, 'weak-staging-smoke.json');
+    const artifactPath = path.resolve(
+      process.cwd(),
+      'artifacts/release/capacity/qaf035-beta-capacity-20260602.json',
+    );
+    const artifact = JSON.parse(fs.readFileSync(artifactPath, 'utf8'));
+    artifact.httpsStagingEdgeSmoke.command = 'pnpm perf:staging-capacity';
+    fs.writeFileSync(invalidPath, `${JSON.stringify(artifact, null, 2)}\n`);
+
+    const result = runValidator([invalidPath], repoRoot);
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain('httpsStagingEdgeSmoke.command must include: E2E_CAPACITY_APP_URL');
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('fails final validation if deployed edge/load evidence remains pending', () => {
+    const repoRoot = process.cwd();
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-beta-capacity-'));
+    const invalidPath = path.join(tmpDir, 'pending-deployed-load.json');
+    const artifact = finalizeArtifact();
+    artifact.deployedEdgeLoadEvidence.status = 'pending';
+    fs.writeFileSync(invalidPath, `${JSON.stringify(artifact, null, 2)}\n`);
+
+    const result = runValidator([invalidPath, '--require-final'], repoRoot);
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain('deployedEdgeLoadEvidence.status must be pass with --require-final');
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('fails final validation if deployed load evidence does not cover the 500-user beta target', () => {
+    const repoRoot = process.cwd();
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-beta-capacity-'));
+    const invalidPath = path.join(tmpDir, 'weak-deployed-load.json');
+    const artifact = finalizeArtifact();
+    artifact.deployedEdgeLoadEvidence.targetConcurrentUsers = 300;
+    fs.writeFileSync(invalidPath, `${JSON.stringify(artifact, null, 2)}\n`);
+
+    const result = runValidator([invalidPath, '--require-final'], repoRoot);
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain('deployedEdgeLoadEvidence.targetConcurrentUsers must be >= target.maxConcurrentLiveUsers');
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('fails final validation if deployed endpoint evidence requests provider media/API URLs', () => {
+    const repoRoot = process.cwd();
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-beta-capacity-'));
+    const invalidPath = path.join(tmpDir, 'provider-media-load.json');
+    const artifact = finalizeArtifact();
+    artifact.deployedEdgeLoadEvidence.endpoints[0].url = 'https://app.lumen.example/live/user/pass/1.ts';
+    fs.writeFileSync(invalidPath, `${JSON.stringify(artifact, null, 2)}\n`);
+
+    const result = runValidator([invalidPath, '--require-final'], repoRoot);
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain('deployedEdgeLoadEvidence endpoint web-player must not request provider media/API URLs');
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
   it('fails strict validation if proxy-remuxed is allowed', () => {

@@ -44,6 +44,10 @@ const ChannelList = ({
     estimateSize: () => rowHeight,
     overscan: variant === 'desktop' ? 10 : 8,
   });
+  const totalSize = rowVirtualizer.getTotalSize();
+  const totalListHeight = variant === 'mobile'
+    ? `calc(${totalSize}px + max(5rem, env(safe-area-inset-bottom)))`
+    : `${totalSize}px`;
 
   useEffect(() => {
     if (!currentChannelId || previousActiveChannelIdRef.current === currentChannelId) {
@@ -90,8 +94,8 @@ const ChannelList = ({
         <div className="p-4 text-sm text-muted-foreground">Nema pronađenih kanala.</div>
       ) : (
         <div
-          className={variant === 'desktop' ? 'p-2' : 'px-2'}
-          style={{ height: `${rowVirtualizer.getTotalSize()}px`, position: 'relative' }}
+          className={variant === 'desktop' ? 'p-2' : 'w-full max-w-full px-1'}
+          style={{ height: totalListHeight, position: 'relative' }}
         >
           {virtualRows.map((virtualRow) => {
             const channel = channels[virtualRow.index];
@@ -102,7 +106,7 @@ const ChannelList = ({
             return (
               <div
                 key={channel.id}
-                className="absolute left-0 top-0 w-full"
+                className="absolute left-0 top-0 w-full max-w-full"
                 data-testid="channel-row"
                 data-active={isActive ? 'true' : 'false'}
                 style={{
@@ -116,32 +120,32 @@ const ChannelList = ({
                   }`}
                 >
                   <div
-                    className={`relative flex h-full items-center gap-3 rounded-xl transition-all ${
-                      variant === 'desktop' ? 'px-3 py-2' : 'px-3 py-2.5'
+                    className={`relative flex h-full min-w-0 items-center rounded-xl transition-all ${
+                      variant === 'desktop' ? 'gap-3 px-3 py-2' : 'gap-2 px-2 py-2.5'
                     } ${
                       isActive
                         ? 'bg-primary/15 ring-2 ring-primary ring-inset shadow-[0_0_0_1px_hsl(var(--primary)/0.25)]'
                         : 'hover:bg-secondary/60'
                     }`}
                   >
-                    <span className="w-6 flex-shrink-0 text-xs tabular-nums text-muted-foreground">
+                    <span className="w-5 flex-shrink-0 text-xs tabular-nums text-muted-foreground">
                       {channel.number}
                     </span>
                     <button
                       type="button"
                       onClick={() => onSelectChannel(channel)}
                       data-testid="channel-select"
-                      className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                      className={`flex min-w-0 flex-1 items-center text-left ${variant === 'desktop' ? 'gap-3' : 'gap-2'}`}
                     >
                       <div
                         className={`flex-shrink-0 rounded-lg bg-background/50 flex items-center justify-center ${
-                          variant === 'desktop' ? 'w-9 h-9' : 'w-10 h-10'
+                          variant === 'desktop' ? 'w-9 h-9' : 'w-9 h-9'
                         }`}
                       >
                         <ChannelLogo
                           logo={channel.logo}
                           name={channel.name}
-                          size={variant === 'desktop' ? 'md' : 'lg'}
+                          size="md"
                         />
                       </div>
                       <div className="min-w-0 flex-1 text-left">

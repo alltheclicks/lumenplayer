@@ -19,9 +19,12 @@ import type { PlayerChannel, Program } from '@lumen/types';
 const ALL_CATEGORY = '__all__';
 const TIMELINE_MINUTES_BEFORE = 60;
 const TIMELINE_MINUTES_AFTER = 300;
-const PIXELS_PER_MINUTE = 2;
-const LEFT_COLUMN_WIDTH = 260;
-const DEFAULT_VISIBLE_CHANNELS = 24;
+const DESKTOP_PIXELS_PER_MINUTE = 2;
+const MOBILE_PIXELS_PER_MINUTE = 1.15;
+const DESKTOP_LEFT_COLUMN_WIDTH = 260;
+const MOBILE_LEFT_COLUMN_WIDTH = 148;
+const DESKTOP_VISIBLE_CHANNELS = 24;
+const MOBILE_VISIBLE_CHANNELS = 12;
 
 const roundToHalfHour = (date: Date): Date => {
   const rounded = new Date(date);
@@ -30,8 +33,6 @@ const roundToHalfHour = (date: Date): Date => {
   rounded.setMinutes(flooredMinutes, 0, 0);
   return rounded;
 };
-
-const toPx = (minutes: number): number => minutes * PIXELS_PER_MINUTE;
 
 const formatHour = (date: Date): string => (
   date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
@@ -101,7 +102,19 @@ const EpgGuide = () => {
   const [selectedCategory, setSelectedCategory] = useState<string>(ALL_CATEGORY);
   const [searchQuery, setSearchQuery] = useState('');
   const [now, setNow] = useState(() => new Date());
-  const [visibleChannelsCount, setVisibleChannelsCount] = useState(DEFAULT_VISIBLE_CHANNELS);
+  const [isMobileLayout, setIsMobileLayout] = useState(false);
+  const [visibleChannelsCount, setVisibleChannelsCount] = useState(DESKTOP_VISIBLE_CHANNELS);
+
+  useEffect(() => {
+    const query = window.matchMedia('(max-width: 767px)');
+    const updateLayoutMode = () => {
+      setIsMobileLayout(query.matches);
+    };
+
+    updateLayoutMode();
+    query.addEventListener('change', updateLayoutMode);
+    return () => query.removeEventListener('change', updateLayoutMode);
+  }, []);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -111,9 +124,13 @@ const EpgGuide = () => {
     return () => window.clearInterval(timer);
   }, []);
 
+  const pixelsPerMinute = isMobileLayout ? MOBILE_PIXELS_PER_MINUTE : DESKTOP_PIXELS_PER_MINUTE;
+  const leftColumnWidth = isMobileLayout ? MOBILE_LEFT_COLUMN_WIDTH : DESKTOP_LEFT_COLUMN_WIDTH;
+  const visibleChannelsIncrement = isMobileLayout ? MOBILE_VISIBLE_CHANNELS : DESKTOP_VISIBLE_CHANNELS;
+
   useEffect(() => {
-    setVisibleChannelsCount(DEFAULT_VISIBLE_CHANNELS);
-  }, [searchQuery, selectedCategory]);
+    setVisibleChannelsCount(visibleChannelsIncrement);
+  }, [searchQuery, selectedCategory, visibleChannelsIncrement]);
 
   const windowStart = useMemo(() => {
     const roundedNow = roundToHalfHour(now);
@@ -129,7 +146,8 @@ const EpgGuide = () => {
     () => Math.max(0, Math.min(totalMinutes, minutesBetween(windowStart, now))),
     [now, totalMinutes, windowStart]
   );
-  const timelineWidth = toPx(totalMinutes);
+  const timelineWidth = totalMinutes * pixelsPerMinute;
+  const toTimelinePx = (minutes: number): number => minutes * pixelsPerMinute;
 
   const filteredChannels = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -184,29 +202,30 @@ const EpgGuide = () => {
         <title>EPG Guide - IPTV Player</title>
       </Helmet>
 
-      <div className="bg-background p-4 md:p-6">
-        <div className="mx-auto max-w-[1400px] space-y-4">
-          <div className="flex flex-wrap items-center gap-3">
-            <h1 className="text-2xl font-bold tracking-tight">EPG Grid</h1>
-            <span className="text-sm text-muted-foreground">
+      <div className="bg-background px-3 pb-[calc(6rem+env(safe-area-inset-bottom))] pt-4 md:p-6">
+        <div className="mx-auto max-w-[1400px] space-y-3 md:space-y-4">
+          <div className="flex flex-wrap items-center gap-2 md:gap-3">
+            <h1 className="text-xl font-bold tracking-tight md:text-2xl">EPG Grid</h1>
+            <span className="text-xs text-muted-foreground md:text-sm">
               TV guide view ({TIMELINE_MINUTES_BEFORE / 60}h back / {TIMELINE_MINUTES_AFTER / 60}h ahead)
             </span>
           </div>
 
-          <div className="flex flex-col gap-3 rounded-lg border border-border/70 bg-card/50 p-3 md:flex-row md:items-center md:justify-between">
+          <div className="flex flex-col gap-2 rounded-lg border border-border/70 bg-card/50 p-2 md:flex-row md:items-center md:justify-between md:gap-3 md:p-3">
             <div className="relative w-full max-w-md">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                className="pl-9"
+                className="h-9 pl-9 md:h-10"
                 placeholder="Search channels..."
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
               />
             </div>
 
-            <div className="flex gap-2 overflow-x-auto pb-1">
+            <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1 md:mx-0 md:gap-2 md:px-0">
               <Button
                 size="sm"
+                className="h-8 shrink-0 px-3 text-xs md:h-9 md:px-4 md:text-sm"
                 variant={selectedCategory === ALL_CATEGORY ? 'default' : 'outline'}
                 onClick={() => setSelectedCategory(ALL_CATEGORY)}
               >
@@ -216,6 +235,7 @@ const EpgGuide = () => {
                 <Button
                   key={category.id}
                   size="sm"
+                  className="h-8 shrink-0 px-3 text-xs md:h-9 md:px-4 md:text-sm"
                   variant={selectedCategory === category.id ? 'default' : 'outline'}
                   onClick={() => setSelectedCategory(category.id)}
                 >
@@ -241,7 +261,7 @@ const EpgGuide = () => {
           )}
 
           {!isLoading && !error && (
-            <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border/70 bg-card/30 px-3 py-2 text-xs text-muted-foreground">
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border/70 bg-card/30 px-2.5 py-2 text-xs text-muted-foreground md:px-3">
               <span>
                 {xmltvCacheQuery.isLoading
                   ? 'Loading XMLTV cache...'
@@ -271,27 +291,30 @@ const EpgGuide = () => {
           )}
 
           {!isLoading && !error && visibleChannels.length > 0 && (
-            <div className="space-y-4">
-              <div className="overflow-auto rounded-lg border border-border/70 bg-card/30" style={{ maxHeight: '70vh' }}>
-                <div style={{ minWidth: LEFT_COLUMN_WIDTH + timelineWidth }}>
+            <div className="space-y-3 md:space-y-4">
+              <div
+                className="-mx-3 overflow-auto border-y border-border/70 bg-card/30 md:mx-0 md:rounded-lg md:border"
+                style={{ maxHeight: isMobileLayout ? 'calc(100svh - 250px)' : '70vh' }}
+              >
+                <div style={{ minWidth: leftColumnWidth + timelineWidth }}>
                   <div className="sticky top-0 z-20 flex border-b border-border bg-card/95 backdrop-blur">
                     <div
-                      className="sticky left-0 z-30 flex items-center gap-2 border-r border-border bg-card px-3 py-3"
-                      style={{ width: LEFT_COLUMN_WIDTH }}
+                      className="sticky left-0 z-30 flex items-center gap-1.5 border-r border-border bg-card px-2 py-2 md:gap-2 md:px-3 md:py-3"
+                      style={{ width: leftColumnWidth }}
                     >
                       <Tv className="h-4 w-4 text-primary" />
-                      <span className="text-sm font-semibold">Channel</span>
+                      <span className="text-xs font-semibold md:text-sm">Channel</span>
                     </div>
                     <div className="relative" style={{ width: timelineWidth }}>
                       {timelineLabels.map((label) => {
-                        const left = toPx(minutesBetween(windowStart, label));
+                        const left = toTimelinePx(minutesBetween(windowStart, label));
                         return (
                           <div
                             key={label.toISOString()}
                             className="absolute top-0 bottom-0 border-l border-border/60"
                             style={{ left }}
                           >
-                            <span className="absolute left-2 top-2 text-xs text-muted-foreground">
+                            <span className="absolute left-1.5 top-2 text-[11px] text-muted-foreground md:left-2 md:text-xs">
                               {formatHour(label)}
                             </span>
                           </div>
@@ -299,7 +322,7 @@ const EpgGuide = () => {
                       })}
                       <div
                         className="absolute bottom-0 top-0 w-px bg-destructive"
-                        style={{ left: toPx(nowOffsetMinutes) }}
+                        style={{ left: toTimelinePx(nowOffsetMinutes) }}
                       />
                     </div>
                   </div>
@@ -316,16 +339,16 @@ const EpgGuide = () => {
                       return (
                         <div key={channel.id} className="flex border-b border-border/60">
                           <div
-                            className="sticky left-0 z-10 flex flex-col justify-center gap-1 border-r border-border bg-card px-3 py-2"
-                            style={{ width: LEFT_COLUMN_WIDTH }}
+                            className="sticky left-0 z-10 flex flex-col justify-center gap-0.5 border-r border-border bg-card px-2 py-2 md:gap-1 md:px-3"
+                            style={{ width: leftColumnWidth }}
                           >
-                            <p className="truncate text-sm font-medium">{channel.number}. {channel.name}</p>
-                            <p className="truncate text-xs text-muted-foreground">{channel.categoryName}</p>
+                            <p className="truncate text-xs font-medium md:text-sm">{channel.number}. {channel.name}</p>
+                            <p className="truncate text-[11px] text-muted-foreground md:text-xs">{channel.categoryName}</p>
                           </div>
 
-                          <div className="relative h-[68px]" style={{ width: timelineWidth }}>
+                          <div className="relative h-[58px] md:h-[68px]" style={{ width: timelineWidth }}>
                             {timelineLabels.map((label) => {
-                              const left = toPx(minutesBetween(windowStart, label));
+                              const left = toTimelinePx(minutesBetween(windowStart, label));
                               return (
                                 <div
                                   key={`${channel.id}-${label.toISOString()}`}
@@ -337,7 +360,7 @@ const EpgGuide = () => {
 
                             <div
                               className="absolute bottom-0 top-0 w-px bg-destructive/80"
-                              style={{ left: toPx(nowOffsetMinutes) }}
+                              style={{ left: toTimelinePx(nowOffsetMinutes) }}
                             />
 
                             {query?.isLoading && (
@@ -356,10 +379,10 @@ const EpgGuide = () => {
                             {programs.map((program) => (
                               <div
                                 key={`${channel.id}-${program.id}`}
-                                className="absolute top-2 h-12 overflow-hidden rounded-md border border-primary/30 bg-primary/15 px-2 py-1"
+                                className="absolute top-1.5 h-11 overflow-hidden rounded-md border border-primary/30 bg-primary/15 px-1.5 py-1 md:top-2 md:h-12 md:px-2"
                                 style={{
-                                  left: toPx(program.leftMinutes),
-                                  width: toPx(program.widthMinutes),
+                                  left: toTimelinePx(program.leftMinutes),
+                                  width: toTimelinePx(program.widthMinutes),
                                 }}
                                 title={`${program.title} (${formatHour(program.startTime)} - ${formatHour(program.endTime)})`}
                               >
@@ -377,7 +400,7 @@ const EpgGuide = () => {
                 </div>
               </div>
 
-              <div className="flex items-center justify-between text-sm text-muted-foreground">
+              <div className="flex flex-col gap-2 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between md:text-sm">
                 <div className="flex items-center gap-2">
                   <Clock className="h-4 w-4" />
                   Current time marker is highlighted in red.
@@ -389,7 +412,7 @@ const EpgGuide = () => {
 
               {hasMoreChannels && (
                 <div className="flex justify-center">
-                  <Button variant="outline" onClick={() => setVisibleChannelsCount((count) => count + DEFAULT_VISIBLE_CHANNELS)}>
+                  <Button variant="outline" onClick={() => setVisibleChannelsCount((count) => count + visibleChannelsIncrement)}>
                     Load more channels
                   </Button>
                 </div>

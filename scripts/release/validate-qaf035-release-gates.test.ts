@@ -30,18 +30,23 @@ describe('QAF-035 release gate aggregate validator', () => {
     expect(result.stdout).toContain('final smoke/regression matrix');
     expect(result.stdout).toContain('final compatibility matrix');
     expect(result.stdout).toContain('final design parity evidence');
-    expect(result.stdout).toContain('final provider owner signoff');
+    expect(result.stdout).toContain('final beta capacity evidence');
     expect(result.stdout).toContain('final manual device QA');
     expect(result.stdout).toContain('pr-quality-gate-workflow');
     expect(result.stdout).toContain('package-scripts');
+    expect(result.stdout).toContain('mobile staging smoke evidence');
+    expect(result.stdout).toContain('design capture evidence');
+    expect(result.stdout).toContain('capacity staging smoke evidence');
     expect(result.stdout).toContain('qaf035-beta-signoff-runbook');
     expect(result.stdout).toContain('no-media scan artifact');
     expect(result.stdout).toContain('performance evidence');
     expect(result.stdout).toContain('observability baseline');
     expect(result.stdout).toContain('security/privacy baseline');
     expect(result.stdout).toContain('beta blocker closure plan');
-    expect(result.stdout).toContain('checks passed: 13');
-  });
+    expect(result.stdout).toContain('google cast readiness guard');
+    expect(result.stdout).toContain('pwa readiness guard');
+    expect(result.stdout).toContain('checks passed: 24');
+  }, 15_000);
 
   it('fails final mode until concrete owner and device evidence is complete', () => {
     const result = runValidator(['--require-final']);
@@ -52,12 +57,9 @@ describe('QAF-035 release gate aggregate validator', () => {
     expect(result.stderr).toContain('final compatibility matrix failed');
     expect(result.stderr).toContain('final design parity evidence failed');
     expect(result.stderr).toContain('final release readiness failed');
-    expect(result.stderr).toContain('final provider owner signoff failed');
-    expect(result.stderr).toContain('final performance evidence failed');
-    expect(result.stderr).toContain('final observability baseline failed');
+    expect(result.stderr).toContain('final beta capacity evidence failed');
     expect(result.stderr).toContain('final manual device QA failed');
-    expect(result.stderr).toContain('final security/privacy baseline failed');
-  });
+  }, 15_000);
 
   it('rejects unknown flags', () => {
     const result = runValidator(['--unknown']);

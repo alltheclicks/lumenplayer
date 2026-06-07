@@ -154,7 +154,7 @@ describe('V1 final release readiness review template', () => {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  it('tracks the QAF-035 partial release readiness artifact without allowing final signoff', () => {
+  it('tracks the QAF-035 release readiness artifact with the remaining open blockers', () => {
     const repoRoot = process.cwd();
     const artifactPath = 'artifacts/release/readiness/qaf035-release-readiness-20260602.json';
     const artifact = JSON.parse(
@@ -169,7 +169,7 @@ describe('V1 final release readiness review template', () => {
 
     const partialResult = runValidator([artifactPath], repoRoot);
     expect(partialResult.status).toBe(0);
-    expect(artifact.blockerTriage.totalOpen).toBe(9);
+    expect(artifact.blockerTriage.totalOpen).toBe(3);
     for (const gateId of pendingGateIds) {
       expect(coveredGateIds.has(gateId), `missing blocker coverage for ${gateId}`).toBe(true);
     }

@@ -22,6 +22,8 @@ pnpm release:observability-baseline:validate
 pnpm release:beta-ops:validate
 pnpm release:security-baseline:validate
 pnpm release:beta-closure-plan:validate
+pnpm release:cast-readiness:validate
+pnpm release:pwa-readiness:validate
 pnpm release:qaf035:final
 ```
 
@@ -33,6 +35,9 @@ The individual `pnpm release:*:validate` commands above validate the concrete QA
 `pnpm release:observability-baseline:validate` must pass on the concrete observability artifact so structured event coverage, playback/cast burst alert rules, beta alert routing, and no-media stop-trigger evidence are checked before signoff.
 `pnpm release:security-baseline:validate` must pass on the concrete security/privacy artifact so client storage inventory, credential cleanup, retention evidence, and incident-readiness placeholders are checked before signoff.
 `pnpm release:beta-closure-plan:validate` must pass on the concrete closure plan so every open readiness blocker has an owner, gate mapping, artifact refs, validation commands, and no-media-safe completion recipe.
+`pnpm release:cast-readiness:validate` must pass so the Cast guide, receiver page, sender configuration, V1 `loadMedia` flow, production custom receiver requirement, and MP2 Cast guard remain mechanically checked before any real Chromecast evidence is accepted.
+`pnpm release:pwa-readiness:validate` must pass so the source PWA manifest config, install UX, offline fallback page, Workbox navigation fallback, and push notification service-worker handlers remain mechanically checked before any real PWA install/offline evidence is accepted.
+The PWA readiness guard checks the generated-source path for `manifest.webmanifest`, `offline.html`, Workbox navigation fallback, install state, and service-worker push handlers. It is still not a substitute for the real `pwa-install-offline` target evidence in the manual matrix.
 
 ## Automated Evidence Refresh
 
@@ -42,6 +47,18 @@ Use valid local provider credentials only through ignored local environment stat
 set -a; source .env.local; set +a; pnpm e2e:provider:preflight
 set -a; source .env.local; set +a; E2E_CPU_GUARD=false pnpm e2e:playback:focused
 set -a; source .env.local; set +a; pnpm e2e:qa:simulate
+E2E_MOBILE_LAYOUT_BASE_URL='https://<app-staging-host>' \
+E2E_MOBILE_LAYOUT_PROXY_ORIGIN='https://<proxy-staging-host>' \
+E2E_XTREAM_SERVER='https://gw.castcdn.net:443' \
+pnpm e2e:mobile:layout
+E2E_DESIGN_PARITY_BASE_URL='https://<app-staging-host>' \
+E2E_XTREAM_SERVER='https://gw.castcdn.net:443' \
+pnpm e2e:design:captures
+E2E_CAPACITY_APP_URL='https://<app-staging-host>' \
+E2E_CAPACITY_PROXY_URL='https://<proxy-staging-host>' \
+E2E_CAPACITY_REQUESTS=40 \
+E2E_CAPACITY_CONCURRENCY=10 \
+pnpm perf:staging-capacity
 ```
 
 Expected local evidence locations:
@@ -49,8 +66,11 @@ Expected local evidence locations:
 - `output/playwright/provider-qa-preflight/REPORT.md`
 - `output/playwright/focused-playback-smoke/REPORT.md`
 - `output/playwright/qa-user-sim/QA-REPORT.md`
+- `output/playwright/mobile-layout-smoke/REPORT.md`
+- `output/playwright/lp-0373/CAPTURE-REPORT.md`
+- `output/perf/staging-capacity-smoke/REPORT.md`
 
-These are useful provider/browser signals, but they are not real-device signoff.
+These are useful provider/browser/static-edge signals, but they are not real-device signoff or final 300-500 deployed-load capacity proof.
 
 ## Required Artifact Updates
 
@@ -78,7 +98,10 @@ Each open closure item must include a direct, gate-specific final proof command 
 
 ## Real Device Matrix
 
+Use `docs/qa/qaf035-real-device-qa-guide.md` for LAN setup, HTTPS/PWA/Cast scope, per-device evidence templates, and MP2 acceptance checks.
+
 Each target must have a named owner, exact device/browser versions, evidence refs, media-processing audit evidence, a tracked redacted no-media scan-result artifact, and all release-blocker checks passing.
+The smoke/regression matrix must keep `evidenceIntake.requiredCaseIds` in sync with every pending real-device/Cast/AirPlay/PWA matrix case until the case is completed. Final smoke evidence must include per-case evidence refs, manual-device target refs, network capture refs, and the tracked no-media scan artifact; local Playwright/headless evidence remains non-final for these targets.
 
 | Target id | Required device flow |
 | --- | --- |
@@ -93,6 +116,7 @@ Each target must have a named owner, exact device/browser versions, evidence ref
 Local Playwright, bundled Chromium headless, or the local desktop browser smoke cannot be used as final evidence for these targets.
 
 Final design parity evidence also requires rendered files to exist for every desktop/mobile reference and Lumen capture ref in `artifacts/release/design/qaf035-design-parity-20260603.json`; status strings alone are not enough for `--require-final`.
+Use `pnpm e2e:design:captures` to refresh the Lumen desktop/mobile capture refs at the same reference viewport sizes before owner parity review. This proves rendered capture availability only; it is not owner design signoff. Final approval must keep `reviewIntake` complete and set every screen `parityReview.status`, `reviewedBy`, `reviewedAt`, and `notes`.
 
 ## No-Transcode / No-Remux Audit
 
@@ -143,11 +167,14 @@ The provider/XUI owner must fill `artifacts/release/provider/qaf035-provider-own
 - Rate-limit and escalation path for auth, 429, 5xx, and live-stream failures.
 - Explicit commitment that broken catch-up channels will not be resolved with local ffmpeg, server-side transcode/remux, generated HLS, proxy-remuxed, remux-hls, or XUI-side transcode/remux.
 
-The capacity owner must fill `artifacts/release/capacity/qaf035-beta-capacity-20260602.json` with provider capacity, Lumen edge capacity, observability SLO, and rollback/throttle evidence. Final `mediaPath.evidence` and any passing `no-media-processing-verification` check must cite both `release:no-media-evidence:scan` and a tracked redacted no-media scan-result artifact that validates.
+The capacity owner must fill `artifacts/release/capacity/qaf035-beta-capacity-20260602.json` with provider capacity, Lumen edge capacity, observability SLO, and rollback/throttle evidence. Use `pnpm perf:staging-capacity` to refresh the HTTPS static app/manifest/Cast receiver/proxy health smoke without requesting provider media streams. That staging smoke can support partial readiness only; final capacity signoff still requires `deployedEdgeLoadEvidence.status="pass"` with deployed Lumen web/proxy edge sizing or load evidence that covers the 500-user upper beta target, references a concrete load report, uses HTTPS app/proxy endpoints, and states `noProviderMediaStreams=true`. Final `mediaPath.evidence` and any passing `no-media-processing-verification` check must cite both `release:no-media-evidence:scan` and a tracked redacted no-media scan-result artifact that validates.
 
 The performance owner must finalize `artifacts/release/performance/qaf035-performance-evidence-20260603.json` with numeric startup p95/p99, RSS peak/p95, failed-run rate, and owner approval from an approved release run. Template validation or a passing unit test alone is not final beta performance evidence.
 
 ## Ops Signoff
+
+Use `docs/qa/google-cast-readiness-guide.md` for the public HTTPS receiver, Custom Receiver app id, V1 `loadMedia` flow, and Cast codec guard evidence.
+Production Cast must be configured with `VITE_GOOGLE_CAST_APP_ID`; the default receiver `CC1AD845` is development-only and cannot be used as final Cast evidence.
 
 Before 300-500 live users, `artifacts/release/ops/qaf035-beta-ops-signoff-20260603.json` must name:
 

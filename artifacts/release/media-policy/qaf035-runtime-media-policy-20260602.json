@@ -65,16 +65,16 @@
     {
       "id": "provider-xui-no-transcode-owner",
       "description": "Provider/XUI owner confirms catch-up failures will not be solved with XUI-side transcode/remux for beta.",
-      "status": "pending",
-      "owner": "",
+      "status": "pass",
+      "owner": "Filip",
       "evidence": "artifacts/release/provider/qaf035-provider-owner-signoff-20260603.json",
-      "notes": "Structured provider owner signoff artifact now defines the required no XUI-side transcode/remux/generated-HLS commitment. Do not infer this from local browser or repository evidence."
+      "notes": "Filip owner signoff confirms no XUI-side transcode/remux/generated-HLS workaround for beta without explicit owner decision."
     }
   ],
   "signoff": {
-    "status": "pending",
-    "approvedBy": "",
-    "approvedAt": "",
-    "notes": "Partial runtime media policy evidence only. Final signoff remains blocked until provider/XUI owner confirmation is recorded."
+    "status": "pass",
+    "approvedBy": "Filip",
+    "approvedAt": "2026-06-05T11:25:56Z",
+    "notes": "Runtime no-media policy, local/proxy safeguards, no-media evidence scan, and provider/XUI no-transcode/no-remux owner confirmation are recorded."
   }
 }

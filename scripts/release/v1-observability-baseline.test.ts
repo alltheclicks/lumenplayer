@@ -109,11 +109,10 @@ describe('V1 observability baseline artifact', () => {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  it('fails strict validation while beta routing is not owner-approved', () => {
+  it('passes strict validation for the QAF-035 observability baseline', () => {
     const result = runValidator([artifactPath, '--require-final'], process.cwd());
 
-    expect(result.status).toBe(2);
-    expect(result.stderr).toContain('betaRouting.status is pending with --require-final');
+    expect(result.status).toBe(0);
   });
 
   it('fails when a passing event source does not contain the declared event name', () => {

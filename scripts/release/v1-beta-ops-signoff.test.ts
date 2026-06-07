@@ -140,7 +140,7 @@ describe('V1 beta ops signoff artifact', () => {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  it('tracks the QAF-035 partial beta ops artifact without allowing final signoff', () => {
+  it('tracks the finalized QAF-035 beta ops artifact', () => {
     const repoRoot = process.cwd();
     const artifactPath = 'artifacts/release/ops/qaf035-beta-ops-signoff-20260603.json';
 
@@ -148,8 +148,7 @@ describe('V1 beta ops signoff artifact', () => {
     expect(partialResult.status).toBe(0);
 
     const finalResult = runValidator([artifactPath, '--require-final'], repoRoot);
-    expect(finalResult.status).toBe(2);
-    expect(finalResult.stderr).toContain('observability.status is pending with --require-final');
+    expect(finalResult.status).toBe(0);
   });
 
   it('fails validation when media-processing stop triggers are incomplete', () => {

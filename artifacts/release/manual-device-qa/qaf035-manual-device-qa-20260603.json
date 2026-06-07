@@ -10,6 +10,106 @@
     "disallowedTransportModes": ["proxy-remuxed", "remux-hls"],
     "noMediaProcessingRequired": true
   },
+  "evidenceIntake": {
+    "status": "pending",
+    "owner": "Filip/manual QA",
+    "guideRef": "docs/qa/qaf035-real-device-qa-guide.md",
+    "artifactRef": "artifacts/release/manual-device-qa/qaf035-manual-device-qa-20260603.json",
+    "requiredTargetIds": [
+      "desktop-chrome-windows",
+      "desktop-safari-macos",
+      "mobile-chrome-android",
+      "mobile-safari-ios",
+      "cast-chromecast",
+      "airplay-appletv",
+      "pwa-install-offline"
+    ],
+    "requiredEvidenceRefs": [
+      "screenshotOrVideoRef",
+      "networkEvidenceRef",
+      "noMediaScanArtifactRef",
+      "perCheckEvidenceRef"
+    ],
+    "finalRules": [
+      "Do not use Playwright/headless/local Chromium automation as final real-device evidence.",
+      "Every passing target must include owner, actualDevice, osVersion, browserVersion, evidenceRefs, mediaProcessingAudit, and per-check evidence.",
+      "Every passing mediaProcessingAudit.evidenceRef must cite release:no-media-evidence:scan and a tracked redacted no-media scan artifact.",
+      "PWA and Cast targets require HTTPS app/receiver evidence."
+    ],
+    "notes": "Pending real-device evidence intake. Filip/manual QA must attach the per-target evidence refs before manual-device QA can pass --require-final."
+  },
+  "localQaServer": {
+    "status": "pass",
+    "verifiedAt": "2026-06-05T14:08:38Z",
+    "owner": "codex-local-setup",
+    "macLanIp": "10.30.1.36",
+    "xtreamServer": "https://gw.castcdn.net:443",
+    "xtreamProxyOrigin": "https://fin-edited-contracting-newbie.trycloudflare.com",
+    "catchupGatewayOrigin": "https://fin-edited-contracting-newbie.trycloudflare.com",
+    "playerUrl": "http://10.30.1.36:8080/player",
+    "loopbackPlayerUrl": "http://127.0.0.1:8080/player",
+    "web": {
+      "session": "lumen-qaf035-web",
+      "port": 8080,
+      "check": "curl -sS --max-time 3 -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/player",
+      "result": "200"
+    },
+    "proxy": {
+      "session": "lumen-qaf035-proxy",
+      "port": 8788,
+      "check": "curl -sS --max-time 3 http://127.0.0.1:8788/health",
+      "result": "{\"ok\":true,\"service\":\"@lumen/proxy\"}"
+    },
+    "lanChecks": {
+      "verifiedAt": "2026-06-05T14:08:38Z",
+      "playerCheck": "curl -sS --max-time 3 -o /dev/null -w '%{http_code}' http://10.30.1.36:8080/player",
+      "playerResult": "200",
+      "proxyCheck": "curl -sS --max-time 3 http://10.30.1.36:8788/health",
+      "proxyResult": "{\"ok\":true,\"service\":\"@lumen/proxy\"}",
+      "runtimeEnvCheck": "output/playwright/mobile-layout/https-tunnel-smoke.json runtimeEnv + proxyRequestSamples",
+      "runtimeEnvResult": "VITE_XTREAM_SERVER=https://gw.castcdn.net:443; VITE_XTREAM_PROXY_ORIGIN=https://fin-edited-contracting-newbie.trycloudflare.com; VITE_CATCHUP_GATEWAY_ORIGIN=https://fin-edited-contracting-newbie.trycloudflare.com; runtime requests observed through HTTPS proxy tunnel"
+    },
+    "notes": "Local LAN QA server is prepared for manual device checks. The current web runtime is a production preview build and points proxy/catch-up traffic at the HTTPS Cloudflare proxy tunnel to avoid mixed-content blockers when the app is opened from HTTPS staging. This does not count as real-device evidence and does not move any target out of pending."
+  },
+  "httpsStagingTunnel": {
+    "status": "pass",
+    "verifiedAt": "2026-06-05T14:24:21Z",
+    "owner": "codex-local-setup",
+    "provider": "Cloudflare quick tunnel",
+    "allowedHosts": ".trycloudflare.com",
+    "appUrl": "https://preservation-thus-opportunities-shortly.trycloudflare.com",
+    "playerUrl": "https://preservation-thus-opportunities-shortly.trycloudflare.com/player",
+    "proxyOrigin": "https://fin-edited-contracting-newbie.trycloudflare.com",
+    "catchupGatewayOrigin": "https://fin-edited-contracting-newbie.trycloudflare.com",
+    "proxyHealthCheck": "curl -sS --max-time 15 https://fin-edited-contracting-newbie.trycloudflare.com/health",
+    "proxyHealthResult": "{\"ok\":true,\"service\":\"@lumen/proxy\"}",
+    "manifestCheck": "curl -I --max-time 15 https://preservation-thus-opportunities-shortly.trycloudflare.com/manifest.webmanifest",
+    "manifestResult": "200 application/manifest+json; name=IPTV Player; display=standalone; start_url=/",
+    "receiverCheck": "curl -sS --max-time 15 https://preservation-thus-opportunities-shortly.trycloudflare.com/receiver.html",
+    "receiverResult": "200; contains <title>Lumen Cast Receiver</title>",
+    "runtimeEnvCheck": "E2E_MOBILE_LAYOUT_BASE_URL=https://preservation-thus-opportunities-shortly.trycloudflare.com E2E_MOBILE_LAYOUT_PROXY_ORIGIN=https://fin-edited-contracting-newbie.trycloudflare.com E2E_XTREAM_SERVER=https://gw.castcdn.net:443 pnpm e2e:mobile:layout",
+    "runtimeEnvResult": "output/playwright/mobile-layout-smoke/report.json records xtreamServer=https://gw.castcdn.net:443 plus HTTPS proxy origin and proxyRequestSamples through the Cloudflare proxy tunnel",
+    "playwrightEvidence": {
+      "command": "E2E_MOBILE_LAYOUT_BASE_URL=https://preservation-thus-opportunities-shortly.trycloudflare.com E2E_MOBILE_LAYOUT_PROXY_ORIGIN=https://fin-edited-contracting-newbie.trycloudflare.com E2E_XTREAM_SERVER=https://gw.castcdn.net:443 pnpm e2e:mobile:layout",
+      "result": "pass",
+      "json": "output/playwright/mobile-layout-smoke/report.json",
+      "report": "output/playwright/mobile-layout-smoke/REPORT.md",
+      "screenshot": "output/playwright/mobile-layout-smoke/player-mobile.png",
+      "assertions": [
+        "app protocol is https",
+        "proxy /health returns 200",
+        "manifest.webmanifest returns 200 application/manifest+json",
+        "receiver.html returns the Lumen Cast Receiver page",
+        "runtime env uses https://gw.castcdn.net:443",
+        "runtime proxy and catch-up gateway origins use HTTPS Cloudflare tunnel",
+        "393px mobile viewport has body/doc width 393 for /player, /vod, /series, /epg, and /settings",
+        "mobile TV Unazad opens the Gledanje unazad panel and remains on /player",
+        "no mixed-content console messages",
+        "no non-aborted app/proxy request failures"
+      ]
+    },
+    "notes": "Ephemeral HTTPS staging is prepared for manual PWA/real-device QA setup. Cloudflare quick tunnel URLs are not guaranteed stable and are not a substitute for final real-device, Cast registration, or production HTTPS receiver evidence."
+  },
   "targets": [
     {
       "id": "desktop-chrome-windows",
@@ -18,7 +118,7 @@
       "expectedDevice": "Windows 11 desktop",
       "expectedBrowser": "Chrome latest",
       "status": "pending",
-      "owner": "",
+      "owner": "Filip/manual QA",
       "actualDevice": "",
       "osVersion": "",
       "browserVersion": "",
@@ -51,7 +151,7 @@
           "evidence": ""
         }
       ],
-      "notes": ""
+      "notes": "Use docs/qa/qaf035-real-device-qa-guide.md evidence template. Keep pending until real Windows Chrome evidence is recorded."
     },
     {
       "id": "desktop-safari-macos",
@@ -60,7 +160,7 @@
       "expectedDevice": "macOS desktop",
       "expectedBrowser": "Safari latest",
       "status": "pending",
-      "owner": "",
+      "owner": "Filip/manual QA",
       "actualDevice": "",
       "osVersion": "",
       "browserVersion": "",
@@ -93,7 +193,7 @@
           "evidence": ""
         }
       ],
-      "notes": ""
+      "notes": "Use docs/qa/qaf035-real-device-qa-guide.md evidence template. Keep pending until real macOS Safari evidence is recorded."
     },
     {
       "id": "mobile-chrome-android",
@@ -102,7 +202,7 @@
       "expectedDevice": "Android phone",
       "expectedBrowser": "Chrome latest",
       "status": "pending",
-      "owner": "",
+      "owner": "Filip/manual QA",
       "actualDevice": "",
       "osVersion": "",
       "browserVersion": "",
@@ -135,7 +235,7 @@
           "evidence": ""
         }
       ],
-      "notes": ""
+      "notes": "Use docs/qa/qaf035-real-device-qa-guide.md evidence template. Keep pending until real Android Chrome evidence is recorded."
     },
     {
       "id": "mobile-safari-ios",
@@ -144,7 +244,7 @@
       "expectedDevice": "iPhone",
       "expectedBrowser": "Safari latest",
       "status": "pending",
-      "owner": "",
+      "owner": "Filip/manual QA",
       "actualDevice": "",
       "osVersion": "",
       "browserVersion": "",
@@ -177,7 +277,7 @@
           "evidence": ""
         }
       ],
-      "notes": ""
+      "notes": "Use docs/qa/qaf035-real-device-qa-guide.md evidence template. HTTPS is required for final PWA evidence."
     },
     {
       "id": "cast-chromecast",
@@ -186,7 +286,7 @@
       "expectedDevice": "Chrome sender plus Chromecast target",
       "expectedBrowser": "Chrome latest sender",
       "status": "pending",
-      "owner": "",
+      "owner": "Filip/manual QA",
       "actualDevice": "",
       "osVersion": "",
       "browserVersion": "",
@@ -219,7 +319,7 @@
           "evidence": ""
         }
       ],
-      "notes": ""
+      "notes": "Use docs/qa/google-cast-readiness-guide.md. Keep pending until public HTTPS receiver, custom Cast app id, and real Chromecast evidence are recorded."
     },
     {
       "id": "airplay-appletv",
@@ -228,7 +328,7 @@
       "expectedDevice": "Safari/iOS sender plus Apple TV target",
       "expectedBrowser": "Safari latest sender",
       "status": "pending",
-      "owner": "",
+      "owner": "Filip/manual QA",
       "actualDevice": "",
       "osVersion": "",
       "browserVersion": "",
@@ -261,7 +361,7 @@
           "evidence": ""
         }
       ],
-      "notes": ""
+      "notes": "Use docs/qa/qaf035-real-device-qa-guide.md evidence template. Keep pending until real AirPlay/Apple TV evidence is recorded."
     },
     {
       "id": "pwa-install-offline",
@@ -270,7 +370,7 @@
       "expectedDevice": "Android Chrome and/or iOS Safari installed app",
       "expectedBrowser": "Installed PWA shell",
       "status": "pending",
-      "owner": "",
+      "owner": "Filip/manual QA",
       "actualDevice": "",
       "osVersion": "",
       "browserVersion": "",
@@ -303,7 +403,7 @@
           "evidence": ""
         }
       ],
-      "notes": ""
+      "notes": "Use docs/qa/qaf035-real-device-qa-guide.md evidence template. Keep pending until HTTPS install/offline/reconnect evidence is recorded."
     }
   ],
   "signoff": {

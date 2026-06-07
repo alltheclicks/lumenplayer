@@ -22,16 +22,17 @@ import {
   shouldKeepPendingAutoplayOnIdle,
   shouldClearPendingAutoplayOnPlaybackError,
   sessionWantsPlayback,
-  shouldShowBlockingPlaybackError,
   shouldResolveProviderBlockingErrorAfterPlaybackError,
   shouldHoldPauseSyncOnSourceStartup,
   shouldRetryPendingAutoplayAfterPausedEvent,
+  shouldShowPlaybackErrorAfterPlaybackError,
   shouldResumePlaybackAfterPictureInPictureExit,
   shouldContinueCatchUpStartupFallbacks,
   hasRenderableMediaFrame,
   resolveCatchUpLoadingProgressPercent,
   shouldResolveCatchUpStartupWatchdog,
   shouldRetryCatchUpStartupWithoutSafeStart,
+  shouldRetryCatchUpStartupWithProviderSafeStart,
   shouldStopLongCatchUpStartupLoading,
   resolveCatchUpManifestNoFrameWatchdogDelayMs,
   shouldScheduleStartupHardRetry,
@@ -39,14 +40,18 @@ import {
   shouldUseCatchUpStartupWatchdog,
   resolveCatchUpMediaOffsetSeconds,
   resolveCatchUpMediaSeekTimeSeconds,
+  resolveCatchUpMediaSeekTimeSecondsForSource,
   resolveCatchUpPendingStartupSeek,
   resolveCatchUpSeekNoFrameDecision,
   resolveCatchUpSeekRecoveryFallbackPositionMs,
-  resolveCatchUpFallbackTimelinePositionMs,
-  resolveCatchUpTimelinePositionMs,
-  resolveCatchUpTimelineSeekTargetMs,
+  resolveCatchUpFallbackPlaybackPosition,
+  resolveCatchUpTimelinePositionMsForSource,
+  resolveCatchUpTimelineSeekTargetMsForSource,
   resolveLiveUnexpectedStopDecision,
   shouldAttemptCatchUpErrorFallback,
+  shouldResumeRenderableLiveAfterUnexpectedStop,
+  shouldDeferLiveStartupPlaybackError,
+  shouldDeferCatchUpStartupPlaybackError,
   shouldResolveCatchUpRuntimeUnavailableAfterPlaybackError,
   shouldWatchCatchUpSeekAfterPlaybackError,
   shouldWatchCatchUpSeekAfterPositionChange,
@@ -57,6 +62,14 @@ import {
   resolveSessionSourceBlockingError,
   type SourceBlockingError,
 } from './sourceBlockingError';
+import {
+  getCachedCatchUpRuntimeCompatibility,
+  recordCatchUpRuntimeCompatibilityResult,
+  resolveCatchUpRuntimeCompatibilityBlockingError,
+  resolveCatchUpRuntimeCompatibilityFingerprint,
+  type CatchUpRuntimeCompatibilityReasonCode,
+  type CatchUpRuntimeCompatibilityStatus,
+} from './catchupRuntimeCompatibility';
 import {
   buildPlayerErrorState,
   resolvePlayerErrorActionSource,
@@ -115,6 +128,7 @@ export interface VideoPlayerHandle {
 }
 
 type PlayerError = SourceBlockingError;
+type UnsupportedAudioCodec = 'mp2';
 
 type WebKitPictureInPictureVideoElement = HTMLVideoElement & {
   webkitSupportsPresentationMode?: (mode: string) => boolean;
@@ -138,9 +152,10 @@ interface LoadingProgressState {
 
 const STARTUP_AUTOPLAY_RECOVERY_MAX_RETRIES = 3;
 const STARTUP_AUTOPLAY_RECOVERY_BASE_DELAY_MS = 220;
+const CATCH_UP_STARTUP_AUTOPLAY_RECOVERY_MAX_RETRIES = 90;
+const CATCH_UP_STARTUP_AUTOPLAY_RECOVERY_MAX_DELAY_MS = 2_000;
 const LIVE_STARTUP_DETACHED_RETRY_DELAY_MS = 450;
 const LIVE_UNEXPECTED_PAUSE_MAX_RETRIES = 1;
-const LIVE_NO_FRAME_WATCHDOG_DELAY_MS = 1_500;
 const STARTUP_HARD_RETRY_DELAY_MS = 3_000;
 const CATCH_UP_STARTUP_WATCHDOG_DELAY_MS = 35_000;
 const CATCH_UP_MANIFEST_NO_FRAME_FALLBACK_DELAY_MS = 8_000;
@@ -151,23 +166,42 @@ const CATCH_UP_SEEK_SETTLE_TOLERANCE_MS = 20_000;
 const CATCH_UP_SEEK_NO_FRAME_MAX_RETRIES = 1;
 const CATCH_UP_FALLBACK_POSITION_GUARD_MS = 15_000;
 const CATCH_UP_RUNTIME_DECODE_SKIP_MS = 15_000;
+const CATCH_UP_RUNTIME_DECODE_SKIP_MAX_ATTEMPTS = 8;
 const CATCH_UP_STARTUP_FALLBACK_MAX_ATTEMPTS = 3;
 const CATCH_UP_RUNTIME_FALLBACK_MAX_ATTEMPTS = 15;
 const CATCH_UP_INITIAL_SEGMENT_RETRY_POSITION_SECONDS = 15;
-const MEDIAKING_CATCHUP_SAFE_START_POSITION_SECONDS = 75;
 
 const createLoadingProgressState = (
   phase: CatchUpLoadingPhase,
   nowMs = Date.now(),
   currentState?: LoadingProgressState | null,
-): LoadingProgressState => ({
-  phase,
-  startedAtMs: currentState?.startedAtMs ?? nowMs,
-  updatedAtMs: nowMs,
-});
+): LoadingProgressState => {
+  const phaseRank: Record<CatchUpLoadingPhase, number> = {
+    requesting: 0,
+    playlist: 1,
+    segment: 2,
+    buffered: 3,
+    frame: 4,
+  };
+  const nextPhase = currentState && phaseRank[currentState.phase] > phaseRank[phase]
+    ? currentState.phase
+    : phase;
+
+  return {
+    phase: nextPhase,
+    startedAtMs: currentState?.startedAtMs ?? nowMs,
+    updatedAtMs: nowMs,
+  };
+};
 interface ParsedCatchUpAttemptState {
   attempts: CatchUpTransportAttempt[];
   currentAttemptIndex: number;
+}
+
+interface CatchUpRuntimeTimelineAnchor {
+  sourceKey: string;
+  timelinePositionMs: number;
+  mediaPositionSeconds: number;
 }
 
 const parseNumericMetadataValue = (value: unknown): number | null => {
@@ -183,6 +217,26 @@ const parseNumericMetadataValue = (value: unknown): number | null => {
   }
 
   return null;
+};
+
+const resolveCatchUpRuntimeAnchorSourceKey = (
+  source: SessionSource | null | undefined,
+): string | null => {
+  if (!source) {
+    return null;
+  }
+
+  const metadata = (
+    typeof source.metadata === 'object' &&
+    source.metadata !== null
+  )
+    ? source.metadata as Record<string, unknown>
+    : null;
+  const loadKey = typeof metadata?.loadKey === 'number'
+    ? metadata.loadKey
+    : 'initial';
+
+  return `${source.url}:${loadKey}`;
 };
 
 const extractSourceTargetHost = (url: string): string | null => {
@@ -233,29 +287,24 @@ const resolveCatchUpMinimumHlsStartPositionSeconds = (
   const metadataStartPosition = mediaOffsetSeconds > 0 && rawMetadataStartPosition > mediaOffsetSeconds
     ? Math.max(0, rawMetadataStartPosition - mediaOffsetSeconds)
     : Math.max(0, rawMetadataStartPosition);
-  const gatewayPlaybackUrl = (
-    typeof metadata.gateway === 'object' &&
-    metadata.gateway !== null &&
-    typeof (metadata.gateway as Record<string, unknown>).playbackUrl === 'string'
-  )
-    ? (metadata.gateway as Record<string, string>).playbackUrl
-    : null;
-  const isMediaKingSource = (
-    isMediaKingCatchUpHost(extractSourceTargetHost(source.url)) ||
-    (gatewayPlaybackUrl ? isMediaKingCatchUpHost(extractSourceTargetHost(gatewayPlaybackUrl)) : false)
-  );
-  const disablesProviderSafeStart = (
-    metadata.catchUpHlsStartupMode === 'complete' ||
-    metadata.catchUpInitialSegmentRetryUsed === true
-  );
-  const shouldApplyMediaKingSafeStart = (
-    isMediaKingSource &&
-    !disablesProviderSafeStart
-  );
+  return metadataStartPosition;
+};
+
+const resolveCatchUpProviderSafeStartPositionSeconds = (
+  source: SessionSource | null | undefined,
+): number => {
+  if (!source || typeof source.metadata !== 'object' || source.metadata === null) {
+    return 0;
+  }
+
+  const metadata = source.metadata as Record<string, unknown>;
+  if (metadata.mode !== 'catchup') {
+    return 0;
+  }
 
   return Math.max(
-    metadataStartPosition,
-    shouldApplyMediaKingSafeStart ? MEDIAKING_CATCHUP_SAFE_START_POSITION_SECONDS : 0,
+    0,
+    Math.floor(parseNumericMetadataValue(metadata.catchUpProviderSafeStartPositionSeconds) ?? 0),
   );
 };
 
@@ -547,6 +596,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
   const [loadingTickMs, setLoadingTickMs] = useState(Date.now());
   const [errorState, setErrorState] = useState<PlayerErrorState | null>(null);
   const error = errorState?.error ?? null;
+  const [unsupportedAudioCodec, setUnsupportedAudioCodec] = useState<UnsupportedAudioCodec | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isPictureInPicture, setIsPictureInPicture] = useState(false);
   const [isAirPlayAvailable, setIsAirPlayAvailable] = useState(false);
@@ -570,6 +620,9 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
   const catchUpPendingStartupSeekAppliedKeyRef = useRef<string | null>(null);
   const catchUpSeekAutoplayRetryKeyRef = useRef<string | null>(null);
   const catchUpSeekFallbackAutoplayRetryKeyRef = useRef<string | null>(null);
+  const catchUpRuntimeCompatibilityObservedUrlRef = useRef<string | null>(null);
+  const lastRecordedCatchUpRuntimeCompatibilityRef = useRef<string | null>(null);
+  const catchUpRuntimeTimelineAnchorRef = useRef<CatchUpRuntimeTimelineAnchor | null>(null);
   const startupHardRetrySourceUrlRef = useRef<string | null>(null);
   const playbackWantsPlaying = sessionWantsPlayback(session);
   const isLocalRenderer = session.renderer === 'local-web' || session.renderer === 'airplay';
@@ -585,6 +638,147 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
       currentErrorState ?? buildPlayerErrorState(nextError, sessionRef.current.source)
     ));
   }, []);
+
+  const recordCatchUpRuntimeCompatibility = useCallback((
+    source: SessionSource | null | undefined,
+    status: CatchUpRuntimeCompatibilityStatus,
+    reasonCode: CatchUpRuntimeCompatibilityReasonCode,
+  ) => {
+    const fingerprint = resolveCatchUpRuntimeCompatibilityFingerprint(source);
+    if (!fingerprint) {
+      return;
+    }
+
+    const dedupeKey = `${fingerprint}:${status}:${reasonCode}`;
+    if (lastRecordedCatchUpRuntimeCompatibilityRef.current === dedupeKey) {
+      return;
+    }
+
+    const record = recordCatchUpRuntimeCompatibilityResult(source, {
+      status,
+      reasonCode,
+      observedUrl: catchUpRuntimeCompatibilityObservedUrlRef.current,
+    });
+    if (!record) {
+      return;
+    }
+
+    lastRecordedCatchUpRuntimeCompatibilityRef.current = dedupeKey;
+    emitWebObservabilityEvent({
+      name: 'catchup.runtime_compatibility',
+      severity: status === 'playable' ? 'info' : 'warn',
+      metadata: {
+        fingerprint: record.fingerprint,
+        status: record.status,
+        reasonCode: record.reasonCode,
+        streamId: record.streamId,
+        channelId: record.channelId,
+        expiresAtMs: record.expiresAtMs,
+      },
+    });
+  }, []);
+
+  const getCatchUpRuntimeTimelineAnchor = useCallback((
+    source: SessionSource | null | undefined,
+  ): CatchUpRuntimeTimelineAnchor | null => {
+    const sourceKey = resolveCatchUpRuntimeAnchorSourceKey(source);
+    const anchor = catchUpRuntimeTimelineAnchorRef.current;
+    if (!sourceKey || !anchor || anchor.sourceKey !== sourceKey) {
+      return null;
+    }
+
+    return anchor;
+  }, []);
+
+  const rememberCatchUpRuntimeTimelineAnchor = useCallback((
+    source: SessionSource | null | undefined,
+    timelinePositionMs: number | null | undefined,
+    mediaPositionSeconds: number | null | undefined,
+  ) => {
+    const sourceKey = resolveCatchUpRuntimeAnchorSourceKey(source);
+    if (
+      !sourceKey ||
+      typeof timelinePositionMs !== 'number' ||
+      !Number.isFinite(timelinePositionMs) ||
+      typeof mediaPositionSeconds !== 'number' ||
+      !Number.isFinite(mediaPositionSeconds) ||
+      mediaPositionSeconds <= 0
+    ) {
+      return;
+    }
+
+    catchUpRuntimeTimelineAnchorRef.current = {
+      sourceKey,
+      timelinePositionMs: Math.max(0, Math.floor(timelinePositionMs)),
+      mediaPositionSeconds: Math.max(0, mediaPositionSeconds),
+    };
+  }, []);
+
+  const resolveRuntimeCatchUpTimelinePositionMs = useCallback((
+    source: SessionSource | null | undefined,
+    mediaTimeSeconds: number,
+  ): number => {
+    const anchor = getCatchUpRuntimeTimelineAnchor(source);
+    if (anchor) {
+      return Math.max(0, Math.floor(
+        anchor.timelinePositionMs +
+        ((Math.max(0, mediaTimeSeconds) - anchor.mediaPositionSeconds) * 1000),
+      ));
+    }
+
+    return resolveCatchUpTimelinePositionMsForSource(source, mediaTimeSeconds);
+  }, [getCatchUpRuntimeTimelineAnchor]);
+
+  const resolveRuntimeCatchUpMediaSeekTimeSeconds = useCallback((
+    source: SessionSource | null | undefined,
+    targetPositionMs: number | null | undefined,
+    minimumMediaPositionSeconds = 0,
+  ): number => {
+    const anchor = getCatchUpRuntimeTimelineAnchor(source);
+    if (anchor) {
+      const safeTargetSeconds = Math.max(0, (targetPositionMs ?? 0) / 1000);
+      const anchorTimelineSeconds = anchor.timelinePositionMs / 1000;
+      return Math.max(
+        0,
+        minimumMediaPositionSeconds,
+        anchor.mediaPositionSeconds + (safeTargetSeconds - anchorTimelineSeconds),
+      );
+    }
+
+    return resolveCatchUpMediaSeekTimeSecondsForSource(
+      source,
+      targetPositionMs,
+      minimumMediaPositionSeconds,
+    );
+  }, [getCatchUpRuntimeTimelineAnchor]);
+
+  const resolveRuntimeCatchUpTimelineSeekTargetMs = useCallback((
+    source: SessionSource | null | undefined,
+    targetPositionMs: number | null | undefined,
+    minimumMediaPositionSeconds = 0,
+  ): number => {
+    const anchor = getCatchUpRuntimeTimelineAnchor(source);
+    if (anchor) {
+      const mediaPositionSeconds = resolveRuntimeCatchUpMediaSeekTimeSeconds(
+        source,
+        targetPositionMs,
+        minimumMediaPositionSeconds,
+      );
+      return Math.max(0, Math.floor(
+        anchor.timelinePositionMs +
+        ((mediaPositionSeconds - anchor.mediaPositionSeconds) * 1000),
+      ));
+    }
+
+    return resolveCatchUpTimelineSeekTargetMsForSource(
+      source,
+      targetPositionMs,
+      minimumMediaPositionSeconds,
+    );
+  }, [
+    getCatchUpRuntimeTimelineAnchor,
+    resolveRuntimeCatchUpMediaSeekTimeSeconds,
+  ]);
 
   const resetLoadingProgress = useCallback((phase: CatchUpLoadingPhase = 'requesting') => {
     const nowMs = Date.now();
@@ -767,9 +961,9 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
 
     const resolveTargetMediaTimeSeconds = () => {
       const currentSource = sessionRef.current.source;
-      return resolveCatchUpMediaSeekTimeSeconds(
+      return resolveRuntimeCatchUpMediaSeekTimeSeconds(
+        currentSource,
         sessionRef.current.positionMs,
-        resolveCatchUpMediaOffsetSeconds(currentSource),
         resolveCatchUpMinimumHlsStartPositionSeconds(currentSource),
       );
     };
@@ -807,7 +1001,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
 
     const updateRequestPhase = () => {
       if (isCatchUpLoadingSession()) {
-        resetLoadingProgress('requesting');
+        updateLoadingProgressPhase('requesting');
       }
     };
 
@@ -828,7 +1022,11 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
       video.removeEventListener('waiting', updateBufferedPhase);
       video.removeEventListener('stalled', updateBufferedPhase);
     };
-  }, [resetLoadingProgress, updateLoadingProgressPhase]);
+  }, [
+    resetLoadingProgress,
+    resolveRuntimeCatchUpMediaSeekTimeSeconds,
+    updateLoadingProgressPhase,
+  ]);
 
   const clearStartupAutoplayRecovery = useCallback(() => {
     if (startupAutoplayRecoveryTimerRef.current !== null) {
@@ -928,20 +1126,74 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
         : CATCH_UP_INITIAL_SEGMENT_RETRY_POSITION_SECONDS,
       CATCH_UP_INITIAL_SEGMENT_RETRY_POSITION_SECONDS,
     );
+    const requestedTimelinePositionMs = Math.max(
+      0,
+      parseNumericMetadataValue(metadata.catchUpPendingTimelineSeekMs) ??
+        currentSession.positionMs ??
+        0,
+    );
+    const providerSafeStartPositionSeconds = resolveCatchUpProviderSafeStartPositionSeconds(source);
+    if (shouldRetryCatchUpStartupWithProviderSafeStart(
+      currentSession,
+      reason,
+      { hasRenderableFrame: hasRenderableMediaFrame(videoRef.current) },
+      providerSafeStartPositionSeconds,
+    )) {
+      clearStartupAutoplayRecovery();
+      clearCatchUpStartupWatchdog();
+      clearCatchUpManifestNoFrameWatchdog();
+      pendingAutoplaySourceUrlRef.current = source.url;
+      isApplyingSessionSeekRef.current = true;
+      applyingSessionSeekTargetMsRef.current = requestedTimelinePositionMs;
+      commands.setSource(
+        {
+          ...source,
+          metadata: {
+            ...metadata,
+            catchUpHlsStartupMode: 'complete',
+            catchUpHlsStartPositionSeconds: providerSafeStartPositionSeconds,
+            catchUpPendingTimelineSeekMs: requestedTimelinePositionMs,
+            catchUpPendingMediaSeekSeconds: providerSafeStartPositionSeconds,
+            catchUpProviderSafeStartRetryUsed: true,
+            catchUpSeekNoFrameRetryCount: 0,
+            loadKey: Date.now(),
+          },
+        },
+        requestedTimelinePositionMs,
+      );
+      commands.play();
+      setError(null);
+      setIsLoading(true);
+      resetLoadingProgress('requesting');
+      emitWebObservabilityEvent({
+        name: 'catchup.retry',
+        severity: 'warn',
+        metadata: {
+          ...buildCatchUpEventMetadata(source, {
+            attemptIndex: Math.floor(parseNumericMetadataValue(metadata.catchUpAttemptIndex) ?? 0),
+            status: 'provider_safe_start_retry',
+            errorCode: reason,
+          }),
+          renderer: currentSession.renderer,
+          mediaPositionSeconds: providerSafeStartPositionSeconds,
+          positionMs: requestedTimelinePositionMs,
+        },
+      });
+      return true;
+    }
+
     if (shouldRetryCatchUpStartupWithoutSafeStart(
       currentSession,
       reason,
       { hasRenderableFrame: hasRenderableMediaFrame(videoRef.current) },
       initialSegmentRetryMediaPositionSeconds,
     )) {
-      const retryPositionMs = resolveCatchUpTimelinePositionMs(
-        initialSegmentRetryMediaPositionSeconds,
-        mediaOffsetSeconds,
-      );
       clearStartupAutoplayRecovery();
       clearCatchUpStartupWatchdog();
       clearCatchUpManifestNoFrameWatchdog();
       pendingAutoplaySourceUrlRef.current = source.url;
+      isApplyingSessionSeekRef.current = true;
+      applyingSessionSeekTargetMsRef.current = requestedTimelinePositionMs;
       commands.setSource(
         {
           ...source,
@@ -949,14 +1201,14 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
             ...metadata,
             catchUpHlsStartupMode: 'complete',
             catchUpHlsStartPositionSeconds: initialSegmentRetryMediaPositionSeconds,
-            catchUpPendingTimelineSeekMs: retryPositionMs,
+            catchUpPendingTimelineSeekMs: requestedTimelinePositionMs,
             catchUpPendingMediaSeekSeconds: initialSegmentRetryMediaPositionSeconds,
             catchUpInitialSegmentRetryUsed: true,
             catchUpSeekNoFrameRetryCount: 0,
             loadKey: Date.now(),
           },
         },
-        retryPositionMs,
+        requestedTimelinePositionMs,
       );
       commands.play();
       setError(null);
@@ -973,7 +1225,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
           }),
           renderer: currentSession.renderer,
           mediaPositionSeconds: initialSegmentRetryMediaPositionSeconds,
-          positionMs: retryPositionMs,
+          positionMs: requestedTimelinePositionMs,
         },
       });
       return true;
@@ -1051,17 +1303,22 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
     const nextMediaOffsetSeconds = metadata.mode === 'catchup' && mediaOffsetSeconds > 0
       ? Math.max(0, nextAttempt.startTimestamp - originalTimelineStartTimestamp)
       : mediaOffsetSeconds;
-    const nextPositionMs = metadata.mode === 'catchup'
-      ? resolveCatchUpFallbackTimelinePositionMs({
+    const shouldPreserveRequestedTimelinePosition = (
+      metadata.mode === 'catchup' &&
+      nextMediaOffsetSeconds <= 0 &&
+      !shouldSkipPastRuntimeDecodeError
+    );
+    const fallbackPlaybackPosition = metadata.mode === 'catchup'
+      ? resolveCatchUpFallbackPlaybackPosition({
         requestedPositionMs: requestedNextPositionMs,
         mediaOffsetSeconds: nextMediaOffsetSeconds,
         mediaDurationSeconds: catchUpDurationSeconds,
         positionGuardMs: CATCH_UP_FALLBACK_POSITION_GUARD_MS,
+        preserveRequestedTimelinePosition: shouldPreserveRequestedTimelinePosition,
       })
-      : currentPositionMs;
-    const nextMediaPositionSeconds = metadata.mode === 'catchup'
-      ? resolveCatchUpMediaSeekTimeSeconds(nextPositionMs, nextMediaOffsetSeconds)
-      : undefined;
+      : null;
+    const nextPositionMs = fallbackPlaybackPosition?.timelinePositionMs ?? currentPositionMs;
+    const nextMediaPositionSeconds = fallbackPlaybackPosition?.mediaPositionSeconds;
     const currentHlsStartPositionSeconds = parseNumericMetadataValue(metadata.catchUpHlsStartPositionSeconds) ?? 0;
     const nextCatchUpHlsStartPositionSeconds = metadata.mode === 'catchup'
       ? Math.max(
@@ -1069,6 +1326,8 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
         mediaOffsetSeconds > 0 ? 0 : currentHlsStartPositionSeconds,
       )
       : undefined;
+    isApplyingSessionSeekRef.current = true;
+    applyingSessionSeekTargetMsRef.current = nextPositionMs;
     commands.setSource(
       {
         ...source,
@@ -1149,11 +1408,16 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
     stop: () => adapterRef.current?.stop(),
     seek: (time: number) => {
       const targetPositionMs = Math.floor(Math.max(0, time) * 1000);
-      const mediaOffsetSeconds = resolveCatchUpMediaOffsetSeconds(sessionRef.current.source);
+      const source = sessionRef.current.source;
+      const minimumStartPositionSeconds = resolveCatchUpMinimumHlsStartPositionSeconds(source);
       isApplyingSessionSeekRef.current = true;
       applyingSessionSeekTargetMsRef.current = targetPositionMs;
       adapterRef.current?.seek(
-        resolveCatchUpMediaSeekTimeSeconds(targetPositionMs, mediaOffsetSeconds),
+        resolveRuntimeCatchUpMediaSeekTimeSeconds(
+          source,
+          targetPositionMs,
+          minimumStartPositionSeconds,
+        ),
       );
     },
     setVolume: (volume: number) => {
@@ -1171,9 +1435,9 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
     },
     getCurrentTime: () => {
       const mediaTimeSeconds = adapterRef.current?.getCurrentTime() || 0;
-      return resolveCatchUpTimelinePositionMs(
+      return resolveRuntimeCatchUpTimelinePositionMs(
+        sessionRef.current.source,
         mediaTimeSeconds,
-        resolveCatchUpMediaOffsetSeconds(sessionRef.current.source),
       ) / 1000;
     },
     getDuration: () => adapterRef.current?.getDuration() || 0,
@@ -1305,10 +1569,9 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
       const attemptedRetries = Math.floor(
         parseNumericMetadataValue(metadata.catchUpSeekNoFrameRetryCount) ?? 0,
       );
-      const mediaOffsetSeconds = resolveCatchUpMediaOffsetSeconds(currentSource);
-      const currentTimelineTimeSeconds = resolveCatchUpTimelinePositionMs(
+      const currentTimelineTimeSeconds = resolveRuntimeCatchUpTimelinePositionMs(
+        currentSource,
         adapter.getCurrentTime(),
-        mediaOffsetSeconds,
       ) / 1000;
       const decision = resolveCatchUpSeekNoFrameDecision(currentSession, {
         currentTimeSeconds: currentTimelineTimeSeconds,
@@ -1323,9 +1586,9 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
         return;
       }
 
-      const targetMediaPositionSeconds = resolveCatchUpMediaSeekTimeSeconds(
+      const targetMediaPositionSeconds = resolveRuntimeCatchUpMediaSeekTimeSeconds(
+        currentSource,
         targetPositionMs,
-        mediaOffsetSeconds,
         resolveCatchUpMinimumHlsStartPositionSeconds(currentSource),
       );
       if (decision === 'retry') {
@@ -1374,9 +1637,9 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
         lastRenderablePositionMs: lastRenderableCatchUpPositionMsRef.current,
       });
       if (fallbackPositionMs !== null) {
-        const fallbackMediaPositionSeconds = resolveCatchUpMediaSeekTimeSeconds(
+        const fallbackMediaPositionSeconds = resolveRuntimeCatchUpMediaSeekTimeSeconds(
+          currentSource,
           fallbackPositionMs,
-          mediaOffsetSeconds,
           resolveCatchUpMinimumHlsStartPositionSeconds(currentSource),
         );
         isApplyingSessionSeekRef.current = true;
@@ -1390,6 +1653,8 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
           metadata: {
             ...metadata,
             catchUpHlsStartPositionSeconds: fallbackMediaPositionSeconds,
+            catchUpPendingTimelineSeekMs: fallbackPositionMs,
+            catchUpPendingMediaSeekSeconds: fallbackMediaPositionSeconds,
             catchUpSeekNoFrameRetryCount: 0,
             catchUpSeekRecoveryFallbackFromMs: targetPositionMs,
             loadKey: Date.now(),
@@ -1417,6 +1682,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
         return;
       }
 
+      recordCatchUpRuntimeCompatibility(currentSource, 'unsupported', 'seek-no-frame');
       setError(resolveSessionSourceBlockingError(currentSource, 'MEDIA_ERROR')
         ?? resolveCatchUpStartupUnavailableError(currentSource)
         ?? {
@@ -1454,9 +1720,16 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
     clearStartupAutoplayRecovery,
     commands,
     resetLoadingProgress,
+    recordCatchUpRuntimeCompatibility,
+    resolveRuntimeCatchUpMediaSeekTimeSeconds,
+    resolveRuntimeCatchUpTimelinePositionMs,
     setError,
     switchToCatchUpFallbackIfAvailable,
   ]);
+
+  useEffect(() => () => {
+    adapterRef.current?.stop();
+  }, [sourceLoadKey, isLocalRenderer]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -1466,6 +1739,44 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
 
     const adapter = new HlsPlayerAdapter(video, {
       preferNativeHls,
+      onUnsupportedAudioCodec: ({ unsupportedAudioCodec, sourceUrl }) => {
+        const currentSession = sessionRef.current;
+        const currentSource = currentSession.source;
+        if (!currentSource || currentSource.url !== sourceUrl) {
+          return;
+        }
+
+        setUnsupportedAudioCodec(unsupportedAudioCodec);
+        const metadata = (
+          typeof currentSource.metadata === 'object' &&
+          currentSource.metadata !== null
+        )
+          ? currentSource.metadata as Record<string, unknown>
+          : {};
+
+        if (metadata.unsupportedAudioCodec === unsupportedAudioCodec) {
+          return;
+        }
+
+        commands.setSource({
+          ...currentSource,
+          metadata: {
+            ...metadata,
+            unsupportedAudioCodec,
+          },
+        }, currentSession.positionMs ?? 0);
+        emitWebObservabilityEvent({
+          name: 'playback.unsupported_audio_codec',
+          severity: 'warn',
+          metadata: {
+            renderer: currentSession.renderer,
+            channelId: currentSource.channelId ?? null,
+            streamId: metadata.streamId ?? null,
+            unsupportedAudioCodec,
+            fallback: 'video_only',
+          },
+        });
+      },
       onManifestResolved: ({ requestedUrl, manifestUrl, finalUrl }) => {
         const source = sessionRef.current.source;
         if (
@@ -1481,6 +1792,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
         if (metadata.mode !== 'catchup') {
           return;
         }
+        catchUpRuntimeCompatibilityObservedUrlRef.current = finalUrl ?? manifestUrl;
         updateLoadingProgressPhase('playlist');
 
         const scheduledStartupTimeoutCount = Math.floor(
@@ -1529,6 +1841,17 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
           const startupFallbackCount = Math.floor(
             parseNumericMetadataValue(currentMetadata.catchUpStartupFallbackCount) ?? 0,
           );
+          if (
+            !shouldShowCatchUpManifestNoFrameUnavailable(
+              currentSession,
+              startupTimeoutCount,
+              startupFallbackCount,
+            ) &&
+            switchToCatchUpFallbackIfAvailable('STARTUP_TIMEOUT')
+          ) {
+            return;
+          }
+
           const providerIssueError = resolveSessionSourceBlockingError(
             currentSource,
             'STARTUP_TIMEOUT',
@@ -1537,6 +1860,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
             clearStartupAutoplayRecovery();
             clearCatchUpStartupWatchdog();
             pendingAutoplaySourceUrlRef.current = null;
+            recordCatchUpRuntimeCompatibility(currentSource, 'unsupported', 'manifest-no-frame');
             setError(providerIssueError);
             setIsLoading(false);
             clearLoadingProgress();
@@ -1559,21 +1883,11 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
             return;
           }
 
-          if (
-            !shouldShowCatchUpManifestNoFrameUnavailable(
-              currentSession,
-              startupTimeoutCount,
-              startupFallbackCount,
-            ) &&
-            switchToCatchUpFallbackIfAvailable('STARTUP_TIMEOUT')
-          ) {
-            return;
-          }
-
           clearStartupAutoplayRecovery();
           clearLiveNoFrameWatchdog();
           clearCatchUpStartupWatchdog();
           pendingAutoplaySourceUrlRef.current = null;
+          recordCatchUpRuntimeCompatibility(currentSource, 'unsupported', 'manifest-no-frame');
           setError(resolveCatchUpStartupUnavailableError(currentSource) ?? {
             type: 'network',
             message: 'Snimak za TV unazad trenutno nije dostupan',
@@ -1636,6 +1950,47 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
         recoverySession: typeof currentSession = sessionRef.current,
       ): boolean => {
         const currentSourceUrl = recoverySession.source?.url ?? null;
+        const hasRenderableFrame = hasRenderableMediaFrame(videoRef.current);
+        if (
+          recoverySession.source &&
+          shouldResumeRenderableLiveAfterUnexpectedStop(recoverySession, {
+            manualPauseRequested,
+            hasRenderableFrame,
+          })
+        ) {
+          liveUnexpectedPauseRecoverySourceRef.current = recoverySession.source.url;
+          liveUnexpectedPauseRecoveryAttemptsRef.current = 0;
+          clearStartupAutoplayRecovery();
+          clearLiveNoFrameWatchdog();
+          clearCatchUpStartupWatchdog();
+          pendingAutoplaySourceUrlRef.current = recoverySession.source.url;
+          setError(null);
+          setIsPlaying(true);
+          setIsLoading(false);
+          clearLoadingProgress();
+          adapter.play();
+          const metadata = (
+            typeof recoverySession.source.metadata === 'object' &&
+            recoverySession.source.metadata !== null
+          )
+            ? recoverySession.source.metadata
+            : {};
+          const errorCode = reason === 'pause'
+            ? 'LIVE_UNEXPECTED_PAUSE'
+            : (reason === 'idle' ? 'LIVE_UNEXPECTED_IDLE' : 'LIVE_NO_FRAME');
+          emitWebObservabilityEvent({
+            name: 'playback.retry',
+            severity: 'warn',
+            metadata: {
+              renderer: recoverySession.renderer,
+              channelId: recoverySession.source.channelId ?? null,
+              streamId: metadata.streamId ?? null,
+              status: `unexpected_${reason}_resume`,
+              errorCode,
+            },
+          });
+          return true;
+        }
         const attemptedRetries = (
           currentSourceUrl !== null &&
           liveUnexpectedPauseRecoverySourceRef.current === currentSourceUrl
@@ -1772,9 +2127,10 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
           isCatchUpPlaying &&
           hasRenderablePlayingFrame
         ) {
-          lastRenderableCatchUpPositionMsRef.current = resolveCatchUpTimelinePositionMs(
+          recordCatchUpRuntimeCompatibility(currentSession.source, 'playable', 'rendered-frame');
+          lastRenderableCatchUpPositionMsRef.current = resolveRuntimeCatchUpTimelinePositionMs(
+            currentSession.source,
             adapter.getCurrentTime(),
-            resolveCatchUpMediaOffsetSeconds(currentSession.source),
           );
         }
 
@@ -1827,34 +2183,6 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
         }
 
         const sourceUrl = sessionRef.current.source?.url ?? null;
-        if (
-          sourceUrl &&
-          currentSession.source?.metadata?.mode === 'live' &&
-          sessionWantsPlayback(currentSession)
-        ) {
-          liveNoFrameWatchdogTimerRef.current = setTimeout(() => {
-            liveNoFrameWatchdogTimerRef.current = null;
-            const nextSession = sessionRef.current;
-            if (
-              nextSession.source?.url !== sourceUrl ||
-              !sessionWantsPlayback(nextSession)
-            ) {
-              return;
-            }
-
-            const mediaElement = videoRef.current;
-            const hasRenderableFrame = Boolean(
-              mediaElement &&
-              mediaElement.readyState >= 2 &&
-              mediaElement.videoWidth > 0
-            );
-            if (hasRenderableFrame) {
-              return;
-            }
-
-            recoverUnexpectedLiveStop('no-frame', false, nextSession);
-          }, LIVE_NO_FRAME_WATCHDOG_DELAY_MS);
-        }
         if (sourceUrl && sourceUrl !== lastStartedSourceRef.current) {
           lastStartedSourceRef.current = sourceUrl;
           emitWebObservabilityEvent({
@@ -1929,12 +2257,16 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
           currentSession,
           pendingAutoplaySourceUrlRef.current
         )) {
+          const isCatchUpStartup = currentSession.source?.metadata?.mode === 'catchup';
+          const maxAutoplayRecoveryRetries = isCatchUpStartup
+            ? CATCH_UP_STARTUP_AUTOPLAY_RECOVERY_MAX_RETRIES
+            : STARTUP_AUTOPLAY_RECOVERY_MAX_RETRIES;
           if (
             shouldRetryPendingAutoplayAfterPausedEvent(
               currentSession,
               pendingAutoplaySourceUrlRef.current,
               startupAutoplayRecoveryAttemptsRef.current,
-              STARTUP_AUTOPLAY_RECOVERY_MAX_RETRIES
+              maxAutoplayRecoveryRetries
             )
           ) {
             if (startupAutoplayRecoveryTimerRef.current !== null) {
@@ -1942,8 +2274,16 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
             }
 
             startupAutoplayRecoveryAttemptsRef.current += 1;
-            const retryDelayMs =
-              STARTUP_AUTOPLAY_RECOVERY_BASE_DELAY_MS * startupAutoplayRecoveryAttemptsRef.current;
+            const retryDelayMs = Math.min(
+              isCatchUpStartup
+                ? CATCH_UP_STARTUP_AUTOPLAY_RECOVERY_MAX_DELAY_MS
+                : Number.POSITIVE_INFINITY,
+              STARTUP_AUTOPLAY_RECOVERY_BASE_DELAY_MS * startupAutoplayRecoveryAttemptsRef.current,
+            );
+            if (isCatchUpStartup) {
+              setIsLoading(true);
+              updateLoadingProgressPhase('segment');
+            }
             startupAutoplayRecoveryTimerRef.current = setTimeout(() => {
               startupAutoplayRecoveryTimerRef.current = null;
               const nextSession = sessionRef.current;
@@ -2036,10 +2376,9 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
         )
           ? currentSession.source.metadata as Record<string, unknown>
           : {};
-        const mediaOffsetSeconds = resolveCatchUpMediaOffsetSeconds(currentSession.source);
-        const fallbackMediaPositionSeconds = resolveCatchUpMediaSeekTimeSeconds(
+        const fallbackMediaPositionSeconds = resolveRuntimeCatchUpMediaSeekTimeSeconds(
+          currentSession.source,
           seekFallbackPositionMs,
-          mediaOffsetSeconds,
           resolveCatchUpMinimumHlsStartPositionSeconds(currentSession.source),
         );
         clearStartupAutoplayRecovery();
@@ -2056,6 +2395,8 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
           metadata: {
             ...metadata,
             catchUpHlsStartPositionSeconds: fallbackMediaPositionSeconds,
+            catchUpPendingTimelineSeekMs: seekFallbackPositionMs,
+            catchUpPendingMediaSeekSeconds: fallbackMediaPositionSeconds,
             catchUpSeekNoFrameRetryCount: 0,
             catchUpSeekRecoveryFallbackFromMs: seekTargetPositionMs,
             loadKey: Date.now(),
@@ -2079,6 +2420,142 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
         });
         return;
       }
+      const sourceHasStarted = Boolean(
+        currentSession.source &&
+        lastStartedSourceRef.current === currentSession.source.url
+      );
+      if (shouldDeferLiveStartupPlaybackError(
+        currentSession,
+        playbackError,
+        { hasRenderableFrame },
+        { sourceHasStarted },
+      )) {
+        setError(null);
+        setIsLoading(true);
+        updateLoadingProgressPhase('segment');
+        emitWebObservabilityEvent({
+          name: 'playback.error',
+          severity: playbackError.fatal ? 'error' : 'warn',
+          metadata: {
+            code: playbackError.code,
+            fatal: playbackError.fatal,
+            message: playbackError.message,
+            renderer: sessionRef.current.renderer,
+            status: 'live_startup_deferred',
+          },
+        });
+        return;
+      }
+      const shouldDeferCatchUpStartupError = shouldDeferCatchUpStartupPlaybackError(
+        currentSession,
+        playbackError,
+        { hasRenderableFrame },
+        { sourceHasStarted },
+      );
+      if (shouldDeferCatchUpStartupError) {
+        setError(null);
+        setIsLoading(true);
+        updateLoadingProgressPhase('segment');
+        emitWebObservabilityEvent({
+          name: 'playback.error',
+          severity: playbackError.fatal ? 'error' : 'warn',
+          metadata: {
+            code: playbackError.code,
+            fatal: playbackError.fatal,
+            message: playbackError.message,
+            renderer: sessionRef.current.renderer,
+            ...buildCatchUpEventMetadata(sessionRef.current.source, {
+              status: 'startup_deferred',
+              errorCode: playbackError.code,
+            }),
+          },
+        });
+        return;
+      }
+
+      if (
+        playbackError.code === 'MEDIA_ELEMENT_3' &&
+        currentSession.source?.metadata?.mode === 'catchup' &&
+        sourceHasStarted &&
+        sessionWantsPlayback(currentSession)
+      ) {
+        const metadata = (
+          typeof currentSession.source.metadata === 'object' &&
+          currentSession.source.metadata !== null
+        )
+          ? currentSession.source.metadata as Record<string, unknown>
+          : {};
+        const attemptedDecodeSkips = Math.floor(
+          parseNumericMetadataValue(metadata.catchUpRuntimeDecodeSkipCount) ?? 0,
+        );
+        const durationSeconds = Math.max(
+          0,
+          parseNumericMetadataValue(metadata.catchUpDurationSeconds) ?? 0,
+        );
+        const mediaTimeSeconds = Math.max(
+          0,
+          mediaElement?.currentTime || 0,
+        );
+        const currentTimelinePositionMs = Math.max(
+          0,
+          resolveRuntimeCatchUpTimelinePositionMs(currentSession.source, mediaTimeSeconds),
+          currentSession.positionMs ?? 0,
+        );
+        const unclampedTargetPositionMs = currentTimelinePositionMs + CATCH_UP_RUNTIME_DECODE_SKIP_MS;
+        const targetPositionMs = durationSeconds > 1
+          ? Math.min(Math.floor(durationSeconds * 1000) - 1_000, unclampedTargetPositionMs)
+          : unclampedTargetPositionMs;
+        if (
+          attemptedDecodeSkips < CATCH_UP_RUNTIME_DECODE_SKIP_MAX_ATTEMPTS &&
+          targetPositionMs > currentTimelinePositionMs
+        ) {
+          const targetMediaPositionSeconds = resolveRuntimeCatchUpMediaSeekTimeSeconds(
+            currentSession.source,
+            targetPositionMs,
+            resolveCatchUpMinimumHlsStartPositionSeconds(currentSession.source),
+          );
+          clearStartupAutoplayRecovery();
+          clearCatchUpStartupWatchdog();
+          clearCatchUpManifestNoFrameWatchdog();
+          clearCatchUpSeekWatchdog();
+          isApplyingSessionSeekRef.current = true;
+          applyingSessionSeekTargetMsRef.current = targetPositionMs;
+          pendingAutoplaySourceUrlRef.current = currentSession.source.url;
+          setError(null);
+          setIsLoading(true);
+          resetLoadingProgress('segment');
+          commands.setSource({
+            ...currentSession.source,
+            metadata: {
+              ...metadata,
+              catchUpHlsStartupMode: 'complete',
+              catchUpHlsStartPositionSeconds: targetMediaPositionSeconds,
+              catchUpPendingTimelineSeekMs: targetPositionMs,
+              catchUpPendingMediaSeekSeconds: targetMediaPositionSeconds,
+              catchUpRuntimeDecodeSkipCount: attemptedDecodeSkips + 1,
+              catchUpSeekNoFrameRetryCount: 0,
+              loadKey: Date.now(),
+            },
+          }, targetPositionMs);
+          commands.play();
+          emitWebObservabilityEvent({
+            name: 'catchup.retry',
+            severity: 'warn',
+            metadata: {
+              renderer: currentSession.renderer,
+              positionMs: targetPositionMs,
+              failedPositionMs: currentTimelinePositionMs,
+              mediaPositionSeconds: targetMediaPositionSeconds,
+              ...buildCatchUpEventMetadata(currentSession.source, {
+                status: 'runtime_decode_skip',
+                errorCode: playbackError.code,
+              }),
+            },
+          });
+          return;
+        }
+      }
+
       const providerIssueError = shouldResolveProviderBlockingErrorAfterPlaybackError(
         currentSession,
         playbackError,
@@ -2098,12 +2575,10 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
       )
         ? resolveCatchUpStartupUnavailableError(currentSession.source)
         : null;
-      const shouldShowPlaybackError = (
-        shouldShowBlockingPlaybackError(playbackError) &&
-        !(
-          currentSession.source?.metadata?.mode === 'catchup' &&
-          hasRenderableFrame
-        )
+      const shouldShowPlaybackError = shouldShowPlaybackErrorAfterPlaybackError(
+        currentSession,
+        playbackError,
+        { hasRenderableFrame },
       );
       if (!providerIssueError &&
         shouldAttemptRuntimeFallback &&
@@ -2124,6 +2599,9 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
         catchUpRuntimeUnavailableError ||
         shouldShowPlaybackError
       ) {
+        if (currentSession.source?.metadata?.mode === 'catchup' && !hasRenderableFrame) {
+          recordCatchUpRuntimeCompatibility(currentSession.source, 'unsupported', 'playback-error');
+        }
         setError(providerIssueError ?? catchUpRuntimeUnavailableError ?? mapPlaybackError(playbackError));
       }
       if (
@@ -2177,15 +2655,34 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
         return;
       }
 
-      const currentPositionMs = resolveCatchUpTimelinePositionMs(
+      let currentPositionMs = resolveRuntimeCatchUpTimelinePositionMs(
+        currentSession.source,
         time,
-        resolveCatchUpMediaOffsetSeconds(currentSession.source),
       );
       const hasRenderableCatchUpFrame = Boolean(
         currentSession.source.metadata?.mode === 'catchup' &&
         hasRenderableMediaFrame(videoRef.current)
       );
+      const pendingTimelineTargetMs = applyingSessionSeekTargetMsRef.current ?? currentSession.positionMs;
+      if (
+        hasRenderableCatchUpFrame &&
+        !getCatchUpRuntimeTimelineAnchor(currentSession.source) &&
+        pendingTimelineTargetMs !== null &&
+        time * 1000 > pendingTimelineTargetMs + 1_000 &&
+        Math.abs(currentPositionMs - pendingTimelineTargetMs) > 1_000
+      ) {
+        rememberCatchUpRuntimeTimelineAnchor(
+          currentSession.source,
+          pendingTimelineTargetMs,
+          time,
+        );
+        currentPositionMs = resolveRuntimeCatchUpTimelinePositionMs(
+          currentSession.source,
+          time,
+        );
+      }
       if (hasRenderableCatchUpFrame) {
+        recordCatchUpRuntimeCompatibility(currentSession.source, 'playable', 'rendered-frame');
         lastRenderableCatchUpPositionMsRef.current = currentPositionMs;
         clearCatchUpStartupWatchdog();
         clearCatchUpManifestNoFrameWatchdog();
@@ -2278,12 +2775,17 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
     clearCatchUpSeekWatchdog,
     clearLoadingProgress,
     commands,
+    getCatchUpRuntimeTimelineAnchor,
     mapPlaybackError,
+    rememberCatchUpRuntimeTimelineAnchor,
     onCanPlay,
     onEnded,
     onError,
     preferNativeHls,
     resetLoadingProgress,
+    recordCatchUpRuntimeCompatibility,
+    resolveRuntimeCatchUpMediaSeekTimeSeconds,
+    resolveRuntimeCatchUpTimelinePositionMs,
     scheduleCatchUpSeekWatchdog,
     setError,
     switchToCatchUpFallbackIfAvailable,
@@ -2302,6 +2804,14 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
     }
 
     const elapsedMs = loadingTickMs - loadingProgress.startedAtMs;
+    if (
+      elapsedMs >= CATCH_UP_MANIFEST_NO_FRAME_FALLBACK_DELAY_MS &&
+      !hasRenderableMediaFrame(videoRef.current) &&
+      switchToCatchUpFallbackIfAvailable('STARTUP_TIMEOUT')
+    ) {
+      return;
+    }
+
     if (!shouldStopLongCatchUpStartupLoading(
       currentSession,
       { hasRenderableFrame: hasRenderableMediaFrame(videoRef.current) },
@@ -2328,6 +2838,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
     clearCatchUpManifestNoFrameWatchdog();
     clearCatchUpSeekWatchdog();
     pendingAutoplaySourceUrlRef.current = null;
+    recordCatchUpRuntimeCompatibility(currentSource, 'unsupported', 'visible-loading-timeout');
     setError(longLoadingError);
     setIsLoading(false);
     clearLoadingProgress();
@@ -2360,7 +2871,9 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
     isLoading,
     loadingProgress,
     loadingTickMs,
+    recordCatchUpRuntimeCompatibility,
     setError,
+    switchToCatchUpFallbackIfAvailable,
   ]);
 
   useEffect(() => {
@@ -2374,6 +2887,11 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
     catchUpPendingStartupSeekAppliedKeyRef.current = null;
     catchUpSeekAutoplayRetryKeyRef.current = null;
     catchUpSeekFallbackAutoplayRetryKeyRef.current = null;
+    catchUpRuntimeCompatibilityObservedUrlRef.current = null;
+    lastRecordedCatchUpRuntimeCompatibilityRef.current = null;
+    setUnsupportedAudioCodec(
+      sessionRef.current.source?.metadata?.unsupportedAudioCodec === 'mp2' ? 'mp2' : null,
+    );
     const sourceMetadataForReset = (
       typeof sessionRef.current.source?.metadata === 'object' &&
       sessionRef.current.source.metadata !== null
@@ -2391,7 +2909,12 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
       lastRenderableCatchUpPositionMsRef.current = null;
     }
 
-    const sourceBlockingError = resolveSessionSourceBlockingError(sessionRef.current.source);
+    const cachedRuntimeCompatibility = getCachedCatchUpRuntimeCompatibility(sessionRef.current.source);
+    const sourceBlockingError = resolveSessionSourceBlockingError(sessionRef.current.source)
+      ?? resolveCatchUpRuntimeCompatibilityBlockingError(
+        sessionRef.current.source,
+        cachedRuntimeCompatibility,
+      );
     if (sourceBlockingError && isLocalRenderer) {
       void exitPictureInPicture();
       clearStartupAutoplayRecovery();
@@ -2424,6 +2947,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
     }
 
     let cancelled = false;
+    adapter.stop();
     setError(null);
     setIsLoading(true);
     resetLoadingProgress('requesting');
@@ -2478,6 +3002,10 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
           return;
         }
 
+        if (switchToCatchUpFallbackIfAvailable('STARTUP_TIMEOUT')) {
+          return;
+        }
+
         const providerIssueError = resolveSessionSourceBlockingError(
           currentSession.source,
           'STARTUP_TIMEOUT',
@@ -2487,6 +3015,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
           clearCatchUpStartupWatchdog();
           clearCatchUpManifestNoFrameWatchdog();
           pendingAutoplaySourceUrlRef.current = null;
+          recordCatchUpRuntimeCompatibility(currentSession.source, 'unsupported', 'startup-timeout');
           setError(providerIssueError);
           setIsLoading(false);
           clearLoadingProgress();
@@ -2509,15 +3038,12 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
           return;
         }
 
-        if (switchToCatchUpFallbackIfAvailable('STARTUP_TIMEOUT')) {
-          return;
-        }
-
         clearStartupAutoplayRecovery();
         clearLiveNoFrameWatchdog();
         clearCatchUpStartupWatchdog();
         clearCatchUpManifestNoFrameWatchdog();
         pendingAutoplaySourceUrlRef.current = null;
+        recordCatchUpRuntimeCompatibility(currentSession.source, 'unsupported', 'startup-timeout');
         setError(resolveCatchUpStartupUnavailableError(currentSession.source) ?? {
           type: 'network',
           message: 'Snimak za TV unazad trenutno nije dostupan',
@@ -2535,26 +3061,35 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
 
     const beginLoad = (allowHardRetry: boolean) => {
       scheduleCatchUpStartupWatchdog();
-      const mediaOffsetSeconds = resolveCatchUpMediaOffsetSeconds(sessionRef.current.source);
-      const catchUpStartPositionSeconds = resolveCatchUpMediaSeekTimeSeconds(
-        sessionRef.current.positionMs,
-        mediaOffsetSeconds,
-        resolveCatchUpMinimumHlsStartPositionSeconds(sessionRef.current.source),
-      );
+      const currentSource = sessionRef.current.source;
+      const currentSourceMetadata = (
+        typeof currentSource?.metadata === 'object' &&
+        currentSource.metadata !== null
+      )
+        ? currentSource.metadata
+        : null;
+      const isCatchUpSource = currentSourceMetadata?.mode === 'catchup';
+      const catchUpStartPositionSeconds = isCatchUpSource
+        ? resolveRuntimeCatchUpMediaSeekTimeSeconds(
+          currentSource,
+          sessionRef.current.positionMs,
+          resolveCatchUpMinimumHlsStartPositionSeconds(currentSource),
+        )
+        : 0;
       const sourceMetadata = (
-        typeof sessionRef.current.source?.metadata === 'object' &&
-        sessionRef.current.source.metadata !== null
+        typeof currentSource?.metadata === 'object' &&
+        currentSource.metadata !== null
       )
         ? {
-          ...sessionRef.current.source.metadata,
-          ...(catchUpStartPositionSeconds > 0
+          ...currentSource.metadata,
+          ...(isCatchUpSource && catchUpStartPositionSeconds > 0
             ? { catchUpHlsStartPositionSeconds: catchUpStartPositionSeconds }
             : {}),
-          ...(usesMediaKingCatchUpManifestGuard(sessionRef.current.source)
+          ...(isCatchUpSource && usesMediaKingCatchUpManifestGuard(currentSource)
             ? { catchUpHlsStartupMode: 'progressive' }
             : {}),
         }
-        : sessionRef.current.source?.metadata;
+        : currentSource?.metadata;
       const sourceForAdapter = {
         url: src,
         type: sourceType,
@@ -2566,8 +3101,6 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
           return;
         }
 
-        setIsLoading(false);
-        onCanPlay?.();
         const loadedSession = sessionRef.current;
         const loadedMetadata = (
           typeof loadedSession.source?.metadata === 'object' &&
@@ -2584,6 +3117,16 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
           loadedMediaElement.readyState >= 2 &&
           loadedMediaElement.videoWidth > 0
         );
+        if (
+          loadedMetadata?.mode === 'catchup' &&
+          !loadedHasRenderableFrame
+        ) {
+          setIsLoading(true);
+          updateLoadingProgressPhase('segment');
+        } else {
+          setIsLoading(false);
+          onCanPlay?.();
+        }
         const pendingStartupSeek = resolveCatchUpPendingStartupSeek(
           loadedSession.source,
           {
@@ -2591,6 +3134,12 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
             minimumMediaPositionSeconds: resolveCatchUpMinimumHlsStartPositionSeconds(loadedSession.source),
           },
         );
+        if (
+          loadedMetadata?.mode === 'catchup' &&
+          loadedHasRenderableFrame
+        ) {
+          recordCatchUpRuntimeCompatibility(loadedSession.source, 'playable', 'rendered-frame');
+        }
         if (
           loadedMetadata?.mode === 'catchup' &&
           (seekRecoveryRetryCount > 0 || pendingStartupSeek !== null) &&
@@ -2689,6 +3238,74 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
         }
 
         const message = loadError instanceof Error ? loadError.message : 'Neuspešno učitavanje streama';
+        if (message === 'Playback load was cancelled.') {
+          return;
+        }
+
+        const currentSession = sessionRef.current;
+        const mediaElement = videoRef.current;
+        const hasRenderableFrame = hasRenderableMediaFrame(mediaElement);
+        const sourceHasStarted = Boolean(
+          currentSession.source &&
+          lastStartedSourceRef.current === currentSession.source.url
+        );
+        if (shouldDeferLiveStartupPlaybackError(
+          currentSession,
+          { code: 'LOAD_FAILED', fatal: true },
+          { hasRenderableFrame },
+          { sourceHasStarted },
+        )) {
+          setError(null);
+          setIsLoading(true);
+          updateLoadingProgressPhase('requesting');
+          emitWebObservabilityEvent({
+            name: 'playback.error',
+            severity: 'error',
+            metadata: {
+              code: 'LOAD_FAILED',
+              fatal: true,
+              message,
+              renderer: currentSession.renderer,
+              status: 'live_startup_deferred',
+            },
+          });
+          if (startupHardRetrySourceUrlRef.current !== src) {
+            startupHardRetrySourceUrlRef.current = src;
+            pendingAutoplaySourceUrlRef.current = src;
+            window.setTimeout(() => {
+              if (!cancelled && sessionRef.current.source?.url === src) {
+                beginLoad(false);
+              }
+            }, LIVE_STARTUP_DETACHED_RETRY_DELAY_MS);
+          }
+          return;
+        }
+        if (shouldDeferCatchUpStartupPlaybackError(
+          currentSession,
+          { code: 'LOAD_FAILED', fatal: true },
+          { hasRenderableFrame },
+          { sourceHasStarted },
+        )) {
+          setError(null);
+          setIsLoading(true);
+          updateLoadingProgressPhase('segment');
+          emitWebObservabilityEvent({
+            name: 'playback.error',
+            severity: 'error',
+            metadata: {
+              code: 'LOAD_FAILED',
+              fatal: true,
+              message,
+              renderer: currentSession.renderer,
+              ...buildCatchUpEventMetadata(currentSession.source, {
+                status: 'startup_deferred',
+                errorCode: 'LOAD_FAILED',
+              }),
+            },
+          });
+          return;
+        }
+
         const providerIssueError = resolveSessionSourceBlockingError(
           sessionRef.current.source,
           'LOAD_FAILED',
@@ -2705,6 +3322,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
         clearCatchUpStartupWatchdog();
         clearCatchUpManifestNoFrameWatchdog();
         pendingAutoplaySourceUrlRef.current = null;
+        recordCatchUpRuntimeCompatibility(sessionRef.current.source, 'unsupported', 'load-failed');
         emitWebObservabilityEvent({
           name: 'playback.error',
           severity: 'error',
@@ -2732,6 +3350,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
 
     return () => {
       cancelled = true;
+      adapter.stop();
       if (startupHardRetryTimerRef.current !== null) {
         clearTimeout(startupHardRetryTimerRef.current);
         startupHardRetryTimerRef.current = null;
@@ -2758,6 +3377,8 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
     onError,
     clearLoadingProgress,
     resetLoadingProgress,
+    recordCatchUpRuntimeCompatibility,
+    resolveRuntimeCatchUpMediaSeekTimeSeconds,
     setError,
     setErrorIfMissing,
     scheduleCatchUpSeekWatchdog,
@@ -2765,6 +3386,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
     src,
     sourceLoadKey,
     switchToCatchUpFallbackIfAvailable,
+    updateLoadingProgressPhase,
   ]);
 
   useEffect(() => {
@@ -2791,28 +3413,32 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
       return;
     }
 
-    const mediaOffsetSeconds = resolveCatchUpMediaOffsetSeconds(session.source);
     const minimumStartPositionSeconds = resolveCatchUpMinimumHlsStartPositionSeconds(session.source);
-    const targetTime = resolveCatchUpMediaSeekTimeSeconds(
+    const targetTime = resolveRuntimeCatchUpMediaSeekTimeSeconds(
+      session.source,
       session.positionMs,
-      mediaOffsetSeconds,
       minimumStartPositionSeconds,
     );
-    const targetPositionMs = resolveCatchUpTimelineSeekTargetMs(
+    const targetPositionMs = resolveRuntimeCatchUpTimelineSeekTargetMs(
+      session.source,
       session.positionMs,
-      mediaOffsetSeconds,
       minimumStartPositionSeconds,
     );
-    if (minimumStartPositionSeconds > 0 && targetTime * 1000 > session.positionMs + 500) {
-      commands.seek(targetPositionMs);
-    }
-    const currentTime = adapter.getCurrentTime();
     const mediaElement = videoRef.current;
     const hasRenderableFrame = Boolean(
       mediaElement &&
       mediaElement.readyState >= 2 &&
       mediaElement.videoWidth > 0
     );
+    if (minimumStartPositionSeconds > 0 && targetTime * 1000 > session.positionMs + 500) {
+      if (sourceMetadata?.mode === 'catchup' && !hasRenderableFrame) {
+        isApplyingSessionSeekRef.current = true;
+        applyingSessionSeekTargetMsRef.current = session.positionMs;
+        return;
+      }
+      commands.seek(targetPositionMs);
+    }
+    const currentTime = adapter.getCurrentTime();
     const seekRecoveryRetryCount = Math.floor(
       parseNumericMetadataValue(sourceMetadata?.catchUpSeekNoFrameRetryCount) ?? 0,
     );
@@ -2845,6 +3471,8 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
     clearCatchUpSeekWatchdog,
     commands,
     playbackWantsPlaying,
+    resolveRuntimeCatchUpMediaSeekTimeSeconds,
+    resolveRuntimeCatchUpTimelineSeekTargetMs,
     scheduleCatchUpSeekWatchdog,
     session.positionMs,
     session.source,
@@ -3031,9 +3659,9 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
     Math.floor((loadingTickMs - currentLoadingProgress.startedAtMs) / 1000),
   );
   const loadingTargetMediaSeconds = isCatchUpLoading
-    ? resolveCatchUpMediaSeekTimeSeconds(
+    ? resolveRuntimeCatchUpMediaSeekTimeSeconds(
+      session.source,
       session.positionMs,
-      resolveCatchUpMediaOffsetSeconds(session.source),
       resolveCatchUpMinimumHlsStartPositionSeconds(session.source),
     )
     : 0;
@@ -3051,6 +3679,9 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
     elapsedSeconds: loadingElapsedSeconds,
     bufferedAheadSeconds: loadingBufferedAheadSeconds,
   });
+  const unsupportedAudioMessage = unsupportedAudioCodec === 'mp2'
+    ? 'Zvuk nije dostupan za ovaj kanal. Kanal koristi MP2 audio, koji trenutno nije podržan u web browser playback-u. Video može raditi bez zvuka.'
+    : null;
 
   return (
     <div className={`pointer-events-none relative w-full h-full bg-black ${className}`}>
@@ -3084,6 +3715,15 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
           ) : (
             <Loader2 className="w-12 h-12 text-primary animate-spin" />
           )}
+        </div>
+      )}
+
+      {unsupportedAudioMessage && !error && (
+        <div className="pointer-events-none absolute inset-x-3 top-3 z-20 flex justify-center">
+          <div className="flex max-w-[min(560px,calc(100vw-24px))] items-start gap-2 rounded-md border border-amber-300/40 bg-black/75 px-3 py-2 text-left text-xs leading-5 text-white shadow-lg backdrop-blur-sm">
+            <AlertCircle className="mt-0.5 h-4 w-4 flex-none text-amber-300" />
+            <span>{unsupportedAudioMessage}</span>
+          </div>
         </div>
       )}
 

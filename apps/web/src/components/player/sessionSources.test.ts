@@ -45,6 +45,22 @@ const program = {
 };
 
 describe('sessionSources', () => {
+  it('preserves live unsupported audio codec metadata', () => {
+    const parsed = parseSessionSourceMetadata({
+      mode: 'live',
+      channelId: 'hrt-1',
+      streamId: '75',
+      unsupportedAudioCodec: 'mp2',
+    });
+
+    expect(parsed).toMatchObject({
+      mode: 'live',
+      channelId: 'hrt-1',
+      streamId: 75,
+      unsupportedAudioCodec: 'mp2',
+    });
+  });
+
   it('parses legacy catch-up metadata into the canonical descriptor', () => {
     const parsed = parseSessionSourceMetadata({
       mode: 'catchup',
@@ -55,6 +71,7 @@ describe('sessionSources', () => {
       catchUpDurationSeconds: '1800',
       catchUpHlsStartupMode: 'complete',
       catchUpHlsStartPositionSeconds: '61',
+      catchUpProviderSafeStartPositionSeconds: '75',
       catchUpMediaOffsetSeconds: '960',
       catchUpPendingTimelineSeekMs: '1049180',
       catchUpPendingMediaSeekSeconds: '89.18',
@@ -78,6 +95,7 @@ describe('sessionSources', () => {
       durationSeconds: 1800,
       catchUpHlsStartupMode: 'complete',
       catchUpHlsStartPositionSeconds: 61,
+      catchUpProviderSafeStartPositionSeconds: 75,
       catchUpMediaOffsetSeconds: 960,
       catchUpPendingTimelineSeekMs: 1049180,
       catchUpPendingMediaSeekSeconds: 89.18,
@@ -138,7 +156,7 @@ describe('sessionSources', () => {
       catchUpStartTimestamp: 1771873200,
       catchUpDurationSeconds: 1800,
       catchUpHlsStartupMode: undefined,
-      catchUpHlsStartPositionSeconds: 15,
+      catchUpHlsStartPositionSeconds: 0,
       catchUpFallbackUrls: expect.any(Array),
     });
     expect((result.source.metadata as Record<string, unknown>).catchUpAttemptPlan).toBeInstanceOf(Array);

@@ -157,6 +157,14 @@
     @apply border-border;
   }
 
+  html,
+  body,
+  #root {
+    width: 100%;
+    max-width: 100vw;
+    overflow-x: hidden;
+  }
+
   body {
     @apply bg-background text-foreground antialiased;
   }

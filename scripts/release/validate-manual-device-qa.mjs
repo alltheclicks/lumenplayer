@@ -36,6 +36,172 @@ const fail = (message) => {
 
 const isNonEmptyString = (value) => typeof value === 'string' && value.trim() !== '';
 
+const validateEvidenceIntake = (intake) => {
+  if (!intake || typeof intake !== 'object') {
+    fail('evidenceIntake object is required.');
+  }
+
+  if (!allowedStatus.has(intake.status)) {
+    fail('evidenceIntake.status must be pending/pass/fail.');
+  }
+
+  for (const field of ['owner', 'guideRef', 'artifactRef', 'notes']) {
+    if (typeof intake[field] !== 'string') {
+      fail(`evidenceIntake.${field} must be a string.`);
+    }
+  }
+
+  if (intake.guideRef !== 'docs/qa/qaf035-real-device-qa-guide.md') {
+    fail('evidenceIntake.guideRef must be docs/qa/qaf035-real-device-qa-guide.md.');
+  }
+
+  if (intake.artifactRef !== 'artifacts/release/manual-device-qa/qaf035-manual-device-qa-20260603.json') {
+    fail('evidenceIntake.artifactRef must be artifacts/release/manual-device-qa/qaf035-manual-device-qa-20260603.json.');
+  }
+
+  if (!Array.isArray(intake.requiredTargetIds)) {
+    fail('evidenceIntake.requiredTargetIds must be an array.');
+  }
+
+  for (const requiredTargetId of requiredTargetIds) {
+    if (!intake.requiredTargetIds.includes(requiredTargetId)) {
+      fail(`evidenceIntake.requiredTargetIds must include ${requiredTargetId}.`);
+    }
+  }
+
+  if (!Array.isArray(intake.requiredEvidenceRefs)) {
+    fail('evidenceIntake.requiredEvidenceRefs must be an array.');
+  }
+
+  for (const requiredRef of [
+    'screenshotOrVideoRef',
+    'networkEvidenceRef',
+    'noMediaScanArtifactRef',
+    'perCheckEvidenceRef',
+  ]) {
+    if (!intake.requiredEvidenceRefs.includes(requiredRef)) {
+      fail(`evidenceIntake.requiredEvidenceRefs must include ${requiredRef}.`);
+    }
+  }
+
+  if (!Array.isArray(intake.finalRules) || intake.finalRules.length === 0) {
+    fail('evidenceIntake.finalRules must be a non-empty array.');
+  }
+
+  const finalRulesText = intake.finalRules.join('\n').toLowerCase();
+  for (const snippet of [
+    'playwright/headless',
+    'owner',
+    'actualdevice',
+    'release:no-media-evidence:scan',
+    'tracked redacted no-media scan artifact',
+    'https',
+  ]) {
+    if (!finalRulesText.includes(snippet)) {
+      fail(`evidenceIntake.finalRules must include ${snippet}.`);
+    }
+  }
+
+  if (intake.status === 'pending' && !intake.notes.toLowerCase().includes('pending')) {
+    fail('evidenceIntake.notes must state pending evidence when status is pending.');
+  }
+
+  if (intake.status === 'pass' && !isNonEmptyString(intake.owner)) {
+    fail('evidenceIntake.owner must be set when status is pass.');
+  }
+};
+
+const validateHttpsStagingTunnel = (staging) => {
+  if (staging === undefined) {
+    return;
+  }
+
+  if (!staging || typeof staging !== 'object') {
+    fail('httpsStagingTunnel must be an object when present.');
+  }
+
+  if (!allowedStatus.has(staging.status)) {
+    fail('httpsStagingTunnel.status must be pending/pass/fail.');
+  }
+
+  for (const field of ['owner', 'provider', 'allowedHosts', 'notes']) {
+    if (!isNonEmptyString(staging[field])) {
+      fail(`httpsStagingTunnel.${field} must be a non-empty string.`);
+    }
+  }
+
+  for (const field of ['appUrl', 'playerUrl', 'proxyOrigin', 'catchupGatewayOrigin']) {
+    if (!isNonEmptyString(staging[field]) || !staging[field].startsWith('https://')) {
+      fail(`httpsStagingTunnel.${field} must be an HTTPS URL.`);
+    }
+  }
+
+  if (!isNonEmptyString(staging.proxyHealthCheck) || !staging.proxyHealthCheck.includes(staging.proxyOrigin)) {
+    fail('httpsStagingTunnel.proxyHealthCheck must reference proxyOrigin.');
+  }
+  if (!isNonEmptyString(staging.proxyHealthResult) || !staging.proxyHealthResult.includes('"ok":true')) {
+    fail('httpsStagingTunnel.proxyHealthResult must record a healthy proxy response.');
+  }
+  if (!isNonEmptyString(staging.manifestResult) || !staging.manifestResult.includes('application/manifest+json')) {
+    fail('httpsStagingTunnel.manifestResult must record application/manifest+json.');
+  }
+  if (!isNonEmptyString(staging.receiverResult) || !staging.receiverResult.includes('Lumen Cast Receiver')) {
+    fail('httpsStagingTunnel.receiverResult must record the Lumen Cast Receiver page.');
+  }
+
+  const evidence = staging.playwrightEvidence;
+  if (!evidence || typeof evidence !== 'object') {
+    fail('httpsStagingTunnel.playwrightEvidence object is required.');
+  }
+  if (evidence.result !== 'pass') {
+    fail('httpsStagingTunnel.playwrightEvidence.result must be pass.');
+  }
+
+  const command = `${staging.runtimeEnvCheck ?? ''} ${evidence.command ?? ''}`;
+  for (const snippet of [
+    'pnpm e2e:mobile:layout',
+    'E2E_MOBILE_LAYOUT_BASE_URL',
+    'E2E_MOBILE_LAYOUT_PROXY_ORIGIN',
+    'E2E_XTREAM_SERVER=https://gw.castcdn.net:443',
+  ]) {
+    if (!command.includes(snippet)) {
+      fail(`httpsStagingTunnel mobile smoke command must include ${snippet}.`);
+    }
+  }
+
+  const expectedRefs = {
+    json: 'output/playwright/mobile-layout-smoke/report.json',
+    report: 'output/playwright/mobile-layout-smoke/REPORT.md',
+  };
+  for (const [field, expected] of Object.entries(expectedRefs)) {
+    if (evidence[field] !== expected) {
+      fail(`httpsStagingTunnel.playwrightEvidence.${field} must be ${expected}.`);
+    }
+  }
+
+  if (!isNonEmptyString(evidence.screenshot) || !evidence.screenshot.startsWith('output/playwright/mobile-layout-smoke/')) {
+    fail('httpsStagingTunnel.playwrightEvidence.screenshot must reference output/playwright/mobile-layout-smoke/.');
+  }
+
+  const assertions = Array.isArray(evidence.assertions) ? evidence.assertions.join('\n') : '';
+  for (const snippet of [
+    'runtime env uses https://gw.castcdn.net:443',
+    '393px mobile viewport',
+    'TV Unazad',
+    'remains on /player',
+    'no mixed-content',
+    'no non-aborted app/proxy request failures',
+  ]) {
+    if (!assertions.includes(snippet)) {
+      fail(`httpsStagingTunnel.playwrightEvidence.assertions must include ${snippet}.`);
+    }
+  }
+
+  if (!staging.notes.includes('not a substitute for final real-device')) {
+    fail('httpsStagingTunnel.notes must state that staging smoke is not final real-device evidence.');
+  }
+};
+
 const validateNoMediaScanArtifactRef = (targetId, evidenceRef) => {
   const scanArtifactRef = evidenceRef
     .split(/[;\s]+/)
@@ -109,9 +275,13 @@ for (const requiredMode of disallowedTransportModes) {
   }
 }
 
+validateEvidenceIntake(artifact.evidenceIntake);
+
 if (!Array.isArray(artifact.targets) || artifact.targets.length === 0) {
   fail('targets must be a non-empty array.');
 }
+
+validateHttpsStagingTunnel(artifact.httpsStagingTunnel);
 
 const seenTargetIds = new Set();
 let failedTargetCount = 0;

@@ -3,6 +3,7 @@
   "templateVersion": 1,
   "generatedAt": "2026-06-03T10:45:00Z",
   "owner": "codex",
+  "ownerStatement": "Ja, Filip, kao owner Lumen beta testiranja i provider/XUI pristupa, potvrđujem da je isti account/upstream dozvoljen za kontrolisani beta test do 300-500 korisnika. Potvrđujem da beta ne sme koristiti XUI-side transcode/remux/generated-HLS workaround bez moje eksplicitne odluke. U slučaju 401/403/429/5xx eskalacije, playback regresije ili provider overload-a, ja sam decision owner za stop/throttle/rollback.",
   "clientStorage": {
     "namespacedStorePrefix": "lumen-web:v1:",
     "encryptionAtRest": "Browser-managed storage only (no app-side encryption)",
@@ -84,11 +85,11 @@
     "notes": "Retention policy must be re-validated before each release candidate freeze."
   },
   "incidentReadiness": {
-    "runbookRef": "",
-    "owner": "",
-    "responseChannel": "",
+    "runbookRef": "docs/release/qaf035-beta-signoff-runbook.md",
+    "owner": "Filip",
+    "responseChannel": "Manual beta/security escalation channel agreed by Filip; private Telegram/Discord/email endpoint is not stored in release artifacts.",
     "notificationSlaHours": 24,
-    "notes": "Incident owner/channel remain pending for final beta signoff."
+    "notes": "Filip is the beta security/privacy incident owner. Use the release runbook and manual escalation route for controlled beta incidents."
   },
   "controls": [
     {
@@ -112,14 +113,14 @@
     {
       "id": "incident-owner-assigned",
       "description": "Incident response owner and runbook reference are defined.",
-      "status": "pending",
-      "evidence": ""
+      "status": "pass",
+      "evidence": "incidentReadiness.owner/runbookRef/responseChannel in this artifact; docs/release/qaf035-beta-signoff-runbook.md"
     }
   ],
   "signoff": {
-    "status": "pending",
-    "approvedBy": "",
-    "approvedAt": "",
-    "notes": "Storage inventory and source evidence validate now; final beta security/privacy approval remains pending until incident owner, runbook, response channel, and release owner signoff are recorded."
+    "status": "pass",
+    "approvedBy": "Filip",
+    "approvedAt": "2026-06-05T11:25:56Z",
+    "notes": "Storage inventory, retention controls, credential cleanup evidence, incident owner, runbook, response channel, and beta security/privacy signoff are recorded."
   }
 }

@@ -385,6 +385,7 @@ runLinkedValidator('sourceReadinessArtifact', [
 
 const readiness = readJson(plan.sourceReadinessArtifact);
 const readinessGates = new Set((readiness.gates ?? []).map((gate) => gate.id));
+const blockersById = new Map((readiness.blockerTriage?.items ?? []).map((blocker) => [blocker.id, blocker]));
 const openBlockers = (readiness.blockerTriage?.items ?? []).filter((item) => item.status === 'open');
 
 if (openBlockers.length === 0) {
@@ -452,7 +453,6 @@ if (!Array.isArray(plan.closureItems) || plan.closureItems.length === 0) {
   fail('closureItems must be a non-empty array.');
 }
 
-const openBlockersById = new Map(openBlockers.map((blocker) => [blocker.id, blocker]));
 const seenClosureIds = new Set();
 const closureByBlockerId = new Map();
 const validatedArtifactRefs = new Set();
@@ -480,9 +480,9 @@ for (const item of plan.closureItems) {
   }
   closureByBlockerId.set(item.blockerId, item);
 
-  const sourceBlocker = openBlockersById.get(item.blockerId);
+  const sourceBlocker = blockersById.get(item.blockerId);
   if (!sourceBlocker) {
-    fail(`closure item ${item.id} references unknown open blockerId: ${item.blockerId}`);
+    fail(`closure item ${item.id} references unknown blockerId: ${item.blockerId}`);
   }
 
   if (!allowedStatus.has(item.status)) {

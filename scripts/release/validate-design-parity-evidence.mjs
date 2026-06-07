@@ -41,6 +41,86 @@ const validateEvidenceFileExists = (fileRef, label) => {
   }
 };
 
+const validateReviewIntake = (reviewIntake) => {
+  if (!reviewIntake || typeof reviewIntake !== 'object') {
+    fail('reviewIntake object is required.');
+  }
+
+  if (!allowedStatus.has(reviewIntake.status)) {
+    fail('reviewIntake.status must be pending/pass/fail.');
+  }
+
+  for (const field of ['owner', 'captureReportRef', 'reviewGuideRef', 'notes']) {
+    if (typeof reviewIntake[field] !== 'string') {
+      fail(`reviewIntake.${field} must be a string.`);
+    }
+  }
+
+  if (reviewIntake.captureReportRef !== 'output/playwright/lp-0373/CAPTURE-REPORT.md') {
+    fail('reviewIntake.captureReportRef must be output/playwright/lp-0373/CAPTURE-REPORT.md.');
+  }
+
+  if (reviewIntake.reviewGuideRef !== 'docs/release/qaf035-beta-signoff-runbook.md') {
+    fail('reviewIntake.reviewGuideRef must be docs/release/qaf035-beta-signoff-runbook.md.');
+  }
+
+  if (!Array.isArray(reviewIntake.requiredScreenIds)) {
+    fail('reviewIntake.requiredScreenIds must be an array.');
+  }
+
+  for (const requiredScreenId of requiredScreenIds) {
+    if (!reviewIntake.requiredScreenIds.includes(requiredScreenId)) {
+      fail(`reviewIntake.requiredScreenIds must include ${requiredScreenId}.`);
+    }
+  }
+
+  if (!Array.isArray(reviewIntake.requiredViewportModes)) {
+    fail('reviewIntake.requiredViewportModes must be an array.');
+  }
+
+  for (const requiredMode of ['desktop', 'mobile']) {
+    if (!reviewIntake.requiredViewportModes.includes(requiredMode)) {
+      fail(`reviewIntake.requiredViewportModes must include ${requiredMode}.`);
+    }
+  }
+
+  if (!Array.isArray(reviewIntake.requiredReviewFields)) {
+    fail('reviewIntake.requiredReviewFields must be an array.');
+  }
+
+  for (const requiredField of ['reviewedBy', 'reviewedAt', 'notes']) {
+    if (!reviewIntake.requiredReviewFields.includes(requiredField)) {
+      fail(`reviewIntake.requiredReviewFields must include ${requiredField}.`);
+    }
+  }
+
+  if (!Array.isArray(reviewIntake.finalRules) || reviewIntake.finalRules.length === 0) {
+    fail('reviewIntake.finalRules must be a non-empty array.');
+  }
+
+  const finalRulesText = reviewIntake.finalRules.join('\n').toLowerCase();
+  for (const snippet of [
+    'fresh desktop and mobile captures',
+    'not final owner approval',
+    'parityreview',
+    'reviewedby',
+    'reviewedat',
+    'final signoff',
+  ]) {
+    if (!finalRulesText.includes(snippet)) {
+      fail(`reviewIntake.finalRules must include ${snippet}.`);
+    }
+  }
+
+  if (reviewIntake.status === 'pending' && !reviewIntake.notes.toLowerCase().includes('pending')) {
+    fail('reviewIntake.notes must state pending review when status is pending.');
+  }
+
+  if (reviewIntake.status === 'pass' && reviewIntake.owner.trim() === '') {
+    fail('reviewIntake.owner must be set when reviewIntake.status=pass.');
+  }
+};
+
 let artifact;
 try {
   artifact = JSON.parse(fs.readFileSync(filePath, 'utf8'));
@@ -71,6 +151,8 @@ if (typeof artifact.sourceOfTruth.referenceCommit !== 'string' || artifact.sourc
 if (!Array.isArray(artifact.screens) || artifact.screens.length === 0) {
   fail('screens must be a non-empty array.');
 }
+
+validateReviewIntake(artifact.reviewIntake);
 
 const validateMode = (screenId, modeName, modeValue) => {
   if (!modeValue || typeof modeValue !== 'object') {

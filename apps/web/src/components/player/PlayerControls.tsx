@@ -66,11 +66,12 @@ interface PlayerControlsProps {
   onNextChannel: () => void;
   playerRef: MutableRefObject<VideoPlayerHandle | null>;
   defaultVolume?: number;
-  onCatchUpDiscoverabilityAction?: () => void;
+  catchUpPanelRequestKey?: number;
   castControl?: {
     isAvailable: boolean;
     isConnected: boolean;
     isConnecting: boolean;
+    disabledReason?: string | null;
     onToggle: () => void;
   };
 }
@@ -84,6 +85,7 @@ interface CatchUpSwitchOptions {
   mediaOffsetSeconds?: number;
   timelineDurationSeconds?: number;
   pendingTimelineSeekSeconds?: number;
+  initialPositionGuardSeconds?: number;
 }
 
 const LONG_PRESS_THRESHOLD_MS = 250;
@@ -139,7 +141,7 @@ const PlayerControls = ({
   onNextChannel,
   playerRef,
   defaultVolume = 80,
-  onCatchUpDiscoverabilityAction,
+  catchUpPanelRequestKey,
   castControl,
 }: PlayerControlsProps) => {
   const { session, commands } = useSessionContext();
@@ -165,6 +167,7 @@ const PlayerControls = ({
   const [mediaDurationSeconds, setMediaDurationSeconds] = useState<number | null>(null);
   const [isLiveProgressFocused, setIsLiveProgressFocused] = useState(false);
   const lastNonZeroVolumeRef = useRef(normalizedDefaultVolume || 80);
+  const lastCatchUpPanelRequestKeyRef = useRef(catchUpPanelRequestKey);
   const seekEngineRef = useRef<SeekEngine | null>(null);
   const idleTimerRef = useRef<IdleTimer | null>(null);
   const seekHoldTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -242,6 +245,22 @@ const PlayerControls = ({
 
     return subtitleTracks.find((track) => track.id === selectedSubtitleTrackId)?.label ?? 'Nepoznato';
   }, [selectedSubtitleTrackId, subtitleTracks]);
+
+  useEffect(() => {
+    if (
+      catchUpPanelRequestKey === undefined ||
+      catchUpPanelRequestKey === lastCatchUpPanelRequestKeyRef.current
+    ) {
+      return;
+    }
+
+    lastCatchUpPanelRequestKeyRef.current = catchUpPanelRequestKey;
+    setShowAudioTracks(false);
+    setShowSubtitleTracks(false);
+    setShowVolumeSlider(false);
+    setShowControls(true);
+    setShowCatchUp(true);
+  }, [catchUpPanelRequestKey]);
 
   useEffect(() => {
     setVolume(normalizedDefaultVolume);
@@ -582,9 +601,10 @@ const PlayerControls = ({
       sourceUrl: xtreamCodesService.getLiveStreamUrl(channel.streamId),
     });
 
+    playerRef.current?.stop();
     commands.setSource(source, 0);
     commands.play();
-  }, [channel, commands]);
+  }, [channel, commands, playerRef]);
 
   const switchToCatchUpProgram = useCallback(async (
     program: Program,
@@ -621,7 +641,7 @@ const PlayerControls = ({
         fallbackStreamIds: catchUpFallbackStreamIds,
         durationSeconds: playbackDuration,
         preferredPositionSeconds,
-        initialPositionGuardSeconds: CATCH_UP_INITIAL_POSITION_GUARD_SECONDS,
+        initialPositionGuardSeconds: options.initialPositionGuardSeconds ?? 0,
       });
       const catchUpFallbackUrls = resolved.transportPlan.fallbackAttempts.map((attempt) => attempt.url);
       const pendingTimelineSeekSeconds = typeof options.pendingTimelineSeekSeconds === 'number' &&
@@ -680,6 +700,7 @@ const PlayerControls = ({
         },
       });
 
+      playerRef.current?.stop();
       commands.setSource(source, Math.floor(initialTimelinePositionSeconds * 1000));
       commands.play();
       return initialTimelinePositionSeconds;
@@ -697,7 +718,7 @@ const PlayerControls = ({
       });
       return null;
     }
-  }, [catchUpFallbackStreamIds, channel, commands]);
+  }, [catchUpFallbackStreamIds, channel, commands, playerRef]);
 
   const updateCatchUpPosition = useCallback((
     positionSeconds: number,
@@ -717,6 +738,7 @@ const PlayerControls = ({
         mediaOffsetSeconds,
         timelineDurationSeconds: catchUpDuration,
         pendingTimelineSeekSeconds: clampedPositionSeconds,
+        initialPositionGuardSeconds: CATCH_UP_INITIAL_POSITION_GUARD_SECONDS,
       });
       return;
     }
@@ -790,14 +812,9 @@ const PlayerControls = ({
     setShowAudioTracks(false);
     setShowSubtitleTracks(false);
     setShowVolumeSlider(false);
-
-    if (isFullscreen) {
-      setShowCatchUp(true);
-      return;
-    }
-
-    onCatchUpDiscoverabilityAction?.();
-  }, [isFullscreen, onCatchUpDiscoverabilityAction]);
+    setShowControls(true);
+    setShowCatchUp(true);
+  }, []);
 
   const handleSeek = (e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>) => {
     if (!catchUpProgram) return;
@@ -1029,28 +1046,141 @@ const PlayerControls = ({
 
   if (!isFullscreen) {
     return (
-      <div className={`absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/95 via-black/60 to-transparent p-4 sm:p-6 transition-all duration-300 ${showControls ? 'opacity-100 translate-y-0' : 'pointer-events-none opacity-0 translate-y-4'}`}>
+      <>
         {audioTrackPanel}
         {subtitleTrackPanel}
-        <div className="flex items-center gap-4 mb-4">
-          <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-2xl bg-background/10 backdrop-blur flex items-center justify-center">
+        {showCatchUp && (
+          <div
+            className="absolute right-0 top-0 bottom-0 z-40 w-full border-l border-border/50 bg-background/95 backdrop-blur-md sm:w-96"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex h-full flex-col">
+              <div className="flex items-center justify-between border-b border-border/50 p-4">
+                <div className="flex items-center gap-2">
+                  <RotateCcw className="h-5 w-5 text-primary" />
+                  <h3 className="text-lg font-semibold">Gledanje unazad</h3>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  aria-label="Zatvori TV unazad"
+                  onClick={() => setShowCatchUp(false)}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+
+              {catchUpProgram && (
+                <div className="border-b border-border/50 p-3">
+                  <Button
+                    className="w-full gap-2"
+                    variant="default"
+                    onClick={goToLive}
+                  >
+                    <Radio className="h-4 w-4" />
+                    Vrati se na UŽIVO
+                  </Button>
+                </div>
+              )}
+
+              <ScrollArea className="flex-1">
+                <div className="space-y-2 p-3">
+                  {sortedDates.length === 0 ? (
+                    <div className="py-8 text-center text-muted-foreground">
+                      <Clock className="mx-auto mb-2 h-12 w-12 opacity-50" />
+                      <p className="font-medium">{catchUpEmptyStateReason.title}</p>
+                      <p className="mt-1 text-xs text-muted-foreground/90">
+                        {catchUpEmptyStateReason.description}
+                      </p>
+                    </div>
+                  ) : (
+                    sortedDates.map((dateKey) => {
+                      const programs = catchUpByDate.get(dateKey) || [];
+                      const isOpen = openDays.includes(dateKey);
+
+                      return (
+                        <Collapsible
+                          key={dateKey}
+                          open={isOpen}
+                          onOpenChange={() => toggleDay(dateKey)}
+                        >
+                          <CollapsibleTrigger className="w-full">
+                            <div className="flex items-center justify-between rounded-lg bg-secondary/50 p-3 transition-colors hover:bg-secondary">
+                              <div className="flex items-center gap-2">
+                                <Calendar className="h-4 w-4 text-muted-foreground" />
+                                <span className="text-sm font-medium">
+                                  {formatFullDate(new Date(dateKey))}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-muted-foreground">
+                                  {programs.length} emisija
+                                </span>
+                                <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                              </div>
+                            </div>
+                          </CollapsibleTrigger>
+                          <CollapsibleContent>
+                            <div className="mt-1 space-y-1">
+                              {programs.map((program) => (
+                                <button
+                                  key={program.id}
+                                  data-testid="catchup-program"
+                                  onClick={() => handleSelectProgram(program)}
+                                  className={`w-full rounded-lg p-3 text-left transition-colors ${
+                                    catchUpProgram?.id === program.id
+                                      ? 'border border-primary/50 bg-primary/20'
+                                      : 'bg-secondary/30 hover:bg-secondary/60'
+                                  }`}
+                                >
+                                  <div className="flex items-start gap-3">
+                                    <div className="mt-0.5 text-xs tabular-nums text-muted-foreground">
+                                      {formatTime(program.startTime)}
+                                    </div>
+                                    <div className="min-w-0 flex-1">
+                                      <p className="truncate text-sm font-medium">{program.title}</p>
+                                      {program.description && (
+                                        <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
+                                          {program.description}
+                                        </p>
+                                      )}
+                                    </div>
+                                    <Play className="mt-0.5 h-4 w-4 flex-shrink-0 text-primary" />
+                                  </div>
+                                </button>
+                              ))}
+                            </div>
+                          </CollapsibleContent>
+                        </Collapsible>
+                      );
+                    })
+                  )}
+                </div>
+              </ScrollArea>
+            </div>
+          </div>
+        )}
+        <div className={`absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/95 via-black/60 to-transparent p-2.5 sm:p-6 transition-all duration-300 ${showControls && !showCatchUp ? 'opacity-100 translate-y-0' : 'pointer-events-none opacity-0 translate-y-4'}`}>
+        <div className="mb-2 flex items-center gap-2 sm:mb-4 sm:gap-4">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-background/10 backdrop-blur sm:h-16 sm:w-16 sm:rounded-2xl">
             <ChannelLogo logo={channel.logo} name={channel.name} size="lg" />
           </div>
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-1">
+            <div className="mb-1 flex items-center gap-2">
               <span className={`badge-live ${catchUpProgram ? 'bg-orange-500' : ''}`}>
                 {catchUpProgram ? 'UNAZAD' : 'UŽIVO'}
               </span>
             </div>
-            <h3 className="text-lg sm:text-xl font-semibold text-foreground">{channel.name}</h3>
+            <h3 className="truncate text-sm font-semibold text-foreground sm:text-xl">{channel.name}</h3>
             {(catchUpProgram || currentProgram) && (
-              <p className="text-muted-foreground text-sm">{catchUpProgram?.title || currentProgram?.title}</p>
+              <p className="truncate text-xs text-muted-foreground sm:text-sm">{catchUpProgram?.title || currentProgram?.title}</p>
             )}
           </div>
         </div>
 
         {catchUpProgram ? (
-          <div className="mb-4">
+          <div className="mb-2 sm:mb-4">
             <div
               data-testid="catchup-timeline"
               className="h-1.5 bg-secondary/50 rounded-full overflow-hidden cursor-pointer"
@@ -1070,7 +1200,7 @@ const PlayerControls = ({
           </div>
         ) : (
           <div
-            className={`group/livebar relative mb-4 h-1 rounded-full bg-secondary/50 overflow-visible transition-all ${
+            className={`group/livebar relative mb-2 h-1 rounded-full bg-secondary/50 overflow-visible transition-all sm:mb-4 ${
               canTimeshiftFromLiveBar
                 ? 'cursor-pointer hover:h-1.5 focus-visible:h-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70 focus-visible:ring-offset-2 focus-visible:ring-offset-black'
                 : ''
@@ -1094,15 +1224,15 @@ const PlayerControls = ({
           </div>
         )}
 
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center gap-1 rounded-xl border border-border/40 bg-background/20 p-1 backdrop-blur-sm">
+        <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+            <div className="flex items-center gap-0.5 rounded-lg border border-border/40 bg-background/20 p-0.5 backdrop-blur-sm sm:gap-1 sm:rounded-xl sm:p-1">
               {catchUpProgram ? (
                 <>
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-9 w-9 hover:bg-secondary/50"
+                    className="h-8 w-8 hover:bg-secondary/50 sm:h-9 sm:w-9"
                     data-testid="catchup-seek-backward-10"
                     onPointerDown={(event) => handleSeekButtonPointerDown(event, 'backward', 10)}
                     onPointerUp={handleSeekButtonPointerUp}
@@ -1110,21 +1240,21 @@ const PlayerControls = ({
                     onPointerLeave={handleSeekButtonPointerCancel}
                     onContextMenu={preventSeekContextMenu}
                   >
-                    <SkipBack className="h-4 w-4" />
+                    <SkipBack className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                   </Button>
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-9 w-9 hover:bg-secondary/50"
+                    className="h-8 w-8 hover:bg-secondary/50 sm:h-9 sm:w-9"
                     data-testid="catchup-play-toggle"
                     onClick={togglePlay}
                   >
-                    {isPlaying ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
+                    {isPlaying ? <Pause className="h-4 w-4 sm:h-5 sm:w-5" /> : <Play className="h-4 w-4 sm:h-5 sm:w-5" />}
                   </Button>
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-9 w-9 hover:bg-secondary/50"
+                    className="h-8 w-8 hover:bg-secondary/50 sm:h-9 sm:w-9"
                     data-testid="catchup-seek-forward-10"
                     onPointerDown={(event) => handleSeekButtonPointerDown(event, 'forward', 10)}
                     onPointerUp={handleSeekButtonPointerUp}
@@ -1132,12 +1262,12 @@ const PlayerControls = ({
                     onPointerLeave={handleSeekButtonPointerCancel}
                     onContextMenu={preventSeekContextMenu}
                   >
-                    <SkipForward className="h-4 w-4" />
+                    <SkipForward className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                   </Button>
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="ml-1 h-9 gap-1 px-3 text-xs"
+                    className="ml-1 h-8 gap-1 px-2 text-[11px] sm:h-9 sm:px-3 sm:text-xs"
                     data-testid="catchup-go-live"
                     onClick={goToLive}
                   >
@@ -1147,20 +1277,20 @@ const PlayerControls = ({
                 </>
               ) : (
                 <>
-                  <Button variant="ghost" size="icon" className="h-9 w-9 hover:bg-secondary/50" onClick={onPrevChannel}>
-                    <ChevronLeft className="h-5 w-5" />
+                  <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-secondary/50 sm:h-9 sm:w-9" onClick={onPrevChannel}>
+                    <ChevronLeft className="h-4 w-4 sm:h-5 sm:w-5" />
                   </Button>
-                  <Button variant="ghost" size="icon" className="h-9 w-9 hover:bg-secondary/50" onClick={togglePlay}>
-                    {isPlaying ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
+                  <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-secondary/50 sm:h-9 sm:w-9" onClick={togglePlay}>
+                    {isPlaying ? <Pause className="h-4 w-4 sm:h-5 sm:w-5" /> : <Play className="h-4 w-4 sm:h-5 sm:w-5" />}
                   </Button>
-                  <Button variant="ghost" size="icon" className="h-9 w-9 hover:bg-secondary/50" onClick={onNextChannel}>
-                    <ChevronRight className="h-5 w-5" />
+                  <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-secondary/50 sm:h-9 sm:w-9" onClick={onNextChannel}>
+                    <ChevronRight className="h-4 w-4 sm:h-5 sm:w-5" />
                   </Button>
                 </>
               )}
             </div>
             {currentProgram && !catchUpProgram && (
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="hidden flex-wrap items-center gap-2 sm:flex">
                 <span className="text-sm text-muted-foreground">
                   {formatTime(currentProgram.startTime)} - {formatTime(currentProgram.endTime)}
                 </span>
@@ -1168,20 +1298,20 @@ const PlayerControls = ({
             )}
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 lg:justify-end">
-            <div className="flex items-center gap-1 rounded-xl border border-border/40 bg-background/20 p-1 backdrop-blur-sm">
-              <Button variant="ghost" size="icon" className="h-9 w-9 hover:bg-secondary/50" onClick={handleMuteAction}>
-                {isMuted || volume === 0 ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+          <div className="flex flex-wrap items-center gap-1.5 lg:justify-end">
+            <div className="flex items-center gap-0.5 rounded-lg border border-border/40 bg-background/20 p-0.5 backdrop-blur-sm sm:gap-1 sm:rounded-xl sm:p-1">
+              <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-secondary/50 sm:h-9 sm:w-9" onClick={handleMuteAction}>
+                {isMuted || volume === 0 ? <VolumeX className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> : <Volume2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />}
               </Button>
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-9 w-9 hover:bg-secondary/50"
+                className="h-8 w-8 hover:bg-secondary/50 sm:h-9 sm:w-9"
                 aria-label="Prikaži kontrole zvuka"
                 aria-expanded={showVolumeSlider}
                 onClick={handleToggleVolumeSlider}
               >
-                <ChevronDown className={`h-4 w-4 transition-transform ${showVolumeSlider ? 'rotate-180' : ''}`} />
+                <ChevronDown className={`h-3.5 w-3.5 transition-transform sm:h-4 sm:w-4 ${showVolumeSlider ? 'rotate-180' : ''}`} />
               </Button>
               {showVolumeSlider && (
                 <input
@@ -1190,47 +1320,47 @@ const PlayerControls = ({
                   max="100"
                   value={isMuted ? 0 : volume}
                   onChange={handleVolumeChange}
-                  className="h-1 w-20 cursor-pointer appearance-none rounded-full bg-secondary/50 accent-primary sm:w-24"
+                  className="h-1 w-16 cursor-pointer appearance-none rounded-full bg-secondary/50 accent-primary sm:w-24"
                   aria-label="Volume"
                 />
               )}
             </div>
 
-            <div className="flex items-center gap-1 rounded-xl border border-border/40 bg-background/20 p-1 backdrop-blur-sm">
-              <Button variant="ghost" size="icon" className="h-9 w-9 hover:bg-secondary/50" onClick={onToggleFavorite}>
-                <Heart className={`h-4 w-4 ${isFavorite ? 'fill-primary text-primary' : ''}`} />
+            <div className="flex items-center gap-0.5 rounded-lg border border-border/40 bg-background/20 p-0.5 backdrop-blur-sm sm:gap-1 sm:rounded-xl sm:p-1">
+              <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-secondary/50 sm:h-9 sm:w-9" onClick={onToggleFavorite}>
+                <Heart className={`h-3.5 w-3.5 sm:h-4 sm:w-4 ${isFavorite ? 'fill-primary text-primary' : ''}`} />
               </Button>
               {channel.hasCatchUp && (
                 <Button
                   variant="ghost"
                   size="icon"
-                  className={`h-9 w-9 hover:bg-secondary/50 ${catchUpProgram ? 'text-primary' : ''}`}
+                  className={`h-8 w-8 hover:bg-secondary/50 sm:h-9 sm:w-9 ${catchUpProgram ? 'text-primary' : ''}`}
                   aria-label="Otvori TV unazad"
                   data-testid="catchup-open"
                   onClick={handleCatchUpAction}
                 >
-                  <Clock className="h-4 w-4" />
+                  <Clock className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                 </Button>
               )}
               {hasMultipleAudioTracks && (
                 <Button
                   variant="ghost"
                   size="icon"
-                  className={`h-9 w-9 hover:bg-secondary/50 ${showAudioTracks ? 'text-primary' : ''}`}
+                  className={`h-8 w-8 hover:bg-secondary/50 sm:h-9 sm:w-9 ${showAudioTracks ? 'text-primary' : ''}`}
                   onClick={() => {
                     setShowVolumeSlider(false);
                     setShowSubtitleTracks(false);
                     setShowAudioTracks((prev) => !prev);
                   }}
                 >
-                  <Languages className="h-4 w-4" />
+                  <Languages className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                 </Button>
               )}
               {hasSubtitleTracks && (
                 <Button
                   variant="ghost"
                   size="icon"
-                  className={`h-9 w-9 hover:bg-secondary/50 ${showSubtitleTracks ? 'text-primary' : ''}`}
+                  className={`h-8 w-8 hover:bg-secondary/50 sm:h-9 sm:w-9 ${showSubtitleTracks ? 'text-primary' : ''}`}
                   title={`Titlovi: ${selectedSubtitleTrackLabel}`}
                   onClick={() => {
                     setShowVolumeSlider(false);
@@ -1238,41 +1368,42 @@ const PlayerControls = ({
                     setShowSubtitleTracks((prev) => !prev);
                   }}
                 >
-                  <Captions className="h-4 w-4" />
+                  <Captions className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                 </Button>
               )}
               {isPictureInPictureSupported && (
                 <Button
                   variant="ghost"
                   size="icon"
-                  className={`h-9 w-9 hover:bg-secondary/50 ${isPictureInPicture ? 'text-primary' : ''}`}
+                  className={`h-8 w-8 hover:bg-secondary/50 sm:h-9 sm:w-9 ${isPictureInPicture ? 'text-primary' : ''}`}
                   title="Slika u slici (P / plavo dugme)"
                   onClick={handleTogglePictureInPicture}
                 >
-                  <PictureInPicture2 className="h-4 w-4" />
+                  <PictureInPicture2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                 </Button>
               )}
               {castControl?.isAvailable && (
                 <Button
                   variant="ghost"
                   size="icon"
-                  className={`h-9 w-9 hover:bg-secondary/50 ${castControl.isConnected ? 'text-primary' : ''}`}
-                  disabled={castControl.isConnecting}
-                  title={castControl.isConnected ? 'Prekini cast' : 'Poveži cast'}
+                  className={`h-8 w-8 hover:bg-secondary/50 sm:h-9 sm:w-9 ${castControl.isConnected ? 'text-primary' : ''}`}
+                  disabled={castControl.isConnecting || Boolean(castControl.disabledReason)}
+                  title={castControl.disabledReason ?? (castControl.isConnected ? 'Prekini cast' : 'Poveži cast')}
                   onClick={() => {
                     castControl.onToggle();
                   }}
                 >
-                  <Cast className="h-4 w-4" />
+                  <Cast className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                 </Button>
               )}
-              <Button variant="ghost" size="icon" className="h-9 w-9 hover:bg-secondary/50" onClick={onToggleFullscreen}>
-                <Maximize className="h-4 w-4" />
+              <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-secondary/50 sm:h-9 sm:w-9" onClick={onToggleFullscreen}>
+                <Maximize className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               </Button>
             </div>
           </div>
         </div>
       </div>
+      </>
     );
   }
 
@@ -1299,6 +1430,7 @@ const PlayerControls = ({
                 variant="ghost"
                 size="icon"
                 className="w-8 h-8"
+                aria-label="Zatvori TV unazad"
                 onClick={() => setShowCatchUp(false)}
               >
                 <X className="w-4 h-4" />
@@ -1452,7 +1584,7 @@ const PlayerControls = ({
             <Button
               variant="ghost"
               size="icon"
-              className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-primary/90 hover:bg-primary hover:scale-110 transition-transform"
+              className="w-12 h-12 sm:w-20 sm:h-20 rounded-full bg-primary/90 hover:bg-primary hover:scale-110 transition-transform"
               data-testid="catchup-play-toggle"
               onClick={(e) => {
                 e.stopPropagation();
@@ -1505,41 +1637,41 @@ const PlayerControls = ({
               }}
             >
               {isPlaying ? (
-                <Pause className="w-8 h-8 sm:w-10 sm:h-10 text-primary-foreground" />
+                <Pause className="w-6 h-6 sm:w-10 sm:h-10 text-primary-foreground" />
               ) : (
-                <Play className="w-8 h-8 sm:w-10 sm:h-10 text-primary-foreground ml-1" />
+                <Play className="w-6 h-6 sm:w-10 sm:h-10 text-primary-foreground ml-0.5 sm:ml-1" />
               )}
             </Button>
 
             <Button
               variant="ghost"
               size="icon"
-              className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-background/20 backdrop-blur-sm hover:bg-background/40 hover:scale-110 transition-transform"
+              className="w-10 h-10 sm:w-14 sm:h-14 rounded-full bg-background/20 backdrop-blur-sm hover:bg-background/40 hover:scale-110 transition-transform"
               onClick={(e) => {
                 e.stopPropagation();
                 onNextChannel();
               }}
             >
-              <ChevronRight className="w-6 h-6 sm:w-8 sm:h-8" />
+              <ChevronRight className="w-5 h-5 sm:w-8 sm:h-8" />
             </Button>
           </>
         )}
       </div>
 
       <div
-        className={`absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent p-4 sm:p-6 transition-all duration-300 z-20 ${showControls && !showCatchUp ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'
+        className={`absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent p-2.5 sm:p-6 transition-all duration-300 z-20 ${showControls && !showCatchUp ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'
           }`}
       >
-        <div className="max-w-screen-2xl mx-auto space-y-3 sm:space-y-4">
+        <div className="max-w-screen-2xl mx-auto space-y-2 sm:space-y-4">
           {(catchUpProgram || currentProgram) && (
             <div className="flex items-center justify-between">
               <div className="min-w-0 flex-1">
-                <h3 className="text-sm sm:text-lg font-semibold text-foreground truncate">
+                <h3 className="text-xs sm:text-lg font-semibold text-foreground truncate">
                   {catchUpProgram?.title || currentProgram?.title}
                 </h3>
               </div>
               {!catchUpProgram && currentProgram && (
-                <div className="ml-2 flex flex-col items-end gap-0.5">
+                <div className="ml-2 hidden flex-col items-end gap-0.5 sm:flex">
                   <span className="text-xs sm:text-sm text-muted-foreground flex-shrink-0">
                     {formatTime(currentProgram.startTime)} - {formatTime(currentProgram.endTime)}
                   </span>
@@ -1636,19 +1768,19 @@ const PlayerControls = ({
             </div>
           )}
 
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-1 sm:gap-2">
+          <div className="flex items-center justify-between gap-1.5">
+            <div className="flex min-w-0 items-center gap-0.5 sm:gap-2">
               <Button
                 variant="ghost"
                 size="icon"
-                className="w-9 h-9 sm:w-10 sm:h-10 hover:bg-secondary/50"
+                className="w-8 h-8 sm:w-10 sm:h-10 hover:bg-secondary/50"
                 data-testid="catchup-play-toggle"
                 onClick={(e) => {
                   e.stopPropagation();
                   togglePlay();
                 }}
               >
-                {isPlaying ? <Pause className="w-4 h-4 sm:w-5 sm:h-5" /> : <Play className="w-4 h-4 sm:w-5 sm:h-5" />}
+                {isPlaying ? <Pause className="w-3.5 h-3.5 sm:w-5 sm:h-5" /> : <Play className="w-3.5 h-3.5 sm:w-5 sm:h-5" />}
               </Button>
 
               {catchUpProgram && (
@@ -1656,7 +1788,7 @@ const PlayerControls = ({
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="w-9 h-9 sm:w-10 sm:h-10 hover:bg-secondary/50 flex flex-col items-center justify-center gap-0"
+                    className="w-8 h-8 sm:w-10 sm:h-10 hover:bg-secondary/50 flex flex-col items-center justify-center gap-0"
                     data-testid="catchup-seek-backward-30"
                     onPointerDown={(e) => handleSeekButtonPointerDown(e, 'backward', 30)}
                     onPointerUp={handleSeekButtonPointerUp}
@@ -1664,13 +1796,13 @@ const PlayerControls = ({
                     onPointerLeave={handleSeekButtonPointerCancel}
                     onContextMenu={preventSeekContextMenu}
                   >
-                    <SkipBack className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                    <SkipBack className="w-3 h-3 sm:w-4 sm:h-4" />
                     <span className="text-[7px] sm:text-[8px] font-semibold leading-none">30s</span>
                   </Button>
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="w-9 h-9 sm:w-10 sm:h-10 hover:bg-secondary/50 flex flex-col items-center justify-center gap-0"
+                    className="w-8 h-8 sm:w-10 sm:h-10 hover:bg-secondary/50 flex flex-col items-center justify-center gap-0"
                     data-testid="catchup-seek-forward-30"
                     onPointerDown={(e) => handleSeekButtonPointerDown(e, 'forward', 30)}
                     onPointerUp={handleSeekButtonPointerUp}
@@ -1678,33 +1810,33 @@ const PlayerControls = ({
                     onPointerLeave={handleSeekButtonPointerCancel}
                     onContextMenu={preventSeekContextMenu}
                   >
-                    <SkipForward className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                    <SkipForward className="w-3 h-3 sm:w-4 sm:h-4" />
                     <span className="text-[7px] sm:text-[8px] font-semibold leading-none">30s</span>
                   </Button>
                 </>
               )}
 
-              <div className="relative flex items-center gap-1 rounded-xl border border-border/40 bg-background/20 p-1 backdrop-blur-sm">
+              <div className="relative flex items-center gap-0.5 rounded-lg border border-border/40 bg-background/20 p-0.5 backdrop-blur-sm sm:gap-1 sm:rounded-xl sm:p-1">
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="w-9 h-9 sm:w-10 sm:h-10 hover:bg-secondary/50"
+                  className="w-8 h-8 sm:w-10 sm:h-10 hover:bg-secondary/50"
                   onClick={(e) => {
                     e.stopPropagation();
                     handleMuteAction();
                   }}
                 >
                   {isMuted || volume === 0 ? (
-                    <VolumeX className="w-4 h-4 sm:w-5 sm:h-5" />
+                    <VolumeX className="w-3.5 h-3.5 sm:w-5 sm:h-5" />
                   ) : (
-                    <Volume2 className="w-4 h-4 sm:w-5 sm:h-5" />
+                    <Volume2 className="w-3.5 h-3.5 sm:w-5 sm:h-5" />
                   )}
                 </Button>
 
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="w-9 h-9 sm:w-10 sm:h-10 hover:bg-secondary/50"
+                  className="w-8 h-8 sm:w-10 sm:h-10 hover:bg-secondary/50"
                   aria-label="Prikaži kontrole zvuka"
                   aria-expanded={showVolumeSlider}
                   onClick={(e) => {
@@ -1712,7 +1844,7 @@ const PlayerControls = ({
                     handleToggleVolumeSlider();
                   }}
                 >
-                  <ChevronDown className={`w-4 h-4 sm:w-5 sm:h-5 transition-transform ${showVolumeSlider ? 'rotate-180' : ''}`} />
+                  <ChevronDown className={`w-3.5 h-3.5 sm:w-5 sm:h-5 transition-transform ${showVolumeSlider ? 'rotate-180' : ''}`} />
                 </Button>
 
                 {showVolumeSlider && (
@@ -1754,23 +1886,23 @@ const PlayerControls = ({
               )}
             </div>
 
-            <div className="flex items-center gap-0.5 sm:gap-1">
+              <div className="flex shrink-0 items-center gap-0 sm:gap-1">
               <Button
                 variant="ghost"
                 size="icon"
-                className="w-9 h-9 sm:w-10 sm:h-10 hover:bg-secondary/50"
+                className="w-8 h-8 sm:w-10 sm:h-10 hover:bg-secondary/50"
                 onClick={(e) => {
                   e.stopPropagation();
                   onToggleFavorite();
                 }}
               >
-                <Heart className={`w-4 h-4 sm:w-5 sm:h-5 ${isFavorite ? 'fill-primary text-primary' : ''}`} />
+                <Heart className={`w-3.5 h-3.5 sm:w-5 sm:h-5 ${isFavorite ? 'fill-primary text-primary' : ''}`} />
               </Button>
               {channel.hasCatchUp && (
                 <Button
                   variant="ghost"
                   size="icon"
-                  className={`w-9 h-9 sm:w-10 sm:h-10 hover:bg-secondary/50 ${catchUpProgram ? 'text-primary' : ''}`}
+                  className={`w-8 h-8 sm:w-10 sm:h-10 hover:bg-secondary/50 ${catchUpProgram ? 'text-primary' : ''}`}
                   aria-label="Otvori TV unazad"
                   data-testid="catchup-open"
                   onClick={(e) => {
@@ -1778,14 +1910,14 @@ const PlayerControls = ({
                     handleCatchUpAction();
                   }}
                 >
-                  <Clock className="w-4 h-4 sm:w-5 sm:h-5" />
+                  <Clock className="w-3.5 h-3.5 sm:w-5 sm:h-5" />
                 </Button>
               )}
               {hasMultipleAudioTracks && (
                 <Button
                   variant="ghost"
                   size="icon"
-                  className={`w-9 h-9 sm:w-10 sm:h-10 hover:bg-secondary/50 ${showAudioTracks ? 'text-primary' : ''}`}
+                  className={`w-8 h-8 sm:w-10 sm:h-10 hover:bg-secondary/50 ${showAudioTracks ? 'text-primary' : ''}`}
                   onClick={(e) => {
                     e.stopPropagation();
                     setShowVolumeSlider(false);
@@ -1793,14 +1925,14 @@ const PlayerControls = ({
                     setShowAudioTracks((prev) => !prev);
                   }}
                 >
-                  <Languages className="w-4 h-4 sm:w-5 sm:h-5" />
+                  <Languages className="w-3.5 h-3.5 sm:w-5 sm:h-5" />
                 </Button>
               )}
               {hasSubtitleTracks && (
                 <Button
                   variant="ghost"
                   size="icon"
-                  className={`w-9 h-9 sm:w-10 sm:h-10 hover:bg-secondary/50 ${showSubtitleTracks ? 'text-primary' : ''}`}
+                  className={`w-8 h-8 sm:w-10 sm:h-10 hover:bg-secondary/50 ${showSubtitleTracks ? 'text-primary' : ''}`}
                   title={`Titlovi: ${selectedSubtitleTrackLabel}`}
                   onClick={(e) => {
                     e.stopPropagation();
@@ -1809,48 +1941,48 @@ const PlayerControls = ({
                     setShowSubtitleTracks((prev) => !prev);
                   }}
                 >
-                  <Captions className="w-4 h-4 sm:w-5 sm:h-5" />
+                  <Captions className="w-3.5 h-3.5 sm:w-5 sm:h-5" />
                 </Button>
               )}
               {isPictureInPictureSupported && (
                 <Button
                   variant="ghost"
                   size="icon"
-                  className={`w-9 h-9 sm:w-10 sm:h-10 hover:bg-secondary/50 ${isPictureInPicture ? 'text-primary' : ''}`}
+                  className={`w-8 h-8 sm:w-10 sm:h-10 hover:bg-secondary/50 ${isPictureInPicture ? 'text-primary' : ''}`}
                   title="Slika u slici (P / plavo dugme)"
                   onClick={(e) => {
                     e.stopPropagation();
                     handleTogglePictureInPicture();
                   }}
                 >
-                  <PictureInPicture2 className="w-4 h-4 sm:w-5 sm:h-5" />
+                  <PictureInPicture2 className="w-3.5 h-3.5 sm:w-5 sm:h-5" />
                 </Button>
               )}
               {castControl?.isAvailable && (
                 <Button
                   variant="ghost"
                   size="icon"
-                  className={`w-9 h-9 sm:w-10 sm:h-10 hover:bg-secondary/50 ${castControl.isConnected ? 'text-primary' : ''}`}
-                  disabled={castControl.isConnecting}
-                  title={castControl.isConnected ? 'Prekini cast' : 'Poveži cast'}
+                  className={`w-8 h-8 sm:w-10 sm:h-10 hover:bg-secondary/50 ${castControl.isConnected ? 'text-primary' : ''}`}
+                  disabled={castControl.isConnecting || Boolean(castControl.disabledReason)}
+                  title={castControl.disabledReason ?? (castControl.isConnected ? 'Prekini cast' : 'Poveži cast')}
                   onClick={(e) => {
                     e.stopPropagation();
                     castControl.onToggle();
                   }}
                 >
-                  <Cast className="w-4 h-4 sm:w-5 sm:h-5" />
+                  <Cast className="w-3.5 h-3.5 sm:w-5 sm:h-5" />
                 </Button>
               )}
               <Button
                 variant="ghost"
                 size="icon"
-                className="w-9 h-9 sm:w-10 sm:h-10 hover:bg-secondary/50"
+                className="w-8 h-8 sm:w-10 sm:h-10 hover:bg-secondary/50"
                 onClick={(e) => {
                   e.stopPropagation();
                   onToggleFullscreen();
                 }}
               >
-                {isFullscreen ? <Minimize className="w-4 h-4 sm:w-5 sm:h-5" /> : <Maximize className="w-4 h-4 sm:w-5 sm:h-5" />}
+                {isFullscreen ? <Minimize className="w-3.5 h-3.5 sm:w-5 sm:h-5" /> : <Maximize className="w-3.5 h-3.5 sm:w-5 sm:h-5" />}
               </Button>
             </div>
           </div>

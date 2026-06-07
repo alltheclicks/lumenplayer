@@ -4,7 +4,6 @@ export const isPlayerRoutePath = (pathname: string): boolean => (
 
 export const getAppShellRootClassName = (isPlayerRoute: boolean): string => (
   isPlayerRoute
-    ? 'h-screen overflow-hidden bg-background'
+    ? 'h-[100dvh] min-h-[100svh] w-full max-w-[100vw] overflow-hidden bg-background lg:h-screen'
     : 'min-h-screen bg-background'
 );
-

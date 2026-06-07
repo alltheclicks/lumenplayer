@@ -13,6 +13,46 @@
     "provider-qa",
     "no-media-processing"
   ],
+  "evidenceIntake": {
+    "status": "pending",
+    "owner": "release-qa-owner",
+    "completedBy": "",
+    "completedAt": "",
+    "guideRef": "docs/qa/qaf035-real-device-qa-guide.md",
+    "manualDeviceQaRef": "artifacts/release/manual-device-qa/qaf035-manual-device-qa-20260603.json",
+    "compatibilityRunRef": "artifacts/release/compatibility/qaf035-provider-local-20260602.json",
+    "noMediaScanArtifactRef": "artifacts/release/media-policy/qaf035-no-media-evidence-scan-20260602.json",
+    "requiredCaseIds": [
+      "SMK-DESKTOP-CHROME-LIVE",
+      "SMK-DESKTOP-SAFARI-VOD",
+      "SMK-MOBILE-ANDROID-LIVE",
+      "SMK-MOBILE-IOS-SAFARI-LIVE",
+      "SMK-CAST-CONNECT-PLAY",
+      "SMK-AIRPLAY-CONNECT-PLAY",
+      "SMK-PWA-INSTALL-ANDROID",
+      "SMK-PWA-OFFLINE-FALLBACK",
+      "REG-CAST-RENDERER-SWITCH",
+      "REG-AIRPLAY-RETURN-LOCAL",
+      "REG-MOBILE-CONTROLS-STATE",
+      "REG-PWA-PUSH-ENTRY",
+      "REG-PWA-OFFLINE-RECOVERY"
+    ],
+    "requiredEvidenceRefs": [
+      "manualDeviceTargetRef",
+      "screenshotOrVideoRef",
+      "networkEvidenceRef",
+      "noMediaScanArtifactRef",
+      "perCaseEvidenceRef"
+    ],
+    "finalRules": [
+      "Every requiredCaseId must have pass/fail status and case evidence before final signoff; pending is not final.",
+      "Local Playwright, headless browser, or local desktop browser automation is not final evidence for real desktop, mobile, Cast, AirPlay, or PWA targets.",
+      "Every passing target with live/catch-up media must cite networkEvidenceRef and noMediaScanArtifactRef.",
+      "Cast, AirPlay, and PWA checks require HTTPS staging or deployed HTTPS endpoints on real target hardware.",
+      "No case may pass if network/no-media evidence contains local ffmpeg, server-side transcode/remux, generated HLS, proxy-remuxed, remux-hls, or XUI-side media processing."
+    ],
+    "notes": "Partial QAF-035 matrix intake. Required real-device/Cast/AirPlay/PWA cases remain pending until each case has concrete manual-device target evidence, network capture evidence, and a tracked redacted no-media scan artifact."
+  },
   "cases": [
     {
       "id": "SMK-PROVIDER-AUTH-LIVE-CATALOG",

@@ -15,6 +15,7 @@ export interface LiveSessionSourceMetadata {
   streamId: number;
   source?: PlayerChannel['source'];
   loadKey?: number;
+  unsupportedAudioCodec?: 'mp2';
 }
 
 export interface CatchUpSessionSourceMetadata {
@@ -30,6 +31,7 @@ export interface CatchUpSessionSourceMetadata {
   gateway?: CatchUpGatewayPlaybackMetadata;
   catchUpHlsStartupMode?: 'progressive' | 'complete';
   catchUpHlsStartPositionSeconds?: number;
+  catchUpProviderSafeStartPositionSeconds?: number;
   catchUpMediaOffsetSeconds?: number;
   catchUpPendingTimelineSeekMs?: number;
   catchUpPendingMediaSeekSeconds?: number;
@@ -63,6 +65,7 @@ type SessionSourceMetadataShape = {
   channelId?: string;
   streamId?: number;
   loadKey?: number;
+  unsupportedAudioCodec?: 'mp2';
   source?: PlayerChannel['source'];
   programId?: string;
   durationSeconds?: number;
@@ -77,6 +80,7 @@ type SessionSourceMetadataShape = {
   gateway?: CatchUpGatewayPlaybackMetadata;
   catchUpHlsStartupMode?: 'progressive' | 'complete';
   catchUpHlsStartPositionSeconds?: number;
+  catchUpProviderSafeStartPositionSeconds?: number;
   catchUpMediaOffsetSeconds?: number;
   catchUpPendingTimelineSeekMs?: number;
   catchUpPendingMediaSeekSeconds?: number;
@@ -99,7 +103,7 @@ export interface CatchUpSourceBuildResult {
   metadata: CatchUpSessionSourceMetadata;
 }
 
-const DEFAULT_CATCH_UP_INITIAL_POSITION_GUARD_SECONDS = 15;
+const DEFAULT_CATCH_UP_INITIAL_POSITION_GUARD_SECONDS = 0;
 
 const parseNumericValue = (value: unknown): number | undefined => {
   if (typeof value === 'number' && Number.isFinite(value)) {
@@ -306,6 +310,9 @@ export const parseSessionSourceMetadata = (
       channelId,
       streamId: Math.floor(streamId),
       loadKey: parseNumericValue(metadata.loadKey),
+      unsupportedAudioCodec: metadata.unsupportedAudioCodec === 'mp2'
+        ? 'mp2'
+        : undefined,
       source: metadata.source === 'xtream' || metadata.source === 'm3u'
         ? metadata.source
         : undefined,
@@ -345,6 +352,7 @@ export const parseSessionSourceMetadata = (
         ? 'complete'
         : (metadata.catchUpHlsStartupMode === 'progressive' ? 'progressive' : undefined),
       catchUpHlsStartPositionSeconds: parseNumericValue(metadata.catchUpHlsStartPositionSeconds),
+      catchUpProviderSafeStartPositionSeconds: parseNumericValue(metadata.catchUpProviderSafeStartPositionSeconds),
       catchUpMediaOffsetSeconds: parseNumericValue(metadata.catchUpMediaOffsetSeconds),
       catchUpPendingTimelineSeekMs: parseNumericValue(metadata.catchUpPendingTimelineSeekMs),
       catchUpPendingMediaSeekSeconds: parseNumericValue(metadata.catchUpPendingMediaSeekSeconds),
@@ -503,7 +511,12 @@ export const buildCatchUpSessionSourceFromMetadata = ({
     preferredPositionSeconds,
     initialPositionGuardSeconds,
   );
-  const catchUpHlsStartPositionSeconds = Math.floor(initialPositionMs / 1000);
+  const explicitHlsStartPositionSeconds = typeof metadata.catchUpHlsStartPositionSeconds === 'number' &&
+    Number.isFinite(metadata.catchUpHlsStartPositionSeconds) &&
+    metadata.catchUpHlsStartPositionSeconds >= 0
+    ? Math.floor(metadata.catchUpHlsStartPositionSeconds)
+    : null;
+  const catchUpHlsStartPositionSeconds = explicitHlsStartPositionSeconds ?? Math.floor(initialPositionMs / 1000);
 
   return {
     source: {

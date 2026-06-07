@@ -6,9 +6,11 @@ import { emitWebObservabilityEvent } from '@/services/observability';
 const GOOGLE_CAST_SCRIPT_ID = 'lumen-google-cast-sdk';
 const GOOGLE_CAST_SCRIPT_SRC =
   'https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1';
-const DEFAULT_CAST_RECEIVER_APP_ID = 'CC1AD845';
+const DEV_CAST_RECEIVER_APP_ID = 'CC1AD845';
 const CAST_POSITION_SYNC_INTERVAL_MS = 2000;
 const CAST_POSITION_SYNC_THRESHOLD_MS = 1500;
+const MP2_CAST_UNSUPPORTED_MESSAGE =
+  'Google Cast nije dostupan za ovaj kanal jer koristi MP2 audio. Cast zahtev mora koristiti AAC ili drugu podržanu audio varijantu.';
 
 type CastSessionState =
   | 'NO_SESSION'
@@ -95,6 +97,39 @@ declare global {
 }
 
 let castSdkPromise: Promise<void> | null = null;
+
+export const resolveGoogleCastReceiverAppId = (
+  env: {
+    VITE_GOOGLE_CAST_APP_ID?: unknown;
+    DEV?: unknown;
+  },
+): string | null => {
+  const configuredAppId = typeof env.VITE_GOOGLE_CAST_APP_ID === 'string'
+    ? env.VITE_GOOGLE_CAST_APP_ID.trim()
+    : '';
+  if (configuredAppId.length > 0) {
+    return configuredAppId;
+  }
+
+  return env.DEV === true ? DEV_CAST_RECEIVER_APP_ID : null;
+};
+
+export const resolveCastSourceUnsupportedReason = (
+  source: SessionState['source'],
+): string | null => {
+  const metadata = (
+    typeof source?.metadata === 'object' &&
+    source.metadata !== null
+  )
+    ? source.metadata
+    : null;
+
+  if (metadata?.mode === 'live' && metadata.unsupportedAudioCodec === 'mp2') {
+    return MP2_CAST_UNSUPPORTED_MESSAGE;
+  }
+
+  return null;
+};
 
 const wantsPlaying = (session: SessionState): boolean => (
   session.playback === 'playing' || session.playback === 'buffering'
@@ -209,6 +244,7 @@ export interface GoogleCastSenderState {
   isConnecting: boolean;
   deviceName: string | null;
   error: string | null;
+  sourceUnsupportedReason: string | null;
   startCasting: () => Promise<void>;
   stopCasting: () => void;
   toggleCasting: () => Promise<void>;
@@ -230,6 +266,7 @@ export const useGoogleCastSender = ({
   const lastLoadedSourceUrlRef = useRef<string | null>(null);
   const lastSyncedCastPositionMsRef = useRef<number | null>(null);
   const lastObservedCastErrorRef = useRef<string | null>(null);
+  const sourceUnsupportedReason = resolveCastSourceUnsupportedReason(session.source);
 
   useEffect(() => {
     sessionRef.current = session;
@@ -290,9 +327,16 @@ export const useGoogleCastSender = ({
           return;
         }
 
+        const receiverApplicationId = resolveGoogleCastReceiverAppId(import.meta.env);
+        if (!receiverApplicationId) {
+          setIsAvailable(false);
+          setIsConnecting(false);
+          setError(null);
+          return;
+        }
+
         castContext.setOptions({
-          receiverApplicationId:
-            import.meta.env.VITE_GOOGLE_CAST_APP_ID || DEFAULT_CAST_RECEIVER_APP_ID,
+          receiverApplicationId,
           autoJoinPolicy: chromeCast.AutoJoinPolicy.ORIGIN_SCOPED,
         });
 
@@ -400,6 +444,15 @@ export const useGoogleCastSender = ({
       return;
     }
 
+    if (sourceUnsupportedReason) {
+      pendingSyncUpdateRef.current = false;
+      setError(sourceUnsupportedReason);
+      if (session.renderer === 'cast') {
+        commands.switchRenderer('local-web');
+      }
+      return;
+    }
+
     if (syncInProgressRef.current) {
       pendingSyncUpdateRef.current = true;
       return;
@@ -477,12 +530,28 @@ export const useGoogleCastSender = ({
         }
       }
     })();
-  }, [isConnected, session.playback, session.positionMs, session.renderer, session.source, syncRetryTick]);
+  }, [
+    commands,
+    isConnected,
+    session.playback,
+    session.positionMs,
+    session.renderer,
+    session.source,
+    sourceUnsupportedReason,
+    syncRetryTick,
+  ]);
 
   const startCasting = useCallback(async () => {
     try {
       setIsConnecting(true);
       setError(null);
+      const unsupportedReason = resolveCastSourceUnsupportedReason(sessionRef.current.source);
+      if (unsupportedReason) {
+        throw new Error(unsupportedReason);
+      }
+      if (!resolveGoogleCastReceiverAppId(import.meta.env)) {
+        throw new Error('Google Cast custom receiver is not configured for this environment.');
+      }
       await ensureGoogleCastSdk();
       const castContext = getCastContext();
       if (!castContext) {
@@ -553,11 +622,12 @@ export const useGoogleCastSender = ({
       isConnecting,
       deviceName,
       error,
+      sourceUnsupportedReason,
       startCasting,
       stopCasting,
       toggleCasting,
     }),
-    [deviceName, error, isAvailable, isConnected, isConnecting, startCasting, stopCasting, toggleCasting]
+    [deviceName, error, isAvailable, isConnected, isConnecting, sourceUnsupportedReason, startCasting, stopCasting, toggleCasting]
   );
 };
 

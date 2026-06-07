@@ -2,7 +2,7 @@
   "release": "V1",
   "templateVersion": 1,
   "generatedAt": "2026-06-03T03:36:06Z",
-  "owner": "codex",
+  "owner": "Filip",
   "sourceReadinessArtifact": "artifacts/release/readiness/qaf035-release-readiness-20260602.json",
   "noMediaInvariant": {
     "allowedOutcomes": [
@@ -77,15 +77,22 @@
         "artifacts/release/manual-device-qa/qaf035-manual-device-qa-20260603.json",
         "artifacts/release/smoke/qaf035-smoke-regression-matrix-20260603.json",
         "artifacts/release/design/qaf035-design-parity-20260603.json",
-        "artifacts/release/media-policy/qaf035-no-media-evidence-scan-20260602.json"
+        "artifacts/release/media-policy/qaf035-no-media-evidence-scan-20260602.json",
+        "docs/qa/qaf035-real-device-qa-guide.md",
+        "docs/qa/google-cast-readiness-guide.md"
       ],
       "requiredFields": [
         "compatibility targets for Windows Chrome, macOS Safari, Android Chrome, iOS Safari, Chromecast, AirPlay/Apple TV, and PWA install/offline",
+        "smoke evidenceIntake owner/requiredCaseIds/requiredEvidenceRefs/finalRules",
+        "manual-device evidenceIntake guideRef/requiredTargetIds/requiredEvidenceRefs/finalRules",
         "manual-device targets owner/device/browser/evidenceRefs/mediaProcessingAudit",
+        "design reviewIntake requiredScreenIds/requiredViewportModes/requiredReviewFields/finalRules",
         "design parity rendered evidence and owner approval"
       ],
       "evidenceRequirements": [
         "Real target/device or approved device-lab evidence; local Playwright/headless evidence is not final signoff.",
+        "Every pending smoke/regression matrix case is listed in smoke evidenceIntake.requiredCaseIds until it is completed with per-case evidence.",
+        "Design parity rendered capture pass is not owner approval; every screen parityReview must be reviewed by the design owner.",
         "Each passing mediaProcessingAudit cites release:no-media-evidence:scan and a tracked redacted no-media scan artifact.",
         "No target evidence contains local ffmpeg, server-side transcode/remux, generated HLS, proxy-remuxed, remux-hls, or XUI-side media processing."
       ],
@@ -110,7 +117,7 @@
       "id": "close-beta-capacity-owner",
       "blockerId": "BETA-CAPACITY-OWNER",
       "status": "open",
-      "owner": "provider-capacity-owner",
+      "owner": "Filip",
       "gateIds": [
         "beta-capacity-evidence"
       ],
@@ -121,13 +128,17 @@
         "artifacts/release/media-policy/qaf035-no-media-evidence-scan-20260602.json"
       ],
       "requiredFields": [
-        "capacity.provider.owner",
-        "capacity.provider.approvedConcurrentUsers",
-        "capacity.provider.rateLimitPolicy",
-        "capacity.signoff.approvedBy"
+        "capacity.deployedEdgeLoadEvidence.status",
+        "capacity.deployedEdgeLoadEvidence.targetConcurrentUsers",
+        "capacity.deployedEdgeLoadEvidence.loadReportRef",
+        "capacity.deployedEdgeLoadEvidence.noProviderMediaStreams",
+        "capacity checks.lumen-edge-capacity evidence",
+        "capacity.signoff.approvedBy",
+        "deployed Lumen web/proxy edge sizing or load evidence"
       ],
       "evidenceRequirements": [
         "Provider/XUI owner confirms 300-500 beta capacity and escalation path.",
+        "Deployed Lumen web/proxy edge capacity/load evidence is recorded in deployedEdgeLoadEvidence and covers the 500-user upper beta target.",
         "Capacity no-media-processing evidence cites the scanner and tracked redacted scan artifact.",
         "Capacity evidence explicitly keeps XUI-side transcode/remux disabled."
       ],
@@ -140,14 +151,15 @@
       ],
       "completionCriteria": [
         "Beta capacity artifact passes --require-final.",
-        "Provider owner artifact passes --require-final."
+        "Provider owner artifact passes --require-final.",
+        "No capacity signoff is marked final from provider approval alone."
       ]
     },
     {
       "id": "close-provider-owner-signoff",
       "blockerId": "PROVIDER-OWNER-SIGNOFF",
-      "status": "open",
-      "owner": "provider-owner",
+      "status": "closed",
+      "owner": "Filip",
       "gateIds": [
         "provider-owner-signoff"
       ],
@@ -179,8 +191,8 @@
     {
       "id": "close-performance-release-run",
       "blockerId": "PERFORMANCE-RELEASE-RUN",
-      "status": "open",
-      "owner": "release-performance-owner",
+      "status": "closed",
+      "owner": "Filip",
       "gateIds": [
         "performance-evidence"
       ],
@@ -214,8 +226,8 @@
     {
       "id": "close-runtime-no-media-owner",
       "blockerId": "RUNTIME-NO-MEDIA-OWNER",
-      "status": "open",
-      "owner": "provider-xui-no-transcode-owner",
+      "status": "closed",
+      "owner": "Filip",
       "gateIds": [
         "runtime-media-policy"
       ],
@@ -249,8 +261,8 @@
     {
       "id": "close-observability-baseline-owner",
       "blockerId": "OBSERVABILITY-BASELINE-OWNER",
-      "status": "open",
-      "owner": "observability-owner",
+      "status": "closed",
+      "owner": "Filip",
       "gateIds": [
         "observability-baseline"
       ],
@@ -283,8 +295,8 @@
     {
       "id": "close-beta-ops-signoff",
       "blockerId": "BETA-OPS-SIGNOFF",
-      "status": "open",
-      "owner": "release-ops-owner",
+      "status": "closed",
+      "owner": "Filip",
       "gateIds": [
         "beta-ops-signoff"
       ],
@@ -318,8 +330,8 @@
     {
       "id": "close-security-privacy-owner",
       "blockerId": "SECURITY-PRIVACY-OWNER",
-      "status": "open",
-      "owner": "security-privacy-owner",
+      "status": "closed",
+      "owner": "Filip",
       "gateIds": [
         "security-privacy-baseline"
       ],
@@ -353,6 +365,6 @@
     "status": "pending",
     "approvedBy": "",
     "approvedAt": "",
-    "notes": "Closure plan is intentionally non-final while QAF readiness has open blockers. Use it as the next-dev checklist for collecting real owner/device/performance/security evidence without any media-processing workaround."
+    "notes": "Closure plan is intentionally non-final while go/no-go, real-device/target matrix, and deployed Lumen edge capacity evidence remain open. Owner/performance/runtime/observability/ops/security closure items are recorded without any media-processing workaround."
   }
 }

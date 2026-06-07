@@ -36,6 +36,8 @@ const files = {
   securityBaseline: 'artifacts/release/security/qaf035-security-privacy-baseline-20260603.json',
   betaClosurePlan: 'artifacts/release/readiness/qaf035-beta-closure-plan-20260603.json',
   runbook: 'docs/release/qaf035-beta-signoff-runbook.md',
+  castReadinessGuide: 'docs/qa/google-cast-readiness-guide.md',
+  realDeviceQaGuide: 'docs/qa/qaf035-real-device-qa-guide.md',
   prQualityGateWorkflow: '.github/workflows/pr-quality-gate.yml',
   packageJson: 'package.json',
 };
@@ -74,6 +76,8 @@ const validateRunbook = () => {
     files.betaOps,
     files.securityBaseline,
     files.betaClosurePlan,
+    files.castReadinessGuide,
+    files.realDeviceQaGuide,
     'pnpm release:qaf035:validate',
     'pnpm release:qaf035:final',
     'pnpm release:no-media-evidence:scan',
@@ -82,9 +86,23 @@ const validateRunbook = () => {
     'pnpm release:observability-baseline:validate',
     'pnpm release:security-baseline:validate',
     'pnpm release:beta-closure-plan:validate',
+    'pnpm release:cast-readiness:validate',
+    'pnpm release:pwa-readiness:validate',
+    'pnpm e2e:mobile:layout',
+    'output/playwright/mobile-layout-smoke/REPORT.md',
+    'pnpm e2e:design:captures',
+    'output/playwright/lp-0373/CAPTURE-REPORT.md',
+    'pnpm perf:staging-capacity',
+    'output/perf/staging-capacity-smoke/REPORT.md',
     'pnpm catchup:timeshift-hls:test',
     'pnpm release:proxy-no-media:validate',
     'pnpm release:proxy-no-media:test',
+    'VITE_GOOGLE_CAST_APP_ID',
+    'CC1AD845',
+    'loadMedia',
+    'manifest.webmanifest',
+    'offline.html',
+    'pwa-install-offline',
     '300-500',
     'ffmpeg',
     'ffprobe',
@@ -101,6 +119,8 @@ const validateRunbook = () => {
     'pnpm release:runtime-media:validate',
     'pnpm release:manual-device-qa:validate',
     'pnpm release:beta-ops:validate',
+    'pnpm release:cast-readiness:validate',
+    'pnpm release:pwa-readiness:validate',
     'concrete QAF-035 artifacts',
     'final proof command',
     'direct, gate-specific final proof command',
@@ -147,6 +167,8 @@ const validatePrQualityGateWorkflow = () => {
     'pnpm release:observability-baseline:validate',
     'pnpm release:security-baseline:validate',
     'pnpm release:beta-closure-plan:validate',
+    'pnpm release:cast-readiness:validate',
+    'pnpm release:pwa-readiness:validate',
     'pnpm catchup:timeshift-hls:test',
     'pnpm release:proxy-no-media:validate',
     'pnpm release:proxy-no-media:test',
@@ -270,6 +292,235 @@ const validatePackageScripts = () => {
   if (readinessValidator !== `node scripts/release/validate-release-readiness.mjs ${files.readiness}`) {
     fail(`package.json scripts.release:readiness:validate must validate ${files.readiness}.`);
   }
+
+  const mobileLayoutSmoke = packageJson.scripts?.['e2e:mobile:layout'];
+  if (mobileLayoutSmoke !== 'node scripts/playwright/run-mobile-layout-smoke.mjs') {
+    fail('package.json scripts.e2e:mobile:layout must run scripts/playwright/run-mobile-layout-smoke.mjs.');
+  }
+
+  const designParityCaptures = packageJson.scripts?.['e2e:design:captures'];
+  if (designParityCaptures !== 'node scripts/playwright/run-design-parity-captures.mjs') {
+    fail('package.json scripts.e2e:design:captures must run scripts/playwright/run-design-parity-captures.mjs.');
+  }
+
+  const stagingCapacitySmoke = packageJson.scripts?.['perf:staging-capacity'];
+  if (stagingCapacitySmoke !== 'node scripts/perf/run-staging-capacity-smoke.mjs') {
+    fail('package.json scripts.perf:staging-capacity must run scripts/perf/run-staging-capacity-smoke.mjs.');
+  }
+
+  const castReadinessValidator = packageJson.scripts?.['release:cast-readiness:validate'];
+  if (castReadinessValidator !== 'node scripts/release/validate-google-cast-readiness.mjs') {
+    fail('package.json scripts.release:cast-readiness:validate must run scripts/release/validate-google-cast-readiness.mjs.');
+  }
+
+  const castReadinessTest = packageJson.scripts?.['release:cast-readiness:test'];
+  if (castReadinessTest !== 'vitest run scripts/release/validate-google-cast-readiness.test.ts') {
+    fail('package.json scripts.release:cast-readiness:test must run scripts/release/validate-google-cast-readiness.test.ts.');
+  }
+
+  const pwaReadinessValidator = packageJson.scripts?.['release:pwa-readiness:validate'];
+  if (pwaReadinessValidator !== 'node scripts/release/validate-pwa-readiness.mjs') {
+    fail('package.json scripts.release:pwa-readiness:validate must run scripts/release/validate-pwa-readiness.mjs.');
+  }
+
+  const pwaReadinessTest = packageJson.scripts?.['release:pwa-readiness:test'];
+  if (pwaReadinessTest !== 'vitest run scripts/release/validate-pwa-readiness.test.ts') {
+    fail('package.json scripts.release:pwa-readiness:test must run scripts/release/validate-pwa-readiness.test.ts.');
+  }
+};
+
+const validateDesignCaptureEvidence = () => {
+  const designParity = readJson(files.designParity);
+  for (const screen of designParity.screens ?? []) {
+    for (const mode of ['desktop', 'mobile']) {
+      const entry = screen[mode];
+      if (!entry || typeof entry !== 'object') {
+        fail(`design parity screen ${screen.id}.${mode} is required.`);
+      }
+      if (entry.status !== 'pass') {
+        fail(`design parity screen ${screen.id}.${mode}.status must be pass after rendered capture refresh.`);
+      }
+      if (!entry.lumenRef?.startsWith('output/playwright/lp-0373/')) {
+        fail(`design parity screen ${screen.id}.${mode}.lumenRef must reference output/playwright/lp-0373/.`);
+      }
+      if (!entry.notes?.includes('pnpm e2e:design:captures')) {
+        fail(`design parity screen ${screen.id}.${mode}.notes must reference pnpm e2e:design:captures.`);
+      }
+      if (!entry.notes?.includes('owner parity review still pending')) {
+        fail(`design parity screen ${screen.id}.${mode}.notes must keep owner parity review pending.`);
+      }
+    }
+    if (screen.parityReview?.status !== 'pending') {
+      fail(`design parity screen ${screen.id}.parityReview.status must remain pending until owner review.`);
+    }
+  }
+
+  if (!designParity.signoff?.notes?.includes('owner parity review and approval')) {
+    fail('design parity signoff notes must keep owner parity review and approval pending.');
+  }
+};
+
+const validateMobileStagingSmokeEvidence = () => {
+  const manualDeviceQa = readJson(files.manualDeviceQa);
+  const httpsStaging = manualDeviceQa.httpsStagingTunnel;
+  if (!httpsStaging || typeof httpsStaging !== 'object') {
+    fail(`${files.manualDeviceQa} must include httpsStagingTunnel evidence.`);
+  }
+
+  const requiredHttpsFields = ['appUrl', 'playerUrl', 'proxyOrigin', 'catchupGatewayOrigin'];
+  for (const field of requiredHttpsFields) {
+    const value = httpsStaging[field];
+    if (typeof value !== 'string' || !value.startsWith('https://')) {
+      fail(`manual-device QA httpsStagingTunnel.${field} must be an HTTPS URL.`);
+    }
+  }
+
+  if (httpsStaging.status !== 'pass') {
+    fail('manual-device QA httpsStagingTunnel.status must be pass for prepared staging smoke evidence.');
+  }
+
+  const command = httpsStaging.playwrightEvidence?.command ?? httpsStaging.runtimeEnvCheck ?? '';
+  const requiredCommandSnippets = [
+    'pnpm e2e:mobile:layout',
+    'E2E_MOBILE_LAYOUT_BASE_URL',
+    'E2E_MOBILE_LAYOUT_PROXY_ORIGIN',
+    'E2E_XTREAM_SERVER=https://gw.castcdn.net:443',
+  ];
+  for (const snippet of requiredCommandSnippets) {
+    if (!command.includes(snippet)) {
+      fail(`manual-device QA mobile staging smoke command must include: ${snippet}`);
+    }
+  }
+
+  const evidence = httpsStaging.playwrightEvidence;
+  if (!evidence || typeof evidence !== 'object') {
+    fail('manual-device QA httpsStagingTunnel.playwrightEvidence is required.');
+  }
+
+  const expectedRefs = new Map([
+    ['json', 'output/playwright/mobile-layout-smoke/report.json'],
+    ['report', 'output/playwright/mobile-layout-smoke/REPORT.md'],
+  ]);
+  for (const [field, expected] of expectedRefs.entries()) {
+    if (evidence[field] !== expected) {
+      fail(`manual-device QA httpsStagingTunnel.playwrightEvidence.${field} must be ${expected}.`);
+    }
+  }
+
+  const assertions = Array.isArray(evidence.assertions) ? evidence.assertions.join('\n') : '';
+  const requiredAssertionSnippets = [
+    'runtime env uses https://gw.castcdn.net:443',
+    '393px mobile viewport',
+    'TV Unazad',
+    'remains on /player',
+    'no mixed-content',
+    'no non-aborted app/proxy request failures',
+  ];
+  for (const snippet of requiredAssertionSnippets) {
+    if (!assertions.includes(snippet)) {
+      fail(`manual-device QA mobile staging assertions must include: ${snippet}`);
+    }
+  }
+
+  const notes = `${httpsStaging.notes ?? ''} ${manualDeviceQa.signoff?.notes ?? ''}`;
+  if (!notes.includes('not a substitute for final real-device')) {
+    fail('manual-device QA staging notes must state that staging smoke is not final real-device evidence.');
+  }
+};
+
+const validateCapacityStagingSmokeEvidence = () => {
+  const betaCapacity = readJson(files.betaCapacity);
+  const httpsStaging = betaCapacity.httpsStagingEdgeSmoke;
+  if (!httpsStaging || typeof httpsStaging !== 'object') {
+    fail(`${files.betaCapacity} must include httpsStagingEdgeSmoke evidence.`);
+  }
+
+  if (httpsStaging.status !== 'pass') {
+    fail('beta capacity httpsStagingEdgeSmoke.status must be pass for prepared staging smoke evidence.');
+  }
+
+  for (const field of ['appUrl', 'proxyUrl']) {
+    const value = httpsStaging[field];
+    if (typeof value !== 'string' || !value.startsWith('https://')) {
+      fail(`beta capacity httpsStagingEdgeSmoke.${field} must be an HTTPS URL.`);
+    }
+  }
+
+  const command = httpsStaging.command ?? '';
+  for (const snippet of [
+    'E2E_CAPACITY_APP_URL',
+    'E2E_CAPACITY_PROXY_URL',
+    'E2E_CAPACITY_REQUESTS',
+    'E2E_CAPACITY_CONCURRENCY',
+    'pnpm perf:staging-capacity',
+  ]) {
+    if (!command.includes(snippet)) {
+      fail(`beta capacity staging smoke command must include: ${snippet}`);
+    }
+  }
+
+  if (httpsStaging.reportRef !== 'output/perf/staging-capacity-smoke/REPORT.md') {
+    fail('beta capacity httpsStagingEdgeSmoke.reportRef must be output/perf/staging-capacity-smoke/REPORT.md.');
+  }
+
+  if (httpsStaging.jsonRef !== 'output/perf/staging-capacity-smoke/report.json') {
+    fail('beta capacity httpsStagingEdgeSmoke.jsonRef must be output/perf/staging-capacity-smoke/report.json.');
+  }
+
+  const notes = `${httpsStaging.scope ?? ''} ${httpsStaging.notes ?? ''}`;
+  for (const snippet of ['not a substitute', '300-500', 'did not request provider media streams']) {
+    if (!notes.includes(snippet)) {
+      fail(`beta capacity staging smoke notes must include: ${snippet}`);
+    }
+  }
+
+  const endpoints = Array.isArray(httpsStaging.endpoints) ? httpsStaging.endpoints : [];
+  const endpointIds = new Set(endpoints.map((endpoint) => endpoint.id));
+  for (const requiredEndpointId of ['web-player', 'web-manifest', 'cast-receiver', 'proxy-health']) {
+    if (!endpointIds.has(requiredEndpointId)) {
+      fail(`beta capacity staging smoke is missing endpoint: ${requiredEndpointId}`);
+    }
+  }
+
+  for (const endpoint of endpoints) {
+    if (endpoint.failed !== 0 || endpoint.ok !== endpoint.requests) {
+      fail(`beta capacity staging smoke endpoint ${endpoint.id} must have zero failures and ok=requests.`);
+    }
+  }
+
+  const edgeCapacityCheck = betaCapacity.checks?.find((check) => check.id === 'lumen-edge-capacity');
+  if (!edgeCapacityCheck?.evidence?.includes('httpsStagingEdgeSmoke')) {
+    fail('beta capacity lumen-edge-capacity evidence must reference httpsStagingEdgeSmoke.');
+  }
+  if (!edgeCapacityCheck?.evidence?.includes('deployedEdgeLoadEvidence')) {
+    fail('beta capacity lumen-edge-capacity evidence must reference deployedEdgeLoadEvidence.');
+  }
+  if (edgeCapacityCheck?.status !== 'pending') {
+    fail('beta capacity lumen-edge-capacity must remain pending until deployed 300-500 edge/load proof exists.');
+  }
+
+  const deployedLoad = betaCapacity.deployedEdgeLoadEvidence;
+  if (!deployedLoad || typeof deployedLoad !== 'object') {
+    fail('beta capacity must include deployedEdgeLoadEvidence.');
+  }
+  if (deployedLoad.status !== 'pending') {
+    fail('beta capacity deployedEdgeLoadEvidence must remain pending until deployed 300-500 edge/load proof exists.');
+  }
+  if (deployedLoad.noProviderMediaStreams !== true) {
+    fail('beta capacity deployedEdgeLoadEvidence.noProviderMediaStreams must be true.');
+  }
+  if (
+    !Number.isInteger(deployedLoad.targetConcurrentUsers) ||
+    deployedLoad.targetConcurrentUsers < betaCapacity.target.maxConcurrentLiveUsers
+  ) {
+    fail('beta capacity deployedEdgeLoadEvidence.targetConcurrentUsers must cover target.maxConcurrentLiveUsers.');
+  }
+  const deployedNotes = `${deployedLoad.scope ?? ''} ${deployedLoad.notes ?? ''}`;
+  for (const snippet of ['pending', 'deployed', '300-500', 'no provider media streams', 'localEdgeSmoke', 'httpsStagingEdgeSmoke']) {
+    if (!deployedNotes.includes(snippet)) {
+      fail(`beta capacity deployedEdgeLoadEvidence notes must include: ${snippet}`);
+    }
+  }
 };
 
 const checks = [];
@@ -309,6 +560,12 @@ validatePrQualityGateWorkflow();
 checks.push('pr-quality-gate-workflow');
 validatePackageScripts();
 checks.push('package-scripts');
+validateMobileStagingSmokeEvidence();
+checks.push('mobile staging smoke evidence');
+validateDesignCaptureEvidence();
+checks.push('design capture evidence');
+validateCapacityStagingSmokeEvidence();
+checks.push('capacity staging smoke evidence');
 
 runNode('release readiness artifact', [
   'scripts/release/validate-release-readiness.mjs',
@@ -361,6 +618,14 @@ runNode('beta blocker closure plan', [
   files.betaClosurePlan,
 ]);
 
+runNode('google cast readiness guard', [
+  'scripts/release/validate-google-cast-readiness.mjs',
+]);
+
+runNode('pwa readiness guard', [
+  'scripts/release/validate-pwa-readiness.mjs',
+]);
+
 const finalValidators = [
   ['final go/no-go checklist', ['scripts/release/validate-go-no-go.mjs', files.goNoGo, '--require-final']],
   ['final smoke/regression matrix', ['scripts/release/validate-smoke-regression-matrix.mjs', files.smokeMatrix, '--require-final']],
@@ -376,9 +641,20 @@ const finalValidators = [
   ['final beta ops signoff', ['scripts/release/validate-beta-ops-signoff.mjs', files.betaOps, '--require-final']],
   ['final security/privacy baseline', ['scripts/release/validate-security-privacy-baseline.mjs', files.securityBaseline, '--require-final']],
 ];
+const expectedCurrentFinalFailureLabels = new Set([
+  'final go/no-go checklist',
+  'final smoke/regression matrix',
+  'final compatibility matrix',
+  'final design parity evidence',
+  'final release readiness',
+  'final beta capacity evidence',
+  'final manual device QA',
+]);
 
 for (const [label, commandArgs] of finalValidators) {
-  runNode(label, commandArgs, { expectFailure: !requireFinal });
+  runNode(label, commandArgs, {
+    expectFailure: !requireFinal && expectedCurrentFinalFailureLabels.has(label),
+  });
 }
 
 if (failures.length > 0) {

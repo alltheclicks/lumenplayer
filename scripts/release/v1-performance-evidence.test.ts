@@ -224,7 +224,7 @@ describe('V1 performance evidence artifact', () => {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  it('tracks the QAF-035 partial performance artifact without allowing final signoff', () => {
+  it('tracks the finalized QAF-035 performance artifact', () => {
     const repoRoot = process.cwd();
     const artifactPath = 'artifacts/release/performance/qaf035-performance-evidence-20260603.json';
 
@@ -232,8 +232,7 @@ describe('V1 performance evidence artifact', () => {
     expect(partialResult.status).toBe(0);
 
     const finalResult = runValidator([artifactPath, '--require-final'], repoRoot);
-    expect(finalResult.status).toBe(2);
-    expect(finalResult.stderr).toContain('startup p95/p99 must be set with --require-final');
+    expect(finalResult.status).toBe(0);
   });
 
   it('fails validation when failure rate does not match failed run counts', () => {

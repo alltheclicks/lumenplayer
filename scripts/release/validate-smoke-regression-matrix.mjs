@@ -6,6 +6,12 @@ import { spawnSync } from 'node:child_process';
 
 const allowedSuites = new Set(['smoke', 'regression']);
 const allowedStatuses = new Set(['pending', 'pass', 'fail']);
+const requiredEvidenceIntakeRefs = [
+  'manualDeviceTargetRef',
+  'networkEvidenceRef',
+  'noMediaScanArtifactRef',
+  'perCaseEvidenceRef',
+];
 const defaultRequiredTags = [
   'desktop-browser',
   'mobile-browser',
@@ -36,6 +42,24 @@ const fail = (message) => {
   process.exit(2);
 };
 
+const isNonEmptyString = (value) => typeof value === 'string' && value.trim() !== '';
+
+const isRepoRelativePath = (value) => (
+  isNonEmptyString(value)
+  && !path.isAbsolute(value)
+  && !value.split(/[\\/]/).includes('..')
+);
+
+const validateExistingRepoFile = (value, label) => {
+  if (!isRepoRelativePath(value)) {
+    fail(`evidenceIntake.${label} must be a repo-relative path without parent traversal.`);
+  }
+
+  if (!fs.existsSync(path.resolve(repoRoot, value))) {
+    fail(`evidenceIntake.${label} must reference an existing file: ${value}`);
+  }
+};
+
 const validateTrackedNoMediaEvidence = (evidence, label) => {
   if (!evidence.includes('release:no-media-evidence:scan')) {
     fail(`${label} evidence must reference release:no-media-evidence:scan.`);
@@ -61,6 +85,110 @@ const validateTrackedNoMediaEvidence = (evidence, label) => {
     const stderr = result.stderr?.trim();
     const stdout = result.stdout?.trim();
     fail(`${label} no-media scan artifact validation failed${stderr ? `: ${stderr}` : stdout ? `: ${stdout}` : ''}`);
+  }
+};
+
+const validateEvidenceIntake = (evidenceIntake, { cases, requireFinal: requireFinalMode }) => {
+  if (!evidenceIntake || typeof evidenceIntake !== 'object') {
+    fail('evidenceIntake object is required.');
+  }
+
+  if (!allowedStatuses.has(evidenceIntake.status)) {
+    fail('evidenceIntake.status must be one of pending/pass/fail.');
+  }
+
+  if (!isNonEmptyString(evidenceIntake.owner)) {
+    fail('evidenceIntake.owner must be set.');
+  }
+
+  validateExistingRepoFile(evidenceIntake.guideRef, 'guideRef');
+  validateExistingRepoFile(evidenceIntake.manualDeviceQaRef, 'manualDeviceQaRef');
+  validateExistingRepoFile(evidenceIntake.compatibilityRunRef, 'compatibilityRunRef');
+  validateExistingRepoFile(evidenceIntake.noMediaScanArtifactRef, 'noMediaScanArtifactRef');
+
+  if (!String(evidenceIntake.noMediaScanArtifactRef).includes('no-media')) {
+    fail('evidenceIntake.noMediaScanArtifactRef must point to a no-media scan artifact.');
+  }
+
+  const noMediaScanValidation = spawnSync(process.execPath, [
+    'scripts/release/validate-no-media-evidence-scan-artifact.mjs',
+    evidenceIntake.noMediaScanArtifactRef,
+  ], {
+    cwd: repoRoot,
+    encoding: 'utf8',
+  });
+
+  if (noMediaScanValidation.status !== 0) {
+    const stderr = noMediaScanValidation.stderr?.trim();
+    const stdout = noMediaScanValidation.stdout?.trim();
+    fail(`evidenceIntake.noMediaScanArtifactRef validation failed${stderr ? `: ${stderr}` : stdout ? `: ${stdout}` : ''}`);
+  }
+
+  if (!Array.isArray(evidenceIntake.requiredCaseIds) || evidenceIntake.requiredCaseIds.length === 0) {
+    fail('evidenceIntake.requiredCaseIds must be a non-empty array.');
+  }
+
+  const caseIds = new Set(cases.map((testCase) => testCase.id));
+  const intakeCaseIds = new Set();
+  for (const caseId of evidenceIntake.requiredCaseIds) {
+    if (!isNonEmptyString(caseId)) {
+      fail('evidenceIntake.requiredCaseIds must only include non-empty strings.');
+    }
+    if (intakeCaseIds.has(caseId)) {
+      fail(`evidenceIntake.requiredCaseIds contains duplicate case id: ${caseId}`);
+    }
+    if (!caseIds.has(caseId)) {
+      fail(`evidenceIntake.requiredCaseIds references unknown case id: ${caseId}`);
+    }
+    intakeCaseIds.add(caseId);
+  }
+
+  for (const testCase of cases) {
+    if (testCase.status === 'pending' && !intakeCaseIds.has(testCase.id)) {
+      fail(`Pending case ${testCase.id} must be listed in evidenceIntake.requiredCaseIds.`);
+    }
+  }
+
+  if (!Array.isArray(evidenceIntake.requiredEvidenceRefs) || evidenceIntake.requiredEvidenceRefs.length === 0) {
+    fail('evidenceIntake.requiredEvidenceRefs must be a non-empty array.');
+  }
+
+  const evidenceRefs = new Set(evidenceIntake.requiredEvidenceRefs);
+  for (const ref of requiredEvidenceIntakeRefs) {
+    if (!evidenceRefs.has(ref)) {
+      fail(`evidenceIntake.requiredEvidenceRefs must include ${ref}.`);
+    }
+  }
+
+  if (!Array.isArray(evidenceIntake.finalRules) || evidenceIntake.finalRules.length === 0) {
+    fail('evidenceIntake.finalRules must be a non-empty array.');
+  }
+
+  const finalRulesText = evidenceIntake.finalRules.join(' ').toLowerCase();
+  if (!finalRulesText.includes('playwright') || !finalRulesText.includes('headless')) {
+    fail('evidenceIntake.finalRules must state that local Playwright/headless evidence is not final device evidence.');
+  }
+
+  if (!finalRulesText.includes('nomediascanartifactref') && !finalRulesText.includes('no-media')) {
+    fail('evidenceIntake.finalRules must require no-media scan evidence.');
+  }
+
+  if (!finalRulesText.includes('https') || !finalRulesText.includes('cast') || !finalRulesText.includes('pwa')) {
+    fail('evidenceIntake.finalRules must require HTTPS real-target evidence for Cast/PWA flows.');
+  }
+
+  if (requireFinalMode) {
+    if (evidenceIntake.status !== 'pass') {
+      fail('evidenceIntake.status must be pass with --require-final.');
+    }
+
+    if (!isNonEmptyString(evidenceIntake.completedBy)) {
+      fail('evidenceIntake.completedBy must be set with --require-final.');
+    }
+
+    if (!isNonEmptyString(evidenceIntake.completedAt)) {
+      fail('evidenceIntake.completedAt must be set with --require-final.');
+    }
   }
 };
 
@@ -143,6 +271,10 @@ for (const testCase of matrix.cases) {
     fail(`Release-blocker case ${testCase.id} has status "fail" and cannot be finalized.`);
   }
 
+  if (requireFinal && !isNonEmptyString(testCase.evidence)) {
+    fail(`Case ${testCase.id} evidence must be set with --require-final.`);
+  }
+
   if (testCase.id === 'SMK-PROVIDER-CATCHUP-NO-MEDIA-PROCESSING' && testCase.status === 'pass') {
     validateTrackedNoMediaEvidence(testCase.evidence, `Case ${testCase.id}`);
   }
@@ -162,6 +294,11 @@ for (const requiredTag of requiredTags) {
     fail(`Required coverage tag "${requiredTag}" is missing regression suite coverage.`);
   }
 }
+
+validateEvidenceIntake(matrix.evidenceIntake, {
+  cases: matrix.cases,
+  requireFinal,
+});
 
 if (!matrix.signoff || typeof matrix.signoff !== 'object') {
   fail('signoff object is required.');

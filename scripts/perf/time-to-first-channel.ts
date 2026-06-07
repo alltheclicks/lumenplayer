@@ -13,6 +13,7 @@ export interface TimeToFirstChannelBenchmarkResult {
   samples: TimeToFirstChannelSample[];
   medianMs: number;
   p95Ms: number;
+  p99Ms: number;
   maxMs: number;
 }
 
@@ -79,6 +80,7 @@ export const runTimeToFirstChannelBenchmark = (
     samples,
     medianMs: percentile(elapsedValues, 50),
     p95Ms: percentile(elapsedValues, 95),
+    p99Ms: percentile(elapsedValues, 99),
     maxMs: percentile(elapsedValues, 100),
   };
 };

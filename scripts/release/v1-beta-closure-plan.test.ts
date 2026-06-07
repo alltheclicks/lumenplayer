@@ -46,7 +46,7 @@ describe('QAF-035 beta closure plan', () => {
     const plan = loadPlan();
 
     expect(result.status).toBe(0);
-    expect(result.stdout).toContain('open blockers covered: 9');
+    expect(result.stdout).toContain('open blockers covered: 3');
     expect(plan.closureItems).toHaveLength(9);
   });
 
@@ -55,13 +55,13 @@ describe('QAF-035 beta closure plan', () => {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-beta-closure-'));
     const invalidPath = path.join(tmpDir, 'missing-blocker.json');
     const invalidPlan = loadPlan();
-    invalidPlan.closureItems = invalidPlan.closureItems.filter((item) => item.blockerId !== 'SECURITY-PRIVACY-OWNER');
+    invalidPlan.closureItems = invalidPlan.closureItems.filter((item) => item.blockerId !== 'BETA-CAPACITY-OWNER');
 
     fs.writeFileSync(invalidPath, `${JSON.stringify(invalidPlan, null, 2)}\n`);
 
     const result = runValidator([invalidPath], repoRoot);
     expect(result.status).toBe(2);
-    expect(result.stderr).toContain('open blocker SECURITY-PRIVACY-OWNER must have a closure item');
+    expect(result.stderr).toContain('open blocker BETA-CAPACITY-OWNER must have a closure item');
 
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
@@ -345,7 +345,7 @@ describe('QAF-035 beta closure plan', () => {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-beta-closure-'));
     const invalidPath = path.join(tmpDir, 'missing-final-proof.json');
     const invalidPlan = loadPlan();
-    const item = invalidPlan.closureItems.find((entry) => entry.blockerId === 'PERFORMANCE-RELEASE-RUN');
+    const item = invalidPlan.closureItems.find((entry) => entry.blockerId === 'BETA-CAPACITY-OWNER');
     if (item) {
       item.validationCommands = item.validationCommands.filter((command) => !command.includes('--require-final'));
     }
@@ -364,7 +364,7 @@ describe('QAF-035 beta closure plan', () => {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-beta-closure-'));
     const invalidPath = path.join(tmpDir, 'spoofed-final-proof.json');
     const invalidPlan = loadPlan();
-    const item = invalidPlan.closureItems.find((entry) => entry.blockerId === 'PERFORMANCE-RELEASE-RUN');
+    const item = invalidPlan.closureItems.find((entry) => entry.blockerId === 'BETA-CAPACITY-OWNER');
     if (item) {
       item.validationCommands = ['echo --require-final'];
     }
@@ -383,10 +383,10 @@ describe('QAF-035 beta closure plan', () => {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-beta-closure-'));
     const invalidPath = path.join(tmpDir, 'absolute-final-artifact.json');
     const invalidPlan = loadPlan();
-    const item = invalidPlan.closureItems.find((entry) => entry.blockerId === 'PERFORMANCE-RELEASE-RUN');
+    const item = invalidPlan.closureItems.find((entry) => entry.blockerId === 'BETA-CAPACITY-OWNER');
     if (item) {
       item.validationCommands = [
-        `node scripts/release/validate-performance-evidence.mjs ${path.resolve(repoRoot, 'artifacts/release/performance/qaf035-performance-evidence-20260603.json')} --require-final`,
+        `node scripts/release/validate-beta-capacity-evidence.mjs ${path.resolve(repoRoot, 'artifacts/release/capacity/qaf035-beta-capacity-20260602.json')} --require-final`,
       ];
     }
 
@@ -404,10 +404,10 @@ describe('QAF-035 beta closure plan', () => {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-beta-closure-'));
     const invalidPath = path.join(tmpDir, 'traversal-final-artifact.json');
     const invalidPlan = loadPlan();
-    const item = invalidPlan.closureItems.find((entry) => entry.blockerId === 'PERFORMANCE-RELEASE-RUN');
+    const item = invalidPlan.closureItems.find((entry) => entry.blockerId === 'BETA-CAPACITY-OWNER');
     if (item) {
       item.validationCommands = [
-        'node scripts/release/validate-performance-evidence.mjs artifacts/release/performance/../performance/qaf035-performance-evidence-20260603.json --require-final',
+        'node scripts/release/validate-beta-capacity-evidence.mjs artifacts/release/capacity/../capacity/qaf035-beta-capacity-20260602.json --require-final',
       ];
     }
 
@@ -425,10 +425,10 @@ describe('QAF-035 beta closure plan', () => {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-beta-closure-'));
     const invalidPath = path.join(tmpDir, 'chained-final-proof.json');
     const invalidPlan = loadPlan();
-    const item = invalidPlan.closureItems.find((entry) => entry.blockerId === 'PERFORMANCE-RELEASE-RUN');
+    const item = invalidPlan.closureItems.find((entry) => entry.blockerId === 'BETA-CAPACITY-OWNER');
     if (item) {
       item.validationCommands = [
-        'node scripts/release/validate-performance-evidence.mjs artifacts/release/performance/qaf035-performance-evidence-20260603.json --require-final && echo passed',
+        'node scripts/release/validate-beta-capacity-evidence.mjs artifacts/release/capacity/qaf035-beta-capacity-20260602.json --require-final && echo passed',
       ];
     }
 

@@ -14,6 +14,16 @@ interface ManualDeviceQaArtifact {
     allowedTransportModes: string[];
     disallowedTransportModes: string[];
   };
+  evidenceIntake: {
+    status: ManualDeviceQaStatus;
+    owner: string;
+    guideRef: string;
+    artifactRef: string;
+    requiredTargetIds: string[];
+    requiredEvidenceRefs: string[];
+    finalRules: string[];
+    notes: string;
+  };
   targets: Array<{
     id: string;
     status: ManualDeviceQaStatus;
@@ -39,6 +49,7 @@ interface ManualDeviceQaArtifact {
     approvedBy: string;
     approvedAt: string;
   };
+  httpsStagingTunnel?: Record<string, unknown>;
 }
 
 const runValidator = (args: string[], cwd: string) => (
@@ -59,6 +70,9 @@ const loadTemplate = (): ManualDeviceQaArtifact => {
 
 const finalizeArtifact = (): ManualDeviceQaArtifact => {
   const artifact = structuredClone(loadTemplate());
+  artifact.evidenceIntake.status = 'pass';
+  artifact.evidenceIntake.owner = 'release-qa-owner';
+  artifact.evidenceIntake.notes = 'Final real-device evidence intake is complete for every required target.';
   for (const target of artifact.targets) {
     target.status = 'pass';
     target.owner = 'release-qa-owner';
@@ -93,6 +107,14 @@ describe('V1 manual device QA artifact', () => {
       'proxy-remuxed',
       'remux-hls',
     ]));
+    expect(template.evidenceIntake.guideRef).toBe('docs/qa/qaf035-real-device-qa-guide.md');
+    expect(template.evidenceIntake.requiredEvidenceRefs).toEqual(expect.arrayContaining([
+      'screenshotOrVideoRef',
+      'networkEvidenceRef',
+      'noMediaScanArtifactRef',
+      'perCheckEvidenceRef',
+    ]));
+    expect(template.evidenceIntake.finalRules.join('\n')).toContain('release:no-media-evidence:scan');
     for (const targetId of [
       'desktop-chrome-windows',
       'desktop-safari-macos',
@@ -133,7 +155,90 @@ describe('V1 manual device QA artifact', () => {
 
     const finalResult = runValidator([artifactPath, '--require-final'], repoRoot);
     expect(finalResult.status).toBe(2);
-    expect(finalResult.stderr).toContain('target desktop-chrome-windows owner must be set with --require-final');
+    expect(finalResult.stderr).toContain('target desktop-chrome-windows actualDevice must be set with --require-final');
+  });
+
+  it('validates QAF-035 HTTPS mobile staging smoke evidence when present', () => {
+    const repoRoot = process.cwd();
+    const artifactPath = 'artifacts/release/manual-device-qa/qaf035-manual-device-qa-20260603.json';
+    const artifact = JSON.parse(fs.readFileSync(path.resolve(repoRoot, artifactPath), 'utf8')) as ManualDeviceQaArtifact;
+
+    expect(artifact.httpsStagingTunnel?.playwrightEvidence).toMatchObject({
+      command: expect.stringContaining('pnpm e2e:mobile:layout'),
+      json: 'output/playwright/mobile-layout-smoke/report.json',
+      report: 'output/playwright/mobile-layout-smoke/REPORT.md',
+      result: 'pass',
+    });
+
+    const result = runValidator([artifactPath], repoRoot);
+    expect(result.status).toBe(0);
+
+    expect(artifact.evidenceIntake.status).toBe('pending');
+    expect(artifact.evidenceIntake.requiredTargetIds).toContain('mobile-safari-ios');
+    expect(artifact.evidenceIntake.requiredEvidenceRefs).toContain('noMediaScanArtifactRef');
+  });
+
+  it('fails validation when HTTPS mobile staging smoke evidence is weak', () => {
+    const repoRoot = process.cwd();
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-manual-device-qa-'));
+    const invalidPath = path.join(tmpDir, 'weak-staging.json');
+    const artifact = loadTemplate();
+    artifact.httpsStagingTunnel = {
+      status: 'pass',
+      owner: 'codex-local-setup',
+      provider: 'Cloudflare quick tunnel',
+      allowedHosts: '.trycloudflare.com',
+      appUrl: 'https://app.example.test',
+      playerUrl: 'https://app.example.test/player',
+      proxyOrigin: 'https://proxy.example.test',
+      catchupGatewayOrigin: 'https://proxy.example.test',
+      proxyHealthCheck: 'curl https://proxy.example.test/health',
+      proxyHealthResult: '{"ok":true}',
+      manifestResult: '200 application/manifest+json',
+      receiverResult: '200 Lumen Cast Receiver',
+      runtimeEnvCheck: 'E2E_MOBILE_LAYOUT_BASE_URL=https://app.example.test E2E_MOBILE_LAYOUT_PROXY_ORIGIN=https://proxy.example.test E2E_XTREAM_SERVER=https://gw.castcdn.net:443 pnpm e2e:mobile:layout',
+      playwrightEvidence: {
+        command: 'E2E_MOBILE_LAYOUT_BASE_URL=https://app.example.test E2E_MOBILE_LAYOUT_PROXY_ORIGIN=https://proxy.example.test E2E_XTREAM_SERVER=https://gw.castcdn.net:443 pnpm e2e:mobile:layout',
+        result: 'pass',
+        json: 'output/playwright/mobile-layout-smoke/report.json',
+        report: 'output/playwright/mobile-layout-smoke/REPORT.md',
+        screenshot: 'output/playwright/mobile-layout-smoke/player-mobile.png',
+        assertions: [
+          'runtime env uses https://gw.castcdn.net:443',
+          '393px mobile viewport',
+          'TV Unazad',
+          'remains on /player',
+          'no mixed-content',
+        ],
+      },
+      notes: 'Prepared smoke, not a substitute for final real-device evidence.',
+    };
+    fs.writeFileSync(invalidPath, `${JSON.stringify(artifact, null, 2)}\n`);
+
+    const result = runValidator([invalidPath], repoRoot);
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain('no non-aborted app/proxy request failures');
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('fails validation when manual evidence intake omits tracked no-media scan artifact rules', () => {
+    const repoRoot = process.cwd();
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-manual-device-qa-'));
+    const invalidPath = path.join(tmpDir, 'weak-intake.json');
+    const artifact = loadTemplate();
+    artifact.evidenceIntake.finalRules = artifact.evidenceIntake.finalRules.map((rule) => (
+      rule.includes('tracked redacted no-media scan artifact')
+        ? 'Every passing mediaProcessingAudit.evidenceRef must cite release:no-media-evidence:scan.'
+        : rule
+    ));
+    fs.writeFileSync(invalidPath, `${JSON.stringify(artifact, null, 2)}\n`);
+
+    const result = runValidator([invalidPath], repoRoot);
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain('evidenceIntake.finalRules must include tracked redacted no-media scan artifact');
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
   it('fails strict validation if real-device signoff uses Playwright/headless evidence', () => {

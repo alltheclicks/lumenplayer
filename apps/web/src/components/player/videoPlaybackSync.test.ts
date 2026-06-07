@@ -12,28 +12,37 @@ import {
   shouldContinueCatchUpStartupFallbacks,
   shouldRetryLiveStartupWithoutFrame,
   shouldShowBlockingPlaybackError,
+  shouldShowPlaybackErrorAfterPlaybackError,
   shouldHoldPauseSyncOnSourceStartup,
   shouldRetryCatchUpBufferingStall,
   hasRenderableMediaFrame,
   shouldAttemptCatchUpErrorFallback,
+  shouldDeferLiveStartupPlaybackError,
+  shouldDeferCatchUpStartupPlaybackError,
   shouldResolveCatchUpRuntimeUnavailableAfterPlaybackError,
   shouldResolveCatchUpStartupWatchdog,
   shouldRetryCatchUpStartupWithoutSafeStart,
+  shouldRetryCatchUpStartupWithProviderSafeStart,
   shouldStopLongCatchUpStartupLoading,
   shouldShowCatchUpManifestNoFrameUnavailable,
   resolveCatchUpManifestNoFrameWatchdogDelayMs,
   shouldUseCatchUpStartupWatchdog,
   resolveCatchUpMediaOffsetSeconds,
   resolveCatchUpMediaSeekTimeSeconds,
+  resolveCatchUpMediaSeekTimeSecondsForSource,
   resolveCatchUpPendingStartupSeek,
   resolveCatchUpSeekRecoveryFallbackPositionMs,
   resolveCatchUpTimelinePositionMs,
+  resolveCatchUpTimelinePositionMsForSource,
   resolveCatchUpTimelineSeekTargetMs,
+  resolveCatchUpTimelineSeekTargetMsForSource,
   resolveCatchUpLoadingProgressPercent,
   resolveLiveUnexpectedStopDecision,
+  shouldResumeRenderableLiveAfterUnexpectedStop,
   resolveCatchUpSeekNoFrameDecision,
   shouldWatchCatchUpSeekAfterPlaybackError,
   shouldWatchCatchUpSeekAfterPositionChange,
+  resolveCatchUpFallbackPlaybackPosition,
   resolveCatchUpFallbackTimelinePositionMs,
 } from './videoPlaybackSync';
 
@@ -103,7 +112,7 @@ describe('videoPlaybackSync', () => {
     ).toBe(false);
   });
 
-  it('shows blocking overlay only for fatal playback errors', () => {
+  it('shows blocking overlay only for fatal playback errors without a renderable live/catch-up frame', () => {
     const fatalError: PlaybackError = {
       code: 'NETWORK_ERROR',
       message: 'fatal',
@@ -117,9 +126,33 @@ describe('videoPlaybackSync', () => {
 
     expect(shouldShowBlockingPlaybackError(fatalError)).toBe(true);
     expect(shouldShowBlockingPlaybackError(nonFatalError)).toBe(false);
+    expect(shouldShowPlaybackErrorAfterPlaybackError(buildSession({
+      source: {
+        url: 'https://example.com/live.m3u8',
+        type: 'hls',
+        title: 'Live',
+        metadata: {
+          mode: 'live',
+        },
+      },
+    }), fatalError, {
+      hasRenderableFrame: true,
+    })).toBe(false);
+    expect(shouldShowPlaybackErrorAfterPlaybackError(buildSession({
+      source: {
+        url: 'https://example.com/live.m3u8',
+        type: 'hls',
+        title: 'Live',
+        metadata: {
+          mode: 'live',
+        },
+      },
+    }), fatalError, {
+      hasRenderableFrame: false,
+    })).toBe(true);
   });
 
-  it('does not surface live provider overlays for recoverable errors while video still renders', () => {
+  it('does not surface live provider overlays while video still renders', () => {
     const liveSession = buildSession({
       playback: 'playing',
       source: {
@@ -157,6 +190,11 @@ describe('videoPlaybackSync', () => {
       fatal: true,
     }, {
       hasRenderableFrame: true,
+    })).toBe(false);
+    expect(shouldResolveProviderBlockingErrorAfterPlaybackError(liveSession, {
+      fatal: true,
+    }, {
+      hasRenderableFrame: false,
     })).toBe(true);
     expect(shouldResolveProviderBlockingErrorAfterPlaybackError(catchUpSession, {
       fatal: false,
@@ -322,6 +360,65 @@ describe('videoPlaybackSync', () => {
     expect(pendingSeek?.mediaPositionSeconds).toBeCloseTo(29.18, 2);
   });
 
+  it('anchors provider safe-start media time back to zero on the catch-up timeline', () => {
+    const session = buildSession({
+      source: {
+        url: 'http://127.0.0.1:8788/xui-api/https%3A%2F%2Fgw.castcdn.net%2Fstreaming%2Ftimeshift.php',
+        type: 'hls',
+        title: 'RTS 1 - Dnevnik 1',
+        metadata: {
+          mode: 'catchup',
+          channelId: 'rts-1',
+          streamId: 112,
+          programId: 'program-rts-dnevnik',
+          startTimestamp: 1_780_484_400,
+          durationSeconds: 3_420,
+          catchUpHlsStartPositionSeconds: 75,
+          catchUpPendingTimelineSeekMs: 0,
+          catchUpPendingMediaSeekSeconds: 75,
+        },
+      },
+      positionMs: 0,
+    });
+
+    const pendingSeek = resolveCatchUpPendingStartupSeek(session.source, {
+      fallbackTimelinePositionMs: session.positionMs,
+      minimumMediaPositionSeconds: 75,
+    });
+
+    expect(pendingSeek).toEqual({
+      timelinePositionMs: 0,
+      mediaPositionSeconds: 75,
+    });
+    expect(resolveCatchUpTimelinePositionMsForSource(session.source, 75)).toBe(0);
+    expect(resolveCatchUpTimelinePositionMsForSource(session.source, 76.25)).toBe(1_250);
+    expect(resolveCatchUpMediaSeekTimeSecondsForSource(session.source, 10_000, 75)).toBe(85);
+    expect(resolveCatchUpTimelineSeekTargetMsForSource(session.source, 0, 75)).toBe(0);
+  });
+
+  it('anchors implicit startup retry media time back to zero on the catch-up timeline', () => {
+    const source = {
+      url: 'http://127.0.0.1:8788/xui-api/https%3A%2F%2Fgw.castcdn.net%2Fstreaming%2Ftimeshift.php',
+      type: 'hls' as const,
+      title: 'RTS 1 - Dnevnik 1',
+      metadata: {
+        mode: 'catchup',
+        channelId: 'rts-1',
+        streamId: 112,
+        programId: 'program-rts-dnevnik',
+        startTimestamp: 1_780_484_400,
+        durationSeconds: 3_420,
+        catchUpHlsStartPositionSeconds: 15,
+        catchUpInitialSegmentRetryUsed: true,
+      },
+    };
+
+    expect(resolveCatchUpTimelinePositionMsForSource(source, 15)).toBe(0);
+    expect(resolveCatchUpTimelinePositionMsForSource(source, 16.5)).toBe(1_500);
+    expect(resolveCatchUpMediaSeekTimeSecondsForSource(source, 0, 15)).toBe(15);
+    expect(resolveCatchUpTimelineSeekTargetMsForSource(source, 0, 15)).toBe(0);
+  });
+
   it('keeps fallback position clamps in shifted catch-up timeline coordinates', () => {
     expect(resolveCatchUpFallbackTimelinePositionMs({
       requestedPositionMs: 1_386_000,
@@ -338,6 +435,45 @@ describe('videoPlaybackSync', () => {
       mediaDurationSeconds: 1_980,
       positionGuardMs: 30_000,
     })).toBe(30_000);
+  });
+
+  it('preserves zero timeline position while applying a media guard for unshifted fallback startup', () => {
+    expect(resolveCatchUpFallbackPlaybackPosition({
+      requestedPositionMs: 0,
+      mediaOffsetSeconds: 0,
+      mediaDurationSeconds: 1_980,
+      positionGuardMs: 15_000,
+      preserveRequestedTimelinePosition: true,
+    })).toEqual({
+      timelinePositionMs: 0,
+      mediaPositionSeconds: 15,
+    });
+  });
+
+  it('keeps guarded timeline position when fallback startup does not preserve the requested position', () => {
+    expect(resolveCatchUpFallbackPlaybackPosition({
+      requestedPositionMs: 0,
+      mediaOffsetSeconds: 0,
+      mediaDurationSeconds: 1_980,
+      positionGuardMs: 15_000,
+      preserveRequestedTimelinePosition: false,
+    })).toEqual({
+      timelinePositionMs: 15_000,
+      mediaPositionSeconds: 15,
+    });
+  });
+
+  it('keeps shifted fallback playback positions in provider timeline coordinates', () => {
+    expect(resolveCatchUpFallbackPlaybackPosition({
+      requestedPositionMs: 1_386_000,
+      mediaOffsetSeconds: 1_210,
+      mediaDurationSeconds: 611,
+      positionGuardMs: 30_000,
+      preserveRequestedTimelinePosition: true,
+    })).toEqual({
+      timelinePositionMs: 1_386_000,
+      mediaPositionSeconds: 176,
+    });
   });
 
   it('schedules startup hard retry only for live playback', () => {
@@ -406,6 +542,48 @@ describe('videoPlaybackSync', () => {
       attemptedRetries: 1,
       maxRetries: 1,
     })).toBe('block');
+  });
+
+  it('resumes a renderable live stop without source reload', () => {
+    const liveSession = buildSession({
+      playback: 'playing',
+      source: {
+        url: 'https://example.com/live.m3u8',
+        type: 'hls',
+        title: 'Live',
+        metadata: {
+          mode: 'live',
+        },
+      },
+    });
+    const catchUpSession = buildSession({
+      playback: 'playing',
+      source: {
+        url: 'https://example.com/archive.m3u8',
+        type: 'hls',
+        title: 'Archive',
+        metadata: {
+          mode: 'catchup',
+        },
+      },
+    });
+
+    expect(shouldResumeRenderableLiveAfterUnexpectedStop(liveSession, {
+      manualPauseRequested: false,
+      hasRenderableFrame: true,
+    })).toBe(true);
+    expect(shouldResumeRenderableLiveAfterUnexpectedStop(liveSession, {
+      manualPauseRequested: false,
+      hasRenderableFrame: false,
+    })).toBe(false);
+    expect(shouldResumeRenderableLiveAfterUnexpectedStop(liveSession, {
+      manualPauseRequested: true,
+      hasRenderableFrame: true,
+    })).toBe(false);
+    expect(shouldResumeRenderableLiveAfterUnexpectedStop(catchUpSession, {
+      manualPauseRequested: false,
+      hasRenderableFrame: true,
+    })).toBe(false);
   });
 
   it('does not recover manual, non-live, or non-playing stops as live failures', () => {
@@ -585,6 +763,184 @@ describe('videoPlaybackSync', () => {
       fatal: false,
     }, {
       hasRenderableFrame: false,
+    })).toBe(false);
+  });
+
+  it('defers live startup playback errors before the first renderable frame', () => {
+    const liveSession = buildSession({
+      playback: 'playing',
+      source: {
+        url: 'https://example.com/live.m3u8',
+        type: 'hls',
+        title: 'Live',
+        metadata: {
+          mode: 'live',
+        },
+      },
+    });
+    const catchUpSession = buildSession({
+      playback: 'playing',
+      source: {
+        url: 'https://example.com/archive.m3u8',
+        type: 'hls',
+        title: 'Archive',
+        metadata: {
+          mode: 'catchup',
+        },
+      },
+    });
+
+    expect(shouldDeferLiveStartupPlaybackError(liveSession, {
+      code: 'MEDIA_ERROR',
+      fatal: true,
+    }, {
+      hasRenderableFrame: false,
+    }, {
+      sourceHasStarted: false,
+    })).toBe(true);
+    expect(shouldDeferLiveStartupPlaybackError(liveSession, {
+      code: 'LOAD_FAILED',
+      fatal: true,
+    }, {
+      hasRenderableFrame: false,
+    }, {
+      sourceHasStarted: false,
+    })).toBe(true);
+    expect(shouldDeferLiveStartupPlaybackError(liveSession, {
+      code: 'MEDIA_ERROR',
+      fatal: true,
+    }, {
+      hasRenderableFrame: true,
+    }, {
+      sourceHasStarted: false,
+    })).toBe(false);
+    expect(shouldDeferLiveStartupPlaybackError(liveSession, {
+      code: 'MEDIA_ERROR',
+      fatal: true,
+    }, {
+      hasRenderableFrame: false,
+    }, {
+      sourceHasStarted: true,
+    })).toBe(false);
+    expect(shouldDeferLiveStartupPlaybackError({
+      ...liveSession,
+      playback: 'paused',
+    }, {
+      code: 'MEDIA_ERROR',
+      fatal: true,
+    }, {
+      hasRenderableFrame: false,
+    }, {
+      sourceHasStarted: false,
+    })).toBe(false);
+    expect(shouldDeferLiveStartupPlaybackError(liveSession, {
+      code: 'MEDIA_ERROR',
+      fatal: false,
+    }, {
+      hasRenderableFrame: false,
+    }, {
+      sourceHasStarted: false,
+    })).toBe(false);
+    expect(shouldDeferLiveStartupPlaybackError(catchUpSession, {
+      code: 'MEDIA_ERROR',
+      fatal: true,
+    }, {
+      hasRenderableFrame: false,
+    }, {
+      sourceHasStarted: false,
+    })).toBe(false);
+  });
+
+  it('defers catch-up startup playback errors before the first renderable frame', () => {
+    const catchUpSession = buildSession({
+      playback: 'playing',
+      source: {
+        url: 'https://example.com/archive.m3u8',
+        type: 'hls',
+        title: 'Archive',
+        metadata: {
+          mode: 'catchup',
+        },
+      },
+    });
+    const liveSession = buildSession({
+      playback: 'playing',
+      source: {
+        url: 'https://example.com/live.m3u8',
+        type: 'hls',
+        title: 'Live',
+        metadata: {
+          mode: 'live',
+        },
+      },
+    });
+
+    expect(shouldDeferCatchUpStartupPlaybackError(catchUpSession, {
+      code: 'MEDIA_ERROR',
+      fatal: true,
+    }, {
+      hasRenderableFrame: false,
+    }, {
+      sourceHasStarted: false,
+    })).toBe(true);
+    expect(shouldDeferCatchUpStartupPlaybackError(catchUpSession, {
+      code: 'LOAD_FAILED',
+      fatal: true,
+    }, {
+      hasRenderableFrame: false,
+    }, {
+      sourceHasStarted: false,
+    })).toBe(true);
+    expect(shouldDeferCatchUpStartupPlaybackError(catchUpSession, {
+      code: 'PLAYBACK_START_FAILED',
+      fatal: false,
+    }, {
+      hasRenderableFrame: false,
+    }, {
+      sourceHasStarted: false,
+    })).toBe(true);
+    expect(shouldDeferCatchUpStartupPlaybackError(catchUpSession, {
+      code: 'MEDIA_ERROR',
+      fatal: true,
+    }, {
+      hasRenderableFrame: true,
+    }, {
+      sourceHasStarted: false,
+    })).toBe(false);
+    expect(shouldDeferCatchUpStartupPlaybackError(catchUpSession, {
+      code: 'MEDIA_ERROR',
+      fatal: true,
+    }, {
+      hasRenderableFrame: false,
+    }, {
+      sourceHasStarted: true,
+    })).toBe(false);
+    expect(shouldDeferCatchUpStartupPlaybackError({
+      ...catchUpSession,
+      playback: 'paused',
+    }, {
+      code: 'MEDIA_ERROR',
+      fatal: true,
+    }, {
+      hasRenderableFrame: false,
+    }, {
+      sourceHasStarted: false,
+    })).toBe(false);
+    expect(shouldDeferCatchUpStartupPlaybackError(liveSession, {
+      code: 'MEDIA_ERROR',
+      fatal: true,
+    }, {
+      hasRenderableFrame: false,
+    }, {
+      sourceHasStarted: false,
+    })).toBe(false);
+    expect(shouldDeferCatchUpStartupPlaybackError(catchUpSession, {
+      code: 'HLS_NOT_SUPPORTED',
+      fatal: true,
+    }, {
+      hasRenderableFrame: false,
+    }, {
+      sourceHasStarted: false,
     })).toBe(false);
   });
 
@@ -969,6 +1325,56 @@ describe('videoPlaybackSync', () => {
       'STARTUP_TIMEOUT',
       { hasRenderableFrame: false },
       15,
+    )).toBe(false);
+  });
+
+  it('retries a catch-up startup with provider safe-start only after the first source gets no frame', () => {
+    const firstAttemptSession = buildSession({
+      playback: 'playing',
+      source: {
+        url: 'https://example.com/archive.m3u8',
+        type: 'hls',
+        title: 'Archive',
+        metadata: {
+          mode: 'catchup',
+          catchUpHlsStartPositionSeconds: 0,
+          catchUpProviderSafeStartPositionSeconds: 75,
+        },
+      },
+    });
+
+    expect(shouldRetryCatchUpStartupWithProviderSafeStart(
+      firstAttemptSession,
+      'STARTUP_TIMEOUT',
+      { hasRenderableFrame: false },
+      75,
+    )).toBe(true);
+    expect(shouldRetryCatchUpStartupWithProviderSafeStart(
+      firstAttemptSession,
+      'MEDIA_ERROR',
+      { hasRenderableFrame: false },
+      75,
+    )).toBe(false);
+    expect(shouldRetryCatchUpStartupWithProviderSafeStart(
+      firstAttemptSession,
+      'STARTUP_TIMEOUT',
+      { hasRenderableFrame: true },
+      75,
+    )).toBe(false);
+    expect(shouldRetryCatchUpStartupWithProviderSafeStart(
+      buildSession({
+        ...firstAttemptSession,
+        source: {
+          ...firstAttemptSession.source!,
+          metadata: {
+            ...firstAttemptSession.source!.metadata,
+            catchUpProviderSafeStartRetryUsed: true,
+          },
+        },
+      }),
+      'STARTUP_TIMEOUT',
+      { hasRenderableFrame: false },
+      75,
     )).toBe(false);
   });
 

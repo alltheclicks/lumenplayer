@@ -107,7 +107,7 @@ describe('V1 runtime media policy artifact', () => {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  it('tracks the QAF-035 partial runtime media policy artifact without allowing final signoff', () => {
+  it('tracks the finalized QAF-035 runtime media policy artifact', () => {
     const repoRoot = process.cwd();
     const artifactPath = 'artifacts/release/media-policy/qaf035-runtime-media-policy-20260602.json';
 
@@ -115,8 +115,7 @@ describe('V1 runtime media policy artifact', () => {
     expect(partialResult.status).toBe(0);
 
     const finalResult = runValidator([artifactPath, '--require-final'], repoRoot);
-    expect(finalResult.status).toBe(2);
-    expect(finalResult.stderr).toContain('check provider-xui-no-transcode-owner is pending with --require-final');
+    expect(finalResult.status).toBe(0);
   });
 
   it('fails if proxy-remuxed is allowed', () => {

@@ -9,6 +9,29 @@ const XTREAM_DEV_PROXY_BASE_PATH = "/xui-api";
 const CATCHUP_GATEWAY_PROXY_PATH = "/catchup-gateway";
 const XTREAM_HLS_ROOT_PROXY_PATH = "/hlsr";
 const LOCAL_PROXY_FALLBACK_TARGET = "http://localhost";
+const LOCAL_DEV_NO_STORE_HEADERS = {
+  "Cache-Control": "no-store, max-age=0",
+  Pragma: "no-cache",
+  Expires: "0",
+};
+
+const parseAllowedHosts = (rawValue?: string): true | string[] | undefined => {
+  const raw = rawValue?.trim();
+  if (!raw) {
+    return undefined;
+  }
+
+  if (raw === "*") {
+    return true;
+  }
+
+  const hosts = raw
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+
+  return hosts.length > 0 ? hosts : undefined;
+};
 
 const resolveProxyTargetFromRequestPath = (requestPath: string): string | null => {
   const match = requestPath.match(new RegExp(`^${XTREAM_DEV_PROXY_BASE_PATH}/([^/?#]+)`));
@@ -68,6 +91,7 @@ export default defineConfig(({ mode }) => {
   const xuiProxyTarget = env.VITE_XUI_PROXY_ORIGIN?.trim().replace(/\/+$/, "");
   const catchUpGatewayTarget = env.VITE_CATCHUP_GATEWAY_ORIGIN?.trim().replace(/\/+$/, "") ||
     xuiProxyTarget;
+  const allowedHosts = parseAllowedHosts(env.LUMEN_VITE_ALLOWED_HOSTS);
   const proxyConfig = {
     ...(xuiProxyTarget
       ? {
@@ -124,7 +148,15 @@ export default defineConfig(({ mode }) => {
     server: {
       host: "::",
       port: 8080,
+      headers: LOCAL_DEV_NO_STORE_HEADERS,
+      ...(allowedHosts ? { allowedHosts } : {}),
       proxy: Object.keys(proxyConfig).length > 0 ? proxyConfig : undefined,
+    },
+    preview: {
+      host: "::",
+      port: 8080,
+      headers: LOCAL_DEV_NO_STORE_HEADERS,
+      ...(allowedHosts ? { allowedHosts } : {}),
     },
     plugins: [
       react(),

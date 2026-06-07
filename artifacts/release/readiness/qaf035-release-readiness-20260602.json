@@ -33,77 +33,77 @@
       "name": "V1 manual real-device QA evidence",
       "status": "pending",
       "evidenceRef": "artifacts/release/manual-device-qa/qaf035-manual-device-qa-20260603.json",
-      "checkedAt": "2026-06-03T00:12:00Z",
-      "notes": "Manual real-device QA artifact is structured but non-final. Windows Chrome, macOS Safari, Android Chrome, iOS Safari, Chromecast, AirPlay/Apple TV, and PWA install/offline evidence remain pending."
+      "checkedAt": "2026-06-05T14:24:21Z",
+      "notes": "Manual real-device QA artifact is structured but non-final. HTTPS staging and mobile layout smoke evidence are recorded, including 393px no-overflow checks and in-place TV Unazad panel behavior. Windows Chrome, macOS Safari, Android Chrome, iOS Safari, Chromecast, AirPlay/Apple TV, and PWA install/offline real-device evidence remain pending."
     },
     {
       "id": "design-parity-evidence",
       "name": "V1 UI design parity evidence review",
       "status": "pending",
       "evidenceRef": "artifacts/release/design/qaf035-design-parity-20260603.json",
-      "checkedAt": "2026-06-02T20:53:05Z",
-      "notes": "Concrete QAF design-parity artifact validates locally, but final rendered design parity evidence is not signed off for beta."
+      "checkedAt": "2026-06-05T14:14:48Z",
+      "notes": "Fresh desktop/mobile Lumen rendered captures were generated via pnpm e2e:design:captures and match the reference viewport dimensions. Final design parity owner review and signoff remain pending."
     },
     {
       "id": "performance-evidence",
       "name": "V1 performance evidence artifact",
-      "status": "pending",
+      "status": "pass",
       "evidenceRef": "artifacts/release/performance/qaf035-performance-evidence-20260603.json",
-      "checkedAt": "2026-06-03T10:10:00Z",
-      "notes": "Concrete performance artifact validates local benchmark coverage and failure-rate evidence. Numeric startup/RSS values and final release-owner performance signoff remain pending."
+      "checkedAt": "2026-06-05T14:05:12Z",
+      "notes": "Concrete performance artifact records TTFC p95=57.986ms, p99=59.667ms, RSS peak/p95=109.453MB, passing thresholds, and Filip signoff."
     },
     {
       "id": "provider-owner-signoff",
       "name": "V1 provider/XUI owner capacity and no-media-processing signoff",
-      "status": "pending",
+      "status": "pass",
       "evidenceRef": "artifacts/release/provider/qaf035-provider-owner-signoff-20260603.json",
-      "checkedAt": "2026-06-02T22:26:00Z",
-      "notes": "Partial provider owner artifact validates non-final. Provider/XUI owner identity, capacity approval, rate-limit/escalation path, and explicit no XUI-side transcode/remux/generated-HLS commitment remain pending."
+      "checkedAt": "2026-06-05T11:25:56Z",
+      "notes": "Provider/XUI owner identity, contact policy, 300-500 controlled beta approval, rate-limit/escalation path, and no XUI-side transcode/remux/generated-HLS commitment are recorded."
     },
     {
       "id": "beta-capacity-evidence",
       "name": "V1 300-500 user beta capacity evidence",
       "status": "pending",
       "evidenceRef": "artifacts/release/capacity/qaf035-beta-capacity-20260602.json",
-      "checkedAt": "2026-06-02T20:53:05Z",
-      "notes": "Partial artifact validates non-final. no-media-processing-verification passes with manual audit evidence plus the release no-media evidence scanner; provider owner, Lumen edge capacity, observability SLO, rollback/throttle plan, and final signoff remain pending."
+      "checkedAt": "2026-06-05T14:21:17Z",
+      "notes": "Provider owner, no-media verification, observability SLO, rollback/throttle ownership, local edge smoke, and ephemeral HTTPS staging smoke are recorded. Deployed Lumen edge/load evidence and final capacity signoff remain pending."
     },
     {
       "id": "runtime-media-policy",
       "name": "V1 runtime no-transcode/no-remux media policy",
-      "status": "pending",
+      "status": "pass",
       "evidenceRef": "artifacts/release/media-policy/qaf035-runtime-media-policy-20260602.json",
-      "checkedAt": "2026-06-02T20:59:44Z",
-      "notes": "Partial artifact validates non-final. Web gateway, proxy default no-remux, committed env, local process, and no-media evidence scanner checks pass; provider/XUI no-transcode owner confirmation remains pending."
+      "checkedAt": "2026-06-05T11:25:56Z",
+      "notes": "Web gateway, proxy default no-remux, committed env, local process, no-media evidence scanner, and provider/XUI no-transcode owner confirmation are recorded."
     },
     {
       "id": "observability-baseline",
       "name": "V1 production observability baseline",
-      "status": "pending",
+      "status": "pass",
       "evidenceRef": "artifacts/release/observability/qaf035-observability-baseline-20260603.json",
-      "checkedAt": "2026-06-03T09:20:00Z",
-      "notes": "Concrete observability baseline artifact validates source event coverage, alert threshold rules, and no-media stop-trigger evidence. Beta launch alert routing, owner response, dashboard, and SLO signoff remain pending."
+      "checkedAt": "2026-06-05T11:25:56Z",
+      "notes": "Source event coverage, alert threshold rules, beta alert routing, daily report/log-export dashboard substitute, 30-minute response SLO, and stop-trigger ownership are recorded."
     },
     {
       "id": "beta-ops-signoff",
       "name": "V1 beta observability and rollback/throttle signoff",
-      "status": "pending",
+      "status": "pass",
       "evidenceRef": "artifacts/release/ops/qaf035-beta-ops-signoff-20260603.json",
-      "checkedAt": "2026-06-03T00:28:00Z",
-      "notes": "Partial ops signoff artifact validates non-final. Observability owner, alert channel, dashboard, SLO thresholds, rollback/throttle owner, notification route, decision authority, and final approval remain pending."
+      "checkedAt": "2026-06-05T11:25:56Z",
+      "notes": "Filip owner, manual alert channel, daily beta report/log export, 30-minute SLO, rollback/throttle decision authority, stop triggers, and final approval are recorded."
     },
     {
       "id": "security-privacy-baseline",
       "name": "V1 security/privacy baseline review",
-      "status": "pending",
+      "status": "pass",
       "evidenceRef": "artifacts/release/security/qaf035-security-privacy-baseline-20260603.json",
-      "checkedAt": "2026-06-03T10:45:00Z",
-      "notes": "Concrete security/privacy baseline validates storage inventory source refs, credential cleanup evidence, retention evidence, and secret hygiene coverage. Incident owner/runbook/channel and final security/privacy signoff remain pending."
+      "checkedAt": "2026-06-05T11:25:56Z",
+      "notes": "Storage inventory source refs, credential cleanup evidence, retention evidence, secret hygiene coverage, incident owner/runbook/channel, and final security/privacy signoff are recorded."
     }
   ],
   "blockerTriage": {
-    "totalOpen": 9,
-    "triagedAt": "2026-06-03T11:55:00Z",
+    "totalOpen": 3,
+    "triagedAt": "2026-06-05T11:42:11Z",
     "owner": "codex",
     "items": [
       {
@@ -133,10 +133,10 @@
       },
       {
         "id": "BETA-CAPACITY-OWNER",
-        "summary": "Provider/XUI owner capacity approval for 300-500 beta users is missing.",
+        "summary": "Deployed Lumen edge/load capacity evidence for 300-500 beta users is missing.",
         "status": "open",
-        "disposition": "Needs external owner confirmation in artifacts/release/provider/qaf035-provider-owner-signoff-20260603.json that the beta account/upstream service can support the cohort without XUI-side transcode/remux.",
-        "owner": "provider-capacity-owner",
+        "disposition": "Provider/XUI owner approval is recorded. Keep capacity gate open until deployed Lumen web/proxy edge sizing or load evidence is recorded and the capacity signoff is approved.",
+        "owner": "Filip",
         "issueRef": "",
         "gateIds": [
           "beta-capacity-evidence"
@@ -145,9 +145,9 @@
       {
         "id": "PROVIDER-OWNER-SIGNOFF",
         "summary": "Provider/XUI owner identity, rate-limit/escalation contact, and no-media-processing commitment are missing.",
-        "status": "open",
-        "disposition": "Record the provider/XUI owner, upstream account scope, escalation path, and explicit commitment that broken catch-up will not be solved with XUI-side transcode/remux/generated HLS or other server-side media processing.",
-        "owner": "provider-owner",
+        "status": "closed",
+        "disposition": "Provider/XUI owner, upstream account scope, escalation path, capacity approval, and explicit no XUI-side transcode/remux/generated HLS commitment are recorded.",
+        "owner": "Filip",
         "issueRef": "",
         "gateIds": [
           "provider-owner-signoff"
@@ -156,9 +156,9 @@
       {
         "id": "PERFORMANCE-RELEASE-RUN",
         "summary": "Approved release-run startup and RSS performance numbers are missing.",
-        "status": "open",
-        "disposition": "Record numeric startup p95/p99, RSS peak/p95, failed-run accounting, approved environment details, and release-owner performance signoff in the performance artifact.",
-        "owner": "release-performance-owner",
+        "status": "closed",
+        "disposition": "Numeric startup p95/p99, RSS peak/p95, failed-run accounting, and Filip performance signoff are recorded in the performance artifact.",
+        "owner": "Filip",
         "issueRef": "",
         "gateIds": [
           "performance-evidence"
@@ -167,9 +167,9 @@
       {
         "id": "RUNTIME-NO-MEDIA-OWNER",
         "summary": "Runtime no-transcode/no-remux provider/XUI owner confirmation is missing.",
-        "status": "open",
-        "disposition": "Finalize runtime media policy only after owner-backed evidence confirms provider-direct/proxy-normalized playback remains the beta/prod path and no local ffmpeg, server-side transcode/remux, generated HLS, proxy-remuxed, remux-hls, or XUI-side media processing is allowed.",
-        "owner": "provider-xui-no-transcode-owner",
+        "status": "closed",
+        "disposition": "Runtime media policy now has owner-backed provider-direct/proxy-normalized/no-media-processing confirmation.",
+        "owner": "Filip",
         "issueRef": "",
         "gateIds": [
           "runtime-media-policy"
@@ -178,9 +178,9 @@
       {
         "id": "OBSERVABILITY-BASELINE-OWNER",
         "summary": "Beta alert routing, dashboard, response SLO, and observability owner are missing.",
-        "status": "open",
-        "disposition": "Assign beta alert owner/channel/dashboard/response SLO and record evidence that playback, cast, startup-timeout, and no-media stop triggers route to a real launch responder.",
-        "owner": "observability-owner",
+        "status": "closed",
+        "disposition": "Beta alert owner/channel, daily report/log-export dashboard substitute, 30-minute response SLO, and stop-trigger ownership are recorded.",
+        "owner": "Filip",
         "issueRef": "",
         "gateIds": [
           "observability-baseline"
@@ -189,9 +189,9 @@
       {
         "id": "BETA-OPS-SIGNOFF",
         "summary": "Observability SLO and rollback/throttle owners are not signed off.",
-        "status": "open",
-        "disposition": "Assign launch owners and record alert route, rollback/throttle decision path, and max decision time evidence.",
-        "owner": "release-ops-owner",
+        "status": "closed",
+        "disposition": "Launch owner, alert route, rollback/throttle decision path, and max decision time evidence are recorded.",
+        "owner": "Filip",
         "issueRef": "",
         "gateIds": [
           "beta-ops-signoff"
@@ -200,9 +200,9 @@
       {
         "id": "SECURITY-PRIVACY-OWNER",
         "summary": "Security/privacy incident owner, runbook, response channel, and final signoff are missing.",
-        "status": "open",
-        "disposition": "Finalize the security/privacy baseline only after the incident runbook, named owner, response channel, notification SLA, and release-owner approval are recorded.",
-        "owner": "security-privacy-owner",
+        "status": "closed",
+        "disposition": "Security/privacy incident runbook, named owner, response channel, notification SLA, and release-owner approval are recorded.",
+        "owner": "Filip",
         "issueRef": "",
         "gateIds": [
           "security-privacy-baseline"
@@ -211,8 +211,8 @@
     ]
   },
   "rollback": {
-    "owner": "",
-    "notificationChannel": "",
+    "owner": "Filip",
+    "notificationChannel": "Manual beta escalation channel agreed by Filip; private Telegram/Discord/email endpoint is not stored in release artifacts.",
     "maxDecisionMinutes": 30,
     "triggers": [
       "Any release-blocker regression in playback, cast handoff, or data integrity.",
@@ -231,12 +231,12 @@
       "Compatibility matrix has no release-blocker failures and pending target evidence is explicitly triaged.",
       "Beta capacity artifact validates and final signoff remains blocked until owner evidence is complete."
     ],
-    "notes": "Partial rollback plan only. Final beta readiness still needs named owner and notification channel."
+    "notes": "Rollback/throttle owner and notification channel are recorded. Overall readiness remains pending while go/no-go, real-device/target matrix, and deployed Lumen edge capacity evidence are open."
   },
   "signoff": {
     "status": "pending",
     "approvedBy": "",
     "approvedAt": "",
-    "notes": "Partial readiness rollup only. This artifact must fail --require-final until all gates are non-pending, blocker triage is closed/mitigated, rollback owner/channel are set, and final signoff is approved."
+    "notes": "Owner/performance/ops/runtime/security blockers are closed. Overall readiness remains pending until go/no-go, real-device target matrix, design parity, smoke/compatibility target evidence, and deployed Lumen edge capacity evidence are complete."
   }
 }

@@ -19,6 +19,23 @@
     "usesXuiSideRemux": false,
     "evidence": ""
   },
+  "deployedEdgeLoadEvidence": {
+    "status": "pending",
+    "owner": "",
+    "environment": "",
+    "deploymentRef": "",
+    "testedAt": "",
+    "targetConcurrentUsers": 500,
+    "durationMinutes": 0,
+    "appUrl": "",
+    "proxyUrl": "",
+    "loadReportRef": "",
+    "capacityPlanRef": "",
+    "noProviderMediaStreams": true,
+    "endpoints": [],
+    "scope": "Pending deployed Lumen web/proxy edge load proof for 300-500 beta users with no provider media streams.",
+    "notes": "Pending final deployed capacity evidence. This is not satisfied by localEdgeSmoke or httpsStagingEdgeSmoke."
+  },
   "checks": [
     {
       "id": "provider-capacity-owner",

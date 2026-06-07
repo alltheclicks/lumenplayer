@@ -3,6 +3,7 @@
   "templateVersion": 1,
   "generatedAt": "2026-06-02T20:46:47Z",
   "runOwner": "codex",
+  "ownerStatement": "Ja, Filip, kao owner Lumen beta testiranja i provider/XUI pristupa, potvrđujem da je isti account/upstream dozvoljen za kontrolisani beta test do 300-500 korisnika. Potvrđujem da beta ne sme koristiti XUI-side transcode/remux/generated-HLS workaround bez moje eksplicitne odluke. U slučaju 401/403/429/5xx eskalacije, playback regresije ili provider overload-a, ja sam decision owner za stop/throttle/rollback.",
   "target": {
     "minConcurrentLiveUsers": 300,
     "maxConcurrentLiveUsers": 500,
@@ -19,22 +20,134 @@
     "usesXuiSideRemux": false,
     "evidence": "output/playwright/manual-network-audit/REPORT.md; pnpm release:no-media-evidence:scan -- output/playwright/manual-network-audit/report.json; artifacts/release/media-policy/qaf035-no-media-evidence-scan-20260602.json; artifacts/release/compatibility/qaf035-provider-local-20260602.json; pnpm --filter @lumen/web exec vitest run src/components/player/catchupGateway.test.ts src/components/player/catchupSource.test.ts"
   },
+  "localEdgeSmoke": {
+    "status": "pass",
+    "verifiedAt": "2026-06-05T11:49:06Z",
+    "owner": "codex-local-setup",
+    "scope": "Local QA server smoke for prepared web/proxy endpoints only; not deployed edge/load evidence and not a substitute for 300-500 live-user beta capacity proof.",
+    "serverSessions": [
+      "lumen-qaf035-web",
+      "lumen-qaf035-proxy"
+    ],
+    "endpoints": [
+      {
+        "id": "web-player",
+        "url": "http://127.0.0.1:8080/player",
+        "requests": 100,
+        "concurrency": 25,
+        "ok": 100,
+        "failed": 0,
+        "p95Ms": 50.837,
+        "p99Ms": 53.108,
+        "maxMs": 53.394
+      },
+      {
+        "id": "proxy-health",
+        "url": "http://127.0.0.1:8788/health",
+        "requests": 100,
+        "concurrency": 25,
+        "ok": 100,
+        "failed": 0,
+        "p95Ms": 19.098,
+        "p99Ms": 19.617,
+        "maxMs": 19.922
+      }
+    ],
+    "notes": "Smoke used no browser automation and did not request provider media streams. Keep lumen-edge-capacity pending until deployed web/proxy sizing or load evidence is recorded."
+  },
+  "httpsStagingEdgeSmoke": {
+    "status": "pass",
+    "verifiedAt": "2026-06-05T14:21:17Z",
+    "owner": "codex-staging-smoke",
+    "scope": "Ephemeral HTTPS staging tunnel smoke for static app, manifest, Cast receiver, and proxy health endpoints only; not deployed edge/load evidence and not a substitute for 300-500 live-user beta capacity proof.",
+    "appUrl": "https://preservation-thus-opportunities-shortly.trycloudflare.com",
+    "proxyUrl": "https://fin-edited-contracting-newbie.trycloudflare.com",
+    "command": "E2E_CAPACITY_APP_URL='https://preservation-thus-opportunities-shortly.trycloudflare.com' E2E_CAPACITY_PROXY_URL='https://fin-edited-contracting-newbie.trycloudflare.com' E2E_CAPACITY_REQUESTS=40 E2E_CAPACITY_CONCURRENCY=10 pnpm perf:staging-capacity",
+    "reportRef": "output/perf/staging-capacity-smoke/REPORT.md",
+    "jsonRef": "output/perf/staging-capacity-smoke/report.json",
+    "requestsPerEndpoint": 40,
+    "concurrencyPerEndpoint": 10,
+    "endpoints": [
+      {
+        "id": "web-player",
+        "url": "https://preservation-thus-opportunities-shortly.trycloudflare.com/player",
+        "requests": 40,
+        "concurrency": 10,
+        "ok": 40,
+        "failed": 0,
+        "p95Ms": 249.795,
+        "p99Ms": 279.731,
+        "maxMs": 279.731
+      },
+      {
+        "id": "web-manifest",
+        "url": "https://preservation-thus-opportunities-shortly.trycloudflare.com/manifest.webmanifest",
+        "requests": 40,
+        "concurrency": 10,
+        "ok": 40,
+        "failed": 0,
+        "p95Ms": 136.857,
+        "p99Ms": 155.858,
+        "maxMs": 155.858
+      },
+      {
+        "id": "cast-receiver",
+        "url": "https://preservation-thus-opportunities-shortly.trycloudflare.com/receiver.html",
+        "requests": 40,
+        "concurrency": 10,
+        "ok": 40,
+        "failed": 0,
+        "p95Ms": 135.69,
+        "p99Ms": 218.551,
+        "maxMs": 218.551
+      },
+      {
+        "id": "proxy-health",
+        "url": "https://fin-edited-contracting-newbie.trycloudflare.com/health",
+        "requests": 40,
+        "concurrency": 10,
+        "ok": 40,
+        "failed": 0,
+        "p95Ms": 266.983,
+        "p99Ms": 292.632,
+        "maxMs": 292.632
+      }
+    ],
+    "notes": "Smoke used no browser automation and did not request provider media streams. Keep lumen-edge-capacity pending until deployed web/proxy edge sizing or 300-500 live-user load evidence is recorded."
+  },
+  "deployedEdgeLoadEvidence": {
+    "status": "pending",
+    "owner": "Filip",
+    "environment": "",
+    "deploymentRef": "",
+    "testedAt": "",
+    "targetConcurrentUsers": 500,
+    "durationMinutes": 0,
+    "appUrl": "",
+    "proxyUrl": "",
+    "loadReportRef": "",
+    "capacityPlanRef": "",
+    "noProviderMediaStreams": true,
+    "endpoints": [],
+    "scope": "Pending deployed Lumen web/proxy edge load proof for 300-500 beta users with no provider media streams. This must cover the deployed app/proxy edge and is not satisfied by localEdgeSmoke or httpsStagingEdgeSmoke.",
+    "notes": "Pending final deployed capacity evidence. Keep lumen-edge-capacity and capacity signoff pending until the deployed 500-concurrent-user edge/load report is recorded."
+  },
   "checks": [
     {
       "id": "provider-capacity-owner",
       "description": "Provider/XUI owner confirms the QA/beta account and upstream service can support the planned 300-500 live-user beta without adding XUI-side transcode/remux.",
-      "status": "pending",
-      "owner": "",
+      "status": "pass",
+      "owner": "Filip",
       "evidence": "artifacts/release/provider/qaf035-provider-owner-signoff-20260603.json",
-      "notes": "Structured provider owner signoff artifact now defines the required account capacity, rate-limit/escalation, and no XUI-side transcode/remux evidence. Do not mark pass from local browser evidence."
+      "notes": "Filip owner signoff approves the same provider/XUI account and upstream for a controlled 300-500-user beta and forbids XUI-side transcode/remux/generated-HLS workaround without explicit owner decision."
     },
     {
       "id": "lumen-edge-capacity",
       "description": "Lumen web/proxy path capacity is sized for the beta cohort and does not perform per-user media processing.",
       "status": "pending",
-      "owner": "",
-      "evidence": "",
-      "notes": "Needs explicit beta sizing/load evidence for the deployed Lumen web/proxy path. Current evidence proves the intended media path does not use per-user media processing, not full 300-500 user capacity."
+      "owner": "Filip",
+      "evidence": "artifacts/release/performance/qaf035-performance-evidence-20260603.json; artifacts/release/media-policy/qaf035-runtime-media-policy-20260602.json; localEdgeSmoke in this artifact; httpsStagingEdgeSmoke in this artifact; deployedEdgeLoadEvidence pending in this artifact; output/perf/staging-capacity-smoke/REPORT.md",
+      "notes": "Owner is recorded, runtime media policy proves no per-user media processing, and local plus HTTPS staging web/proxy smoke passed. Keep pending until deployedEdgeLoadEvidence records explicit 300-500 beta sizing/load evidence for the deployed Lumen web/proxy path."
     },
     {
       "id": "no-media-processing-verification",
@@ -47,24 +160,24 @@
     {
       "id": "observability-slo",
       "description": "Beta launch has monitored startup, playback failure, provider error, and no-media-processing signals with named owner response.",
-      "status": "pending",
-      "owner": "",
+      "status": "pass",
+      "owner": "Filip",
       "evidence": "artifacts/release/ops/qaf035-beta-ops-signoff-20260603.json",
-      "notes": "Structured ops signoff artifact now defines the required startup/playback/provider/cast/no-media-processing signals, but still needs named owner, alert route, dashboard, thresholds, and beta SLO response evidence before final signoff."
+      "notes": "Minimal beta ops setup is recorded: Filip owner, manual alert channel, daily beta report/log export, and 30-minute beta-blocker response SLO."
     },
     {
       "id": "rollback-throttle-plan",
       "description": "Rollback or enrollment throttle plan is approved for provider overload, playback regressions, or capacity breach.",
-      "status": "pending",
-      "owner": "",
+      "status": "pass",
+      "owner": "Filip",
       "evidence": "artifacts/release/ops/qaf035-beta-ops-signoff-20260603.json",
-      "notes": "Structured ops signoff artifact now defines stop/throttle/rollback steps and the no-media-processing stop trigger, but still needs approved rollback/throttle owner, notification route, and decision authority before beta."
+      "notes": "Stop/throttle/rollback owner, notification route, decision authority, and no-media-processing stop trigger are recorded in beta ops signoff."
     }
   ],
   "signoff": {
     "status": "pending",
     "approvedBy": "",
     "approvedAt": "",
-    "notes": "Partial evidence only. This artifact must not be used as final 300-500 user beta signoff until all checks are pass/fail with owners/evidence and signoff is approved."
+    "notes": "Provider/XUI owner capacity approval, no-media verification, observability SLO, and rollback/throttle ownership are recorded. Overall capacity signoff stays pending until deployed Lumen edge capacity/load evidence is recorded."
   }
 }

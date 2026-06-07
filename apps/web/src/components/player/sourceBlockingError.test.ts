@@ -57,7 +57,7 @@ describe('source blocking error', () => {
     });
   });
 
-  it('maps confirmed unsupported catch-up provider evidence before attempting playback', () => {
+  it('keeps stale catch-up provider evidence as a hint until runtime confirms failure', () => {
     const error = resolveSessionSourceBlockingError({
       url: 'https://edge.example/timeshift_hls/user/pass/30/start/260.m3u8',
       type: 'hls',
@@ -73,9 +73,7 @@ describe('source blocking error', () => {
       },
     });
 
-    expect(error?.message).toBe('Snimak za TV unazad nije dostupan u web playeru');
-    expect(error?.details).toContain('audio kodek');
-    expect(error?.primaryActionLabel).toBe('Gledaj AMC uživo');
+    expect(error).toBeNull();
   });
 
   it('names unsupported video codec evidence clearly', () => {
@@ -92,7 +90,7 @@ describe('source blocking error', () => {
           summary: 'HEVC video + AAC audio',
         },
       },
-    });
+    }, 'MEDIA_ERROR');
 
     expect(error?.message).toBe('Snimak za TV unazad nije dostupan u web playeru');
     expect(error?.details).toContain('video kodek');

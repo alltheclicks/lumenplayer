@@ -35,12 +35,6 @@ const RUNTIME_PROVIDER_ISSUE_ERROR_CODES = new Set([
   'STARTUP_TIMEOUT',
 ]);
 
-const IMMEDIATE_PROVIDER_ISSUE_REASON_CODES = new Set([
-  'unsupported-audio-codec',
-  'unsupported-video-codec',
-  'unsupported-archive-signal',
-]);
-
 const LIVE_REPORT_ERROR_CODES = new Set([
   'NETWORK_ERROR',
   'HLS_ERROR',
@@ -126,18 +120,6 @@ export const resolveSessionSourceBlockingError = (
   }
 
   if (!playbackErrorCode || !RUNTIME_PROVIDER_ISSUE_ERROR_CODES.has(playbackErrorCode)) {
-    const providerIssue = parseRecord(metadata?.catchUpWebProviderIssue);
-    const providerIssueReasonCode = parseString(providerIssue?.reasonCode);
-    if (
-      !playbackErrorCode &&
-      metadata?.mode === 'catchup' &&
-      providerIssue &&
-      providerIssueReasonCode &&
-      IMMEDIATE_PROVIDER_ISSUE_REASON_CODES.has(providerIssueReasonCode)
-    ) {
-      return buildProviderIssueBlockingError(providerIssue);
-    }
-
     return null;
   }
 

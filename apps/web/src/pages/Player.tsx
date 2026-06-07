@@ -404,6 +404,7 @@ const Player = () => {
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
+  const [catchUpPanelRequestKey, setCatchUpPanelRequestKey] = useState(0);
   const [numericZapBuffer, setNumericZapBuffer] = useState<string | null>(null);
   const [numericZapMatchName, setNumericZapMatchName] = useState<string | null>(null);
   const [appSettings, setAppSettings] = useState<AppSettings>(getDefaultAppSettings());
@@ -418,6 +419,7 @@ const Player = () => {
   const watchedChannelIdRef = useRef<string | null>(null);
   const watchedStartedAtRef = useRef<number | null>(null);
   const lastCastErrorRef = useRef<string | null>(null);
+  const lastCastUnsupportedReasonRef = useRef<string | null>(null);
   const previousRendererRef = useRef(session.renderer);
   const lastChannelLoadErrorRef = useRef<string | null>(null);
   const previousCastConnectedRef = useRef(castSender.isConnected);
@@ -460,10 +462,6 @@ const Player = () => {
   const usesLocalRenderer = session.renderer === 'local-web' || session.renderer === 'airplay';
   const shouldAutoplayLiveOnSelect = shouldAutoplaySource('live', appSettings);
   const shouldAutoplayCurrentSource = shouldAutoplaySource(sessionSourceMetadata.mode, appSettings);
-  const localPlaybackSourceKey = session.source
-    ? `${session.source.url}:${sessionSourceMetadata.loadKey ?? 'initial'}`
-    : 'no-source';
-
   const currentChannel = useMemo(() => {
     if (channels.length === 0) {
       return null;
@@ -585,7 +583,6 @@ const Player = () => {
 
       if (options?.forceAutoplay || shouldAutoplayLiveOnSelect) {
         commands.play();
-        playerRef.current?.play();
       }
     },
     [commands, resolveLiveSourceUrl, shouldAutoplayLiveOnSelect]
@@ -1076,7 +1073,7 @@ const Player = () => {
       urlBuilder: xtreamCodesService,
       fallbackStreamIds: currentCatchUpFallbackStreamIds,
       durationSeconds: duration,
-      initialPositionGuardSeconds: CATCH_UP_INITIAL_POSITION_GUARD_MS / 1000,
+      initialPositionGuardSeconds: 0,
     }).then((resolved) => {
       catchUpPrefetchCacheRef.current.set(cacheKey, {
         resolved,
@@ -1138,6 +1135,7 @@ const Player = () => {
         },
       });
 
+      playerRef.current?.stop();
       commands.setSource(resolved.source, Math.floor(resolved.initialPositionSeconds * 1000));
       commands.play();
     } catch (error) {
@@ -1368,7 +1366,9 @@ const Player = () => {
     }
 
     const syncDuration = () => {
-      const nextDurationSeconds = playerRef.current?.getDuration() ?? 0;
+      const nextDurationSeconds = isCatchUpSessionSourceMetadata(sessionSourceMetadata)
+        ? sessionSourceMetadata.durationSeconds
+        : playerRef.current?.getDuration() ?? 0;
       if (!Number.isFinite(nextDurationSeconds) || nextDurationSeconds <= 0) {
         return;
       }
@@ -1386,7 +1386,7 @@ const Player = () => {
     return () => {
       window.clearInterval(intervalId);
     };
-  }, [isOnDemandSource, session.source?.url, usesLocalRenderer]);
+  }, [isOnDemandSource, session.source?.url, sessionSourceMetadata, usesLocalRenderer]);
 
   useEffect(() => {
     if (!isOnDemandSource || !session.source || !usesLocalRenderer) {
@@ -1488,6 +1488,23 @@ const Player = () => {
       variant: 'destructive',
     });
   }, [castSender.error, toast]);
+
+  useEffect(() => {
+    if (!castSender.sourceUnsupportedReason) {
+      lastCastUnsupportedReasonRef.current = null;
+      return;
+    }
+
+    if (castSender.sourceUnsupportedReason === lastCastUnsupportedReasonRef.current) {
+      return;
+    }
+
+    lastCastUnsupportedReasonRef.current = castSender.sourceUnsupportedReason;
+    toast({
+      title: 'Google Cast nije dostupan',
+      description: castSender.sourceUnsupportedReason,
+    });
+  }, [castSender.sourceUnsupportedReason, toast]);
 
   useEffect(() => {
     if (previousCastConnectedRef.current === castSender.isConnected) {
@@ -1931,6 +1948,10 @@ const Player = () => {
       tvUnazadHighlightTimeoutRef.current = null;
     }, 1800);
   }, [navigate, shouldShowTvUnazadSection]);
+  const requestCatchUpPanel = useCallback(() => {
+    setCatchUpPanelRequestKey((key) => key + 1);
+  }, []);
+
   useEffect(() => () => {
     if (tvUnazadHighlightTimeoutRef.current) {
       clearTimeout(tvUnazadHighlightTimeoutRef.current);
@@ -1969,6 +1990,7 @@ const Player = () => {
     ],
     [categories, channels, favorites.length]
   );
+  const mobileCategoryValue = selectedCategory ?? '__all__';
   const xtreamSubscriptionLabel = xtreamUserInfo
     ? `${xtreamUserInfo.active_cons}/${xtreamUserInfo.max_connections}`
     : null;
@@ -2031,7 +2053,7 @@ const Player = () => {
         <title>{pageTitle}</title>
       </Helmet>
 
-      <div className="flex flex-1 min-h-0 bg-background lg:h-full lg:overflow-hidden">
+      <div className="flex h-full min-h-0 w-full min-w-0 max-w-[100vw] flex-1 overflow-hidden bg-background">
         {/* Sidebar for desktop */}
         {!isOnDemandSource ? (
           <div className="hidden min-h-0 lg:flex lg:h-full">
@@ -2236,43 +2258,43 @@ const Player = () => {
         )}
 
         {/* Main content */}
-        <main className="flex flex-1 min-h-0 flex-col">
+        <main className="flex h-full min-h-0 w-full min-w-0 max-w-[100vw] flex-1 flex-col overflow-hidden">
           {!isOnDemandSource && (
-            <header className="lg:hidden flex items-center justify-between p-3 bg-card border-b border-border">
+            <header className="flex w-full min-w-0 max-w-full items-center justify-between gap-2 overflow-hidden border-b border-border bg-card px-3 py-2 lg:hidden">
               <button
                 type="button"
                 onClick={goToPlayerHome}
-                className="flex items-center gap-2"
+                className="flex min-w-0 flex-1 items-center gap-2"
               >
-                <div className="w-7 h-7 rounded-lg bg-primary flex items-center justify-center">
+                <div className="w-7 h-7 shrink-0 rounded-lg bg-primary flex items-center justify-center">
                   <Play className="w-3 h-3 text-primary-foreground fill-current" />
                 </div>
-                <span className="font-bold text-sm text-foreground">
+                <span className="truncate font-bold text-sm text-foreground">
                   Lumen <span className="text-primary">Player</span>
                 </span>
               </button>
 
               {xtreamUserInfo && (
-                <div className="flex items-center gap-2 px-2 py-1 bg-secondary/50 rounded-lg">
+                <div className="flex max-w-[42vw] shrink-0 items-center gap-2 overflow-hidden rounded-lg bg-secondary/50 px-2 py-1">
                   {xtreamSubscriptionLabel && (
-                    <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                    <div className="flex min-w-0 items-center gap-1 text-[10px] text-muted-foreground">
                       <Wifi className="w-3 h-3" />
-                      <span>{xtreamSubscriptionLabel}</span>
+                      <span className="truncate">{xtreamSubscriptionLabel}</span>
                     </div>
                   )}
                   {xtreamSubscriptionLabel && xtreamExpLabel && (
                     <div className="w-px h-3 bg-border" />
                   )}
                   {xtreamExpLabel && (
-                    <div className="flex items-center gap-1 text-[10px] text-primary">
+                    <div className="flex min-w-0 items-center gap-1 text-[10px] text-primary">
                       <Calendar className="w-3 h-3" />
-                      <span className="font-medium">{xtreamExpLabel}</span>
+                      <span className="truncate font-medium">{xtreamExpLabel}</span>
                     </div>
                   )}
                 </div>
               )}
 
-              <div className="flex items-center gap-1">
+              <div className="flex shrink-0 items-center gap-1">
                 <Button
                   variant="ghost"
                   size="icon"
@@ -2296,7 +2318,7 @@ const Player = () => {
           {/* Player area */}
           <div
             ref={containerRef}
-            className={`relative bg-black ${isFullscreen ? 'fixed inset-0 z-50' : 'aspect-video'}`}
+            className={`relative w-full min-w-0 max-w-full shrink-0 overflow-hidden bg-black ${isFullscreen ? 'fixed inset-0 z-50' : 'aspect-video max-h-[36svh] lg:max-h-none'}`}
           >
             {numericZapBuffer && (
               <div className="absolute top-4 right-4 z-[60] rounded-lg bg-black/80 border border-primary/40 px-3 py-2 text-sm">
@@ -2319,7 +2341,6 @@ const Player = () => {
 
             {session.source && usesLocalRenderer && isPlaybackBootstrapReady && (
               <VideoPlayer
-                key={localPlaybackSourceKey}
                 ref={playerRef}
                 autoPlay={shouldAutoplayCurrentSource}
                 preferNativeHls={appSettings.player.preferNativeHls}
@@ -2353,14 +2374,14 @@ const Player = () => {
             )}
 
             {session.source && session.renderer === 'cast' && (
-              <div className="absolute inset-x-0 bottom-0 z-30 bg-gradient-to-t from-black/90 via-black/65 to-transparent p-4 sm:p-6">
-                <div className="mx-auto flex max-w-screen-xl flex-col gap-3 rounded-xl border border-border/60 bg-background/75 p-4 backdrop-blur-sm sm:flex-row sm:items-center sm:justify-between">
+              <div className="absolute inset-x-0 bottom-0 z-30 bg-gradient-to-t from-black/90 via-black/65 to-transparent p-2.5 sm:p-6">
+                <div className="mx-auto flex max-w-screen-xl flex-col gap-2 rounded-xl border border-border/60 bg-background/75 p-3 backdrop-blur-sm sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:p-4">
                   <div className="min-w-0">
                     <p className="mb-1 flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-primary">
                       <Smartphone className="h-4 w-4" />
                       Phone as remote
                     </p>
-                    <h2 className="truncate text-lg font-semibold text-foreground sm:text-xl">
+                    <h2 className="truncate text-sm font-semibold text-foreground sm:text-xl">
                       {session.source.title || currentChannel?.name || 'Remote playback'}
                     </h2>
                     <p className="text-xs text-muted-foreground sm:text-sm">
@@ -2369,7 +2390,7 @@ const Player = () => {
                         : 'Controlling Cast device'}
                     </p>
                   </div>
-                  <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
                     {!isOnDemandSource && (
                       <>
                         <Button variant="outline" onClick={goToPrevChannel}>
@@ -2424,13 +2445,14 @@ const Player = () => {
                   onToggleFullscreen={toggleFullscreen}
                   onPrevChannel={goToPrevChannel}
                   onNextChannel={goToNextChannel}
-                  onCatchUpDiscoverabilityAction={triggerTvUnazadDiscoverability}
+                  catchUpPanelRequestKey={catchUpPanelRequestKey}
                   playerRef={playerRef}
                   defaultVolume={appSettings.player.defaultVolume}
                   castControl={{
                     isAvailable: castSender.isAvailable,
                     isConnected: castSender.isConnected,
                     isConnecting: castSender.isConnecting,
+                    disabledReason: castSender.sourceUnsupportedReason,
                     onToggle: () => {
                       void castSender.toggleCasting();
                     },
@@ -2440,19 +2462,19 @@ const Player = () => {
             )}
 
             {isOnDemandSource && session.source && usesLocalRenderer && (
-              <div className="absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/90 via-black/60 to-transparent p-4 sm:p-6">
-                <div className="mx-auto max-w-screen-xl space-y-3 rounded-2xl border border-border/60 bg-background/70 p-4 shadow-xl backdrop-blur-sm">
+              <div className="absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/90 via-black/60 to-transparent p-2.5 sm:p-6">
+                <div className="mx-auto max-w-screen-xl space-y-2 rounded-xl border border-border/60 bg-background/70 p-3 shadow-xl backdrop-blur-sm sm:space-y-3 sm:rounded-2xl sm:p-4">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0">
                       <p className="mb-1 flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-primary">
                         <Film className="h-4 w-4" />
                         {onDemandTitle}
                       </p>
-                      <h2 className="truncate text-lg font-semibold text-foreground sm:text-xl">
+                      <h2 className="truncate text-sm font-semibold text-foreground sm:text-xl">
                         {session.source.title || 'On-demand playback'}
                       </h2>
                     </div>
-                    <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
                       {session.playback === 'buffering' && (
                         <span className="inline-flex items-center gap-1 rounded-md border border-primary/30 bg-primary/10 px-2 py-1 text-xs text-primary">
                           <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -2490,8 +2512,8 @@ const Player = () => {
                     </div>
                   </div>
 
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex flex-wrap items-center justify-between gap-1.5 sm:gap-2">
+                    <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
                       <Button variant="secondary" onClick={togglePlayback}>
                         {session.playback === 'playing' || session.playback === 'buffering' ? (
                           <Pause className="mr-2 h-4 w-4" />
@@ -2547,7 +2569,7 @@ const Player = () => {
                       </div>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
                       <Button variant={isFullscreen ? 'secondary' : 'outline'} onClick={toggleFullscreen}>
                         {isFullscreen ? (
                           <Minimize className="mr-2 h-4 w-4" />
@@ -2572,7 +2594,8 @@ const Player = () => {
                           onClick={() => {
                             void castSender.toggleCasting();
                           }}
-                          disabled={castSender.isConnecting}
+                          disabled={castSender.isConnecting || Boolean(castSender.sourceUnsupportedReason)}
+                          title={castSender.sourceUnsupportedReason ?? undefined}
                         >
                           <Cast className="mr-2 h-4 w-4" />
                           {castSender.isConnected ? 'Prekini cast' : 'Povezi cast'}
@@ -2862,80 +2885,70 @@ const Player = () => {
 
           {/* Mobile channel selector */}
           {!isOnDemandSource ? (
-            <div className="lg:hidden flex flex-1 min-h-0 flex-col border-t border-border bg-card">
-              <div className="sticky top-0 z-10 bg-card border-b border-border">
+            <div className="flex min-h-0 w-full min-w-0 max-w-full flex-1 flex-col overflow-hidden border-t border-border bg-card lg:hidden">
+              <div className="sticky top-0 z-10 w-full min-w-0 max-w-full overflow-hidden bg-card border-b border-border">
                 <div className="p-2">
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="grid grid-cols-3 gap-1.5">
                     <Button
                       variant="outline"
-                      className="justify-start h-10 border-emerald-500/35 bg-emerald-500/12 text-emerald-400 hover:bg-emerald-500/20"
-                      onClick={() => navigate('/epg')}
+                      className="h-9 min-w-0 justify-center gap-1 border-emerald-500/35 bg-emerald-500/12 px-1.5 text-xs text-emerald-400 hover:bg-emerald-500/20"
+                      onClick={requestCatchUpPanel}
                     >
-                      <Play className="mr-2 h-4 w-4" />
-                      TV Unazad
+                      <Play className="h-3.5 w-3.5 shrink-0" />
+                      <span className="min-w-0 truncate">TV Unazad</span>
                     </Button>
                     <Button
                       variant="outline"
-                      className="justify-start h-10 border-amber-500/35 bg-amber-500/12 text-amber-400 hover:bg-amber-500/20"
+                      className="h-9 min-w-0 justify-center gap-1 border-amber-500/35 bg-amber-500/12 px-1.5 text-xs text-amber-400 hover:bg-amber-500/20"
                       onClick={() => navigate('/vod')}
                     >
-                      <Film className="mr-2 h-4 w-4" />
-                      Filmovi
+                      <Film className="h-3.5 w-3.5 shrink-0" />
+                      <span className="min-w-0 truncate">Filmovi</span>
                     </Button>
                     <Button
                       variant="outline"
-                      className="justify-start h-10 border-purple-500/35 bg-purple-500/12 text-purple-400 hover:bg-purple-500/20"
+                      className="h-9 min-w-0 justify-center gap-1 border-purple-500/35 bg-purple-500/12 px-1.5 text-xs text-purple-400 hover:bg-purple-500/20"
                       onClick={() => navigate('/series')}
                     >
-                      <Clapperboard className="mr-2 h-4 w-4" />
-                      Serije
+                      <Clapperboard className="h-3.5 w-3.5 shrink-0" />
+                      <span className="min-w-0 truncate">Serije</span>
                     </Button>
                   </div>
                 </div>
 
-                <div className="relative p-2 border-t border-border">
-                  <div className="flex gap-1 overflow-x-auto pb-1">
-                    <Button
-                      variant={selectedCategory === null ? 'default' : 'secondary'}
-                      size="sm"
-                      className="shrink-0"
-                      onClick={() => setSelectedCategory(null)}
+                <div className="border-t border-border p-2">
+                  <label className="sr-only" htmlFor="mobile-channel-category">
+                    Kategorija kanala
+                  </label>
+                  <div className="relative min-w-0">
+                    <Tv2 className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <select
+                      id="mobile-channel-category"
+                      value={mobileCategoryValue}
+                      onChange={(event: ChangeEvent<HTMLSelectElement>) => {
+                        const value = event.target.value;
+                        setSelectedCategory(value === '__all__' ? null : value);
+                      }}
+                      className="h-9 w-full min-w-0 appearance-none rounded-lg border border-border bg-secondary py-0 pl-9 pr-9 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                     >
-                      <Tv2 className="mr-1 h-4 w-4" />
-                      Svi kanali
-                    </Button>
-                    <Button
-                      variant={selectedCategory === 'favorites' ? 'default' : 'secondary'}
-                      size="sm"
-                      className="shrink-0"
-                      onClick={() => setSelectedCategory('favorites')}
-                    >
-                      <Star className="mr-1 h-4 w-4" />
-                      Omiljeni
-                    </Button>
-                    {categories.map((category) => (
-                      <Button
-                        key={category.id}
-                        variant={selectedCategory === category.id ? 'default' : 'secondary'}
-                        size="sm"
-                        className="shrink-0"
-                        onClick={() => setSelectedCategory(category.id)}
-                      >
-                        {category.name}
-                      </Button>
-                    ))}
+                      {desktopCategoryItems.map((item) => (
+                        <option key={item.id ?? '__all__'} value={item.id ?? '__all__'}>
+                          {item.label} ({item.count})
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   </div>
-                  <div className="pointer-events-none absolute inset-y-2 right-0 w-8 bg-gradient-to-l from-card to-transparent" />
                 </div>
 
-                <div className="p-2 border-t border-border">
-                  <div className="relative">
+                <div className="border-t border-border p-2">
+                  <div className="relative min-w-0">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                     <Input
                       placeholder="Pretraži kanale..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      className="pl-9 bg-secondary border-border rounded-lg"
+                      className="h-9 min-w-0 rounded-lg border-border bg-secondary pl-9"
                     />
                   </div>
                 </div>
@@ -2957,7 +2970,7 @@ const Player = () => {
               </div>
 
               <ChannelList
-                className="flex-1 min-h-0 px-2 pb-3 pt-2"
+                className="min-h-0 w-full min-w-0 max-w-full flex-1 px-2 pt-2"
                 channels={filteredChannels}
                 currentChannelId={currentChannel?.id}
                 variant="mobile"

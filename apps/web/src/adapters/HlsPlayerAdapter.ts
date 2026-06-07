@@ -7,16 +7,23 @@ import type {
   PlayerAdapter,
   SubtitleTrackOption,
 } from '@lumen/types';
+import {
+  detectMpegTsAudio,
+  stripUnsupportedMpegAudioFromTs,
+} from './mpegTsAudioStrip';
 
 const HLS_MIME_TYPE = 'application/vnd.apple.mpegurl';
 const HLS_BUFFERING_RECOVERY_DELAY_MS = 4_000;
 const HLS_BUFFERING_PROGRESS_TOLERANCE_SECONDS = 0.25;
 const HLS_BUFFERING_MAX_RECOVERY_ATTEMPTS = 2;
-const HLS_CATCHUP_SAFE_RETRY_START_POSITION_SECONDS = 75;
+const HLS_LIVE_MEDIA_RECOVERY_MAX_ATTEMPTS = 4;
 const HLS_CATCHUP_MAX_BUFFER_LENGTH_SECONDS = 90;
 const HLS_CATCHUP_MAX_BUFFER_SIZE_MB = 180;
 const HLS_LIVE_MAX_BUFFER_LENGTH_SECONDS = 30;
 const HLS_LIVE_MAX_BUFFER_SIZE_MB = 60;
+const HLS_LIVE_MPEG_AUDIO_PREFLIGHT_TIMEOUT_MS = 4_000;
+const HLS_LIVE_MPEG_AUDIO_PREFLIGHT_RANGE_END = 256 * 1024 - 1;
+const PLAYBACK_LOAD_CANCELLED_MESSAGE = 'Playback load was cancelled.';
 
 type StateListener = (state: PlaybackState) => void;
 type ErrorListener = (error: PlaybackError) => void;
@@ -33,26 +40,224 @@ interface ManifestResolvedEvent {
   finalUrl: string | null;
 }
 
+interface UnsupportedAudioCodecEvent {
+  unsupportedAudioCodec: 'mp2';
+  sourceUrl: string;
+  playbackMode: 'live';
+}
+
 interface HlsPlayerAdapterOptions {
   preferNativeHls?: boolean;
   onManifestResolved?: (event: ManifestResolvedEvent) => void;
+  onUnsupportedAudioCodec?: (event: UnsupportedAudioCodecEvent) => void;
 }
 
 type PlaybackMetadataCarrier = MediaSource & {
   metadata?: {
     mode?: unknown;
+    streamId?: unknown;
     catchUpHlsStartupMode?: unknown;
     catchUpHlsStartPositionSeconds?: unknown;
   };
 };
 
 type CatchUpHlsStartupMode = 'progressive' | 'complete';
+type HlsSourceMode = 'live' | 'catchup' | 'other';
+
+type HlsLoaderResponse = { data?: unknown; [key: string]: unknown };
+type HlsLoaderCallbacks = {
+  onSuccess: (
+    response: HlsLoaderResponse,
+    stats: unknown,
+    context: unknown,
+    networkDetails: unknown,
+  ) => void;
+  [key: string]: unknown;
+};
+type HlsLoaderInstance = {
+  context: unknown;
+  stats: unknown;
+  load: (context: unknown, config: unknown, callbacks: HlsLoaderCallbacks) => void;
+  abort: () => void;
+  destroy: () => void;
+  getCacheAge?: () => number | null;
+  getResponseHeader?: (name: string) => string | null;
+};
+type HlsLoaderConstructor = new (config: unknown) => HlsLoaderInstance;
 
 const parsePositiveFiniteNumber = (value: unknown): number => {
   const numericValue = typeof value === 'number'
     ? value
     : (typeof value === 'string' ? Number(value) : NaN);
   return Number.isFinite(numericValue) && numericValue > 0 ? numericValue : 0;
+};
+
+const createTimeoutSignal = (timeoutMs: number): AbortSignal | undefined => {
+  if (typeof AbortSignal === 'undefined') {
+    return undefined;
+  }
+
+  const timeoutFactory = AbortSignal as typeof AbortSignal & {
+    timeout?: (milliseconds: number) => AbortSignal;
+  };
+  if (typeof timeoutFactory.timeout === 'function') {
+    return timeoutFactory.timeout(timeoutMs);
+  }
+
+  if (typeof AbortController === 'undefined') {
+    return undefined;
+  }
+
+  const controller = new AbortController();
+  globalThis.setTimeout(() => controller.abort(), timeoutMs);
+  return controller.signal;
+};
+
+const parsePlaylistLines = (playlist: string): string[] => (
+  playlist
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
+);
+
+const resolvePlaylistUrl = (baseUrl: string, value: string): string | null => {
+  try {
+    return new URL(value, baseUrl).toString();
+  } catch {
+    return null;
+  }
+};
+
+const findFirstVariantUrl = (baseUrl: string, playlist: string): string | null => {
+  const lines = parsePlaylistLines(playlist);
+  const variantIndex = lines.findIndex((line) => line.startsWith('#EXT-X-STREAM-INF'));
+  if (variantIndex < 0) {
+    return null;
+  }
+
+  const variantLine = lines[variantIndex + 1];
+  if (!variantLine || variantLine.startsWith('#')) {
+    return null;
+  }
+
+  return resolvePlaylistUrl(baseUrl, variantLine);
+};
+
+const findProbeSegmentUrl = (baseUrl: string, playlist: string): string | null => {
+  const segments = parsePlaylistLines(playlist)
+    .filter((line) => !line.startsWith('#'))
+    .filter((line) => !/\.m3u8(?:[?#]|$)/i.test(line))
+    .map((line) => resolvePlaylistUrl(baseUrl, line))
+    .filter((value): value is string => Boolean(value));
+
+  return segments.at(-1) ?? null;
+};
+
+const fetchPlaylistText = async (url: string): Promise<{ url: string; text: string }> => {
+  const response = await fetch(url, {
+    cache: 'no-store',
+    redirect: 'follow',
+    signal: createTimeoutSignal(HLS_LIVE_MPEG_AUDIO_PREFLIGHT_TIMEOUT_MS),
+  });
+  if (!response.ok) {
+    throw new Error(`Live manifest preflight failed: ${response.status}`);
+  }
+
+  return {
+    url: response.url || url,
+    text: await response.text(),
+  };
+};
+
+const resolveLiveProbeSegmentUrl = async (manifestUrl: string): Promise<string | null> => {
+  const manifest = await fetchPlaylistText(manifestUrl);
+  const variantUrl = findFirstVariantUrl(manifest.url, manifest.text);
+  if (!variantUrl) {
+    return findProbeSegmentUrl(manifest.url, manifest.text);
+  }
+
+  const mediaManifest = await fetchPlaylistText(variantUrl);
+  return findProbeSegmentUrl(mediaManifest.url, mediaManifest.text);
+};
+
+const fetchProbeSegmentBytes = async (segmentUrl: string): Promise<ArrayBuffer> => {
+  const response = await fetch(segmentUrl, {
+    cache: 'no-store',
+    redirect: 'follow',
+    headers: {
+      Range: `bytes=0-${HLS_LIVE_MPEG_AUDIO_PREFLIGHT_RANGE_END}`,
+    },
+    signal: createTimeoutSignal(HLS_LIVE_MPEG_AUDIO_PREFLIGHT_TIMEOUT_MS),
+  });
+  if (!response.ok) {
+    throw new Error(`Live segment preflight failed: ${response.status}`);
+  }
+
+  return response.arrayBuffer();
+};
+
+const shouldUseMpegAudioVideoOnlyFallback = async (manifestUrl: string): Promise<boolean> => {
+  if (typeof fetch !== 'function') {
+    return false;
+  }
+
+  try {
+    const segmentUrl = await resolveLiveProbeSegmentUrl(manifestUrl);
+    if (!segmentUrl) {
+      return false;
+    }
+
+    const segmentBytes = await fetchProbeSegmentBytes(segmentUrl);
+    const detection = detectMpegTsAudio(segmentBytes);
+    return detection.hasVideo && detection.hasMpegAudio;
+  } catch {
+    return false;
+  }
+};
+
+const createMpegAudioStrippingFragmentLoader = (
+  BaseLoader: HlsLoaderConstructor,
+): HlsLoaderConstructor => class {
+  private readonly loader: HlsLoaderInstance;
+  context: unknown = null;
+  stats: unknown;
+
+  constructor(config: unknown) {
+    this.loader = new BaseLoader(config);
+    this.stats = this.loader.stats;
+  }
+
+  load(context: unknown, config: unknown, callbacks: HlsLoaderCallbacks): void {
+    this.context = context;
+    this.loader.load(context, config, {
+      ...callbacks,
+      onSuccess: (response, stats, callbackContext, networkDetails) => {
+        const payload = response.data;
+        callbacks.onSuccess({
+          ...response,
+          data: payload instanceof ArrayBuffer
+            ? stripUnsupportedMpegAudioFromTs(payload)
+            : payload,
+        }, stats, callbackContext, networkDetails);
+      },
+    });
+  }
+
+  abort(): void {
+    this.loader.abort();
+  }
+
+  destroy(): void {
+    this.loader.destroy();
+  }
+
+  getCacheAge(): number | null {
+    return this.loader.getCacheAge?.() ?? null;
+  }
+
+  getResponseHeader(name: string): string | null {
+    return this.loader.getResponseHeader?.(name) ?? null;
+  }
 };
 
 interface NativeAudioTrack {
@@ -83,6 +288,7 @@ interface NativeTextTrackListLike {
 }
 
 export class HlsPlayerAdapter implements PlayerAdapter {
+  private static readonly activeAdapters = new Set<HlsPlayerAdapter>();
   private readonly video: HTMLVideoElement;
   private readonly preferNativeHls: boolean;
   private hls: Hls | null = null;
@@ -102,17 +308,41 @@ export class HlsPlayerAdapter implements PlayerAdapter {
   private bufferingRecoveryAttempts = 0;
   private bufferingRecoveryEnabled = false;
   private bufferingRecoveryArmed = false;
+  private nativeHlsLoaded = false;
+  private hlsSourceMode: HlsSourceMode | null = null;
+  private loadGeneration = 0;
+  private readonly onUnsupportedAudioCodec?: (event: UnsupportedAudioCodecEvent) => void;
 
   constructor(video: HTMLVideoElement, options: HlsPlayerAdapterOptions = {}) {
     this.video = video;
     this.preferNativeHls = options.preferNativeHls ?? false;
     this.onManifestResolved = options.onManifestResolved;
+    this.onUnsupportedAudioCodec = options.onUnsupportedAudioCodec;
     this.removeVideoListeners = this.attachVideoListeners();
+    HlsPlayerAdapter.activeAdapters.add(this);
   }
 
   async load(source: MediaSource): Promise<void> {
+    const loadGeneration = this.nextLoadGeneration();
+    HlsPlayerAdapter.stopCompetingPlayback(this);
+    const nextHlsSourceMode = source.type === 'hls'
+      ? HlsPlayerAdapter.resolveHlsSourceMode((source as PlaybackMetadataCarrier).metadata?.mode)
+      : null;
+    const shouldFlushPreviousNativeHls = this.nativeHlsLoaded;
+    const shouldFlushPreviousHlsModeSwitch = (
+      this.hls !== null &&
+      this.hlsSourceMode !== null &&
+      nextHlsSourceMode !== null &&
+      this.hlsSourceMode !== nextHlsSourceMode &&
+      (
+        this.hlsSourceMode === 'live' ||
+        this.hlsSourceMode === 'catchup' ||
+        nextHlsSourceMode === 'live' ||
+        nextHlsSourceMode === 'catchup'
+      )
+    );
     this.clearHls();
-    this.resetPlaybackState(false);
+    this.resetPlaybackState(shouldFlushPreviousNativeHls || shouldFlushPreviousHlsModeSwitch);
     this.updateState('loading');
     this.bufferingRecoveryEnabled = (
       (source as PlaybackMetadataCarrier).metadata?.mode === 'catchup'
@@ -131,6 +361,7 @@ export class HlsPlayerAdapter implements PlayerAdapter {
 
     if (source.type === 'hls') {
       const sourceMode = (source as PlaybackMetadataCarrier).metadata?.mode;
+      const streamId = (source as PlaybackMetadataCarrier).metadata?.streamId;
       const catchUpStartPositionSeconds = parsePositiveFiniteNumber(
         (source as PlaybackMetadataCarrier).metadata?.catchUpHlsStartPositionSeconds,
       );
@@ -146,16 +377,22 @@ export class HlsPlayerAdapter implements PlayerAdapter {
         0,
         catchUpStartupMode,
         catchUpStartPositionSeconds,
+        sourceMode === 'live' && typeof streamId === 'number' && Number.isFinite(streamId),
+        loadGeneration,
       );
       return;
     }
 
+    this.assertCurrentLoad(loadGeneration);
+
+    this.nativeHlsLoaded = false;
     this.video.src = source.url;
     this.video.load();
     this.updateState('paused');
   }
 
   play(): void {
+    HlsPlayerAdapter.stopCompetingPlayback(this);
     this.video.play().catch((error: unknown) => {
       const message = error instanceof Error && error.message
         ? `Unable to start playback: ${error.name}: ${error.message}`
@@ -177,14 +414,17 @@ export class HlsPlayerAdapter implements PlayerAdapter {
   }
 
   stop(): void {
+    this.nextLoadGeneration();
     this.clearHls();
     this.resetPlaybackState(true);
   }
 
   destroy(): void {
+    this.nextLoadGeneration();
     this.clearHls();
     this.removeVideoListeners();
     this.stop();
+    HlsPlayerAdapter.activeAdapters.delete(this);
     this.stateListeners.clear();
     this.errorListeners.clear();
     this.timeListeners.clear();
@@ -350,21 +590,36 @@ export class HlsPlayerAdapter implements PlayerAdapter {
     liveStartupMediaRetryCount = 0,
     catchUpStartupMode: CatchUpHlsStartupMode = 'progressive',
     catchUpStartPositionSeconds = 0,
+    probeLiveMpegAudio = false,
+    loadGeneration = this.loadGeneration,
   ): Promise<void> {
-    if (this.preferNativeHls && this.video.canPlayType(HLS_MIME_TYPE)) {
-      this.video.src = url;
-      this.video.load();
-      this.syncNativeAudioTracks();
-      this.syncNativeSubtitleTracks();
-      this.updateState('paused');
+    const useMpegAudioVideoOnlyFallback = isLiveSource && probeLiveMpegAudio
+      ? await shouldUseMpegAudioVideoOnlyFallback(url)
+      : false;
+    this.assertCurrentLoad(loadGeneration);
+
+    if (useMpegAudioVideoOnlyFallback) {
+      this.onUnsupportedAudioCodec?.({
+        unsupportedAudioCodec: 'mp2',
+        sourceUrl: url,
+        playbackMode: 'live',
+      });
+    }
+
+    if (!useMpegAudioVideoOnlyFallback && this.preferNativeHls && this.video.canPlayType(HLS_MIME_TYPE)) {
+      this.assertCurrentLoad(loadGeneration);
+      this.loadNativeHlsSource(url);
       return;
     }
 
     if (Hls.isSupported()) {
       const useProgressiveCatchUpStartup = isCatchUpSource && catchUpStartupMode === 'progressive';
       const shouldUseProgressiveLoading = isLiveSource || useProgressiveCatchUpStartup;
+      const MpegAudioStrippingFragmentLoader = useMpegAudioVideoOnlyFallback
+        ? createMpegAudioStrippingFragmentLoader(Hls.DefaultConfig.loader as unknown as HlsLoaderConstructor)
+        : null;
       const safeCatchUpStartPositionSeconds = (
-        isCatchUpSource && catchUpStartPositionSeconds > 0
+        isCatchUpSource
           ? Math.max(0, catchUpStartPositionSeconds)
           : -1
       );
@@ -372,7 +627,10 @@ export class HlsPlayerAdapter implements PlayerAdapter {
         enableWorker: !isLiveSource,
         lowLatencyMode: isLiveSource,
         startPosition: safeCatchUpStartPositionSeconds,
-        ...(shouldUseProgressiveLoading ? { progressive: true } : {}),
+        ...(shouldUseProgressiveLoading && !useMpegAudioVideoOnlyFallback ? { progressive: true } : {}),
+        ...(MpegAudioStrippingFragmentLoader ? {
+          fLoader: MpegAudioStrippingFragmentLoader as never,
+        } : {}),
         ...(useProgressiveCatchUpStartup ? {
           fragLoadingTimeOut: 60_000,
           startFragPrefetch: true,
@@ -390,11 +648,13 @@ export class HlsPlayerAdapter implements PlayerAdapter {
         maxBufferHole: 0.5,
         startLevel: -1,
       });
+      this.assertCurrentLoad(loadGeneration);
       this.hls = hls;
+      this.hlsSourceMode = isLiveSource ? 'live' : isCatchUpSource ? 'catchup' : 'other';
 
       try {
         await new Promise<void>((resolve, reject) => {
-          let mediaErrorRecoveryAttempted = false;
+          let mediaErrorRecoveryAttempts = 0;
           let liveStartupBufferSeekApplied = false;
           let startupSettled = false;
 
@@ -409,6 +669,10 @@ export class HlsPlayerAdapter implements PlayerAdapter {
           };
 
           const seekLiveStartupToBufferedRange = () => {
+            if (!this.isCurrentLoad(loadGeneration)) {
+              return;
+            }
+
             if (!isLiveSource || liveStartupBufferSeekApplied) {
               return;
             }
@@ -444,6 +708,12 @@ export class HlsPlayerAdapter implements PlayerAdapter {
           };
 
           const onManifestParsed = () => {
+            if (!this.isCurrentLoad(loadGeneration) || this.hls !== hls) {
+              hls.destroy();
+              rejectStartup(new Error(PLAYBACK_LOAD_CANCELLED_MESSAGE));
+              return;
+            }
+
             this.syncHlsAudioTracks(hls.audioTrack);
             this.syncHlsSubtitleTracks(hls.subtitleTrack);
             cleanupStartupListeners();
@@ -458,6 +728,10 @@ export class HlsPlayerAdapter implements PlayerAdapter {
               networkDetails?: unknown;
             },
           ) => {
+            if (!this.isCurrentLoad(loadGeneration) || this.hls !== hls) {
+              return;
+            }
+
             const manifestUrl = typeof data.url === 'string' && data.url.length > 0
               ? data.url
               : url;
@@ -472,7 +746,7 @@ export class HlsPlayerAdapter implements PlayerAdapter {
           };
 
           const onHlsError = (_event: string, data: ErrorData) => {
-            if (this.hls !== hls) {
+            if (!this.isCurrentLoad(loadGeneration) || this.hls !== hls) {
               return;
             }
 
@@ -495,8 +769,12 @@ export class HlsPlayerAdapter implements PlayerAdapter {
                   isLiveSource,
                   isCatchUpSource,
                   liveStartupMediaRetryCount + 1,
+                  catchUpStartupMode,
+                  catchUpStartPositionSeconds,
+                  probeLiveMpegAudio,
+                  loadGeneration,
                 ).then(() => {
-                  if (shouldResumePlayback) {
+                  if (shouldResumePlayback && this.isCurrentLoad(loadGeneration)) {
                     this.play();
                   }
                 });
@@ -533,19 +811,17 @@ export class HlsPlayerAdapter implements PlayerAdapter {
 
                   const shouldResumePlayback = !this.video.paused;
                   this.updateState('loading');
-                  const retryStartPositionSeconds = Math.max(
-                    catchUpStartPositionSeconds,
-                    HLS_CATCHUP_SAFE_RETRY_START_POSITION_SECONDS,
-                  );
                   const retryStartup = this.loadHlsSource(
                     url,
                     isLiveSource,
                     isCatchUpSource,
                     liveStartupMediaRetryCount,
                     'complete',
-                    retryStartPositionSeconds,
+                    catchUpStartPositionSeconds,
+                    probeLiveMpegAudio,
+                    loadGeneration,
                   ).then(() => {
-                    if (shouldResumePlayback) {
+                    if (shouldResumePlayback && this.isCurrentLoad(loadGeneration)) {
                       this.play();
                     }
                   });
@@ -579,8 +855,21 @@ export class HlsPlayerAdapter implements PlayerAdapter {
                 return;
               }
 
-              if (!mediaErrorRecoveryAttempted) {
-                mediaErrorRecoveryAttempted = true;
+              const hasLivePlaybackProgress = (
+                isLiveSource &&
+                (
+                  (this.video.currentTime || 0) > 0.25 ||
+                  (
+                    this.video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA &&
+                    this.video.videoWidth > 0
+                  )
+                )
+              );
+              const maxMediaRecoveryAttempts = hasLivePlaybackProgress
+                ? HLS_LIVE_MEDIA_RECOVERY_MAX_ATTEMPTS
+                : 1;
+              if (mediaErrorRecoveryAttempts < maxMediaRecoveryAttempts) {
+                mediaErrorRecoveryAttempts += 1;
                 hls.recoverMediaError();
                 return;
               }
@@ -606,22 +895,38 @@ export class HlsPlayerAdapter implements PlayerAdapter {
           };
 
           const onAudioTracksUpdated = () => {
+            if (!this.isCurrentLoad(loadGeneration) || this.hls !== hls) {
+              return;
+            }
             this.syncHlsAudioTracks(hls.audioTrack);
           };
 
           const onAudioTrackSwitched = () => {
+            if (!this.isCurrentLoad(loadGeneration) || this.hls !== hls) {
+              return;
+            }
             this.syncHlsAudioTracks(hls.audioTrack);
           };
 
           const onSubtitleTracksUpdated = () => {
+            if (!this.isCurrentLoad(loadGeneration) || this.hls !== hls) {
+              return;
+            }
             this.syncHlsSubtitleTracks(hls.subtitleTrack);
           };
 
           const onSubtitleTrackSwitched = () => {
+            if (!this.isCurrentLoad(loadGeneration) || this.hls !== hls) {
+              return;
+            }
             this.syncHlsSubtitleTracks(hls.subtitleTrack);
           };
 
           const onBufferAppended = () => {
+            if (!this.isCurrentLoad(loadGeneration) || this.hls !== hls) {
+              return;
+            }
+            mediaErrorRecoveryAttempts = 0;
             seekLiveStartupToBufferedRange();
           };
 
@@ -638,25 +943,25 @@ export class HlsPlayerAdapter implements PlayerAdapter {
           hls.on(Hls.Events.SUBTITLE_TRACKS_UPDATED, onSubtitleTracksUpdated);
           hls.on(Hls.Events.SUBTITLE_TRACK_SWITCH, onSubtitleTrackSwitched);
           hls.on(Hls.Events.BUFFER_APPENDED, onBufferAppended);
+          this.assertCurrentLoad(loadGeneration);
           hls.loadSource(url);
           hls.attachMedia(this.video);
         });
       } catch (error) {
         if (this.hls === hls) {
           this.hls = null;
+          this.hlsSourceMode = null;
         }
+        hls.destroy();
         throw error;
       }
 
       return;
     }
 
-    if (this.video.canPlayType(HLS_MIME_TYPE)) {
-      this.video.src = url;
-      this.video.load();
-      this.syncNativeAudioTracks();
-      this.syncNativeSubtitleTracks();
-      this.updateState('paused');
+    if (!useMpegAudioVideoOnlyFallback && this.video.canPlayType(HLS_MIME_TYPE)) {
+      this.assertCurrentLoad(loadGeneration);
+      this.loadNativeHlsSource(url);
       return;
     }
 
@@ -689,6 +994,63 @@ export class HlsPlayerAdapter implements PlayerAdapter {
     }
 
     return fallbackUrl || null;
+  }
+
+  private static resolveHlsSourceMode(mode: unknown): HlsSourceMode {
+    if (mode === 'live' || mode === 'catchup') {
+      return mode;
+    }
+
+    return 'other';
+  }
+
+  private static stopCompetingPlayback(activeAdapter: HlsPlayerAdapter): void {
+    for (const adapter of HlsPlayerAdapter.activeAdapters) {
+      if (adapter !== activeAdapter) {
+        adapter.stop();
+      }
+    }
+
+    if (typeof document === 'undefined') {
+      return;
+    }
+
+    document.querySelectorAll<HTMLMediaElement>('video,audio').forEach((mediaElement) => {
+      if (mediaElement === activeAdapter.video) {
+        return;
+      }
+
+      mediaElement.pause();
+      if (mediaElement instanceof HTMLMediaElement) {
+        mediaElement.srcObject = null;
+      }
+      mediaElement.removeAttribute('src');
+      mediaElement.load();
+    });
+  }
+
+  private nextLoadGeneration(): number {
+    this.loadGeneration += 1;
+    return this.loadGeneration;
+  }
+
+  private isCurrentLoad(loadGeneration: number): boolean {
+    return this.loadGeneration === loadGeneration;
+  }
+
+  private assertCurrentLoad(loadGeneration: number): void {
+    if (!this.isCurrentLoad(loadGeneration)) {
+      throw new Error(PLAYBACK_LOAD_CANCELLED_MESSAGE);
+    }
+  }
+
+  private loadNativeHlsSource(url: string): void {
+    this.nativeHlsLoaded = true;
+    this.video.src = url;
+    this.video.load();
+    this.syncNativeAudioTracks();
+    this.syncNativeSubtitleTracks();
+    this.updateState('paused');
   }
 
   private attachVideoListeners(): () => void {
@@ -795,18 +1157,22 @@ export class HlsPlayerAdapter implements PlayerAdapter {
   private clearHls(): void {
     this.resetBufferingRecovery();
     if (!this.hls) {
+      this.hlsSourceMode = null;
       return;
     }
     this.hls.stopLoad();
     this.hls.detachMedia();
     this.hls.destroy();
     this.hls = null;
+    this.hlsSourceMode = null;
   }
 
   private resetPlaybackState(flushMediaElement: boolean): void {
     this.resetBufferingRecovery();
     this.video.pause();
+    this.video.srcObject = null;
     this.video.removeAttribute('src');
+    this.video.src = '';
     if (flushMediaElement) {
       this.video.load();
     }
@@ -814,6 +1180,7 @@ export class HlsPlayerAdapter implements PlayerAdapter {
     this.selectedAudioTrackId = null;
     this.subtitleTracks = [];
     this.selectedSubtitleTrackId = null;
+    this.nativeHlsLoaded = false;
     this.bufferingRecoveryArmed = false;
     this.emitAudioTracksChange();
     this.emitSubtitleTracksChange();

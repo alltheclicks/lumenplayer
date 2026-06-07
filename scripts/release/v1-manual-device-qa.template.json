@@ -10,6 +10,34 @@
     "disallowedTransportModes": ["proxy-remuxed", "remux-hls"],
     "noMediaProcessingRequired": true
   },
+  "evidenceIntake": {
+    "status": "pending",
+    "owner": "",
+    "guideRef": "docs/qa/qaf035-real-device-qa-guide.md",
+    "artifactRef": "artifacts/release/manual-device-qa/qaf035-manual-device-qa-20260603.json",
+    "requiredTargetIds": [
+      "desktop-chrome-windows",
+      "desktop-safari-macos",
+      "mobile-chrome-android",
+      "mobile-safari-ios",
+      "cast-chromecast",
+      "airplay-appletv",
+      "pwa-install-offline"
+    ],
+    "requiredEvidenceRefs": [
+      "screenshotOrVideoRef",
+      "networkEvidenceRef",
+      "noMediaScanArtifactRef",
+      "perCheckEvidenceRef"
+    ],
+    "finalRules": [
+      "Do not use Playwright/headless/local Chromium automation as final real-device evidence.",
+      "Every passing target must include owner, actualDevice, osVersion, browserVersion, evidenceRefs, mediaProcessingAudit, and per-check evidence.",
+      "Every passing mediaProcessingAudit.evidenceRef must cite release:no-media-evidence:scan and a tracked redacted no-media scan artifact.",
+      "PWA and Cast targets require HTTPS app/receiver evidence."
+    ],
+    "notes": "Pending real-device evidence intake."
+  },
   "targets": [
     {
       "id": "desktop-chrome-windows",

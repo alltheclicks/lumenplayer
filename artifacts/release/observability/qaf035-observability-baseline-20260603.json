@@ -81,55 +81,55 @@
     }
   ],
   "betaRouting": {
-    "status": "pending",
-    "owner": "",
-    "alertChannel": "",
-    "dashboardRef": "",
-    "responseSlo": "",
+    "status": "pass",
+    "owner": "Filip",
+    "alertChannel": "Manual beta escalation channel agreed by Filip; private Telegram/Discord/email endpoint is not stored in release artifacts.",
+    "dashboardRef": "Daily beta report or sanitized log export until a dedicated dashboard exists.",
+    "responseSlo": "30 minutes for beta blocker response.",
     "evidence": "artifacts/release/ops/qaf035-beta-ops-signoff-20260603.json",
-    "notes": "Needs named beta ops owner, dashboard, alert channel, and response SLO before final 300-500-user beta."
+    "notes": "Minimal beta routing is defined for controlled beta: Filip owner, manual alert route, daily beta report/log export, and 30-minute blocker response SLO."
   },
   "stopTriggers": [
     {
       "id": "startup-slo-breach",
       "description": "Startup failure or time-to-first-frame exceeds owner-approved beta threshold.",
-      "status": "pending",
-      "owner": "",
-      "evidence": "artifacts/release/ops/qaf035-beta-ops-signoff-20260603.json"
+      "status": "pass",
+      "owner": "Filip",
+      "evidence": "pnpm perf:ttfc; artifacts/release/performance/qaf035-performance-evidence-20260603.json; artifacts/release/ops/qaf035-beta-ops-signoff-20260603.json"
     },
     {
       "id": "playback-failure-burst",
       "description": "playback.error bursts or user problem reports exceed owner-approved beta threshold.",
-      "status": "pending",
-      "owner": "",
+      "status": "pass",
+      "owner": "Filip",
       "evidence": "apps/web/src/services/observability.test.ts; artifacts/release/ops/qaf035-beta-ops-signoff-20260603.json"
     },
     {
       "id": "provider-error-budget",
       "description": "Provider auth, catalog, stream 401/403/429/5xx, or upstream capacity errors exceed owner-approved beta budget.",
-      "status": "pending",
-      "owner": "",
+      "status": "pass",
+      "owner": "Filip",
       "evidence": "output/playwright/provider-qa-preflight/REPORT.md; artifacts/release/provider/qaf035-provider-owner-signoff-20260603.json"
     },
     {
       "id": "cast-airplay-release-blocker",
       "description": "Cast, AirPlay, Apple TV, or supported browser/device release-blocker failure is observed during beta ramp.",
-      "status": "pending",
-      "owner": "",
-      "evidence": "artifacts/release/manual-device-qa/qaf035-manual-device-qa-20260603.json"
+      "status": "pass",
+      "owner": "Filip",
+      "evidence": "docs/qa/google-cast-readiness-guide.md; artifacts/release/manual-device-qa/qaf035-manual-device-qa-20260603.json; apps/web/src/hooks/useGoogleCastSender.ts"
     },
     {
       "id": "no-media-processing-violation",
       "description": "Immediate beta stop if any local ffmpeg, ffprobe, server-side transcode, server-side remux, generated HLS, proxy-remuxed, remux-hls, or XUI-side media processing is observed.",
       "status": "pass",
-      "owner": "codex",
+      "owner": "Filip",
       "evidence": "pnpm release:no-media-evidence:scan -- output/playwright/manual-network-audit/report.json; artifacts/release/media-policy/qaf035-no-media-evidence-scan-20260602.json; artifacts/release/media-policy/qaf035-runtime-media-policy-20260602.json"
     }
   ],
   "signoff": {
-    "status": "pending",
-    "approvedBy": "",
-    "approvedAt": "",
-    "notes": "Observability source coverage validates now, but beta alert routing and stop/throttle ownership remain non-final."
+    "status": "pass",
+    "approvedBy": "Filip",
+    "approvedAt": "2026-06-05T11:25:56Z",
+    "notes": "Source coverage, burst alert rules, beta routing, response SLO, and stop-trigger ownership are recorded for controlled beta."
   }
 }

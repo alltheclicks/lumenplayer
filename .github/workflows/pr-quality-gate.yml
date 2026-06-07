@@ -107,3 +107,9 @@ jobs:
 
       - name: Test proxy no-media runtime guard
         run: pnpm release:proxy-no-media:test
+
+      - name: Validate Google Cast readiness guard
+        run: pnpm release:cast-readiness:validate
+
+      - name: Validate PWA readiness guard
+        run: pnpm release:pwa-readiness:validate

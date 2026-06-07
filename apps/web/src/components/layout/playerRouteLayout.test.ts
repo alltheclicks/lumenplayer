@@ -9,8 +9,9 @@ describe('playerRouteLayout', () => {
   });
 
   it('applies scroll-lock shell class only on player route', () => {
+    expect(getAppShellRootClassName(true)).toContain('min-h-[100svh]');
+    expect(getAppShellRootClassName(true)).toContain('max-w-[100vw]');
     expect(getAppShellRootClassName(true)).toContain('overflow-hidden');
     expect(getAppShellRootClassName(false)).toContain('min-h-screen');
   });
 });
-

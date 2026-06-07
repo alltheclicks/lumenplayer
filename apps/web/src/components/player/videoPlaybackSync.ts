@@ -77,6 +77,31 @@ export const shouldShowBlockingPlaybackError = (playbackError: PlaybackError): b
   playbackError.fatal
 );
 
+export const shouldShowPlaybackErrorAfterPlaybackError = (
+  session: Pick<SessionState, 'source'>,
+  playbackError: PlaybackError,
+  media: {
+    hasRenderableFrame: boolean;
+  },
+): boolean => {
+  if (!shouldShowBlockingPlaybackError(playbackError)) {
+    return false;
+  }
+
+  const sourceMode = session.source?.metadata?.mode;
+  if (
+    media.hasRenderableFrame &&
+    (
+      sourceMode === 'live' ||
+      sourceMode === 'catchup'
+    )
+  ) {
+    return false;
+  }
+
+  return true;
+};
+
 export const shouldResolveProviderBlockingErrorAfterPlaybackError = (
   session: Pick<SessionState, 'source'>,
   playbackError: Pick<PlaybackError, 'fatal'>,
@@ -85,10 +110,6 @@ export const shouldResolveProviderBlockingErrorAfterPlaybackError = (
   },
 ): boolean => {
   if (session.source?.metadata?.mode !== 'live') {
-    return true;
-  }
-
-  if (playbackError.fatal) {
     return true;
   }
 
@@ -156,6 +177,18 @@ const parseNonNegativeFiniteSeconds = (value: unknown): number => {
   return numericValue;
 };
 
+const parseOptionalNonNegativeFiniteNumber = (value: unknown): number | null => {
+  const numericValue = typeof value === 'number'
+    ? value
+    : (typeof value === 'string' ? Number(value) : NaN);
+
+  if (!Number.isFinite(numericValue) || numericValue < 0) {
+    return null;
+  }
+
+  return numericValue;
+};
+
 export const resolveCatchUpMediaOffsetSeconds = (
   source: Pick<SessionSource, 'metadata'> | null | undefined,
 ): number => {
@@ -180,6 +213,80 @@ export const resolveCatchUpTimelinePositionMs = (
   return Math.floor((safeMediaTimeSeconds + safeMediaOffsetSeconds) * 1000);
 };
 
+interface CatchUpTimelineMediaAnchor {
+  timelinePositionMs: number;
+  mediaPositionSeconds: number;
+}
+
+const resolveCatchUpTimelineMediaAnchor = (
+  source: Pick<SessionSource, 'metadata'> | null | undefined,
+): CatchUpTimelineMediaAnchor | null => {
+  if (!source || typeof source.metadata !== 'object' || source.metadata === null) {
+    return null;
+  }
+
+  const metadata = source.metadata as Record<string, unknown>;
+  if (metadata.mode !== 'catchup') {
+    return null;
+  }
+
+  const timelinePositionMs = parseOptionalNonNegativeFiniteNumber(
+    metadata.catchUpPendingTimelineSeekMs,
+  );
+  const mediaPositionSeconds = parseOptionalNonNegativeFiniteNumber(
+    metadata.catchUpPendingMediaSeekSeconds,
+  );
+
+  if (
+    timelinePositionMs === null ||
+    mediaPositionSeconds === null ||
+    mediaPositionSeconds <= 0
+  ) {
+    const startupRetryStartPositionSeconds = parseOptionalNonNegativeFiniteNumber(
+      metadata.catchUpHlsStartPositionSeconds,
+    );
+    if (
+      startupRetryStartPositionSeconds !== null &&
+      startupRetryStartPositionSeconds > 0 &&
+      (
+        metadata.catchUpInitialSegmentRetryUsed === true ||
+        metadata.catchUpProviderSafeStartRetryUsed === true
+      )
+    ) {
+      return {
+        timelinePositionMs: 0,
+        mediaPositionSeconds: startupRetryStartPositionSeconds,
+      };
+    }
+
+    return null;
+  }
+
+  return {
+    timelinePositionMs: Math.floor(timelinePositionMs),
+    mediaPositionSeconds,
+  };
+};
+
+export const resolveCatchUpTimelinePositionMsForSource = (
+  source: Pick<SessionSource, 'metadata'> | null | undefined,
+  mediaTimeSeconds: number,
+): number => {
+  const timelineMediaAnchor = resolveCatchUpTimelineMediaAnchor(source);
+  if (timelineMediaAnchor) {
+    const safeMediaTimeSeconds = parseNonNegativeFiniteSeconds(mediaTimeSeconds);
+    return Math.max(0, Math.floor(
+      timelineMediaAnchor.timelinePositionMs +
+      ((safeMediaTimeSeconds - timelineMediaAnchor.mediaPositionSeconds) * 1000),
+    ));
+  }
+
+  return resolveCatchUpTimelinePositionMs(
+    mediaTimeSeconds,
+    resolveCatchUpMediaOffsetSeconds(source),
+  );
+};
+
 export const resolveCatchUpMediaSeekTimeSeconds = (
   targetPositionMs: number | null | undefined,
   mediaOffsetSeconds = 0,
@@ -195,16 +302,53 @@ export const resolveCatchUpMediaSeekTimeSeconds = (
   );
 };
 
-const parseOptionalNonNegativeFiniteNumber = (value: unknown): number | null => {
-  const numericValue = typeof value === 'number'
-    ? value
-    : (typeof value === 'string' ? Number(value) : NaN);
-
-  if (!Number.isFinite(numericValue) || numericValue < 0) {
-    return null;
+export const resolveCatchUpMediaSeekTimeSecondsForSource = (
+  source: Pick<SessionSource, 'metadata'> | null | undefined,
+  targetPositionMs: number | null | undefined,
+  minimumMediaPositionSeconds = 0,
+): number => {
+  const timelineMediaAnchor = resolveCatchUpTimelineMediaAnchor(source);
+  if (timelineMediaAnchor) {
+    const safeTargetSeconds = Math.max(0, (targetPositionMs ?? 0) / 1000);
+    const anchorTimelineSeconds = timelineMediaAnchor.timelinePositionMs / 1000;
+    const safeMinimumMediaPositionSeconds = parseNonNegativeFiniteSeconds(minimumMediaPositionSeconds);
+    return Math.max(
+      0,
+      safeMinimumMediaPositionSeconds,
+      timelineMediaAnchor.mediaPositionSeconds + (safeTargetSeconds - anchorTimelineSeconds),
+    );
   }
 
-  return numericValue;
+  return resolveCatchUpMediaSeekTimeSeconds(
+    targetPositionMs,
+    resolveCatchUpMediaOffsetSeconds(source),
+    minimumMediaPositionSeconds,
+  );
+};
+
+export const resolveCatchUpTimelineSeekTargetMsForSource = (
+  source: Pick<SessionSource, 'metadata'> | null | undefined,
+  targetPositionMs: number | null | undefined,
+  minimumMediaPositionSeconds = 0,
+): number => {
+  const timelineMediaAnchor = resolveCatchUpTimelineMediaAnchor(source);
+  if (timelineMediaAnchor) {
+    const mediaPositionSeconds = resolveCatchUpMediaSeekTimeSecondsForSource(
+      source,
+      targetPositionMs,
+      minimumMediaPositionSeconds,
+    );
+    return Math.max(0, Math.floor(
+      timelineMediaAnchor.timelinePositionMs +
+      ((mediaPositionSeconds - timelineMediaAnchor.mediaPositionSeconds) * 1000),
+    ));
+  }
+
+  return resolveCatchUpTimelineSeekTargetMs(
+    targetPositionMs,
+    resolveCatchUpMediaOffsetSeconds(source),
+    minimumMediaPositionSeconds,
+  );
 };
 
 export interface CatchUpPendingStartupSeekTarget {
@@ -235,7 +379,7 @@ export const resolveCatchUpPendingStartupSeek = (
     options.fallbackTimelinePositionMs,
   );
   const timelinePositionMs = explicitTimelinePositionMs ?? fallbackTimelinePositionMs;
-  if (timelinePositionMs === null || timelinePositionMs <= 0) {
+  if (timelinePositionMs === null) {
     return null;
   }
 
@@ -343,6 +487,48 @@ export const resolveCatchUpFallbackTimelinePositionMs = ({
   );
 };
 
+export interface CatchUpFallbackPlaybackPosition {
+  timelinePositionMs: number;
+  mediaPositionSeconds: number;
+}
+
+export const resolveCatchUpFallbackPlaybackPosition = ({
+  requestedPositionMs,
+  mediaOffsetSeconds = 0,
+  mediaDurationSeconds = 0,
+  positionGuardMs = 30_000,
+  preserveRequestedTimelinePosition = false,
+}: {
+  requestedPositionMs: number | null | undefined;
+  mediaOffsetSeconds?: number;
+  mediaDurationSeconds?: number;
+  positionGuardMs?: number;
+  preserveRequestedTimelinePosition?: boolean;
+}): CatchUpFallbackPlaybackPosition => {
+  const guardedTimelinePositionMs = resolveCatchUpFallbackTimelinePositionMs({
+    requestedPositionMs,
+    mediaOffsetSeconds,
+    mediaDurationSeconds,
+    positionGuardMs,
+  });
+  const safeRequestedPositionMs = Math.max(
+    0,
+    Number.isFinite(requestedPositionMs ?? NaN) ? requestedPositionMs ?? 0 : 0,
+  );
+  const safeMediaOffsetSeconds = parseNonNegativeFiniteSeconds(mediaOffsetSeconds);
+  const timelinePositionMs = preserveRequestedTimelinePosition && safeMediaOffsetSeconds <= 0
+    ? Math.floor(safeRequestedPositionMs)
+    : guardedTimelinePositionMs;
+
+  return {
+    timelinePositionMs,
+    mediaPositionSeconds: resolveCatchUpMediaSeekTimeSeconds(
+      guardedTimelinePositionMs,
+      safeMediaOffsetSeconds,
+    ),
+  };
+};
+
 export const shouldResolveCatchUpStartupWatchdog = (
   session: SessionState,
   watchedSourceUrl: string,
@@ -382,6 +568,42 @@ export const shouldRetryCatchUpStartupWithoutSafeStart = (
   );
 
   return currentStartPositionSeconds > safeFallbackPositionSeconds + 1;
+};
+
+export const shouldRetryCatchUpStartupWithProviderSafeStart = (
+  session: Pick<SessionState, 'source'>,
+  reason: string,
+  media: {
+    hasRenderableFrame: boolean;
+  },
+  providerSafeStartPositionSeconds: number,
+): boolean => {
+  if (
+    reason !== 'STARTUP_TIMEOUT' ||
+    !session.source ||
+    session.source.metadata?.mode !== 'catchup' ||
+    media.hasRenderableFrame
+  ) {
+    return false;
+  }
+
+  const metadata = session.source.metadata as Record<string, unknown>;
+  if (metadata.catchUpProviderSafeStartRetryUsed === true) {
+    return false;
+  }
+
+  const safeProviderStartPositionSeconds = parseNonNegativeFiniteSeconds(
+    providerSafeStartPositionSeconds,
+  );
+  if (safeProviderStartPositionSeconds <= 0) {
+    return false;
+  }
+
+  const currentStartPositionSeconds = parseOptionalNonNegativeFiniteNumber(
+    metadata.catchUpHlsStartPositionSeconds,
+  ) ?? 0;
+
+  return safeProviderStartPositionSeconds > currentStartPositionSeconds + 1;
 };
 
 export const shouldStopLongCatchUpStartupLoading = (
@@ -450,6 +672,26 @@ export const shouldRetryLiveStartupWithoutFrame = (
 
 export type LiveUnexpectedStopDecision = 'sync-stop' | 'retry' | 'block';
 
+export const shouldResumeRenderableLiveAfterUnexpectedStop = (
+  session: Pick<SessionState, 'source' | 'playback'>,
+  recovery: {
+    manualPauseRequested: boolean;
+    hasRenderableFrame: boolean;
+  },
+): boolean => {
+  if (
+    recovery.manualPauseRequested ||
+    !recovery.hasRenderableFrame ||
+    !session.source ||
+    session.source.metadata?.mode !== 'live' ||
+    !sessionWantsPlayback(session)
+  ) {
+    return false;
+  }
+
+  return true;
+};
+
 export const resolveLiveUnexpectedStopDecision = (
   session: Pick<SessionState, 'source' | 'playback'>,
   recovery: {
@@ -515,6 +757,69 @@ const CATCH_UP_HLS_FALLBACK_ERROR_CODES = new Set([
   'HLS_ERROR',
   'LOAD_FAILED',
 ]);
+
+const CATCH_UP_STARTUP_DEFERRED_ERROR_CODES = new Set([
+  ...CATCH_UP_HLS_FALLBACK_ERROR_CODES,
+  'MEDIA_ELEMENT_3',
+  'MEDIA_ELEMENT_4',
+  'PLAYBACK_START_FAILED',
+]);
+
+const LIVE_STARTUP_DEFERRED_ERROR_CODES = new Set([
+  'NETWORK_ERROR',
+  'MEDIA_ERROR',
+  'HLS_ERROR',
+  'LOAD_FAILED',
+  'MEDIA_ELEMENT_3',
+  'MEDIA_ELEMENT_4',
+  'PLAYBACK_START_FAILED',
+]);
+
+export const shouldDeferLiveStartupPlaybackError = (
+  session: Pick<SessionState, 'source' | 'playback'>,
+  playbackError: Pick<PlaybackError, 'code' | 'fatal'>,
+  media: {
+    hasRenderableFrame: boolean;
+  },
+  startup: {
+    sourceHasStarted: boolean;
+  },
+): boolean => {
+  if (
+    !session.source ||
+    session.source.metadata?.mode !== 'live' ||
+    media.hasRenderableFrame ||
+    startup.sourceHasStarted ||
+    !sessionWantsPlayback(session)
+  ) {
+    return false;
+  }
+
+  return playbackError.fatal && LIVE_STARTUP_DEFERRED_ERROR_CODES.has(playbackError.code);
+};
+
+export const shouldDeferCatchUpStartupPlaybackError = (
+  session: Pick<SessionState, 'source' | 'playback'>,
+  playbackError: Pick<PlaybackError, 'code' | 'fatal'>,
+  media: {
+    hasRenderableFrame: boolean;
+  },
+  startup: {
+    sourceHasStarted: boolean;
+  },
+): boolean => {
+  if (
+    !session.source ||
+    session.source.metadata?.mode !== 'catchup' ||
+    media.hasRenderableFrame ||
+    startup.sourceHasStarted ||
+    !sessionWantsPlayback(session)
+  ) {
+    return false;
+  }
+
+  return CATCH_UP_STARTUP_DEFERRED_ERROR_CODES.has(playbackError.code);
+};
 
 export const shouldAttemptCatchUpErrorFallback = (
   session: Pick<SessionState, 'source'>,
