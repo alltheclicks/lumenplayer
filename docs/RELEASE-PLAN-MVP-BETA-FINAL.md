@@ -54,6 +54,21 @@ Prazan task izgleda ovako (početno stanje):
   - Log: —
 ```
 
+### Git workflow (final-road)
+- Baza je uvek **`main`** (sinhronizovan sa `origin/main` pre starta taska).
+- Svaki task ide na **svoju granu**: `final-road/<task-id>` (npr. `final-road/M1.1-a`). Više sitnih povezanih taskova iz iste grupe smeju deliti granu `final-road/<grupa>` (npr. `final-road/M1.1`) — navedi to u logu.
+- Po **uspešnom** završetku taska (testovi prošli, status `FINISHED`): **`git commit`** na toj grani; poruka počinje task ID-jem, npr. `feat(web): M1.1-a enable HLS worker for live`.
+- Commit poruke završiti `Co-Authored-By:` linijom (kao do sada).
+- Merge u `main` radi vlasnik (ili eksplicitno odobri) — agent NE merge-uje sam bez naloga.
+- Procedura za jedan task:
+  ```
+  git checkout main && git pull --ff-only
+  git checkout -b final-road/<task-id>
+  # ... rad + testovi (typecheck/lint/build/test:unit + Verifikacija) ...
+  git add -A && git commit -m "<tip>: <task-id> <opis>"
+  # u ovom fajlu: Status -> FINISHED, popuni Log, osveži dashboard
+  ```
+
 ### Pravila integriteta
 - NE briši završene taskove — ostaju kao istorija (`FINISHED`).
 - NE menjaj postojeće ID-jeve. Novi task = novi ID na kraju te grupe.
