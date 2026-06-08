@@ -5,6 +5,8 @@ import { HelmetProvider } from 'react-helmet-async';
 import { Toaster } from '@/components/ui/toaster';
 import { SessionProvider } from '@/context/SessionProvider';
 import AppShell from '@/components/layout/AppShell';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { RequireAuth } from '@/routes/RequireAuth';
 
 import Login from '@/pages/Login';
 import M3UImport from '@/pages/M3UImport';
@@ -38,28 +40,36 @@ function App() {
       <HelmetProvider>
         <SessionProvider>
           <BrowserRouter>
-            <Routes>
-              <Route path="/" element={<Navigate to="/login" replace />} />
-              <Route path="/login" element={<Login />} />
-              <Route path="/import/m3u" element={<M3UImport />} />
-              <Route element={<AppShell />}>
-                <Route path="/vod" element={<VodCategories />} />
-                <Route path="/vod/:vodId" element={<VodDetail />} />
-                <Route path="/series" element={<SeriesCategories />} />
-                <Route path="/series/:seriesId" element={<SeriesDetail />} />
+            <ErrorBoundary>
+              <Routes>
+                <Route path="/" element={<Navigate to="/login" replace />} />
+                <Route path="/login" element={<Login />} />
+                <Route path="/import/m3u" element={<M3UImport />} />
                 <Route
-                  path="/player"
                   element={(
-                    <Suspense fallback={<PlayerRouteFallback />}>
-                      <Player />
-                    </Suspense>
+                    <RequireAuth>
+                      <AppShell />
+                    </RequireAuth>
                   )}
-                />
-                <Route path="/epg" element={<EpgGuide />} />
-                <Route path="/settings" element={<Settings />} />
-              </Route>
-              <Route path="*" element={<Navigate to="/login" replace />} />
-            </Routes>
+                >
+                  <Route path="/vod" element={<VodCategories />} />
+                  <Route path="/vod/:vodId" element={<VodDetail />} />
+                  <Route path="/series" element={<SeriesCategories />} />
+                  <Route path="/series/:seriesId" element={<SeriesDetail />} />
+                  <Route
+                    path="/player"
+                    element={(
+                      <Suspense fallback={<PlayerRouteFallback />}>
+                        <Player />
+                      </Suspense>
+                    )}
+                  />
+                  <Route path="/epg" element={<EpgGuide />} />
+                  <Route path="/settings" element={<Settings />} />
+                </Route>
+                <Route path="*" element={<Navigate to="/login" replace />} />
+              </Routes>
+            </ErrorBoundary>
             <Toaster />
           </BrowserRouter>
         </SessionProvider>

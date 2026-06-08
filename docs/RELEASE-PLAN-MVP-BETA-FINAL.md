@@ -68,15 +68,16 @@ Prazan task izgleda ovako (početno stanje):
 
 | Faza | Ukupno | TODO | IN PROGRESS | FINISHED | BLOCKED | N/A |
 |---|---|---|---|---|---|---|
-| MVP (M1.x) | 22 | 12 | 0 | 10 | 0 | 0 |
+| MVP (M1.x) | 22 | 8 | 0 | 14 | 0 | 0 |
 | BETA (B2.x) | 19 | 19 | 0 | 0 | 0 | 0 |
 | FINAL (F3.x) | 19 | 19 | 0 | 0 | 0 | 0 |
-| **Σ** | **60** | **50** | **0** | **10** | **0** | **0** |
+| **Σ** | **60** | **46** | **0** | **14** | **0** | **0** |
 
 > **M1.6 (MP2 audio) — KOMPLETAN ✅** (a–e svi FINISHED). Server-side MP2→AAC v9 shadow + GC-patch deploy-ovan, klijent (shadow routing + 409 step-aside + HEVC detekcija) gotov.
 > **M1.1 (HLS stabilnost) — KOMPLETAN ✅** (a–e svi FINISHED). enableWorker za live, lowLatencyMode uslovni (LL-HLS probe), uslovni backBufferLength, strukturisane load policies (exp. backoff + 401/403 bail), throttled NETWORK_ERROR recovery. vitest 33/33.
+> **M1.2 (Robusnost klijenta) — KOMPLETAN ✅** (a–d svi FINISHED). ErrorBoundary oko ruta, RequireAuth route guard (sinhroni localStorage), FetchHttpClient AbortController timeout, `test:unit` skript (333 testa). 
 
-**Sledeći task na redu:** `M1.2-a` — Error boundary oko `<Outlet />` (`AppShell.tsx`/`App.tsx`).
+**Sledeći task na redu:** `M1.3-a` — registrovati Cast App ID ($5) — ČEKA vlasnička potvrda. (M1.3-b/c/e su S/M koji se mogu kodirati bez real uređaja.)
 
 ---
 
@@ -122,18 +123,18 @@ Verifikovano u kodu na grani `codex/qaf-035-production-web-catchup`:
 - **Verifikacija (exit grupe):** live channel-surf + 300s burn-in; network track BEZ 429; memory profil pri rapidnom zap-u stabilan. → **Automatski deo (unit) ✅**; živi burn-in/429/memory profil: ručno/nije moguće automatski (traži živi provajder), ostaje za QA pre bete.
 
 ### M1.2 — Robusnost klijenta
-- [ ] **S** Error boundary oko `<Outlet />`. `AppShell.tsx` / `App.tsx`. (gap) — ID: M1.2-a
-  - Status: TODO
-  - Log: —
-- [ ] **S** Route guard / auth context — redirect na `/login` ako nema kredencijala (sada su sve rute javne, `App.tsx:45-60`). (risk) — ID: M1.2-b
-  - Status: TODO
-  - Log: —
-- [ ] **S** Dodati timeout (`AbortController`) u `FetchHttpClient`, default 10–30s. `packages/api/src/http-client.ts`. (KN-10) — ID: M1.2-c
-  - Status: TODO
-  - Log: —
-- [ ] **S** Uvesti `test:unit` skript (vitest, samo `@lumen/*` + `apps/web/src`, bez release-validatora) za brz feedback. `package.json`. — ID: M1.2-d
-  - Status: TODO
-  - Log: —
+- [x] **S** Error boundary oko `<Outlet />`. `AppShell.tsx` / `App.tsx`. (gap) — ID: M1.2-a
+  - Status: FINISHED
+  - Log: Owner: Claude | Finished: 2026-06-08 | Nova `ErrorBoundary` class komponenta (`apps/web/src/components/ErrorBoundary.tsx`) + čist helper `formatErrorBoundaryMessage` (`errorBoundaryMessage.ts`) sa recoverable fallback UI (Pokušaj ponovo / Nazad na početak), `role="alert"`. Obavija ceo `<Routes>` u `App.tsx` (hvata i Login/M3U i privatne rute). Sprečava beli ekran (MVP exit #5). Test: 3 unit testa za helper. typecheck ✅ lint ✅ test:unit ✅ build ✅.
+- [x] **S** Route guard / auth context — redirect na `/login` ako nema kredencijala (sada su sve rute javne, `App.tsx:45-60`). (risk) — ID: M1.2-b
+  - Status: FINISHED
+  - Log: Owner: Claude | Finished: 2026-06-08 | `RequireAuth` (`apps/web/src/routes/RequireAuth.tsx`) obavija `<AppShell />` u `App.tsx`; sinhroni guard `hasConfiguredPlaybackSource()` (`routeGuard.ts`) čita namespaced localStorage ključeve (`lumen-web:v1:xtream_credentials` / `:m3u_playlist`) bez async flash-a → `<Navigate to="/login">` ako nema ni Xtream ni M3U izvora. Test: 5 unit testova (prazno/Xtream/M3U/null/malformed). typecheck ✅ lint ✅ test:unit ✅ build ✅.
+- [x] **S** Dodati timeout (`AbortController`) u `FetchHttpClient`, default 10–30s. `packages/api/src/http-client.ts`. (KN-10) — ID: M1.2-c
+  - Status: FINISHED
+  - Log: Owner: Claude | Finished: 2026-06-08 | `FetchHttpClient` dobio `timeoutMs` opciju (default 20s) i `fetchWithTimeout()` sa per-attempt `AbortController`; timeout → opisna `Error` (`Request timed out after Nms`) umesto opaque AbortError; `timeoutMs:0` isključuje. `packages/api/src/http-client.ts`. Test: +4 (timeout abort, signal po pokušaju, opt-out). typecheck ✅ lint ✅ vitest 6/6 ✅.
+- [x] **S** Uvesti `test:unit` skript (vitest, samo `@lumen/*` + `apps/web/src`, bez release-validatora) za brz feedback. `package.json`. — ID: M1.2-d
+  - Status: FINISHED
+  - Log: Owner: Claude | Finished: 2026-06-08 | Nov `vitest.unit.config.ts` (merge-uje bazni config; `include` = `apps/**/src` + `packages/**/src`, `exclude` = `scripts/**` + `.codex/**` + e2e); `test:unit` + `test:unit:watch` skriptovi u root `package.json`. Pokriva product/package kod (46 fajlova, 333 testa), NE pokupi release/perf validatore. typecheck ✅ lint ✅ test:unit 333/333 ✅.
 
 ### M1.3 — Cast MVP (custom CAF receiver + queue-preload)
 - [ ] **S** Registrovati Custom Web Receiver u Google Cast Console ($5), dobiti prod App ID; postaviti `VITE_GOOGLE_CAST_APP_ID`. — ID: M1.3-a

@@ -72,4 +72,48 @@ describe("FetchHttpClient", () => {
       .rejects.toThrow("HTTP 403: Forbidden");
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
+
+  it("aborts a hung request after the configured timeout (M1.2-c)", async () => {
+    // Simulate a socket that never resolves until it is aborted via signal.
+    const fetchMock = vi.fn((_url: string, init?: { signal?: AbortSignal }) => (
+      new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener("abort", () => {
+          reject(new DOMException("Aborted", "AbortError"));
+        });
+      })
+    ));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const client = new FetchHttpClient({
+      maxRetries: 0,
+      timeoutMs: 10,
+    });
+
+    await expect(client.get("https://example.test/player_api.php"))
+      .rejects.toThrow(/timed out after 10ms/);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0]?.[1]?.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it("passes a signal on every attempt and clears the timer on success", async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ ok: true }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const client = new FetchHttpClient({ timeoutMs: 5_000 });
+    await expect(client.get<{ ok: boolean }>("https://example.test/player_api.php"))
+      .resolves.toEqual({ ok: true });
+    expect(fetchMock.mock.calls[0]?.[1]?.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it("does not attach a signal when timeoutMs is 0 (M1.2-c opt-out)", async () => {
+    const fetchMock = vi.fn(async () => new Response("ok", { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const client = new FetchHttpClient({ timeoutMs: 0 });
+    await expect(client.getText("https://example.test/xmltv.php")).resolves.toBe("ok");
+    expect(fetchMock).toHaveBeenCalledWith("https://example.test/xmltv.php");
+  });
 });
