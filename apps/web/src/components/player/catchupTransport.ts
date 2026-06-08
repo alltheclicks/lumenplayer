@@ -101,7 +101,17 @@ interface ParsedTargetUrl {
   encodedProxyTarget: string | null;
 }
 
-const catchUpHostAffinityByOrigin = new Map<string, string>();
+// M1.4-a: host-affinity entries decay so a stale edge host learned during an
+// earlier session can't pin catch-up to an origin the provider has since rotated
+// away. Expired entries are evicted lazily on read.
+const CATCH_UP_HOST_AFFINITY_TTL_MS = 30 * 60 * 1000;
+
+interface CatchUpHostAffinityEntry {
+  origin: string;
+  rememberedAt: number;
+}
+
+const catchUpHostAffinityByOrigin = new Map<string, CatchUpHostAffinityEntry>();
 
 const normalizeServerBase = (value: string): string => value.trim().replace(/\/+$/, '');
 
@@ -424,6 +434,7 @@ export const resolveCatchUpTargetOrigin = (url: string): string | null => {
 export const rememberCatchUpHostAffinity = (
   requestUrl: string,
   finalUrl: string,
+  now: number = Date.now(),
 ): string | null => {
   const requestOrigin = resolveCatchUpTargetOrigin(requestUrl);
   const finalOrigin = resolveCatchUpTargetOrigin(finalUrl);
@@ -431,11 +442,14 @@ export const rememberCatchUpHostAffinity = (
     return null;
   }
 
-  catchUpHostAffinityByOrigin.set(requestOrigin, finalOrigin);
+  catchUpHostAffinityByOrigin.set(requestOrigin, { origin: finalOrigin, rememberedAt: now });
   return finalOrigin;
 };
 
-const resolveTransitivelyPreferredOrigin = (requestOrigin: string): string | null => {
+const resolveTransitivelyPreferredOrigin = (
+  requestOrigin: string,
+  now: number,
+): string | null => {
   let currentOrigin = requestOrigin;
   const visited = new Set<string>();
 
@@ -445,24 +459,37 @@ const resolveTransitivelyPreferredOrigin = (requestOrigin: string): string | nul
     }
 
     visited.add(currentOrigin);
-    const preferredOrigin = catchUpHostAffinityByOrigin.get(currentOrigin);
-    if (!preferredOrigin || preferredOrigin === currentOrigin) {
+    const entry = catchUpHostAffinityByOrigin.get(currentOrigin);
+    if (!entry) {
       break;
     }
 
-    currentOrigin = preferredOrigin;
+    // Decay: drop and ignore entries older than the TTL.
+    if (now - entry.rememberedAt > CATCH_UP_HOST_AFFINITY_TTL_MS) {
+      catchUpHostAffinityByOrigin.delete(currentOrigin);
+      break;
+    }
+
+    if (entry.origin === currentOrigin) {
+      break;
+    }
+
+    currentOrigin = entry.origin;
   }
 
   return currentOrigin === requestOrigin ? null : currentOrigin;
 };
 
-export const resolveCatchUpHostAffinity = (url: string): string | null => {
+export const resolveCatchUpHostAffinity = (
+  url: string,
+  now: number = Date.now(),
+): string | null => {
   const requestOrigin = resolveCatchUpTargetOrigin(url);
   if (!requestOrigin) {
     return null;
   }
 
-  return resolveTransitivelyPreferredOrigin(requestOrigin);
+  return resolveTransitivelyPreferredOrigin(requestOrigin, now);
 };
 
 export const resolveCatchUpFinalHost = (url: string): string | null => (

@@ -250,6 +250,40 @@ describe('catch-up transport plan', () => {
     ).toBe('https://login.example/timeshift/user/pass/30/2026-02-23:22-35/112.ts');
   });
 
+  it('decays host affinity after the TTL so a stale edge host is no longer preferred (M1.4-a)', () => {
+    const requestUrl = 'https://login.example/timeshift/user/pass/30/2026-02-23:22-37/112.ts';
+    const lookupUrl = 'https://login.example/timeshift/user/pass/30/2026-02-23:22-35/112.ts';
+    const t0 = 1_000_000;
+    rememberCatchUpHostAffinity(
+      requestUrl,
+      'https://edge6.castcdn.net/streaming/timeshift.php?token=abc',
+      t0,
+    );
+
+    // Within TTL: affinity still applies.
+    expect(resolveCatchUpHostAffinity(lookupUrl, t0 + 60_000)).toBe('https://edge6.castcdn.net');
+
+    // After TTL (30 min): affinity is dropped and falls back to no preference.
+    const afterTtl = t0 + 30 * 60 * 1000 + 1;
+    expect(resolveCatchUpHostAffinity(lookupUrl, afterTtl)).toBeNull();
+    // Eviction is permanent for that origin until re-learned.
+    expect(resolveCatchUpHostAffinity(lookupUrl, afterTtl + 1)).toBeNull();
+  });
+
+  it('re-learning host affinity refreshes the decay window (M1.4-a)', () => {
+    const requestUrl = 'https://login.example/timeshift/user/pass/30/2026-02-23:22-37/112.ts';
+    const lookupUrl = 'https://login.example/timeshift/user/pass/30/2026-02-23:22-35/112.ts';
+    const t0 = 2_000_000;
+    rememberCatchUpHostAffinity(requestUrl, 'https://edge6.castcdn.net/streaming/timeshift.php?token=a', t0);
+
+    // Re-learn just before expiry resets rememberedAt.
+    const refreshAt = t0 + 29 * 60 * 1000;
+    rememberCatchUpHostAffinity(requestUrl, 'https://edge6.castcdn.net/streaming/timeshift.php?token=b', refreshAt);
+
+    // Original window would have expired, but the refresh keeps it valid.
+    expect(resolveCatchUpHostAffinity(lookupUrl, t0 + 31 * 60 * 1000)).toBe('https://edge6.castcdn.net');
+  });
+
   it('resolves the direct request origin as final host when no redirect affinity was learned', () => {
     expect(
       resolveCatchUpHostAffinity('http://oveu.mediaking.fi:8080/streaming/timeshift_shadow.php?token=abc'),

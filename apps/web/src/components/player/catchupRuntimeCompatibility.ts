@@ -10,7 +10,8 @@ export type CatchUpRuntimeCompatibilityReasonCode =
   | 'manifest-no-frame'
   | 'load-failed'
   | 'playback-error'
-  | 'seek-no-frame';
+  | 'seek-no-frame'
+  | 'shadow-step-aside';
 
 export interface CatchUpRuntimeCompatibilityRecord {
   version: 1;

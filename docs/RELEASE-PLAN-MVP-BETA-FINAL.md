@@ -68,17 +68,18 @@ Prazan task izgleda ovako (početno stanje):
 
 | Faza | Ukupno | TODO | IN PROGRESS | FINISHED | BLOCKED | N/A |
 |---|---|---|---|---|---|---|
-| MVP (M1.x) | 22 | 3 | 0 | 18 | 1 | 0 |
+| MVP (M1.x) | 22 | 1 | 0 | 20 | 1 | 0 |
 | BETA (B2.x) | 19 | 19 | 0 | 0 | 0 | 0 |
 | FINAL (F3.x) | 19 | 19 | 0 | 0 | 0 | 0 |
-| **Σ** | **60** | **41** | **0** | **18** | **1** | **0** |
+| **Σ** | **60** | **39** | **0** | **20** | **1** | **0** |
 
 > **M1.6 (MP2 audio) — KOMPLETAN ✅** (a–e svi FINISHED). Server-side MP2→AAC v9 shadow + GC-patch deploy-ovan, klijent (shadow routing + 409 step-aside + HEVC detekcija) gotov.
 > **M1.1 (HLS stabilnost) — KOMPLETAN ✅** (a–e svi FINISHED). enableWorker za live, lowLatencyMode uslovni (LL-HLS probe), uslovni backBufferLength, strukturisane load policies (exp. backoff + 401/403 bail), throttled NETWORK_ERROR recovery. vitest 33/33.
 > **M1.2 (Robusnost klijenta) — KOMPLETAN ✅** (a–d svi FINISHED). ErrorBoundary oko ruta, RequireAuth route guard (sinhroni localStorage), FetchHttpClient AbortController timeout, `test:unit` skript (333 testa). 
 > **M1.3 (Cast MVP) — KOD SPREMAN ✅** (b/c/d/e FINISHED; a=BLOCKED čeka $5 App ID po vlasničkoj odluci). Hard-fail+receiver+queue-preload zatečeni gotovi; prod CORS allowlist dodat. Real-device test čeka App ID.
+> **M1.4 (Catch-up robusnost) — KOMPLETAN ✅** (a–b FINISHED). Host-affinity TTL/decay (30min), 409 SHADOW_STEP_ASIDE false-grana sad daje jasan unavailable overlay (ne tihi spiner).
 
-**Sledeći task na redu:** `M1.4-a` — host-affinity TTL/decay (`catchupTransport.ts`).
+**Sledeći task na redu:** `M1.5-a` — PWA install prompt + ikone + splash + offline fallback.
 
 ---
 
@@ -156,13 +157,13 @@ Verifikovano u kodu na grani `codex/qaf-035-production-web-catchup`:
 - **Verifikacija (exit grupe):** real-device Cast test (Chromecast + TV-built-in); zapping bez crnog ekrana; catch-up na Cast-u radi ili daje jasan unsupported overlay. → **Kod spreman**; real-device test: ručno/nije moguće automatski (traži Chromecast + prod App ID iz M1.3-a, BLOCKED).
 
 ### M1.4 — Catch-up: dovesti do „pouzdano radi ili jasno kaže da ne radi"
-- [ ] **S** Dodati host-affinity TTL/decay (sad module-scope `Map` bez isteka — bajati edge host rizik). `catchupTransport.ts`/`sessionSources.ts`. (weakness) — ID: M1.4-a
-  - Status: TODO
-  - Log: —
-- [ ] **S** Osigurati da svaki neuspeli catch-up završi jasnim `unsupported` overlay-em (ne tihim spinerom). `catchUpEmptyState.ts`/`sourceBlockingError.ts`. — ID: M1.4-b
-  - Status: TODO
-  - Log: —
-- **Verifikacija (exit grupe):** test na 2–3 realna provajdera; nijedan slučaj ne sme ostaviti beskonačan spinner.
+- [x] **S** Dodati host-affinity TTL/decay (sad module-scope `Map` bez isteka — bajati edge host rizik). `catchupTransport.ts`/`sessionSources.ts`. (weakness) — ID: M1.4-a
+  - Status: FINISHED
+  - Log: Owner: Claude | Finished: 2026-06-08 | `catchUpHostAffinityByOrigin` Map vrednost promenjena `string` → `{ origin, rememberedAt }` (`catchupTransport.ts:104`); `CATCH_UP_HOST_AFFINITY_TTL_MS = 30min`; `resolveTransitivelyPreferredOrigin(origin, now)` lazy-evictuje istekle (`now - rememberedAt > TTL` → delete + ignore); `rememberCatchUpHostAffinity`/`resolveCatchUpHostAffinity` dobili opcioni `now` param (default `Date.now()`, deterministic za testove). Stale edge host se više ne pinuje preko sesije. Testovi: +2 (decay posle TTL, re-learn refresh window). typecheck ✅ lint ✅ vitest 19/19 ✅.
+- [x] **S** Osigurati da svaki neuspeli catch-up završi jasnim `unsupported` overlay-em (ne tihim spinerom). `catchUpEmptyState.ts`/`sourceBlockingError.ts`. — ID: M1.4-b
+  - Status: FINISHED
+  - Log: Owner: Claude | Finished: 2026-06-08 | Nalaz (recon): postoje slojevite watchdog mreže (manifest-no-frame 8s/24s, startup 35s, visible-loading 60s krajnja) koje prikazuju jasan overlay; jedina rupa = **SHADOW_STEP_ASIDE 409 false-grana** koja je mogla da padne kroz na generičku putanju i ostavi tihi spiner. Fix: `VideoPlayer.tsx` onError — 409 catch-up sad razdvaja `true` (retry→return) od `false` (eksplicitno: clear watchdogs + `recordCatchUpRuntimeCompatibility('unsupported','shadow-step-aside')` + `setError(resolveCatchUpStartupUnavailableError(...))` + `setIsLoading(false)` + `clearLoadingProgress()`). Nov reason code `'shadow-step-aside'` u `catchupRuntimeCompatibility.ts`. Verifikacija: typecheck ✅ lint ✅; inline onError grana nema unit pokrivenost (nema VideoPlayer render testova — odloženo za B2.1-d dekompoziciju), ali koristi već-testiran helper `resolveCatchUpStartupUnavailableError` (sourceBlockingError.test 10/10). Živi 2-3 provajdera: ručno/nije moguće automatski.
+- **Verifikacija (exit grupe):** test na 2–3 realna provajdera; nijedan slučaj ne sme ostaviti beskonačan spinner. → **Kod garantuje overlay** (slojevite mreže + 409 fix); živi multi-provajder test: ručno/nije moguće automatski.
 
 ### M1.5 — PWA install iskustvo
 - [ ] **S** Proveriti/dovršiti install prompt + ikone + splash; offline fallback (`offline.html`) radi. `vite.config.ts`, `usePWA.ts`. — ID: M1.5-a

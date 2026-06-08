@@ -2407,20 +2407,41 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
       // routing signal, not a fatal error, and fall through to the next attempt.
       if (
         playbackError.httpStatus === 409 &&
-        currentSession.source?.metadata?.mode === 'catchup' &&
-        switchToCatchUpFallbackIfAvailable('SHADOW_STEP_ASIDE')
+        currentSession.source?.metadata?.mode === 'catchup'
       ) {
-        emitWebObservabilityEvent({
-          name: 'catchup.retry',
-          severity: 'info',
-          metadata: {
-            renderer: currentSession.renderer,
-            ...buildCatchUpEventMetadata(currentSession.source, {
-              status: 'shadow_step_aside',
-              errorCode: 'SHADOW_STEP_ASIDE',
-            }),
-          },
+        if (switchToCatchUpFallbackIfAvailable('SHADOW_STEP_ASIDE')) {
+          emitWebObservabilityEvent({
+            name: 'catchup.retry',
+            severity: 'info',
+            metadata: {
+              renderer: currentSession.renderer,
+              ...buildCatchUpEventMetadata(currentSession.source, {
+                status: 'shadow_step_aside',
+                errorCode: 'SHADOW_STEP_ASIDE',
+              }),
+            },
+          });
+          return;
+        }
+
+        // M1.4-b: no further attempt to fall back to — surface a clear
+        // unavailable overlay instead of silently spinning until the 60s
+        // visible-loading timeout fires.
+        clearStartupAutoplayRecovery();
+        clearCatchUpStartupWatchdog();
+        clearCatchUpManifestNoFrameWatchdog();
+        clearCatchUpSeekWatchdog();
+        pendingAutoplaySourceUrlRef.current = null;
+        recordCatchUpRuntimeCompatibility(currentSession.source, 'unsupported', 'shadow-step-aside');
+        setError(resolveCatchUpStartupUnavailableError(currentSession.source) ?? {
+          type: 'network',
+          message: 'Snimak za TV unazad trenutno nije dostupan',
+          primaryAction: 'switch-to-live',
+          primaryActionLabel: 'Gledaj kanal uživo',
         });
+        setIsLoading(false);
+        clearLoadingProgress();
+        setIsPlaying(false);
         return;
       }
 
