@@ -422,6 +422,35 @@ describe('HlsPlayerAdapter', () => {
     await expect(loadPromise).rejects.toThrow('Media error while decoding stream.');
   });
 
+  it('surfaces the upstream HTTP status on network errors (409 shadow step-aside)', async () => {
+    const video = createMockVideoElement();
+    const adapter = new HlsPlayerAdapter(video);
+    const source = {
+      url: 'https://example.com/archive.m3u8',
+      type: 'hls' as const,
+      title: 'Archive',
+    };
+
+    const errors: Array<{ code: string; httpStatus?: number }> = [];
+    adapter.onError((error) => {
+      errors.push({ code: error.code, httpStatus: error.httpStatus });
+    });
+
+    const loadPromise = adapter.load(source);
+    const hls = hlsMockState.instances.at(-1);
+    expect(hls).toBeDefined();
+
+    hls?.emit(hlsMockState.MockHls.Events.ERROR, {
+      fatal: true,
+      type: hlsMockState.MockHls.ErrorTypes.NETWORK_ERROR,
+      details: 'manifestLoadError',
+      networkDetails: { response: { code: 409 } },
+    });
+
+    await expect(loadPromise).rejects.toThrow();
+    expect(errors.some((entry) => entry.code === 'NETWORK_ERROR' && entry.httpStatus === 409)).toBe(true);
+  });
+
   it('uses progressive non-prefetch startup for live HLS', async () => {
     const video = createMockVideoElement();
     const adapter = new HlsPlayerAdapter(video);

@@ -7,8 +7,21 @@ const XTREAM_CATCH_UP_STREAMING_PATHS = new Set([
   '/streaming/timeshift.php',
   '/streaming/timeshift_hls.php',
 ]);
+// Hosts whose tokenized catch-up requests should be routed to the MP2->AAC
+// shadow endpoint (timeshift_shadow.php). edge6.castcdn.net is the original
+// validation host; additional recording hosts (e.g. mediaking.fi family) can be
+// added via VITE_CATCHUP_SHADOW_HOSTS (comma-separated) without a code change,
+// so the shadow can be switched on per-host as it is deployed/verified.
+export const parseShadowHosts = (value: string | undefined): string[] => (
+  (value ?? '')
+    .split(',')
+    .map((entry) => entry.trim().toLowerCase())
+    .filter((entry) => entry.length > 0)
+);
+
 const SHADOW_TOKEN_HOSTS = new Set([
   'edge6.castcdn.net',
+  ...parseShadowHosts(import.meta.env.VITE_CATCHUP_SHADOW_HOSTS),
 ]);
 const GATEWAY_ONLY_LEGACY_HOSTS = new Set([
   'gw.castcdn.net',

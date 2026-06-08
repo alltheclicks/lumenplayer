@@ -2361,6 +2361,30 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
         mediaElement.readyState >= 2 &&
         mediaElement.videoWidth > 0
       );
+
+      // Catch-up shadow step-aside: the MP2->AAC shadow endpoint answers 409 when
+      // the channel is already browser-playable (AAC/MP3), telling us to use the
+      // normal catch-up path instead of the (pointless) transcode. Treat it as a
+      // routing signal, not a fatal error, and fall through to the next attempt.
+      if (
+        playbackError.httpStatus === 409 &&
+        currentSession.source?.metadata?.mode === 'catchup' &&
+        switchToCatchUpFallbackIfAvailable('SHADOW_STEP_ASIDE')
+      ) {
+        emitWebObservabilityEvent({
+          name: 'catchup.retry',
+          severity: 'info',
+          metadata: {
+            renderer: currentSession.renderer,
+            ...buildCatchUpEventMetadata(currentSession.source, {
+              status: 'shadow_step_aside',
+              errorCode: 'SHADOW_STEP_ASIDE',
+            }),
+          },
+        });
+        return;
+      }
+
       const seekTargetPositionMs = applyingSessionSeekTargetMsRef.current;
       const seekFallbackPositionMs = resolveCatchUpSeekRecoveryFallbackPositionMs({
         targetPositionMs: seekTargetPositionMs,

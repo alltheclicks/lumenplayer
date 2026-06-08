@@ -3,6 +3,7 @@ import {
   applyKnownCatchUpHostAffinity,
   buildCatchUpTransportPlan,
   clearCatchUpHostAffinityMemory,
+  parseShadowHosts,
   rememberCatchUpHostAffinity,
   resolveCatchUpFallbackAttemptUrl,
   resolveCatchUpFinalHost,
@@ -365,5 +366,20 @@ describe('catch-up transport plan', () => {
     });
 
     expect(plan.allAttempts.some((attempt) => attempt.strategy === 'legacy')).toBe(false);
+  });
+
+  describe('parseShadowHosts', () => {
+    it('parses a comma-separated host list, trimming and lowercasing', () => {
+      expect(parseShadowHosts('Oveu.MediaKing.fi, serv2.mediaking.fi')).toEqual([
+        'oveu.mediaking.fi',
+        'serv2.mediaking.fi',
+      ]);
+    });
+
+    it('returns an empty list for undefined or blank input', () => {
+      expect(parseShadowHosts(undefined)).toEqual([]);
+      expect(parseShadowHosts('   ')).toEqual([]);
+      expect(parseShadowHosts(',, ,')).toEqual([]);
+    });
   });
 });

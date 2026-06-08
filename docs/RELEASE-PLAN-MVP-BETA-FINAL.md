@@ -68,10 +68,10 @@ Prazan task izgleda ovako (početno stanje):
 
 | Faza | Ukupno | TODO | IN PROGRESS | FINISHED | BLOCKED | N/A |
 |---|---|---|---|---|---|---|
-| MVP (M1.x) | 22 | 20 | 1 | 1 | 0 | 0 |
+| MVP (M1.x) | 22 | 19 | 1 | 2 | 0 | 0 |
 | BETA (B2.x) | 19 | 19 | 0 | 0 | 0 | 0 |
 | FINAL (F3.x) | 19 | 19 | 0 | 0 | 0 | 0 |
-| **Σ** | **60** | **58** | **1** | **1** | **0** | **0** |
+| **Σ** | **60** | **57** | **1** | **2** | **0** | **0** |
 
 **Sledeći task na redu:** `M1.1-a` — `enableWorker: true` za live (`HlsPlayerAdapter.ts:627`).
 
@@ -186,9 +186,9 @@ Verifikovano u kodu na grani `codex/qaf-035-production-web-catchup`:
 - [~] **M** **Server-side MP2→AAC (opcija A): hardening `timeshift_shadow.php` + dinamička codec-mapa.** Repo: `infra/videoteka-shadow/`. — ID: M1.6-b
   - Status: IN PROGRESS
   - Log: Owner: Claude | Started: 2026-06-08 | Povučena tačna live kopija shadow-a (`timeshift_shadow.live.php`, md5 `a4ae3c60`), napravljena `timeshift_shadow.hardened.php` sa 3 hardening izmene (ADD-only): (1) globalni concurrency cap (`SHADOW_MAX_CONCURRENT_BUILDS=4`, iznad → 503), (2) inline cache GC za `/tmp` (sampled 1/25, max-age 7200s), (3) **dinamička codec-mapa** (`probe-codec-map.sh` cron → JSON; shadow `409 step-aside` za AAC/MP3 kanale, fail-open na ffprobe za unknown — hvata kanale koji se prebace na MP2). HEVC se NE transkoduje. Verifikacija: `php -l` ✅ lokalno + serverski PHP 7.2 ✅; `bash -n` ✅. NIJE deploy-ovano (čeka izolovan test). Sledeće: M1.6-c (klijent), pa deploy/test (M1.6-e).
-- [ ] **S** **Klijentska integracija:** Lumen web da gađa `timeshift_shadow.php` (token/credentials format isti kao original) i da hendluje `409 step-aside` (`X-Lumen-Shadow: step-aside-safe`) → fallback na normalan catch-up put. `packages/api/src/xtream-codes-service.ts` + catch-up transport. — ID: M1.6-c
-  - Status: TODO
-  - Log: —
+- [x] **S** **Klijentska integracija:** Lumen web gađa `timeshift_shadow.php` + hendluje `409 step-aside` → fallback na normalan catch-up put. — ID: M1.6-c
+  - Status: FINISHED
+  - Log: Owner: Claude | Finished: 2026-06-08 | Grana `final-road/M1.6-c` (iz PR #224 jer catch-up klijent živi tamo). **Nivo A:** `catchupTransport.ts` — shadow hostovi sad konfigurabilni preko `VITE_CATCHUP_SHADOW_HOSTS` (uz default `edge6.castcdn.net`); exportovan `parseShadowHosts`. **Nivo B (409 step-aside):** `PlaybackError.httpStatus` dodat u `@lumen/types`; `HlsPlayerAdapter.mapHlsError` izvlači HTTP status iz `networkDetails` (novi `resolveNetworkHttpStatus`); `VideoPlayer.tsx` onError — kad catch-up dobije `httpStatus===409` → `switchToCatchUpFallbackIfAvailable('SHADOW_STEP_ASIDE')` (routing, ne fatal) + observability event. Dodato `VITE_CATCHUP_SHADOW_HOSTS` u `.env.example`. Testovi: +3 nova (parseShadowHosts ×2, 409 httpStatus mapiranje ×1). Verifikacija: typecheck ✅ lint ✅ vitest 46/46 ✅ (catchupTransport 17, HlsPlayerAdapter 29).
 - [ ] **S** **HEVC kanali (`149,2927,30270`): klijentska detekcija + poruka** (ne transkodujemo video). Proširiti postojeći `unsupportedAudioCodec` mehanizam (PR #224) na `unsupportedVideoCodec:'hevc'` → overlay „ovaj kanal koristi HEVC, podržan na Safari/iOS, ne na ovom uređaju". `HlsPlayerAdapter.ts`/`VideoPlayer.tsx`. — ID: M1.6-d
   - Status: TODO
   - Log: —

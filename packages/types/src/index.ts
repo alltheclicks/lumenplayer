@@ -248,6 +248,12 @@ export interface PlaybackError {
   message: string;
   fatal: boolean;
   details?: unknown;
+  /**
+   * Upstream HTTP status code when the error originated from a failed network
+   * response (e.g. a 409 step-aside from the catch-up shadow endpoint). Absent
+   * for non-network errors.
+   */
+  httpStatus?: number;
 }
 
 export interface AudioTrackOption {

@@ -1187,6 +1187,25 @@ export class HlsPlayerAdapter implements PlayerAdapter {
     this.updateState('idle');
   }
 
+  private static resolveNetworkHttpStatus(networkDetails: unknown): number | undefined {
+    if (!networkDetails || typeof networkDetails !== 'object') {
+      return undefined;
+    }
+    // hls.js attaches the raw loader response under networkDetails; the upstream
+    // HTTP status is exposed either as `.status` (XHR) or `.response.code`.
+    const details = networkDetails as {
+      status?: unknown;
+      response?: { code?: unknown } | null;
+    };
+    if (typeof details.status === 'number' && details.status > 0) {
+      return details.status;
+    }
+    if (details.response && typeof details.response.code === 'number' && details.response.code > 0) {
+      return details.response.code;
+    }
+    return undefined;
+  }
+
   private mapHlsError(data: ErrorData): PlaybackError {
     if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
       return {
@@ -1194,6 +1213,7 @@ export class HlsPlayerAdapter implements PlayerAdapter {
         message: 'Network error while loading stream.',
         fatal: data.fatal,
         details: data.details,
+        httpStatus: HlsPlayerAdapter.resolveNetworkHttpStatus(data.networkDetails),
       };
     }
 
