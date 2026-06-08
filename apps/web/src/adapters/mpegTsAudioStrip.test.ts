@@ -52,20 +52,20 @@ const buildPat = (): Uint8Array => buildSection(0x00, [
   0xe0 | ((PMT_PID >> 8) & 0x1f), PMT_PID & 0xff,
 ]);
 
-const buildPmt = (audioStreamType: number): Uint8Array => buildSection(0x02, [
+const buildPmt = (audioStreamType: number, videoStreamType = 0x1b): Uint8Array => buildSection(0x02, [
   0x00, 0x01,
   0xc1,
   0x00,
   0x00,
   0xe0 | ((VIDEO_PID >> 8) & 0x1f), VIDEO_PID & 0xff,
   0xf0, 0x00,
-  0x1b, 0xe0 | ((VIDEO_PID >> 8) & 0x1f), VIDEO_PID & 0xff, 0xf0, 0x00,
+  videoStreamType, 0xe0 | ((VIDEO_PID >> 8) & 0x1f), VIDEO_PID & 0xff, 0xf0, 0x00,
   audioStreamType, 0xe0 | ((AUDIO_PID >> 8) & 0x1f), AUDIO_PID & 0xff, 0xf0, 0x00,
 ]);
 
-const buildTransportStream = (audioStreamType: number): Uint8Array => concatPackets([
+const buildTransportStream = (audioStreamType: number, videoStreamType = 0x1b): Uint8Array => concatPackets([
   buildPacket(0, buildPat()),
-  buildPacket(PMT_PID, buildPmt(audioStreamType)),
+  buildPacket(PMT_PID, buildPmt(audioStreamType, videoStreamType)),
   buildPacket(VIDEO_PID, new Uint8Array([0x00, 0x00, 0x01, 0xe0]), false),
   buildPacket(AUDIO_PID, new Uint8Array([0xff, 0xfd, 0x00, 0x00]), false),
 ]);
@@ -109,6 +109,22 @@ describe('mpegTsAudioStrip', () => {
       hasAacAudio: true,
       audioPids: [AUDIO_PID],
       mpegAudioPids: [],
+    });
+  });
+
+  it('flags HEVC (H.265, stream_type 0x24) video', () => {
+    const hevcSegment = buildTransportStream(0x0f, 0x24);
+    expect(detectMpegTsAudio(hevcSegment)).toMatchObject({
+      hasVideo: true,
+      hasHevcVideo: true,
+    });
+  });
+
+  it('does not flag H.264 (stream_type 0x1b) as HEVC', () => {
+    const h264Segment = buildTransportStream(0x0f, 0x1b);
+    expect(detectMpegTsAudio(h264Segment)).toMatchObject({
+      hasVideo: true,
+      hasHevcVideo: false,
     });
   });
 });

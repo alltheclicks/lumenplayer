@@ -16,6 +16,7 @@ export interface LiveSessionSourceMetadata {
   source?: PlayerChannel['source'];
   loadKey?: number;
   unsupportedAudioCodec?: 'mp2';
+  unsupportedVideoCodec?: 'hevc';
 }
 
 export interface CatchUpSessionSourceMetadata {
@@ -66,6 +67,7 @@ type SessionSourceMetadataShape = {
   streamId?: number;
   loadKey?: number;
   unsupportedAudioCodec?: 'mp2';
+  unsupportedVideoCodec?: 'hevc';
   source?: PlayerChannel['source'];
   programId?: string;
   durationSeconds?: number;
@@ -312,6 +314,9 @@ export const parseSessionSourceMetadata = (
       loadKey: parseNumericValue(metadata.loadKey),
       unsupportedAudioCodec: metadata.unsupportedAudioCodec === 'mp2'
         ? 'mp2'
+        : undefined,
+      unsupportedVideoCodec: metadata.unsupportedVideoCodec === 'hevc'
+        ? 'hevc'
         : undefined,
       source: metadata.source === 'xtream' || metadata.source === 'm3u'
         ? metadata.source

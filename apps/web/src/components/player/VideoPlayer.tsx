@@ -129,6 +129,7 @@ export interface VideoPlayerHandle {
 
 type PlayerError = SourceBlockingError;
 type UnsupportedAudioCodec = 'mp2';
+type UnsupportedVideoCodec = 'hevc';
 
 type WebKitPictureInPictureVideoElement = HTMLVideoElement & {
   webkitSupportsPresentationMode?: (mode: string) => boolean;
@@ -597,6 +598,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
   const [errorState, setErrorState] = useState<PlayerErrorState | null>(null);
   const error = errorState?.error ?? null;
   const [unsupportedAudioCodec, setUnsupportedAudioCodec] = useState<UnsupportedAudioCodec | null>(null);
+  const [unsupportedVideoCodec, setUnsupportedVideoCodec] = useState<UnsupportedVideoCodec | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isPictureInPicture, setIsPictureInPicture] = useState(false);
   const [isAirPlayAvailable, setIsAirPlayAvailable] = useState(false);
@@ -1777,6 +1779,43 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
           },
         });
       },
+      onUnsupportedVideoCodec: ({ unsupportedVideoCodec, sourceUrl }) => {
+        const currentSession = sessionRef.current;
+        const currentSource = currentSession.source;
+        if (!currentSource || currentSource.url !== sourceUrl) {
+          return;
+        }
+
+        setUnsupportedVideoCodec(unsupportedVideoCodec);
+        const metadata = (
+          typeof currentSource.metadata === 'object' &&
+          currentSource.metadata !== null
+        )
+          ? currentSource.metadata as Record<string, unknown>
+          : {};
+
+        if (metadata.unsupportedVideoCodec === unsupportedVideoCodec) {
+          return;
+        }
+
+        commands.setSource({
+          ...currentSource,
+          metadata: {
+            ...metadata,
+            unsupportedVideoCodec,
+          },
+        }, currentSession.positionMs ?? 0);
+        emitWebObservabilityEvent({
+          name: 'playback.unsupported_video_codec',
+          severity: 'warn',
+          metadata: {
+            renderer: currentSession.renderer,
+            channelId: currentSource.channelId ?? null,
+            streamId: metadata.streamId ?? null,
+            unsupportedVideoCodec,
+          },
+        });
+      },
       onManifestResolved: ({ requestedUrl, manifestUrl, finalUrl }) => {
         const source = sessionRef.current.source;
         if (
@@ -2916,6 +2955,9 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
     setUnsupportedAudioCodec(
       sessionRef.current.source?.metadata?.unsupportedAudioCodec === 'mp2' ? 'mp2' : null,
     );
+    setUnsupportedVideoCodec(
+      sessionRef.current.source?.metadata?.unsupportedVideoCodec === 'hevc' ? 'hevc' : null,
+    );
     const sourceMetadataForReset = (
       typeof sessionRef.current.source?.metadata === 'object' &&
       sessionRef.current.source.metadata !== null
@@ -3706,6 +3748,10 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
   const unsupportedAudioMessage = unsupportedAudioCodec === 'mp2'
     ? 'Zvuk nije dostupan za ovaj kanal. Kanal koristi MP2 audio, koji trenutno nije podržan u web browser playback-u. Video može raditi bez zvuka.'
     : null;
+  const unsupportedVideoMessage = unsupportedVideoCodec === 'hevc'
+    ? 'Slika možda neće raditi za ovaj kanal. Kanal koristi HEVC (H.265) video, koji nije podržan u svim browserima (radi na Safari/iOS, ali ne na Chrome desktop/Android).'
+    : null;
+  const unsupportedCodecMessage = unsupportedVideoMessage ?? unsupportedAudioMessage;
 
   return (
     <div className={`pointer-events-none relative w-full h-full bg-black ${className}`}>
@@ -3742,11 +3788,11 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
         </div>
       )}
 
-      {unsupportedAudioMessage && !error && (
+      {unsupportedCodecMessage && !error && (
         <div className="pointer-events-none absolute inset-x-3 top-3 z-20 flex justify-center">
           <div className="flex max-w-[min(560px,calc(100vw-24px))] items-start gap-2 rounded-md border border-amber-300/40 bg-black/75 px-3 py-2 text-left text-xs leading-5 text-white shadow-lg backdrop-blur-sm">
             <AlertCircle className="mt-0.5 h-4 w-4 flex-none text-amber-300" />
-            <span>{unsupportedAudioMessage}</span>
+            <span>{unsupportedCodecMessage}</span>
           </div>
         </div>
       )}

@@ -68,10 +68,10 @@ Prazan task izgleda ovako (početno stanje):
 
 | Faza | Ukupno | TODO | IN PROGRESS | FINISHED | BLOCKED | N/A |
 |---|---|---|---|---|---|---|
-| MVP (M1.x) | 22 | 19 | 1 | 2 | 0 | 0 |
+| MVP (M1.x) | 22 | 18 | 1 | 3 | 0 | 0 |
 | BETA (B2.x) | 19 | 19 | 0 | 0 | 0 | 0 |
 | FINAL (F3.x) | 19 | 19 | 0 | 0 | 0 | 0 |
-| **Σ** | **60** | **57** | **1** | **2** | **0** | **0** |
+| **Σ** | **60** | **56** | **1** | **3** | **0** | **0** |
 
 **Sledeći task na redu:** `M1.1-a` — `enableWorker: true` za live (`HlsPlayerAdapter.ts:627`).
 
@@ -189,9 +189,9 @@ Verifikovano u kodu na grani `codex/qaf-035-production-web-catchup`:
 - [x] **S** **Klijentska integracija:** Lumen web gađa `timeshift_shadow.php` + hendluje `409 step-aside` → fallback na normalan catch-up put. — ID: M1.6-c
   - Status: FINISHED
   - Log: Owner: Claude | Finished: 2026-06-08 | Grana `final-road/M1.6-c` (iz PR #224 jer catch-up klijent živi tamo). **Nivo A:** `catchupTransport.ts` — shadow hostovi sad konfigurabilni preko `VITE_CATCHUP_SHADOW_HOSTS` (uz default `edge6.castcdn.net`); exportovan `parseShadowHosts`. **Nivo B (409 step-aside):** `PlaybackError.httpStatus` dodat u `@lumen/types`; `HlsPlayerAdapter.mapHlsError` izvlači HTTP status iz `networkDetails` (novi `resolveNetworkHttpStatus`); `VideoPlayer.tsx` onError — kad catch-up dobije `httpStatus===409` → `switchToCatchUpFallbackIfAvailable('SHADOW_STEP_ASIDE')` (routing, ne fatal) + observability event. Dodato `VITE_CATCHUP_SHADOW_HOSTS` u `.env.example`. Testovi: +3 nova (parseShadowHosts ×2, 409 httpStatus mapiranje ×1). Verifikacija: typecheck ✅ lint ✅ vitest 46/46 ✅ (catchupTransport 17, HlsPlayerAdapter 29).
-- [ ] **S** **HEVC kanali (`149,2927,30270`): klijentska detekcija + poruka** (ne transkodujemo video). Proširiti postojeći `unsupportedAudioCodec` mehanizam (PR #224) na `unsupportedVideoCodec:'hevc'` → overlay „ovaj kanal koristi HEVC, podržan na Safari/iOS, ne na ovom uređaju". `HlsPlayerAdapter.ts`/`VideoPlayer.tsx`. — ID: M1.6-d
-  - Status: TODO
-  - Log: —
+- [x] **S** **HEVC kanali (`149,2927,30270`): klijentska detekcija + poruka** (ne transkodujemo video). — ID: M1.6-d
+  - Status: FINISHED
+  - Log: Owner: Claude | Finished: 2026-06-08 | Proširen postojeći MP2 mehanizam na HEVC: `mpegTsAudioStrip.ts` detektuje HEVC video (stream_type `0x24` → `hasHevcVideo`); `HlsPlayerAdapter` — `probeLiveCodecSupport` (refaktor probe-a) emituje novi `onUnsupportedVideoCodec({hevc})`; `VideoPlayer.tsx` — state + hook + reset + overlay poruka „Slika možda neće raditi… HEVC… radi na Safari/iOS, ne na Chrome desktop/Android" (objedinjen overlay sa MP2 porukom za dupli kanal 149); `sessionSources.ts` — `unsupportedVideoCodec:'hevc'` u metadata (tipovi + marshaling). Testovi: +2 (HEVC 0x24 detekcija, H.264 0x1b negativni). Verifikacija: typecheck ✅ lint ✅ vitest 242/242 ✅.
 - [ ] **M** **Izolovan test deploy** (vlasnička potvrda pre svakog koraka): backup → deploy hardened shadow na JEDAN recording server (`ns3239635`) → `php -l` na serveru → cron codec-mapa → nginx routing (samo ako nije već) → test na realnom MP2 kanalu (live+catch-up) u Chrome/PWA → CPU pod opterećenjem. Procedura+rollback: `infra/videoteka-shadow/README.md`. **ADD-only, instant rollback, original `timeshift.php` se NIKAD ne dira.** — ID: M1.6-e
   - Status: TODO
   - Log: —

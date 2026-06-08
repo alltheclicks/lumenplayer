@@ -46,10 +46,17 @@ interface UnsupportedAudioCodecEvent {
   playbackMode: 'live';
 }
 
+interface UnsupportedVideoCodecEvent {
+  unsupportedVideoCodec: 'hevc';
+  sourceUrl: string;
+  playbackMode: 'live';
+}
+
 interface HlsPlayerAdapterOptions {
   preferNativeHls?: boolean;
   onManifestResolved?: (event: ManifestResolvedEvent) => void;
   onUnsupportedAudioCodec?: (event: UnsupportedAudioCodecEvent) => void;
+  onUnsupportedVideoCodec?: (event: UnsupportedVideoCodecEvent) => void;
 }
 
 type PlaybackMetadataCarrier = MediaSource & {
@@ -196,22 +203,33 @@ const fetchProbeSegmentBytes = async (segmentUrl: string): Promise<ArrayBuffer> 
   return response.arrayBuffer();
 };
 
-const shouldUseMpegAudioVideoOnlyFallback = async (manifestUrl: string): Promise<boolean> => {
+interface LiveCodecProbeResult {
+  // Video present but audio is MPEG-1/2 (MP2), which browsers can't decode in MSE.
+  unsupportedMpegAudio: boolean;
+  // Video is H.265/HEVC, which most browsers can't decode in MSE.
+  unsupportedHevcVideo: boolean;
+}
+
+const probeLiveCodecSupport = async (manifestUrl: string): Promise<LiveCodecProbeResult> => {
+  const empty: LiveCodecProbeResult = { unsupportedMpegAudio: false, unsupportedHevcVideo: false };
   if (typeof fetch !== 'function') {
-    return false;
+    return empty;
   }
 
   try {
     const segmentUrl = await resolveLiveProbeSegmentUrl(manifestUrl);
     if (!segmentUrl) {
-      return false;
+      return empty;
     }
 
     const segmentBytes = await fetchProbeSegmentBytes(segmentUrl);
     const detection = detectMpegTsAudio(segmentBytes);
-    return detection.hasVideo && detection.hasMpegAudio;
+    return {
+      unsupportedMpegAudio: detection.hasVideo && detection.hasMpegAudio,
+      unsupportedHevcVideo: detection.hasHevcVideo,
+    };
   } catch {
-    return false;
+    return empty;
   }
 };
 
@@ -312,12 +330,14 @@ export class HlsPlayerAdapter implements PlayerAdapter {
   private hlsSourceMode: HlsSourceMode | null = null;
   private loadGeneration = 0;
   private readonly onUnsupportedAudioCodec?: (event: UnsupportedAudioCodecEvent) => void;
+  private readonly onUnsupportedVideoCodec?: (event: UnsupportedVideoCodecEvent) => void;
 
   constructor(video: HTMLVideoElement, options: HlsPlayerAdapterOptions = {}) {
     this.video = video;
     this.preferNativeHls = options.preferNativeHls ?? false;
     this.onManifestResolved = options.onManifestResolved;
     this.onUnsupportedAudioCodec = options.onUnsupportedAudioCodec;
+    this.onUnsupportedVideoCodec = options.onUnsupportedVideoCodec;
     this.removeVideoListeners = this.attachVideoListeners();
     HlsPlayerAdapter.activeAdapters.add(this);
   }
@@ -593,14 +613,23 @@ export class HlsPlayerAdapter implements PlayerAdapter {
     probeLiveMpegAudio = false,
     loadGeneration = this.loadGeneration,
   ): Promise<void> {
-    const useMpegAudioVideoOnlyFallback = isLiveSource && probeLiveMpegAudio
-      ? await shouldUseMpegAudioVideoOnlyFallback(url)
-      : false;
+    const codecProbe = isLiveSource && probeLiveMpegAudio
+      ? await probeLiveCodecSupport(url)
+      : { unsupportedMpegAudio: false, unsupportedHevcVideo: false };
+    const useMpegAudioVideoOnlyFallback = codecProbe.unsupportedMpegAudio;
     this.assertCurrentLoad(loadGeneration);
 
     if (useMpegAudioVideoOnlyFallback) {
       this.onUnsupportedAudioCodec?.({
         unsupportedAudioCodec: 'mp2',
+        sourceUrl: url,
+        playbackMode: 'live',
+      });
+    }
+
+    if (codecProbe.unsupportedHevcVideo) {
+      this.onUnsupportedVideoCodec?.({
+        unsupportedVideoCodec: 'hevc',
         sourceUrl: url,
         playbackMode: 'live',
       });

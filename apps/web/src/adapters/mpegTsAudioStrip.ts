@@ -2,12 +2,16 @@ const TS_PACKET_SIZE = 188;
 const TS_SYNC_BYTE = 0x47;
 const MPEG_AUDIO_STREAM_TYPES = new Set([0x03, 0x04]);
 const AAC_AUDIO_STREAM_TYPE = 0x0f;
-const VIDEO_STREAM_TYPES = new Set([0x02, 0x1b, 0x24]);
+// PMT stream_type values: 0x02 = MPEG-2 video, 0x1b = H.264/AVC, 0x24 = H.265/HEVC.
+const HEVC_VIDEO_STREAM_TYPE = 0x24;
+const VIDEO_STREAM_TYPES = new Set([0x02, 0x1b, HEVC_VIDEO_STREAM_TYPE]);
 
 export interface MpegTsAudioDetection {
   hasVideo: boolean;
   hasMpegAudio: boolean;
   hasAacAudio: boolean;
+  /** True when the video track is H.265/HEVC, which most browsers cannot decode in MSE. */
+  hasHevcVideo: boolean;
   audioPids: number[];
   mpegAudioPids: number[];
   pmtPid: number | null;
@@ -167,6 +171,7 @@ export const detectMpegTsAudio = (data: ArrayBuffer | Uint8Array): MpegTsAudioDe
       hasVideo: false,
       hasMpegAudio: false,
       hasAacAudio: false,
+      hasHevcVideo: false,
       audioPids: [],
       mpegAudioPids: [],
       pmtPid: null,
@@ -177,10 +182,14 @@ export const detectMpegTsAudio = (data: ArrayBuffer | Uint8Array): MpegTsAudioDe
   const mpegAudioPids: number[] = [];
   let hasVideo = false;
   let hasAacAudio = false;
+  let hasHevcVideo = false;
 
   for (const stream of parsed.streams) {
     if (VIDEO_STREAM_TYPES.has(stream.streamType)) {
       hasVideo = true;
+    }
+    if (stream.streamType === HEVC_VIDEO_STREAM_TYPE) {
+      hasHevcVideo = true;
     }
     if (MPEG_AUDIO_STREAM_TYPES.has(stream.streamType)) {
       audioPids.push(stream.pid);
@@ -196,6 +205,7 @@ export const detectMpegTsAudio = (data: ArrayBuffer | Uint8Array): MpegTsAudioDe
     hasVideo,
     hasMpegAudio: mpegAudioPids.length > 0,
     hasAacAudio,
+    hasHevcVideo,
     audioPids,
     mpegAudioPids,
     pmtPid: parsed.pmtPid,
