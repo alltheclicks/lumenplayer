@@ -22,6 +22,11 @@ const HLS_BUFFERING_RECOVERY_DELAY_MS = 4_000;
 const HLS_BUFFERING_PROGRESS_TOLERANCE_SECONDS = 0.25;
 const HLS_BUFFERING_MAX_RECOVERY_ATTEMPTS = 2;
 const HLS_LIVE_MEDIA_RECOVERY_MAX_ATTEMPTS = 4;
+// Catch-up streams hit periodic decode/transmux discontinuities mid-playback.
+// Like live, prefer a few cheap hls.recoverMediaError() passes (no reload, no
+// timeline jump) before surfacing the error to the session layer, which would
+// otherwise skip ahead and leave a visible gap (KN catch-up decode-skip).
+const HLS_CATCHUP_MEDIA_RECOVERY_MAX_ATTEMPTS = 4;
 const HLS_CATCHUP_MAX_BUFFER_LENGTH_SECONDS = 90;
 const HLS_CATCHUP_MAX_BUFFER_SIZE_MB = 180;
 const HLS_LIVE_MAX_BUFFER_LENGTH_SECONDS = 30;
@@ -952,8 +957,8 @@ export class HlsPlayerAdapter implements PlayerAdapter {
                 return;
               }
 
-              const hasLivePlaybackProgress = (
-                isLiveSource &&
+              const hasResumablePlaybackProgress = (
+                (isLiveSource || isCatchUpSource) &&
                 (
                   (this.video.currentTime || 0) > 0.25 ||
                   (
@@ -962,8 +967,10 @@ export class HlsPlayerAdapter implements PlayerAdapter {
                   )
                 )
               );
-              const maxMediaRecoveryAttempts = hasLivePlaybackProgress
-                ? HLS_LIVE_MEDIA_RECOVERY_MAX_ATTEMPTS
+              const maxMediaRecoveryAttempts = hasResumablePlaybackProgress
+                ? (isLiveSource
+                  ? HLS_LIVE_MEDIA_RECOVERY_MAX_ATTEMPTS
+                  : HLS_CATCHUP_MEDIA_RECOVERY_MAX_ATTEMPTS)
                 : 1;
               if (mediaErrorRecoveryAttempts < maxMediaRecoveryAttempts) {
                 mediaErrorRecoveryAttempts += 1;

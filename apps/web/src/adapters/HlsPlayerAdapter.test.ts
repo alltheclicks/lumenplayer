@@ -1249,6 +1249,69 @@ describe('HlsPlayerAdapter', () => {
     expect(hls?.destroy).not.toHaveBeenCalled();
   });
 
+  it('keeps recovering consecutive catch-up media errors before surfacing the failure', async () => {
+    const video = createMockVideoElement();
+    const adapter = new HlsPlayerAdapter(video);
+    const source = {
+      url: 'https://example.com/archive.m3u8',
+      type: 'hls' as const,
+      title: 'Archive',
+      metadata: {
+        mode: 'catchup',
+      },
+    };
+    const errors: unknown[] = [];
+    adapter.onError((error) => errors.push(error));
+
+    const loadPromise = adapter.load(source);
+    const hls = hlsMockState.instances.at(-1);
+    expect(hls).toBeDefined();
+    hls?.emit(hlsMockState.MockHls.Events.MANIFEST_LOADED, { url: source.url });
+    hls?.emit(hlsMockState.MockHls.Events.MANIFEST_PARSED);
+    await loadPromise;
+
+    const mutableVideo = video as unknown as {
+      currentTime: number;
+      readyState: number;
+      videoWidth: number;
+    };
+    mutableVideo.currentTime = 30;
+    mutableVideo.readyState = 2;
+    mutableVideo.videoWidth = 1920;
+
+    // Four consecutive decode errors without fresh BUFFER_APPENDED data should
+    // each trigger a cheap recoverMediaError() rather than tearing playback down
+    // (which would push the session layer into a 15s skip + reload gap).
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      hls?.emit(hlsMockState.MockHls.Events.ERROR, {
+        fatal: true,
+        type: hlsMockState.MockHls.ErrorTypes.MEDIA_ERROR,
+        details: 'bufferAppendError',
+      });
+    }
+
+    expect(hls?.recoverMediaError).toHaveBeenCalledTimes(4);
+    expect(hls?.destroy).not.toHaveBeenCalled();
+    expect(errors).not.toContainEqual(expect.objectContaining({
+      code: 'MEDIA_ERROR',
+      fatal: true,
+    }));
+
+    // Exhausting the budget surfaces the error so the session layer can fall back.
+    hls?.emit(hlsMockState.MockHls.Events.ERROR, {
+      fatal: true,
+      type: hlsMockState.MockHls.ErrorTypes.MEDIA_ERROR,
+      details: 'bufferAppendError',
+    });
+
+    expect(hls?.recoverMediaError).toHaveBeenCalledTimes(4);
+    expect(hls?.destroy).toHaveBeenCalledTimes(1);
+    expect(errors).toContainEqual(expect.objectContaining({
+      code: 'MEDIA_ERROR',
+      fatal: true,
+    }));
+  });
+
   it('attempts HLS media recovery when buffering stalls without progress', async () => {
     vi.useFakeTimers();
 
