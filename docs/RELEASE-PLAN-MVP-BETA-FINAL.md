@@ -79,14 +79,14 @@ Prazan task izgleda ovako (početno stanje):
 
 ## 📊 Status dashboard (ažurirati pri svakoj promeni statusa)
 
-> Brzi pregled. Brojevi se ručno ažuriraju kad agent menja status taska. Ukupno taskova: **55**.
+> Brzi pregled. Brojevi se ručno ažuriraju kad agent menja status taska. Ukupno taskova: **60**.
 
 | Faza | Ukupno | TODO | IN PROGRESS | FINISHED | BLOCKED | N/A |
 |---|---|---|---|---|---|---|
-| MVP (M1.x) | 17 | 17 | 0 | 0 | 0 | 0 |
+| MVP (M1.x) | 22 | 20 | 1 | 1 | 0 | 0 |
 | BETA (B2.x) | 19 | 19 | 0 | 0 | 0 | 0 |
 | FINAL (F3.x) | 19 | 19 | 0 | 0 | 0 | 0 |
-| **Σ** | **55** | **55** | **0** | **0** | **0** | **0** |
+| **Σ** | **60** | **58** | **1** | **1** | **0** | **0** |
 
 **Sledeći task na redu:** `M1.1-a` — `enableWorker: true` za live (`HlsPlayerAdapter.ts:627`).
 
@@ -107,6 +107,7 @@ Verifikovano u kodu na grani `codex/qaf-035-production-web-catchup`:
 - ❌ Nema TMDB enrichment servisa, nema `test:unit` skripta.
 - ⚠️ God Components: `Player.tsx` 3029 LOC, `VideoPlayer.tsx` 3742 LOC (KN-5).
 - ⚠️ Release-gate ceremonija disproporcionalna (73/100 commit-ova release-tagovano).
+- ❌ **MP2 audio nekompatibilnost (M1.6):** kanali sa MPEG-1/2 Layer II audijem nemaju zvuk u web/PWA (MSE ne dekoduje MP2) — i live i catch-up. Rešenje zahteva transcode MP2→AAC (na serveru videoteke ili proxy-ju); proxy transcode trenutno hard-disabled no-media politikom (QAF-035).
 
 ---
 
@@ -179,13 +180,46 @@ Verifikovano u kodu na grani `codex/qaf-035-production-web-catchup`:
   - Log: —
 - **Verifikacija (exit grupe):** instalacija na desktop Chrome + Android; offline stranica se prikazuje bez mreže.
 
+### M1.6 — MP2 audio: kanali bez zvuka u web/PWA (live + catch-up) [P0 audio gap]
+
+> **Kontekst (verifikovano 2026-06-08):** Browser MSE (Chrome/Edge HLS.js put) **NE dekoduje MPEG-1/2 Layer II (MP2) audio**. Kanali sa MP2 audio track-om puštaju **samo sliku, bez zvuka** — i na LIVE i na CATCH-UP. Native playeri (TiviMate i sl.) nemaju problem jer ne idu kroz MSE.
+> **Jedino tehničko rešenje = transcode MP2→AAC (`-c:a aac`); remux/copy NE pomaže** (samo prepakuje kontejner, audio ostaje MP2). Video može `copy` (slika se ne dira — jeftino).
+> **Gde transcode može da se desi:** (1) na serveru videoteke / `{server}/streaming/timeshift.php` (vaša infra — NE krši Lumen no-media politiku), (2) na Lumen proxy-ju (postoji napisan ali **hard-disabled** transcode put `proxy-remuxed`/`catchup-remux.ts` na grani `codex/qaf-035-production-web-catchup`; reaktivacija KRŠI QAF-035 no-media politiku), (3) u browseru (WASM ffmpeg/WebCodecs — nerealno za live, ne preporučeno).
+> **Bitno:** `timeshift.php` u kodu je standardni Xtream endpoint (`{credentials.server}/streaming/timeshift.php?...`, vidi `packages/api/src/xtream-codes-service.ts:269,375`); klijent ga samo gađa.
+>
+> **🔑 KLJUČNO OTKRIĆE (2026-06-08, SSH provera servera videoteke `mainssl`/`136.243.57.82`):** Server-side MP2→AAC rešenje (opcija A) **VEĆ POSTOJI, napisano i deployed, ali NIKAD AKTIVIRANO.**
+> - Original `/home/xtreamcodes/iptv_xtream_codes/wwwdir/streaming/timeshift.php` (XtreamCodes, 2018) — **0 ffmpeg poziva, NE transkoduje** (MP2 ostaje MP2).
+> - Codex je 2026-03-16 napisao **`timeshift_shadow.php`** (paralelni endpoint, live deployed pored originala): ffprobe codec → ako nije AAC-LC@44.1/48k transkoduje `-c:a aac -profile:a aac_low -b:a 128k -ac 2 -ar 48000`, video `-c:v copy`, izlaz `-f mpegts`. **To TAČNO rešava MP2.** Backup: `/root/codex-backups/catchup/20260316-*`.
+> - **ALI je mrtav kod:** NIJE rout-an u nginx-u, `/tmp/catchup_shadow.log` ne postoji, `tv_archive_shadow/` prazan → nikad pozvan. ffmpeg na serveru ima `aac` encoder ✅.
+> - Flota recording servera (Tailscale): `mainssl`(.1), `usa-ca-videoteka`(.23), `ovh-videoteka`(.34), `videoteka-16tb-hetzner`(.14) + edge (lyra/nyc/zet). Detalji u memoriji `videoteka-servers-timeshift-shadow.md`.
+
+- [x] **S** **Dijagnostika:** izmeriti koji audio codec vraća server videoteke i da li `timeshift.php` transkoduje. — ID: M1.6-a
+  - Status: FINISHED
+  - Log: Owner: Claude | Finished: 2026-06-08 | SSH read-only provera `mainssl` (`136.243.57.82`/Tailscale `100.96.250.114`). Nalaz: original `timeshift.php` NE transkoduje (0 ffmpeg poziva); MP2 segmenti idu sirovi → otud nema zvuka u web MSE. Server-side fix `timeshift_shadow.php` POSTOJI (MP2→AAC, deployed 2026-03-16) ali NIJE aktiviran (nije routan/log/archive prazni). Verifikacija: ručno na serveru (read-only + ffmpeg encoder check). Detalji: memorija `videoteka-servers-timeshift-shadow.md`.
+> **📏 MERENJE CODECA (2026-06-08, ffprobe read-only na `ns3239635`/ovh-videoteka, 87 kanala sa arhivom):** Audio: 79 AAC (91% ✅), **7 MP2** (8% — `12,53,81,148,149,277,1495`), 1 MP3 (`1509`, Chrome svira ✅). Video: 84 h264 (✅), **3 HEVC** (`149,2927,30270` — Chrome desktop/Android NE dekoduju; `149`=MP2+HEVC). Snimanje NIJE na mainssl (`tv_archive` prazan) → glavni recording je `ns3239635` (Tailscale .34, 24TB, 16 CPU). **Zaključak: problem je mali i ciljan — realno ~7 MP2 kanala.**
+
+- [~] **M** **Server-side MP2→AAC (opcija A): hardening `timeshift_shadow.php` + dinamička codec-mapa.** Repo: `infra/videoteka-shadow/`. — ID: M1.6-b
+  - Status: IN PROGRESS
+  - Log: Owner: Claude | Started: 2026-06-08 | Povučena tačna live kopija shadow-a (`timeshift_shadow.live.php`, md5 `a4ae3c60`), napravljena `timeshift_shadow.hardened.php` sa 3 hardening izmene (ADD-only): (1) globalni concurrency cap (`SHADOW_MAX_CONCURRENT_BUILDS=4`, iznad → 503), (2) inline cache GC za `/tmp` (sampled 1/25, max-age 7200s), (3) **dinamička codec-mapa** (`probe-codec-map.sh` cron → JSON; shadow `409 step-aside` za AAC/MP3 kanale, fail-open na ffprobe za unknown — hvata kanale koji se prebace na MP2). HEVC se NE transkoduje. Verifikacija: `php -l` ✅ lokalno + serverski PHP 7.2 ✅; `bash -n` ✅. NIJE deploy-ovano (čeka izolovan test). Sledeće: M1.6-c (klijent), pa deploy/test (M1.6-e).
+- [ ] **S** **Klijentska integracija:** Lumen web da gađa `timeshift_shadow.php` (token/credentials format isti kao original) i da hendluje `409 step-aside` (`X-Lumen-Shadow: step-aside-safe`) → fallback na normalan catch-up put. `packages/api/src/xtream-codes-service.ts` + catch-up transport. — ID: M1.6-c
+  - Status: TODO
+  - Log: —
+- [ ] **S** **HEVC kanali (`149,2927,30270`): klijentska detekcija + poruka** (ne transkodujemo video). Proširiti postojeći `unsupportedAudioCodec` mehanizam (PR #224) na `unsupportedVideoCodec:'hevc'` → overlay „ovaj kanal koristi HEVC, podržan na Safari/iOS, ne na ovom uređaju". `HlsPlayerAdapter.ts`/`VideoPlayer.tsx`. — ID: M1.6-d
+  - Status: TODO
+  - Log: —
+- [ ] **M** **Izolovan test deploy** (vlasnička potvrda pre svakog koraka): backup → deploy hardened shadow na JEDAN recording server (`ns3239635`) → `php -l` na serveru → cron codec-mapa → nginx routing (samo ako nije već) → test na realnom MP2 kanalu (live+catch-up) u Chrome/PWA → CPU pod opterećenjem. Procedura+rollback: `infra/videoteka-shadow/README.md`. **ADD-only, instant rollback, original `timeshift.php` se NIKAD ne dira.** — ID: M1.6-e
+  - Status: TODO
+  - Log: —
+- **Verifikacija (exit grupe):** na realnom MP2 kanalu (live + catch-up) zvuk radi u Chrome/PWA; HEVC kanali daju jasnu poruku (ne crn/tih ekran); shadow ne obara CPU recording servera pod beta opterećenjem (≤500 korisnika).
+
 ### ✅ MVP Exit kriterijumi
 1. Login (Xtream + M3U), Live + VOD + Serije + EPG + Catch-up rade na realnom provajderu.
 2. 300s live burn-in bez 429 i bez memory rasta.
 3. Cast radi na bar jednom Chromecast + jednom TV-built-in uređaju, zapping bez crnog ekrana.
 4. PWA installable, offline fallback radi.
 5. Nijedan flow ne ostavlja beli ekran (error boundary) ni beskonačan spinner.
-6. `pnpm typecheck`, `pnpm lint`, `pnpm build`, `pnpm test:unit` zeleni.
+6. MP2 audio (M1.6): zvuk radi na MP2 kanalima u web/PWA, ILI je svesno dokumentovana opcija C sa jasnom porukom korisniku (ne tiha tišina).
+7. `pnpm typecheck`, `pnpm lint`, `pnpm build`, `pnpm test:unit` zeleni.
 
 ---
 

@@ -169,13 +169,33 @@ Monorepo: `@lumen/types` je koren zavisnosti za sve pakete. `apps/web` je Phase 
 ### 3.6 Google Cast
 
 **Dobro**
-- Sender hook (`useGoogleCastSender.ts`, 634 LOC verifikovano) — pun sync kontrakt (2s interval, 1.5s threshold), MP2 codec filter. [strength, high]
+- Sender hook (`useGoogleCastSender.ts`, 634 LOC verifikovano) — pun sync kontrakt (2s interval, 1.5s threshold). [strength, high]
+- **MP2 Cast guard** (`useGoogleCastSender.ts:12-13,127-128`, PR #224 grana): kad je live audio MP2, Cast se blokira sa porukom „nije dostupan za ovaj kanal". To je **guard sa porukom, NE rešenje audija** (vidi 3.6.1). [napomena, ispravka ranije tvrdnje „MP2 codec filter"]
 - Receiver (`receiver.html`) dual-video A/B bridge — čista preload/swap arhitektura sa perf stats. [strength, high]
 
 **Slabo**
 - **Cast App ID silent fallback**: `useGoogleCastSender.ts:9` `DEV_CAST_RECEIVER_APP_ID = 'CC1AD845'`; nema runtime greške ako prod ID nedostaje (`:101-108`, `:330`). [weakness, **medium**]
 - **Dual-video zapping na samom Cast prijemniku nije izvodljiv** — Cast uređaji izlažu jedan media element. Trenutni receiver A/B radi, ali strategija mora biti queue-preload ili source-swap. [risk, **high — strateški**]
 - Receiver observability je samo `console` (`[lumen-cast-observe]`), bez slanja nazad. [weakness, medium]
+
+### 3.6.1 MP2 audio — kanali bez zvuka u web/PWA [P0 audio gap, dodato 2026-06-08]
+
+> Verifikovano u kodu (grana `codex/qaf-035-production-web-catchup`, PR #224; na `main` ovog koda NEMA).
+
+**Problem (fundamentalan, ne bug):** Browser MSE (HLS.js put u Chrome/Edge) **ne dekoduje MPEG-1/2 Layer II (MP2) audio**. Kanali sa MP2 audio track-om imaju **sliku bez zvuka** — i live i catch-up. Native playeri (TiviMate) nemaju problem jer ne idu kroz MSE.
+
+**Šta JE urađeno (PR #224) — detekcija + graceful degradation, NE fix zvuka:**
+- `HlsPlayerAdapter.ts:596-606` — `shouldUseMpegAudioVideoOnlyFallback(url)` probe-uje live manifest; ako je MP2 → emituje `onUnsupportedAudioCodec` i pušta **video-only** (slika bez zvuka). [strength — degradacija umesto crnog ekrana]
+- `VideoPlayer.tsx:1742-1775,2892,3682` — hvata događaj, state, overlay poruka: „Zvuk nije dostupan za ovaj kanal. Kanal koristi MP2 audio… Video može raditi bez zvuka."
+- `sessionSources.ts:18,68,313` — propagira `unsupportedAudioCodec:'mp2'` kroz session metadata.
+- `useGoogleCastSender.ts:12,127` — blokira Cast za MP2 sa porukom.
+
+**Šta NIJE urađeno (i ovde je suština):**
+- **Stvarni fix zvuka = transcode MP2→AAC** — ne postoji aktivno nigde. Remux/copy NE pomaže (audio ostaje MP2). [gap, **high**]
+- Video-only fallback je gated samo na **live** (`isLiveSource && probeLiveMpegAudio`); catch-up MP2 putanja nije eksplicitno pokrivena istim probe-om. [gap, medium]
+- Sve to živi **samo na PR #224 grani** — na `main` (i u MVP baseline-u) MP2 detekcija ne postoji uopšte. [risk, **high**]
+
+**Strateška kontradikcija (vidi 3.4 + 4):** transcode put POSTOJI napisan (`apps/proxy/src/catchup-remux.ts`, profil `transcode` → `-c:a aac`), ali ga je **QAF-035 no-media politika namerno hard-disable-ovala** (`server.ts:597,624,722` → 410; web `catchupGateway.ts:194` isključuje `proxy-remuxed`; `e5e9e07` disable-ovao i probe). Dakle jedino tehničko rešenje za zvuk je politikom zabranjeno. Odluka (transcode na serveru videoteke vs reaktivacija proxy transcode-a vs prihvatanje degradacije) je vlasnička i nije doneta. Praćeno kao task **M1.6** u `RELEASE-PLAN-MVP-BETA-FINAL.md`.
 
 ### 3.7 PWA / push
 
