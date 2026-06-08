@@ -68,10 +68,10 @@ Prazan task izgleda ovako (početno stanje):
 
 | Faza | Ukupno | TODO | IN PROGRESS | FINISHED | BLOCKED | N/A |
 |---|---|---|---|---|---|---|
-| MVP (M1.x) | 22 | 18 | 1 | 3 | 0 | 0 |
+| MVP (M1.x) | 22 | 17 | 1 | 3 | 1 | 0 |
 | BETA (B2.x) | 19 | 19 | 0 | 0 | 0 | 0 |
 | FINAL (F3.x) | 19 | 19 | 0 | 0 | 0 | 0 |
-| **Σ** | **60** | **56** | **1** | **3** | **0** | **0** |
+| **Σ** | **60** | **55** | **1** | **3** | **1** | **0** |
 
 **Sledeći task na redu:** `M1.1-a` — `enableWorker: true` za live (`HlsPlayerAdapter.ts:627`).
 
@@ -192,9 +192,9 @@ Verifikovano u kodu na grani `codex/qaf-035-production-web-catchup`:
 - [x] **S** **HEVC kanali (`149,2927,30270`): klijentska detekcija + poruka** (ne transkodujemo video). — ID: M1.6-d
   - Status: FINISHED
   - Log: Owner: Claude | Finished: 2026-06-08 | Proširen postojeći MP2 mehanizam na HEVC: `mpegTsAudioStrip.ts` detektuje HEVC video (stream_type `0x24` → `hasHevcVideo`); `HlsPlayerAdapter` — `probeLiveCodecSupport` (refaktor probe-a) emituje novi `onUnsupportedVideoCodec({hevc})`; `VideoPlayer.tsx` — state + hook + reset + overlay poruka „Slika možda neće raditi… HEVC… radi na Safari/iOS, ne na Chrome desktop/Android" (objedinjen overlay sa MP2 porukom za dupli kanal 149); `sessionSources.ts` — `unsupportedVideoCodec:'hevc'` u metadata (tipovi + marshaling). Testovi: +2 (HEVC 0x24 detekcija, H.264 0x1b negativni). Verifikacija: typecheck ✅ lint ✅ vitest 242/242 ✅.
-- [ ] **M** **Izolovan test deploy** (vlasnička potvrda pre svakog koraka): backup → deploy hardened shadow na JEDAN recording server (`ns3239635`) → `php -l` na serveru → cron codec-mapa → nginx routing (samo ako nije već) → test na realnom MP2 kanalu (live+catch-up) u Chrome/PWA → CPU pod opterećenjem. Procedura+rollback: `infra/videoteka-shadow/README.md`. **ADD-only, instant rollback, original `timeshift.php` se NIKAD ne dira.** — ID: M1.6-e
-  - Status: TODO
-  - Log: —
+- [!] **M** **Izolovan test deploy** (vlasnička potvrda pre svakog koraka): backup → deploy shadow na JEDAN recording server (`ns3239635`) → `php -l` → cron codec-mapa → nginx routing (samo ako nije već) → test na realnom MP2 kanalu (live+catch-up) → CPU pod opterećenjem. Procedura+rollback: `infra/videoteka-shadow/README.md`. **ADD-only, instant rollback, original `timeshift.php` se NIKAD ne dira.** — ID: M1.6-e
+  - Status: BLOCKED
+  - Log: Updated: 2026-06-08 | **BLOKIRAN — preflight otkrio da je na produkciji (ns3239635) već naprednija `SHADOW_BUILD_VERSION='v9'` (1863 lin, md5 `2eedee9a`) vs naš baseline (910 lin).** v9 ima MP2→AAC transcode + MP4 lead-gap fix + token/IP hashing, ALI nema naše 3 hardening izmene (concurrency/GC/codec-map). Deploy naše stare verzije bi REGRESIRAO v9 → zaustavljeno. Čeka vlasničku odluku: (A) portovati hardening na v9 [preporuka], (B) deploy v9 as-is, (C) drugo. Detalji: memorija `videoteka-servers-timeshift-shadow.md`.
 - **Verifikacija (exit grupe):** na realnom MP2 kanalu (live + catch-up) zvuk radi u Chrome/PWA; HEVC kanali daju jasnu poruku (ne crn/tih ekran); shadow ne obara CPU recording servera pod beta opterećenjem (≤500 korisnika).
 
 ### ✅ MVP Exit kriterijumi
