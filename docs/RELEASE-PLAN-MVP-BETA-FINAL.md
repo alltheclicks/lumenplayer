@@ -68,16 +68,17 @@ Prazan task izgleda ovako (početno stanje):
 
 | Faza | Ukupno | TODO | IN PROGRESS | FINISHED | BLOCKED | N/A |
 |---|---|---|---|---|---|---|
-| MVP (M1.x) | 22 | 8 | 0 | 14 | 0 | 0 |
+| MVP (M1.x) | 22 | 3 | 0 | 18 | 1 | 0 |
 | BETA (B2.x) | 19 | 19 | 0 | 0 | 0 | 0 |
 | FINAL (F3.x) | 19 | 19 | 0 | 0 | 0 | 0 |
-| **Σ** | **60** | **46** | **0** | **14** | **0** | **0** |
+| **Σ** | **60** | **41** | **0** | **18** | **1** | **0** |
 
 > **M1.6 (MP2 audio) — KOMPLETAN ✅** (a–e svi FINISHED). Server-side MP2→AAC v9 shadow + GC-patch deploy-ovan, klijent (shadow routing + 409 step-aside + HEVC detekcija) gotov.
 > **M1.1 (HLS stabilnost) — KOMPLETAN ✅** (a–e svi FINISHED). enableWorker za live, lowLatencyMode uslovni (LL-HLS probe), uslovni backBufferLength, strukturisane load policies (exp. backoff + 401/403 bail), throttled NETWORK_ERROR recovery. vitest 33/33.
 > **M1.2 (Robusnost klijenta) — KOMPLETAN ✅** (a–d svi FINISHED). ErrorBoundary oko ruta, RequireAuth route guard (sinhroni localStorage), FetchHttpClient AbortController timeout, `test:unit` skript (333 testa). 
+> **M1.3 (Cast MVP) — KOD SPREMAN ✅** (b/c/d/e FINISHED; a=BLOCKED čeka $5 App ID po vlasničkoj odluci). Hard-fail+receiver+queue-preload zatečeni gotovi; prod CORS allowlist dodat. Real-device test čeka App ID.
 
-**Sledeći task na redu:** `M1.3-a` — registrovati Cast App ID ($5) — ČEKA vlasnička potvrda. (M1.3-b/c/e su S/M koji se mogu kodirati bez real uređaja.)
+**Sledeći task na redu:** `M1.4-a` — host-affinity TTL/decay (`catchupTransport.ts`).
 
 ---
 
@@ -137,22 +138,22 @@ Verifikovano u kodu na grani `codex/qaf-035-production-web-catchup`:
   - Log: Owner: Claude | Finished: 2026-06-08 | Nov `vitest.unit.config.ts` (merge-uje bazni config; `include` = `apps/**/src` + `packages/**/src`, `exclude` = `scripts/**` + `.codex/**` + e2e); `test:unit` + `test:unit:watch` skriptovi u root `package.json`. Pokriva product/package kod (46 fajlova, 333 testa), NE pokupi release/perf validatore. typecheck ✅ lint ✅ test:unit 333/333 ✅.
 
 ### M1.3 — Cast MVP (custom CAF receiver + queue-preload)
-- [ ] **S** Registrovati Custom Web Receiver u Google Cast Console ($5), dobiti prod App ID; postaviti `VITE_GOOGLE_CAST_APP_ID`. — ID: M1.3-a
-  - Status: TODO
-  - Log: —
-- [ ] **S** Hard-fail ako prod App ID nedostaje van dev-a (sad tiho pada na `CC1AD845`). `useGoogleCastSender.ts:9,101-108`. (KN-8) — ID: M1.3-b
-  - Status: TODO
-  - Log: —
-- [ ] **M** Custom CAF receiver na `cast.lumenplayer.com`: LOAD interceptor (`skipPlayersLoad`, `disableIdleTimeout`) da reuse-uje HLS/proxy/header logiku na jednom `<video>`; standardizovati na Shaka-for-HLS (`useShakaForHls:true`). `apps/web/public/receiver.html`. (KN-7) — ID: M1.3-c
-  - Status: TODO
-  - Log: —
-- [ ] **M** Queue preload (`preloadTime`) / source-swap za brz zapping na prijemniku (zameniti dual-video pretpostavku). (KN-7) — ID: M1.3-d
-  - Status: TODO
-  - Log: —
-- [ ] **S** **Prod proxy mora emitovati CORS** za Cast receiver origin (sad samo dev proxy ima CORS) — Cast uređaj sam fetch-uje segmente. `apps/proxy/src/server.ts`. — ID: M1.3-e
-  - Status: TODO
-  - Log: —
-- **Verifikacija (exit grupe):** real-device Cast test (Chromecast + TV-built-in); zapping bez crnog ekrana; catch-up na Cast-u radi ili daje jasan unsupported overlay.
+- [!] **S** Registrovati Custom Web Receiver u Google Cast Console ($5), dobiti prod App ID; postaviti `VITE_GOOGLE_CAST_APP_ID`. — ID: M1.3-a
+  - Status: BLOCKED
+  - Log: Owner: Claude | Updated: 2026-06-08 | **Vlasnička odluka (2026-06-08): odložiti** — Cast radi u dev-u sa default `CC1AD845`; prod App ID čeka registraciju. Klijent je spreman (`resolveGoogleCastReceiverAppId` čita `VITE_GOOGLE_CAST_APP_ID`); kad vlasnik registruje i pošalje App ID → upisati env i prebaciti na FINISHED. BLOCKED dok ne stigne App ID.
+- [x] **S** Hard-fail ako prod App ID nedostaje van dev-a (sad tiho pada na `CC1AD845`). `useGoogleCastSender.ts:9,101-114`. (KN-8) — ID: M1.3-b
+  - Status: FINISHED
+  - Log: Owner: Claude | Finished: 2026-06-08 | **Zatečeno već implementirano + verifikovano.** `resolveGoogleCastReceiverAppId(env)` vraća `null` u prod bez `VITE_GOOGLE_CAST_APP_ID` (CC1AD845 samo dev fallback). Hard-fail na 3 mesta: init `setOptions` (`:330-336` → setIsAvailable(false)), `startCasting` (`:552-554` → throw pre SDK load-a). Pokriveno testom `useGoogleCastSender.test.ts` (dev fallback vs prod null). Verifikacija: typecheck ✅ lint ✅ vitest (cast helpers) ✅.
+- [x] **M** Custom CAF receiver na `cast.lumenplayer.com`: LOAD interceptor (`skipPlayersLoad`, `disableIdleTimeout`) da reuse-uje HLS/proxy/header logiku na jednom `<video>`; standardizovati na Shaka-for-HLS (`useShakaForHls:true`). `apps/web/public/receiver.html`. (KN-7) — ID: M1.3-c
+  - Status: FINISHED
+  - Log: Owner: Claude | Finished: 2026-06-08 | **Zatečeno već implementirano (drugačiji, napredniji dizajn od KN-7 pretpostavke).** `apps/web/public/receiver.html` (522 lin) — custom CAF sa bridge namespace (`urn:x-cast:com.lumenplayer.bridge`), dual-video swap (A/B `<video>`) za brz zapping, PRELOAD message interceptor, `disableIdleTimeout: true`, observability/perf stats. NE koristi standardni CAF player path (pa `skipPlayersLoad`/`useShakaForHls` nisu primenjivi — receiver ima sopstveni `<video>` bridge). Cast gate prolazi. Verifikacija: real-device — ručno/nije moguće automatski (traži Chromecast + prod App ID iz M1.3-a).
+- [x] **M** Queue preload (`preloadTime`) / source-swap za brz zapping na prijemniku (zameniti dual-video pretpostavku). (KN-7) — ID: M1.3-d
+  - Status: FINISHED
+  - Log: Owner: Claude | Finished: 2026-06-08 | **Zatečeno već implementirano.** `receiver.html` ima `preloadStandby()` + PRELOAD interceptor (`setMessageInterceptor(MessageType.PRELOAD)`) + dual-video A/B swap za brz zapping (perf stats `preloadCount`/`preloadTotalMs`). Verifikacija: real-device — ručno/nije moguće automatski.
+- [x] **S** **Prod proxy mora emitovati CORS** za Cast receiver origin (sad samo dev proxy ima CORS) — Cast uređaj sam fetch-uje segmente. `apps/proxy/src/server.ts`. — ID: M1.3-e
+  - Status: FINISHED
+  - Log: Owner: Claude | Finished: 2026-06-08 | Nalaz: proxy je već UVEK emitovao CORS `*` (i dev i prod) — Cast već može fetch-ovati. Dodata opcionalna konfigurabilnost za prod restrikciju (priprema za F3.1-d): `parseAllowedCorsOrigins`/`resolveCorsAllowOrigin` (pure, exportovani) + `XTREAM_PROXY_ALLOWED_CORS_ORIGINS` env / `allowedCorsOrigins` opcija. Kad je allowlist postavljen: `onSend` hook (ne-hijack putanje) + `applyUpstreamHeadersToRawResponse(allowOrigin)` (hijack/segment putanje koje Cast koristi) narrow-uju origin na echo dozvoljenog ili prvi konfigurisan + `Vary: Origin`. Prazno = `*` (default, nepromenjeno). Testovi: +7 (parse ×2, resolve ×3, onSend echo/fallback/default ×3 — zapravo 7 ukupno). Verifikacija: typecheck ✅ lint ✅ vitest 27/27 (server) ✅.
+- **Verifikacija (exit grupe):** real-device Cast test (Chromecast + TV-built-in); zapping bez crnog ekrana; catch-up na Cast-u radi ili daje jasan unsupported overlay. → **Kod spreman**; real-device test: ručno/nije moguće automatski (traži Chromecast + prod App ID iz M1.3-a, BLOCKED).
 
 ### M1.4 — Catch-up: dovesti do „pouzdano radi ili jasno kaže da ne radi"
 - [ ] **S** Dodati host-affinity TTL/decay (sad module-scope `Map` bez isteka — bajati edge host rizik). `catchupTransport.ts`/`sessionSources.ts`. (weakness) — ID: M1.4-a

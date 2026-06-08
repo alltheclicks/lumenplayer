@@ -3,7 +3,12 @@ import path from "node:path";
 import { mkdir, writeFile } from "node:fs/promises";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createCatchUpRemuxController } from "./catchup-remux.js";
-import { createProxyServer, parseAllowedHosts } from "./server.js";
+import {
+  createProxyServer,
+  parseAllowedHosts,
+  parseAllowedCorsOrigins,
+  resolveCorsAllowOrigin,
+} from "./server.js";
 
 const encodeTarget = (value: string): string => encodeURIComponent(value);
 
@@ -90,6 +95,36 @@ describe("parseAllowedHosts", () => {
       "*.castcdn.net",
       "localhost",
     ]);
+  });
+});
+
+describe("parseAllowedCorsOrigins (M1.3-e)", () => {
+  it("returns an empty list when unset", () => {
+    expect(parseAllowedCorsOrigins(undefined)).toEqual([]);
+    expect(parseAllowedCorsOrigins("")).toEqual([]);
+  });
+
+  it("parses and lower-cases comma-separated origins", () => {
+    expect(parseAllowedCorsOrigins(" https://Cast.LumenPlayer.com , https://app.example ,, "))
+      .toEqual(["https://cast.lumenplayer.com", "https://app.example"]);
+  });
+});
+
+describe("resolveCorsAllowOrigin (M1.3-e)", () => {
+  it("falls back to wildcard when no allowlist is configured", () => {
+    expect(resolveCorsAllowOrigin("https://cast.lumenplayer.com", [])).toBe("*");
+    expect(resolveCorsAllowOrigin(undefined, [])).toBe("*");
+  });
+
+  it("echoes the request origin when it is in the allowlist", () => {
+    const allow = ["https://cast.lumenplayer.com", "https://app.example"];
+    expect(resolveCorsAllowOrigin("https://app.example", allow)).toBe("https://app.example");
+  });
+
+  it("falls back to the first configured origin for unknown/missing origins", () => {
+    const allow = ["https://cast.lumenplayer.com", "https://app.example"];
+    expect(resolveCorsAllowOrigin("https://evil.example", allow)).toBe("https://cast.lumenplayer.com");
+    expect(resolveCorsAllowOrigin(undefined, allow)).toBe("https://cast.lumenplayer.com");
   });
 });
 
@@ -228,6 +263,51 @@ describe("createProxyServer", () => {
     expect(response.statusCode).toBe(204);
     expect(response.headers["access-control-allow-origin"]).toBe("*");
     expect(response.headers["access-control-allow-methods"]).toContain("POST");
+
+    await app.close();
+  });
+
+  it("narrows CORS to the configured Cast origin when an allowlist is set (M1.3-e)", async () => {
+    const app = createProxyServer({
+      allowedHosts: ["*"],
+      allowedCorsOrigins: ["https://cast.lumenplayer.com", "https://app.example"],
+      logger: false,
+      sweepIntervalMs: 0,
+      remuxController: createTestRemuxController(),
+    });
+
+    const echoed = await app.inject({
+      method: "OPTIONS",
+      url: "/catchup-gateway/resolve",
+      headers: { origin: "https://app.example" },
+    });
+    expect(echoed.headers["access-control-allow-origin"]).toBe("https://app.example");
+    expect(echoed.headers.vary).toContain("Origin");
+
+    const fallback = await app.inject({
+      method: "OPTIONS",
+      url: "/catchup-gateway/resolve",
+      headers: { origin: "https://not-allowed.example" },
+    });
+    expect(fallback.headers["access-control-allow-origin"]).toBe("https://cast.lumenplayer.com");
+
+    await app.close();
+  });
+
+  it("keeps wildcard CORS when no allowlist is configured (M1.3-e default)", async () => {
+    const app = createProxyServer({
+      allowedHosts: ["*"],
+      logger: false,
+      sweepIntervalMs: 0,
+      remuxController: createTestRemuxController(),
+    });
+
+    const response = await app.inject({
+      method: "OPTIONS",
+      url: "/catchup-gateway/resolve",
+      headers: { origin: "https://app.example" },
+    });
+    expect(response.headers["access-control-allow-origin"]).toBe("*");
 
     await app.close();
   });

@@ -63,6 +63,11 @@ export interface ProxyServerOptions {
   logger?: boolean;
   env?: NodeJS.ProcessEnv;
   remuxController?: CatchUpRemuxController;
+  /**
+   * Explicit CORS origin allowlist (e.g. the Cast receiver origin). Empty =>
+   * wildcard `*` (default, unchanged). (M1.3-e)
+   */
+  allowedCorsOrigins?: string[];
 }
 
 type ParsedTarget = {
@@ -100,6 +105,44 @@ export const parseAllowedHosts = (value: string | undefined): string[] => {
     .split(",")
     .map(normalizeAllowedHostEntry)
     .filter(Boolean);
+};
+
+// M1.3-e: CORS origin allowlist parsing. Origins keep their scheme but are
+// trimmed and lower-cased so the request `Origin` header can be matched
+// exactly. An empty/unset value means "wildcard" (the prior behavior).
+export const parseAllowedCorsOrigins = (value: string | undefined): string[] => {
+  if (!value) {
+    return [];
+  }
+
+  return value
+    .split(",")
+    .map((entry) => entry.trim().toLowerCase())
+    .filter(Boolean);
+};
+
+/**
+ * Resolves the value for `access-control-allow-origin`:
+ * - no allowlist configured -> "*" (unchanged default, lets any sender/Cast
+ *   device fetch segments)
+ * - request Origin is in the allowlist -> echo that exact origin
+ * - request Origin missing/not allowed -> first configured origin (so a
+ *   configured Cast receiver origin still receives a valid, non-wildcard header)
+ */
+export const resolveCorsAllowOrigin = (
+  requestOrigin: string | undefined,
+  allowedCorsOrigins: string[],
+): string => {
+  if (allowedCorsOrigins.length === 0) {
+    return "*";
+  }
+
+  const normalizedRequestOrigin = requestOrigin?.trim().toLowerCase();
+  if (normalizedRequestOrigin && allowedCorsOrigins.includes(normalizedRequestOrigin)) {
+    return requestOrigin as string;
+  }
+
+  return allowedCorsOrigins[0];
 };
 
 export const isHostAllowed = (host: string, allowedHosts: string[]): boolean => {
@@ -262,11 +305,13 @@ const streamTransportSegmentWithLeadingJunkStripped = async ({
   statusCode,
   headers,
   body,
+  allowOrigin = "*",
 }: {
   reply: FastifyReply;
   statusCode: number;
   headers: Headers;
   body: ReadableStream<Uint8Array>;
+  allowOrigin?: string;
 }): Promise<void> => {
   const reader = body.getReader();
   const prefixChunks: Uint8Array[] = [];
@@ -300,7 +345,7 @@ const streamTransportSegmentWithLeadingJunkStripped = async ({
 
   reply.hijack();
   reply.raw.statusCode = statusCode;
-  applyUpstreamHeadersToRawResponse(reply, headers);
+  applyUpstreamHeadersToRawResponse(reply, headers, allowOrigin);
   if (contentLength !== null) {
     reply.raw.setHeader("content-length", String(Math.max(0, contentLength - syncOffset)));
   }
@@ -449,9 +494,16 @@ const applyUpstreamHeaders = (reply: FastifyReply, headers: Headers, rewrittenLo
 const applyUpstreamHeadersToRawResponse = (
   reply: FastifyReply,
   headers: Headers,
+  allowOrigin = "*",
   rewrittenLocation?: string,
 ): void => {
-  reply.raw.setHeader("access-control-allow-origin", "*");
+  // Hijacked (streamed) responses bypass the onSend hook, so the resolved CORS
+  // origin must be applied directly here — this is the path the Cast receiver
+  // device uses to fetch HLS segments. (M1.3-e)
+  reply.raw.setHeader("access-control-allow-origin", allowOrigin);
+  if (allowOrigin !== "*") {
+    reply.raw.setHeader("vary", "Origin");
+  }
   reply.raw.setHeader("access-control-allow-methods", "GET,HEAD,OPTIONS");
   reply.raw.setHeader("access-control-allow-headers", "*");
   reply.raw.setHeader("access-control-expose-headers", "*");
@@ -641,6 +693,10 @@ export const createProxyServer = (options: ProxyServerOptions = {}): FastifyInst
     parseNonNegativeInteger(env.LUMEN_CATCHUP_GATEWAY_PER_SERVER_CONCURRENCY, 2),
   );
   const remuxPlaybackRequestsAllowed = createDefaultServerPolicy(env).allowedModes.includes("proxy-remuxed");
+  const allowedCorsOrigins = (
+    options.allowedCorsOrigins ??
+    parseAllowedCorsOrigins(env.XTREAM_PROXY_ALLOWED_CORS_ORIGINS)
+  );
   const fetchImpl = options.fetchImpl ?? fetch;
 
   const app = Fastify({
@@ -680,6 +736,19 @@ export const createProxyServer = (options: ProxyServerOptions = {}): FastifyInst
     await remuxController.close();
   });
 
+  // M1.3-e: when an explicit CORS origin allowlist is configured, narrow the
+  // wildcard `access-control-allow-origin` set by applyCorsHeaders down to the
+  // resolved origin for every non-hijacked response. Hijacked (streamed)
+  // responses are handled directly in applyUpstreamHeadersToRawResponse.
+  if (allowedCorsOrigins.length > 0) {
+    app.addHook("onSend", async (request, reply, payload) => {
+      const resolvedOrigin = resolveCorsAllowOrigin(request.headers.origin, allowedCorsOrigins);
+      reply.header("access-control-allow-origin", resolvedOrigin);
+      reply.header("vary", "Origin");
+      return payload;
+    });
+  }
+
   const handleProxyRequest = async (
     request: ProxyHandlerRequest,
     reply: FastifyReply,
@@ -690,6 +759,10 @@ export const createProxyServer = (options: ProxyServerOptions = {}): FastifyInst
       reply.code(204).send();
       return;
     }
+
+    // Resolved CORS origin for the streamed (hijacked) response paths, which
+    // bypass the onSend hook. (M1.3-e)
+    const corsAllowOrigin = resolveCorsAllowOrigin(request.headers.origin, allowedCorsOrigins);
 
     const parsedTarget = parseEncodedTarget(request.params.encodedTarget);
     if (!parsedTarget) {
@@ -827,11 +900,12 @@ export const createProxyServer = (options: ProxyServerOptions = {}): FastifyInst
             statusCode: upstreamResponse.status,
             headers: upstreamResponse.headers,
             body: upstreamResponse.body,
+            allowOrigin: corsAllowOrigin,
           });
         } else if (upstreamResponse.body) {
           reply.hijack();
           reply.raw.statusCode = upstreamResponse.status;
-          applyUpstreamHeadersToRawResponse(reply, upstreamResponse.headers);
+          applyUpstreamHeadersToRawResponse(reply, upstreamResponse.headers, corsAllowOrigin);
           await upstreamResponse.body.pipeTo(Writable.toWeb(reply.raw));
         } else {
           applyUpstreamHeaders(reply, upstreamResponse.headers);
