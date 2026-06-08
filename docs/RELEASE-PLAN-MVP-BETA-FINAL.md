@@ -68,14 +68,15 @@ Prazan task izgleda ovako (početno stanje):
 
 | Faza | Ukupno | TODO | IN PROGRESS | FINISHED | BLOCKED | N/A |
 |---|---|---|---|---|---|---|
-| MVP (M1.x) | 22 | 17 | 0 | 5 | 0 | 0 |
+| MVP (M1.x) | 22 | 12 | 0 | 10 | 0 | 0 |
 | BETA (B2.x) | 19 | 19 | 0 | 0 | 0 | 0 |
 | FINAL (F3.x) | 19 | 19 | 0 | 0 | 0 | 0 |
-| **Σ** | **60** | **55** | **0** | **5** | **0** | **0** |
+| **Σ** | **60** | **50** | **0** | **10** | **0** | **0** |
 
 > **M1.6 (MP2 audio) — KOMPLETAN ✅** (a–e svi FINISHED). Server-side MP2→AAC v9 shadow + GC-patch deploy-ovan, klijent (shadow routing + 409 step-aside + HEVC detekcija) gotov.
+> **M1.1 (HLS stabilnost) — KOMPLETAN ✅** (a–e svi FINISHED). enableWorker za live, lowLatencyMode uslovni (LL-HLS probe), uslovni backBufferLength, strukturisane load policies (exp. backoff + 401/403 bail), throttled NETWORK_ERROR recovery. vitest 33/33.
 
-**Sledeći task na redu:** `M1.1-a` — `enableWorker: true` za live (`HlsPlayerAdapter.ts:627`).
+**Sledeći task na redu:** `M1.2-a` — Error boundary oko `<Outlet />` (`AppShell.tsx`/`App.tsx`).
 
 ---
 
@@ -103,22 +104,22 @@ Verifikovano u kodu na grani `codex/qaf-035-production-web-catchup`:
 > **Cilj:** Pouzdan player koji prvi realni korisnik (npr. „mama u Nemačkoj") može da instalira i koristi za Live + VOD + Serije + EPG + Catch-up, i da prebaci na TV preko Cast-a. Sve mora da radi *stabilno*, bez vidljivih grešaka i bez 429 rate-limit padova.
 
 ### M1.1 — HLS stabilnost & performanse (PRVO, najveći ROI)
-- [ ] **S** `enableWorker: true` za live. `HlsPlayerAdapter.ts:627`. (KN-1) — ID: M1.1-a
-  - Status: TODO
-  - Log: —
-- [ ] **S** `lowLatencyMode: false` za Xtream live; uključi `true` samo ako manifest sadrži `EXT-X-PART`/`EXT-X-SERVER-CONTROL`. `HlsPlayerAdapter.ts:628`. (KN-2) — ID: M1.1-b
-  - Status: TODO
-  - Log: —
-- [ ] **S** Live `backBufferLength` ~10–30s; catch-up zadrži ~90s. `HlsPlayerAdapter.ts:638`. (KN-3) — ID: M1.1-c
-  - Status: TODO
-  - Log: —
-- [ ] **M** Strukturisane HLS load policies: `fragLoadPolicy`/`playlistLoadPolicy` sa `backoff:'exponential'`, `maxRetryDelayMs ~8s`, `shouldRetry` bail na 401/403. `HlsPlayerAdapter.ts`. — ID: M1.1-d
-  - Status: TODO
-  - Log: —
-- [ ] **S** Fatal `NETWORK_ERROR` → throttled `startLoad()` recovery (trenutno se oporavlja samo `MEDIA_ERROR`). `HlsPlayerAdapter.ts`. — ID: M1.1-e
-  - Status: TODO
-  - Log: —
-- **Verifikacija (exit grupe):** live channel-surf + 300s burn-in; network track BEZ 429; memory profil pri rapidnom zap-u stabilan.
+- [x] **S** `enableWorker: true` za live. `HlsPlayerAdapter.ts:712`. (KN-1) — ID: M1.1-a
+  - Status: FINISHED
+  - Log: Owner: Claude | Finished: 2026-06-08 | `enableWorker: !isLiveSource` → `enableWorker: true` (`HlsPlayerAdapter.ts:712`) — worker offload i za live. Ažurirana 3 live config testa (više ne očekuju `enableWorker:false`). Testovi: typecheck ✅ lint ✅ vitest 33/33 ✅. Verifikacija: 300s live burn-in — ručno/nije moguće automatski (traži živi provajder).
+- [x] **S** `lowLatencyMode: false` za Xtream live; uključi `true` samo ako manifest sadrži `EXT-X-PART`/`EXT-X-SERVER-CONTROL`. `HlsPlayerAdapter.ts:717`. (KN-2) — ID: M1.1-b
+  - Status: FINISHED
+  - Log: Owner: Claude | Finished: 2026-06-08 | `lowLatencyMode: isLiveSource && codecProbe.lowLatencyHls` (`:717`). Live probe (`probeLiveCodecSupport`) sad čita media manifest i detektuje LL-HLS markere (`isLowLatencyHlsManifest`: `EXT-X-PART`/`EXT-X-PART-INF` ili `CAN-BLOCK-RELOAD=YES`); bez markera (tipičan Xtream) → standardni mod. Nov test: LL mod se pali samo na pravi LL manifest. Testovi: typecheck ✅ lint ✅ vitest 33/33 ✅.
+- [x] **S** Live `backBufferLength` ~10–30s; catch-up zadrži ~90s. `HlsPlayerAdapter.ts:729`. (KN-3) — ID: M1.1-c
+  - Status: FINISHED
+  - Log: Owner: Claude | Finished: 2026-06-08 | `backBufferLength` sad uslovni: catch-up 90s (`HLS_CATCHUP_BACK_BUFFER_LENGTH_SECONDS`), live 30s (`HLS_LIVE_BACK_BUFFER_LENGTH_SECONDS`) — ranije hardkodirano 90 za oba (`:729`). Testovi proveravaju oba slučaja. typecheck ✅ lint ✅ vitest 33/33 ✅.
+- [x] **M** Strukturisane HLS load policies: `fragLoadPolicy`/`playlistLoadPolicy` sa `backoff:'exponential'`, `maxRetryDelayMs ~8s`, `shouldRetry` bail na 401/403. `HlsPlayerAdapter.ts:745`. — ID: M1.1-d
+  - Status: FINISHED
+  - Log: Owner: Claude | Finished: 2026-06-08 | `HlsPlayerAdapter.buildLoadPolicy()` (`:1336`) gradi `LoadPolicy` sa `errorRetry` (`backoff:'exponential'`, `retryDelayMs:1s`, `maxRetryDelayMs:8s`, `shouldRetry` bail na 401/403) + `timeoutRetry`; primenjen na `fragLoadPolicy` (4 retry) i `playlistLoadPolicy` (3 retry) (`:745-746`). Importovani hls.js tipovi `LoadPolicy/LoaderResponse/RetryConfig` (v1.6.15). Nov test: shouldRetry vraća false na 403/401, true na 502. typecheck ✅ lint ✅ vitest 33/33 ✅.
+- [x] **S** Fatal `NETWORK_ERROR` → throttled `startLoad()` recovery (trenutno se oporavlja samo `MEDIA_ERROR`). `HlsPlayerAdapter.ts:989`. — ID: M1.1-e
+  - Status: FINISHED
+  - Log: Owner: Claude | Finished: 2026-06-08 | Nova grana u `onHlsError`: fatal `NETWORK_ERROR` posle settled startup-a (i status nije 401/403) → `scheduleNetworkErrorRecovery()` (`:1639`): jedan throttled timer (3s), max 3 pokušaja, `startLoad()` umesto destroy; budžet se resetuje na `BUFFER_APPENDED`. Auth status → bez recovery (teardown). Timer se čisti u `resetBufferingRecovery` (clearHls/stop/destroy). 2 nova testa (throttled recovery na 502; bez recovery na 403). typecheck ✅ lint ✅ vitest 33/33 ✅.
+- **Verifikacija (exit grupe):** live channel-surf + 300s burn-in; network track BEZ 429; memory profil pri rapidnom zap-u stabilan. → **Automatski deo (unit) ✅**; živi burn-in/429/memory profil: ručno/nije moguće automatski (traži živi provajder), ostaje za QA pre bete.
 
 ### M1.2 — Robusnost klijenta
 - [ ] **S** Error boundary oko `<Outlet />`. `AppShell.tsx` / `App.tsx`. (gap) — ID: M1.2-a

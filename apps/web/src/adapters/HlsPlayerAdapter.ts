@@ -1,4 +1,9 @@
-import Hls, { type ErrorData } from 'hls.js';
+import Hls, {
+  type ErrorData,
+  type LoadPolicy,
+  type LoaderResponse,
+  type RetryConfig,
+} from 'hls.js';
 import type {
   AudioTrackOption,
   MediaSource,
@@ -21,8 +26,27 @@ const HLS_CATCHUP_MAX_BUFFER_LENGTH_SECONDS = 90;
 const HLS_CATCHUP_MAX_BUFFER_SIZE_MB = 180;
 const HLS_LIVE_MAX_BUFFER_LENGTH_SECONDS = 30;
 const HLS_LIVE_MAX_BUFFER_SIZE_MB = 60;
+// Back-buffer retention: catch-up keeps a wide window so the user can scrub back,
+// while live only needs a short tail to recover from brief decode hiccups (KN-3).
+const HLS_CATCHUP_BACK_BUFFER_LENGTH_SECONDS = 90;
+const HLS_LIVE_BACK_BUFFER_LENGTH_SECONDS = 30;
 const HLS_LIVE_MPEG_AUDIO_PREFLIGHT_TIMEOUT_MS = 4_000;
 const HLS_LIVE_MPEG_AUDIO_PREFLIGHT_RANGE_END = 256 * 1024 - 1;
+// Structured load-retry policy (KN/M1.1-d): exponential backoff with a capped
+// max delay, applied to both fragment and playlist loaders.
+const HLS_LOAD_POLICY_MAX_RETRY_DELAY_MS = 8_000;
+const HLS_LOAD_POLICY_INITIAL_RETRY_DELAY_MS = 1_000;
+const HLS_FRAG_LOAD_MAX_RETRY = 4;
+const HLS_PLAYLIST_LOAD_MAX_RETRY = 3;
+const HLS_LOAD_TIMEOUT_MS = 20_000;
+const HLS_LOAD_TIMEOUT_MAX_RETRY = 2;
+// Throttle for fatal NETWORK_ERROR startLoad() recovery (M1.1-e) so a flapping
+// upstream cannot trigger a tight reload loop that trips provider 429 limits.
+const HLS_NETWORK_ERROR_RECOVERY_DELAY_MS = 3_000;
+const HLS_NETWORK_ERROR_RECOVERY_MAX_ATTEMPTS = 3;
+// HTTP statuses that must never be retried — the upstream is rejecting auth, so
+// retrying only burns request budget and risks provider rate limiting.
+const HLS_NON_RETRYABLE_HTTP_STATUSES = new Set([401, 403]);
 const PLAYBACK_LOAD_CANCELLED_MESSAGE = 'Playback load was cancelled.';
 
 type StateListener = (state: PlaybackState) => void;
@@ -176,15 +200,35 @@ const fetchPlaylistText = async (url: string): Promise<{ url: string; text: stri
   };
 };
 
-const resolveLiveProbeSegmentUrl = async (manifestUrl: string): Promise<string | null> => {
+// Low-latency HLS markers. Their presence in the *media* playlist means the
+// server actually supports LL-HLS partial segments; only then is it safe to
+// turn on hls.js `lowLatencyMode` for a live stream (M1.1-b / KN-2). Plain
+// Xtream live playlists never carry these, so they default to standard mode.
+const isLowLatencyHlsManifest = (text: string): boolean => (
+  /^#EXT-X-PART(?:-INF)?:/m.test(text) ||
+  /^#EXT-X-SERVER-CONTROL:[^\n]*CAN-BLOCK-RELOAD=YES/m.test(text)
+);
+
+interface LiveProbeManifestResult {
+  segmentUrl: string | null;
+  lowLatencyHls: boolean;
+}
+
+const resolveLiveProbeSegmentUrl = async (manifestUrl: string): Promise<LiveProbeManifestResult> => {
   const manifest = await fetchPlaylistText(manifestUrl);
   const variantUrl = findFirstVariantUrl(manifest.url, manifest.text);
   if (!variantUrl) {
-    return findProbeSegmentUrl(manifest.url, manifest.text);
+    return {
+      segmentUrl: findProbeSegmentUrl(manifest.url, manifest.text),
+      lowLatencyHls: isLowLatencyHlsManifest(manifest.text),
+    };
   }
 
   const mediaManifest = await fetchPlaylistText(variantUrl);
-  return findProbeSegmentUrl(mediaManifest.url, mediaManifest.text);
+  return {
+    segmentUrl: findProbeSegmentUrl(mediaManifest.url, mediaManifest.text),
+    lowLatencyHls: isLowLatencyHlsManifest(mediaManifest.text),
+  };
 };
 
 const fetchProbeSegmentBytes = async (segmentUrl: string): Promise<ArrayBuffer> => {
@@ -208,18 +252,24 @@ interface LiveCodecProbeResult {
   unsupportedMpegAudio: boolean;
   // Video is H.265/HEVC, which most browsers can't decode in MSE.
   unsupportedHevcVideo: boolean;
+  // Manifest advertises genuine LL-HLS (EXT-X-PART / blocking reload).
+  lowLatencyHls: boolean;
 }
 
 const probeLiveCodecSupport = async (manifestUrl: string): Promise<LiveCodecProbeResult> => {
-  const empty: LiveCodecProbeResult = { unsupportedMpegAudio: false, unsupportedHevcVideo: false };
+  const empty: LiveCodecProbeResult = {
+    unsupportedMpegAudio: false,
+    unsupportedHevcVideo: false,
+    lowLatencyHls: false,
+  };
   if (typeof fetch !== 'function') {
     return empty;
   }
 
   try {
-    const segmentUrl = await resolveLiveProbeSegmentUrl(manifestUrl);
+    const { segmentUrl, lowLatencyHls } = await resolveLiveProbeSegmentUrl(manifestUrl);
     if (!segmentUrl) {
-      return empty;
+      return { ...empty, lowLatencyHls };
     }
 
     const segmentBytes = await fetchProbeSegmentBytes(segmentUrl);
@@ -227,6 +277,7 @@ const probeLiveCodecSupport = async (manifestUrl: string): Promise<LiveCodecProb
     return {
       unsupportedMpegAudio: detection.hasVideo && detection.hasMpegAudio,
       unsupportedHevcVideo: detection.hasHevcVideo,
+      lowLatencyHls,
     };
   } catch {
     return empty;
@@ -326,6 +377,9 @@ export class HlsPlayerAdapter implements PlayerAdapter {
   private bufferingRecoveryAttempts = 0;
   private bufferingRecoveryEnabled = false;
   private bufferingRecoveryArmed = false;
+  // M1.1-e: throttled fatal NETWORK_ERROR recovery state.
+  private networkErrorRecoveryTimer: ReturnType<typeof setTimeout> | null = null;
+  private networkErrorRecoveryAttempts = 0;
   private nativeHlsLoaded = false;
   private hlsSourceMode: HlsSourceMode | null = null;
   private loadGeneration = 0;
@@ -615,7 +669,7 @@ export class HlsPlayerAdapter implements PlayerAdapter {
   ): Promise<void> {
     const codecProbe = isLiveSource && probeLiveMpegAudio
       ? await probeLiveCodecSupport(url)
-      : { unsupportedMpegAudio: false, unsupportedHevcVideo: false };
+      : { unsupportedMpegAudio: false, unsupportedHevcVideo: false, lowLatencyHls: false };
     const useMpegAudioVideoOnlyFallback = codecProbe.unsupportedMpegAudio;
     this.assertCurrentLoad(loadGeneration);
 
@@ -653,8 +707,14 @@ export class HlsPlayerAdapter implements PlayerAdapter {
           : -1
       );
       const hls = new Hls({
-        enableWorker: !isLiveSource,
-        lowLatencyMode: isLiveSource,
+        // M1.1-a (KN-1): the web worker offloads demux/remux off the main thread
+        // for live too — the previous `!isLiveSource` left live on the main thread.
+        enableWorker: true,
+        // M1.1-b (KN-2): Xtream live playlists are not genuine LL-HLS. Only enable
+        // low-latency mode when the manifest probe actually saw EXT-X-PART /
+        // blocking reload; otherwise hls.js chases a non-existent live edge and
+        // hammers the playlist endpoint (429 risk).
+        lowLatencyMode: isLiveSource && codecProbe.lowLatencyHls,
         startPosition: safeCatchUpStartPositionSeconds,
         ...(shouldUseProgressiveLoading && !useMpegAudioVideoOnlyFallback ? { progressive: true } : {}),
         ...(MpegAudioStrippingFragmentLoader ? {
@@ -664,7 +724,11 @@ export class HlsPlayerAdapter implements PlayerAdapter {
           fragLoadingTimeOut: 60_000,
           startFragPrefetch: true,
         } : {}),
-        backBufferLength: 90,
+        // M1.1-c (KN-3): catch-up keeps a wide scrub-back window; live only needs
+        // a short tail so memory stays bounded during rapid channel zapping.
+        backBufferLength: isCatchUpSource
+          ? HLS_CATCHUP_BACK_BUFFER_LENGTH_SECONDS
+          : HLS_LIVE_BACK_BUFFER_LENGTH_SECONDS,
         maxBufferLength: isCatchUpSource
           ? HLS_CATCHUP_MAX_BUFFER_LENGTH_SECONDS
           : HLS_LIVE_MAX_BUFFER_LENGTH_SECONDS,
@@ -676,6 +740,10 @@ export class HlsPlayerAdapter implements PlayerAdapter {
         ) * 1000 * 1000,
         maxBufferHole: 0.5,
         startLevel: -1,
+        // M1.1-d: structured load policies with exponential backoff and an
+        // explicit bail on auth failures so we never retry 401/403 into a ban.
+        fragLoadPolicy: HlsPlayerAdapter.buildLoadPolicy(HLS_FRAG_LOAD_MAX_RETRY),
+        playlistLoadPolicy: HlsPlayerAdapter.buildLoadPolicy(HLS_PLAYLIST_LOAD_MAX_RETRY),
       });
       this.assertCurrentLoad(loadGeneration);
       this.hls = hls;
@@ -911,6 +979,30 @@ export class HlsPlayerAdapter implements PlayerAdapter {
               return;
             }
 
+            // M1.1-e: fatal NETWORK_ERROR after hls.js exhausted its own load-policy
+            // retries. Instead of tearing playback down, schedule a throttled
+            // startLoad() recovery (bounded attempts, 3s spacing) so a transient
+            // upstream blip self-heals without a tight reload loop. Auth failures
+            // (401/403) are never retried — they would only burn request budget.
+            if (
+              data.fatal &&
+              data.type === Hls.ErrorTypes.NETWORK_ERROR &&
+              startupSettled
+            ) {
+              const httpStatus = HlsPlayerAdapter.resolveNetworkHttpStatus(data.networkDetails);
+              const isNonRetryable = (
+                typeof httpStatus === 'number' && HLS_NON_RETRYABLE_HTTP_STATUSES.has(httpStatus)
+              );
+              if (
+                !isNonRetryable &&
+                this.networkErrorRecoveryAttempts < HLS_NETWORK_ERROR_RECOVERY_MAX_ATTEMPTS
+              ) {
+                this.emitError(this.mapHlsError(data));
+                this.scheduleNetworkErrorRecovery(hls, loadGeneration);
+                return;
+              }
+            }
+
             const mappedError = this.mapHlsError(data);
             this.emitError(mappedError);
 
@@ -956,6 +1048,9 @@ export class HlsPlayerAdapter implements PlayerAdapter {
               return;
             }
             mediaErrorRecoveryAttempts = 0;
+            // Fresh data means the network recovered — reset the throttled
+            // NETWORK_ERROR recovery budget so future blips get full retries.
+            this.networkErrorRecoveryAttempts = 0;
             seekLiveStartupToBufferedRange();
           };
 
@@ -1235,6 +1330,44 @@ export class HlsPlayerAdapter implements PlayerAdapter {
     return undefined;
   }
 
+  // M1.1-d: builds a structured hls.js load policy with exponential backoff and a
+  // capped retry delay. `shouldRetry` bails immediately on auth-style HTTP errors
+  // (401/403) so a rejected token never turns into a retry storm / provider ban.
+  private static buildLoadPolicy(maxNumRetry: number): LoadPolicy {
+    const errorRetry: RetryConfig = {
+      maxNumRetry,
+      retryDelayMs: HLS_LOAD_POLICY_INITIAL_RETRY_DELAY_MS,
+      maxRetryDelayMs: HLS_LOAD_POLICY_MAX_RETRY_DELAY_MS,
+      backoff: 'exponential',
+      shouldRetry: (
+        retryConfig: RetryConfig | null | undefined,
+        retryCount: number,
+        _isTimeout: boolean,
+        loaderResponse: LoaderResponse | undefined,
+        retry: boolean,
+      ): boolean => {
+        const status = loaderResponse?.code;
+        if (typeof status === 'number' && HLS_NON_RETRYABLE_HTTP_STATUSES.has(status)) {
+          return false;
+        }
+        return retry && retryCount < (retryConfig?.maxNumRetry ?? maxNumRetry);
+      },
+    };
+
+    return {
+      default: {
+        maxTimeToFirstByteMs: HLS_LOAD_TIMEOUT_MS,
+        maxLoadTimeMs: HLS_LOAD_TIMEOUT_MS,
+        timeoutRetry: {
+          maxNumRetry: HLS_LOAD_TIMEOUT_MAX_RETRY,
+          retryDelayMs: 0,
+          maxRetryDelayMs: 0,
+        },
+        errorRetry,
+      },
+    };
+  }
+
   private mapHlsError(data: ErrorData): PlaybackError {
     if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
       return {
@@ -1448,6 +1581,8 @@ export class HlsPlayerAdapter implements PlayerAdapter {
   private resetBufferingRecovery(): void {
     this.clearBufferingRecoveryTimer();
     this.bufferingRecoveryAttempts = 0;
+    this.clearNetworkErrorRecoveryTimer();
+    this.networkErrorRecoveryAttempts = 0;
   }
 
   private scheduleBufferingRecovery(): void {
@@ -1489,6 +1624,29 @@ export class HlsPlayerAdapter implements PlayerAdapter {
         this.scheduleBufferingRecovery();
       }
     }, HLS_BUFFERING_RECOVERY_DELAY_MS);
+  }
+
+  private clearNetworkErrorRecoveryTimer(): void {
+    if (this.networkErrorRecoveryTimer !== null) {
+      clearTimeout(this.networkErrorRecoveryTimer);
+      this.networkErrorRecoveryTimer = null;
+    }
+  }
+
+  // M1.1-e: after a fatal NETWORK_ERROR, wait HLS_NETWORK_ERROR_RECOVERY_DELAY_MS
+  // (a single bounded timer, never stacked) then ask hls.js to resume loading.
+  // The attempt budget is reset by BUFFER_APPENDED once real data flows again.
+  private scheduleNetworkErrorRecovery(hls: Hls, loadGeneration: number): void {
+    this.clearNetworkErrorRecoveryTimer();
+    this.networkErrorRecoveryAttempts += 1;
+    this.updateState('buffering');
+    this.networkErrorRecoveryTimer = setTimeout(() => {
+      this.networkErrorRecoveryTimer = null;
+      if (!this.isCurrentLoad(loadGeneration) || this.hls !== hls) {
+        return;
+      }
+      hls.startLoad();
+    }, HLS_NETWORK_ERROR_RECOVERY_DELAY_MS);
   }
 }
 

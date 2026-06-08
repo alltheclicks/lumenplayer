@@ -62,6 +62,7 @@ const hlsMockState = vi.hoisted(() => {
     readonly attachMedia = vi.fn();
     readonly detachMedia = vi.fn();
     readonly stopLoad = vi.fn();
+    readonly startLoad = vi.fn();
     readonly recoverMediaError = vi.fn();
     readonly destroy = vi.fn();
     readonly audioTracks: Array<{ name?: string; lang?: string; default?: boolean }> = [];
@@ -467,13 +468,24 @@ describe('HlsPlayerAdapter', () => {
     const hls = hlsMockState.instances.at(-1);
     expect(hls).toBeDefined();
     expect(hls?.config).toMatchObject({
-      enableWorker: false,
-      lowLatencyMode: true,
+      // M1.1-a: live now runs on the web worker.
+      enableWorker: true,
+      // M1.1-b: live defaults to standard latency mode (no LL-HLS markers probed).
+      lowLatencyMode: false,
       progressive: true,
       maxBufferLength: 30,
       maxMaxBufferLength: 600,
+      // M1.1-c: live keeps only a short back-buffer tail.
+      backBufferLength: 30,
     });
     expect(hls?.config).not.toHaveProperty('startFragPrefetch');
+    // M1.1-d: structured load policies are attached for both loaders.
+    const liveConfig = hls?.config as {
+      fragLoadPolicy?: { default?: { errorRetry?: { backoff?: string } } };
+      playlistLoadPolicy?: { default?: { errorRetry?: { maxRetryDelayMs?: number } } };
+    };
+    expect(liveConfig.fragLoadPolicy?.default?.errorRetry?.backoff).toBe('exponential');
+    expect(liveConfig.playlistLoadPolicy?.default?.errorRetry?.maxRetryDelayMs).toBe(8_000);
 
     hls?.emit(hlsMockState.MockHls.Events.MANIFEST_LOADED, { url: source.url });
     hls?.emit(hlsMockState.MockHls.Events.MANIFEST_PARSED);
@@ -515,8 +527,8 @@ describe('HlsPlayerAdapter', () => {
     expect(hls).toBeDefined();
     expect(globalThis.fetch).toHaveBeenCalledTimes(2);
     expect(hls?.config).toMatchObject({
-      enableWorker: false,
-      lowLatencyMode: true,
+      enableWorker: true,
+      lowLatencyMode: false,
       maxBufferLength: 30,
     });
     expect(hls?.config).not.toHaveProperty('progressive');
@@ -635,7 +647,7 @@ describe('HlsPlayerAdapter', () => {
     expect(hls).toBeDefined();
     expect(hls?.config).toMatchObject({
       startPosition: -1,
-      lowLatencyMode: true,
+      lowLatencyMode: false,
       progressive: true,
     });
 
@@ -673,7 +685,7 @@ describe('HlsPlayerAdapter', () => {
     expect(retryHls).toBeDefined();
     expect(retryHls).not.toBe(firstHls);
     expect(retryHls?.config).toMatchObject({
-      enableWorker: false,
+      enableWorker: true,
       progressive: true,
     });
 
@@ -882,11 +894,166 @@ describe('HlsPlayerAdapter', () => {
       maxBufferLength: 90,
       maxMaxBufferLength: 600,
       maxBufferSize: 180 * 1000 * 1000,
+      // M1.1-c: catch-up keeps the wide back-buffer scrub window.
+      backBufferLength: 90,
     });
 
     hls?.emit(hlsMockState.MockHls.Events.MANIFEST_LOADED, { url: source.url });
     hls?.emit(hlsMockState.MockHls.Events.MANIFEST_PARSED);
     await loadPromise;
+  });
+
+  it('enables low-latency mode for live HLS only when the manifest advertises LL-HLS (M1.1-b)', async () => {
+    const manifest = [
+      '#EXTM3U',
+      '#EXT-X-VERSION:9',
+      '#EXT-X-TARGETDURATION:4',
+      '#EXT-X-SERVER-CONTROL:CAN-BLOCK-RELOAD=YES,PART-HOLD-BACK=1.0',
+      '#EXT-X-PART-INF:PART-TARGET=1.0',
+      '#EXTINF:4.000000,',
+      'segment-1.ts',
+    ].join('\n');
+    vi.stubGlobal('fetch', vi.fn()
+      .mockResolvedValueOnce(new Response(manifest, { status: 200 }))
+      // Empty TS body -> no MP2/HEVC detected, so this stays a clean live source.
+      .mockResolvedValueOnce(new Response(new ArrayBuffer(0), { status: 200 })));
+    const video = createMockVideoElement();
+    const adapter = new HlsPlayerAdapter(video);
+    const source = {
+      url: 'https://example.com/live.m3u8',
+      type: 'hls' as const,
+      title: 'Live LL',
+      metadata: {
+        mode: 'live',
+        streamId: 42,
+      },
+    };
+
+    const previousCount = hlsMockState.instances.length;
+    const loadPromise = adapter.load(source);
+    const hls = await waitForNextHlsInstance(previousCount);
+    expect(hls).toBeDefined();
+    expect(hls?.config).toMatchObject({
+      enableWorker: true,
+      lowLatencyMode: true,
+    });
+
+    hls?.emit(hlsMockState.MockHls.Events.MANIFEST_LOADED, { url: source.url });
+    hls?.emit(hlsMockState.MockHls.Events.MANIFEST_PARSED);
+    await loadPromise;
+  });
+
+  it('does not retry auth-rejected loads (shouldRetry bails on 403) (M1.1-d)', async () => {
+    const video = createMockVideoElement();
+    const adapter = new HlsPlayerAdapter(video);
+    const source = {
+      url: 'https://example.com/live.m3u8',
+      type: 'hls' as const,
+      title: 'Live',
+      metadata: { mode: 'live' },
+    };
+
+    const loadPromise = adapter.load(source);
+    const hls = hlsMockState.instances.at(-1);
+    expect(hls).toBeDefined();
+
+    const shouldRetry = (hls?.config as {
+      fragLoadPolicy?: {
+        default?: {
+          errorRetry?: {
+            shouldRetry?: (
+              retryConfig: unknown,
+              retryCount: number,
+              isTimeout: boolean,
+              loaderResponse: { code?: number } | undefined,
+              retry: boolean,
+            ) => boolean;
+          };
+        };
+      };
+    }).fragLoadPolicy?.default?.errorRetry?.shouldRetry;
+    expect(typeof shouldRetry).toBe('function');
+    // 403 -> never retry; a normal 5xx within budget -> retry.
+    expect(shouldRetry?.(null, 0, false, { code: 403 }, true)).toBe(false);
+    expect(shouldRetry?.(null, 0, false, { code: 401 }, true)).toBe(false);
+    expect(shouldRetry?.({ maxNumRetry: 4 }, 0, false, { code: 502 }, true)).toBe(true);
+
+    hls?.emit(hlsMockState.MockHls.Events.MANIFEST_LOADED, { url: source.url });
+    hls?.emit(hlsMockState.MockHls.Events.MANIFEST_PARSED);
+    await loadPromise;
+  });
+
+  it('recovers a fatal NETWORK_ERROR after startup with a throttled startLoad (M1.1-e)', async () => {
+    vi.useFakeTimers();
+    try {
+      const video = createMockVideoElement();
+      const adapter = new HlsPlayerAdapter(video);
+      const source = {
+        url: 'https://example.com/live.m3u8',
+        type: 'hls' as const,
+        title: 'Live',
+        metadata: { mode: 'live' },
+      };
+
+      const loadPromise = adapter.load(source);
+      const hls = hlsMockState.instances.at(-1);
+      expect(hls).toBeDefined();
+
+      // Settle startup so the post-manifest recovery path is active.
+      hls?.emit(hlsMockState.MockHls.Events.MANIFEST_LOADED, { url: source.url });
+      hls?.emit(hlsMockState.MockHls.Events.MANIFEST_PARSED);
+      await loadPromise;
+
+      hls?.emit(hlsMockState.MockHls.Events.ERROR, {
+        fatal: true,
+        type: hlsMockState.MockHls.ErrorTypes.NETWORK_ERROR,
+        details: 'fragLoadError',
+        networkDetails: { response: { code: 502 } },
+      });
+
+      // Recovery is throttled — startLoad must not fire immediately.
+      expect(hls?.startLoad).not.toHaveBeenCalled();
+      expect(hls?.destroy).not.toHaveBeenCalled();
+
+      vi.advanceTimersByTime(3_000);
+      expect(hls?.startLoad).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('does not retry a fatal NETWORK_ERROR with an auth status (403) (M1.1-e)', async () => {
+    vi.useFakeTimers();
+    try {
+      const video = createMockVideoElement();
+      const adapter = new HlsPlayerAdapter(video);
+      const source = {
+        url: 'https://example.com/live.m3u8',
+        type: 'hls' as const,
+        title: 'Live',
+        metadata: { mode: 'live' },
+      };
+
+      const loadPromise = adapter.load(source);
+      const hls = hlsMockState.instances.at(-1);
+      hls?.emit(hlsMockState.MockHls.Events.MANIFEST_LOADED, { url: source.url });
+      hls?.emit(hlsMockState.MockHls.Events.MANIFEST_PARSED);
+      await loadPromise;
+
+      hls?.emit(hlsMockState.MockHls.Events.ERROR, {
+        fatal: true,
+        type: hlsMockState.MockHls.ErrorTypes.NETWORK_ERROR,
+        details: 'fragLoadError',
+        networkDetails: { response: { code: 403 } },
+      });
+
+      vi.advanceTimersByTime(3_000);
+      // Auth failure: no throttled recovery, the stream is torn down instead.
+      expect(hls?.startLoad).not.toHaveBeenCalled();
+      expect(hls?.destroy).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('starts catch-up HLS from the metadata start position when provided', async () => {
