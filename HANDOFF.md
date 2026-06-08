@@ -1,5 +1,18 @@
 # Handoff — Lumen Player
 
+## Session 2026-06-08 (c) — Live test (gw.castcdn.net) + catch-up decode-recovery fix + shadow korenski uzrok
+
+- Grana: `final-road/M1.6-c`. Commit: **`9481f50`** `fix(web): give catch-up the same media-error recovery budget as live`.
+- **Done (klijent, commit-ovano):** catch-up dobio isti media-error recovery budžet kao live. Runtime recovery je proveravao samo `isLiveSource` → catch-up je imao 1 `recoverMediaError()` pokušaj pa skip-ahead (vidljiva rupa svakih 40-60s). Sad catch-up sa resumable progress-om dobija do **4** jeftina recovery prolaza pre nego što greška ode u session sloj. `HLS_CATCHUP_MEDIA_RECOVERY_MAX_ATTEMPTS=4` u `HlsPlayerAdapter.ts`. Validacija: vitest 34/34 ✅, web typecheck ✅, lint ✅.
+- **Live test setup:** `apps/web/.env` — zakomentarisan office-only proxy (`10.30.1.36:8788`, nedostupan od kuće) → zahtevi idu kroz Vite dev proxy (localhost:8080). Login radi.
+- **Shadow — KORENSKI UZROK 403 utvrđen (read-only SSH probe na mainssl):**
+  - Token koji klijent dobije generiše **`timeshift.php` (original)**; `timeshift_shadow.php` ga dekodira svojim `SHADOW_TOKEN_KEY` → ne uspeva → **403 (shadow.php:285)**. U celom panelu `shadowEncryptToken` se **NIGDE ne poziva** — niko ne pravi shadow token-e.
+  - **Nema nginx rewrite-a za shadow** (samo `/timeshift/` i `/timeshifts/` → `timeshift.php`). Shadow na mainssl NIKAD izvršen (log/cache/archive prazni).
+  - **Zaključak:** shadow MP2→AAC je nedovršen pipeline na floti — fale generator shadow token-a + nginx route. Klijent ga NE može aktivirati; server uvek vrati 403. **NE uključivati shadow na klijentu dok server handshake ne proradi.** Dalji rad = produkcijska izmena (van M1.6, traži vlasničku odluku). Detalji u memoriji `videoteka-servers-timeshift-shadow.md` (sekcija „Live test (c)").
+- **Razrešeno (ne-bug):** `VITE_CATCHUP_SHADOW_VALIDATION=1` je shadow-ONLY (bez fallback-a, pukne na 403) — ostaje OFF. `duration=68` NIJE bug — `resolveTimeshiftDurationCandidates` namerno pravi `[minute, sekunde]` varijante za provider-compat.
+- **Server-side problemi (van klijenta):** 60s HLS segmenti (`#EXTINF:60`) na originalu = periodični „segment stiže Ns" overlay (server segment-size, ne decode bug); MP2 kanali bez zvuka dok shadow ne proradi; HEVC kanali (2927) 403 na live (empty-state radi).
+- **Next:** isto kao (b) — FAZA 2 `B2.1-a`, ili razrešiti shadow handshake na serveru (vlasnička odluka) pre uključivanja MP2 catch-up-a za betu.
+
 ## Session 2026-06-08 (b) — FAZA 1 (MVP) M1.1→M1.5 KOMPLETIRANA
 
 - Grana: `final-road/M1.6-c` (nastavak; catch-up klijent + M1.6 žive tu). Commit-ovi: `c76c6b8` (M1.1), `b847e7e` (M1.2), `783ddb2` (M1.3-e), `623a6ad` (M1.4), + ovaj docs/handoff commit.
