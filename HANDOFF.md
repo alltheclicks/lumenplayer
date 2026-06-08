@@ -1,5 +1,21 @@
 # Handoff — Lumen Player
 
+## Session 2026-06-08 — M1.6 (MP2 audio) KOMPLETAN + v9 shadow GC-patch deploy
+
+- Grana: `final-road/M1.6-c` (iz PR #224, jer catch-up klijent živi tamo). Commit-ovi: shadow infra, M1.6-c klijent, M1.6-d HEVC, M1.6-e deploy (`6233b4d`).
+- **Done — M1 blok (M1.6 a–e) svi FINISHED:**
+  - M1.6-a: dijagnostika (7 MP2 + 3 HEVC od 87 kanala na ns3239635).
+  - M1.6-b: hardening portovan na production **v9** shadow (concurrency cap + inline GC + codec-map step-aside + token iz env-a). `infra/videoteka-shadow/timeshift_shadow.v9.{live,gc-patch,hardened}.php`.
+  - M1.6-c: klijent gađa shadow (`VITE_CATCHUP_SHADOW_HOSTS`) + `409 step-aside` (typecheck/lint/vitest ✅).
+  - M1.6-d: HEVC detekcija (`0x24`) + poruka korisniku (vitest 242/242 ✅).
+  - M1.6-e: **GC-patch deploy-ovan na production v9** (ns3239635). Otkriveno da je `/tmp` cache narastao na 84 GB (v9 nema GC) → jednokratni GC oslobodio 84 GB (disk 72%→62%); atomska zamena `timeshift_shadow.php` (1863→1913 lin), backup spreman, token inline netaknut, smoke test ✅.
+- **Next:** M1.1-a (`enableWorker: true` za live, `HlsPlayerAdapter.ts:627`) — sledeći TODO po planu (najveći ROI, nizak rizik).
+- **Risks / čeka odluku:**
+  - Shadow trenutno NE prima saobraćaj (od 13. maja); inline GC se ne okida sam dok klijent ne počne da gađa endpoint → razmotriti periodičan GC cron (autorizacija odbijena, čeka vlasnika).
+  - Realni MP2 catch-up test (web/PWA zvuk) ostaje za kad se shadow uključi za betu (klijent gađa host preko `VITE_CATCHUP_SHADOW_HOSTS`).
+  - `.hardened` (codec-map step-aside + token iz env-a) NIJE deploy-ovan — za buduće širenje.
+  - Catch-up klijent (M1.6-c/d) živi na PR #224 grani, ne na `main`.
+
 ## Session 2026-06-03 — QAF-035 no-media production guard alignment
 
 - Context:
