@@ -1,5 +1,23 @@
 # Handoff — Lumen Player
 
+## Session 2026-06-08 (b) — FAZA 1 (MVP) M1.1→M1.5 KOMPLETIRANA
+
+- Grana: `final-road/M1.6-c` (nastavak; catch-up klijent + M1.6 žive tu). Commit-ovi: `c76c6b8` (M1.1), `b847e7e` (M1.2), `783ddb2` (M1.3-e), `623a6ad` (M1.4), + ovaj docs/handoff commit.
+- Izvor istine za taskove: `docs/RELEASE-PLAN-MVP-BETA-FINAL.md` (PROTOKOL RADA + dashboard). **MVP: 21/22 FINISHED, 1 BLOCKED (M1.3-a).**
+- **Done — sve MVP grupe:**
+  - **M1.1 (HLS stabilnost)** a–e: `enableWorker:true` za live; `lowLatencyMode` default false (true samo uz LL-HLS manifest probe `EXT-X-PART`/`CAN-BLOCK-RELOAD`); uslovni `backBufferLength` (catch-up 90s / live 30s); strukturisane `fragLoadPolicy`/`playlistLoadPolicy` (exp. backoff, 8s max, `shouldRetry` bail na 401/403); throttled fatal `NETWORK_ERROR` → `startLoad()` recovery (3s, max 3, reset na BUFFER_APPENDED). `HlsPlayerAdapter.ts`. vitest 33/33.
+  - **M1.2 (Robusnost)** a–d: `ErrorBoundary` oko `<Routes>` (`components/ErrorBoundary.tsx` + `errorBoundaryMessage.ts`); `RequireAuth` route guard (`routes/RequireAuth.tsx` + `routeGuard.ts`, sinhroni localStorage, bez flash-a); `FetchHttpClient` AbortController timeout (default 20s, `timeoutMs` opcija); `test:unit` skript (`vitest.unit.config.ts`, apps+packages, bez release validatora).
+  - **M1.3 (Cast)** b/c/d FINISHED = **zatečeni gotovi + verifikovani** (hard-fail prod App ID, custom CAF receiver dual-video bridge, queue preload); e FINISHED = **novi kod** (`apps/proxy/src/server.ts`: `XTREAM_PROXY_ALLOWED_CORS_ORIGINS` allowlist + `onSend` hook + hijack-path origin, default `*` nepromenjen). **a=BLOCKED** (vidi Risks).
+  - **M1.4 (Catch-up)** a–b: host-affinity Map dobio TTL/decay 30min (`catchupTransport.ts`); 409 SHADOW_STEP_ASIDE false-grana sad daje jasan unavailable overlay umesto tihog spinera (`VideoPlayer.tsx`).
+  - **M1.5 (PWA)** a: install stack zatečen potpun + mehanički verifikovan (manifest/SW/offline.html generisani u dist, `release:pwa-readiness:validate` ✅).
+- **Validacija (cео monorepo):** `pnpm typecheck` ✅ `pnpm lint` ✅ `pnpm test:unit` 342/342 ✅ `pnpm build` ✅. Cast/PWA release gate-ovi ✅.
+- **Next:** FAZA 2 (BETA) — `B2.1-a` (integration testovi session-core) je prvi po planu; ILI razrešiti `M1.3-a` kad stigne Cast App ID (samo upisati `VITE_GOOGLE_CAST_APP_ID` → FINISHED).
+- **Risks / čeka vlasnika / ručna verifikacija:**
+  - **M1.3-a BLOCKED** — vlasnička odluka (2026-06-08): odložiti $5 Cast App ID registraciju; dev radi sa `CC1AD845`. Klijent spreman (`resolveGoogleCastReceiverAppId` čita env).
+  - **Ručna verifikacija (nije moguće automatski)** — preostaje pre bete: real-device Cast (Chromecast+TV, traži App ID), PWA install (desktop Chrome+Android) + offline ekran, 300s live burn-in bez 429, multi-provider catch-up (nijedan beskonačan spiner).
+  - **Brend nedoslednost (zapažanje, nije bug)** — PWA manifest name=„IPTV Player" vs Lumen Player brend; rebranding bi dirao PWA gate (hardkodira string) + ~10 title-ova → poseban task (F3.2 polish).
+  - Sav MVP kod (uklj. catch-up klijent iz M1.6) živi na `final-road/M1.6-c`, ne na `main`.
+
 ## Session 2026-06-08 — M1.6 (MP2 audio) KOMPLETAN + v9 shadow GC-patch deploy
 
 - Grana: `final-road/M1.6-c` (iz PR #224, jer catch-up klijent živi tamo). Commit-ovi: shadow infra, M1.6-c klijent, M1.6-d HEVC, M1.6-e deploy (`6233b4d`).

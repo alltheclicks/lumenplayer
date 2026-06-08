@@ -68,18 +68,21 @@ Prazan task izgleda ovako (početno stanje):
 
 | Faza | Ukupno | TODO | IN PROGRESS | FINISHED | BLOCKED | N/A |
 |---|---|---|---|---|---|---|
-| MVP (M1.x) | 22 | 1 | 0 | 20 | 1 | 0 |
+| MVP (M1.x) | 22 | 0 | 0 | 21 | 1 | 0 |
 | BETA (B2.x) | 19 | 19 | 0 | 0 | 0 | 0 |
 | FINAL (F3.x) | 19 | 19 | 0 | 0 | 0 | 0 |
-| **Σ** | **60** | **39** | **0** | **20** | **1** | **0** |
+| **Σ** | **60** | **38** | **0** | **21** | **1** | **0** |
 
 > **M1.6 (MP2 audio) — KOMPLETAN ✅** (a–e svi FINISHED). Server-side MP2→AAC v9 shadow + GC-patch deploy-ovan, klijent (shadow routing + 409 step-aside + HEVC detekcija) gotov.
 > **M1.1 (HLS stabilnost) — KOMPLETAN ✅** (a–e svi FINISHED). enableWorker za live, lowLatencyMode uslovni (LL-HLS probe), uslovni backBufferLength, strukturisane load policies (exp. backoff + 401/403 bail), throttled NETWORK_ERROR recovery. vitest 33/33.
 > **M1.2 (Robusnost klijenta) — KOMPLETAN ✅** (a–d svi FINISHED). ErrorBoundary oko ruta, RequireAuth route guard (sinhroni localStorage), FetchHttpClient AbortController timeout, `test:unit` skript (333 testa). 
 > **M1.3 (Cast MVP) — KOD SPREMAN ✅** (b/c/d/e FINISHED; a=BLOCKED čeka $5 App ID po vlasničkoj odluci). Hard-fail+receiver+queue-preload zatečeni gotovi; prod CORS allowlist dodat. Real-device test čeka App ID.
 > **M1.4 (Catch-up robusnost) — KOMPLETAN ✅** (a–b FINISHED). Host-affinity TTL/decay (30min), 409 SHADOW_STEP_ASIDE false-grana sad daje jasan unavailable overlay (ne tihi spiner).
+> **M1.5 (PWA install) — KOMPLETAN ✅** (a FINISHED). Install prompt + ikone + splash + offline fallback zatečeni potpuni i mehanički verifikovani (manifest/SW/offline.html generisani, gate ✅).
+> 
+> **🎉 FAZA 1 (MVP) — SVI KODNI TASKOVI ZAVRŠENI.** 21/22 FINISHED; jedini otvoren: `M1.3-a` (BLOCKED — $5 Cast App ID registracija, vlasnička odluka da se odloži). Sve ostalo: typecheck/lint/build/test:unit zeleni. Preostala verifikacija je ručna (real-device Cast, PWA install, živi provajder burn-in/multi-provider catch-up).
 
-**Sledeći task na redu:** `M1.5-a` — PWA install prompt + ikone + splash + offline fallback.
+**Sledeći task na redu:** FAZA 2 (BETA) — `B2.1-a` (integration testovi za session-core), ILI razrešiti `M1.3-a` kad stigne Cast App ID.
 
 ---
 
@@ -166,10 +169,10 @@ Verifikovano u kodu na grani `codex/qaf-035-production-web-catchup`:
 - **Verifikacija (exit grupe):** test na 2–3 realna provajdera; nijedan slučaj ne sme ostaviti beskonačan spinner. → **Kod garantuje overlay** (slojevite mreže + 409 fix); živi multi-provajder test: ručno/nije moguće automatski.
 
 ### M1.5 — PWA install iskustvo
-- [ ] **S** Proveriti/dovršiti install prompt + ikone + splash; offline fallback (`offline.html`) radi. `vite.config.ts`, `usePWA.ts`. — ID: M1.5-a
-  - Status: TODO
-  - Log: —
-- **Verifikacija (exit grupe):** instalacija na desktop Chrome + Android; offline stranica se prikazuje bez mreže.
+- [x] **S** Proveriti/dovršiti install prompt + ikone + splash; offline fallback (`offline.html`) radi. `vite.config.ts`, `usePWA.ts`. — ID: M1.5-a
+  - Status: FINISHED
+  - Log: Owner: Claude | Finished: 2026-06-08 | **Stack zatečen potpun + verifikovan mehanički.** `usePWA.ts` (beforeinstallprompt + appinstalled + standalone detekcija iOS/web + online/offline + `promptInstall()`); Settings UI „Install App" (install dugme / iOS „Add to Home Screen" / Android uputstvo); VitePWA manifest (name/short_name/icons sa maskable/theme/display/start_url/scope), `includeAssets` 3 PNG + 4 apple-splash; Workbox NetworkFirst za navigate sa `precacheFallback: /offline.html`. Build verifikovan: `dist/manifest.webmanifest` + `dist/offline.html` (u SW precache) + `dist/sw.js` generisani. `release:pwa-readiness:validate` ✅. **Zapažanje (van obima M1.5-a):** manifest name=„IPTV Player"/„Watch live TV channels" je generičan, nedosledan sa Lumen Player brendom (offline.html već kaže „Lumen Player"); rebranding manifesta+title-ova bi dirao PWA gate (hardkodira „IPTV Player") + ~10 stranica → kandidat za poseban brending task (npr. F3.2 polish), NIJE diran ovde da se ne slomi gate. Verifikacija: build ✅ gate ✅; real-device install (desktop Chrome + Android) + offline ekran bez mreže: ručno/nije moguće automatski.
+- **Verifikacija (exit grupe):** instalacija na desktop Chrome + Android; offline stranica se prikazuje bez mreže. → **Kod+build spremni** (manifest/SW/offline.html generisani, gate ✅); real-device install + offline ekran: ručno/nije moguće automatski.
 
 ### M1.6 — MP2 audio: kanali bez zvuka u web/PWA (live + catch-up) [P0 audio gap]
 
