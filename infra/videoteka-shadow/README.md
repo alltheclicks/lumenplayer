@@ -2,114 +2,128 @@
 
 Server-side fix za kanale čiji audio browser (MSE/HLS.js) ne dekoduje — pre svega
 **MP2**. Rešenje transkoduje **samo audio** (`-c:a aac`), video ostaje `copy`.
-Izolovano je: zaseban endpoint, zaseban storage/cache, **ne dira originalni
-`timeshift.php` ni jednog ne-Lumen klijenta**.
+Izolovano je: zaseban endpoint (`timeshift_shadow.php`), zaseban storage/cache,
+**ne dira originalni `timeshift.php` ni jednog ne-Lumen klijenta**.
 
 > Kontekst i merenja: vidi `docs/RELEASE-PLAN-MVP-BETA-FINAL.md` (task **M1.6**) i
 > memoriju `videoteka-servers-timeshift-shadow.md`. MP2/no-media konflikt:
 > `mp2-audio-no-media-conflict.md`.
 
+## ⚠️ Stanje na produkciji (verifikovano 2026-06-08)
+
+Na glavnom recording serveru **`ns3239635` / ovh-videoteka** (Tailscale `100.64.1.34`)
+već postoji **`SHADOW_BUILD_VERSION='v9'`** shadow (1863 lin) — naprednija verzija od
+ranog baseline-a sa `mainssl`. v9 **već radi MP2→AAC transcode** (isti pristup:
+`-c:a aac -profile:a aac_low -b:a 128k -ac 2 -ar 48000`, video `-c:v copy`) + ima
+MP4 lead-gap fix i napredni token/IP hashing. Routovan je u nginx-u (port 8080), ali
+**ne prima živi saobraćaj od 13. maja 2026** (poslednji test; Lumen prod klijent ga
+trenutno ne gađa).
+
+**v9 nije imao GC** → `/tmp/catchup_shadow_hls/` je narastao na **84 GB** (disk 72%).
+**2026-06-08 deploy-ovan GC-patch** (vidi dole) i jednokratno očišćeno → `/tmp` 4K, disk 62%.
+
 ## Fajlovi
 
 | Fajl | Šta je |
 |---|---|
-| `timeshift_shadow.live.php` | **Tačna kopija** verzije sa servera (md5 `a4ae3c60a79548d1602052346288f812`, 910 linija). Baseline — NE menjati, služi za diff/rollback. |
-| `timeshift_shadow.hardened.php` | Hardenovana verzija (concurrency cap + cache GC + dinamička codec-mapa). Ovo se deploy-uje. |
-| `probe-codec-map.sh` | Cron skripta: ffprobe-uje snimane kanale, piše `/tmp/catchup_shadow_codecmap.json`. LIVE lista MP2 vs AAC. |
+| `timeshift_shadow.v9.live.php` | **Tačna kopija production v9** (redigovan token, 1863 lin). Baseline — NE menjati, služi za diff/rollback. |
+| `timeshift_shadow.v9.gc-patch.php` | **Ono što je STVARNO deploy-ovano 2026-06-08** (v9 + concurrency cap + inline GC; token inline na serveru). 1913 lin. |
+| `timeshift_shadow.v9.hardened.php` | Puna hardened verzija: GC/cap **+ dinamička codec-mapa step-aside + token iz env-a**. Za buduće širenje (NIJE deploy-ovano). |
+| `probe-codec-map.sh` | Cron skripta za codec-mapu: ffprobe-uje snimane kanale, piše `/tmp/catchup_shadow_codecmap.json`. Potrebna samo za `.hardened` (codec-map step-aside). |
 
-## Merenje codeca (2026-06-08, glavni recording server `ns3239635` / ovh-videoteka)
+## Merenje codeca (2026-06-08, `ns3239635`, 87 kanala sa arhivom)
 
-87 kanala sa arhivom:
 - **Audio:** 79 AAC (91% ✅), **7 MP2** (8% ❌ — treba fix), 1 MP3 (Chrome MSE ga svira ✅).
 - **Video:** 84 h264 (97% ✅), **3 HEVC** (3% ⚠️ — Chrome desktop/Android NE dekoduju HEVC u MSE; Safari/iOS da).
 - MP2 stream_id: `12, 53, 81, 148, 149, 277, 1495`.
 - HEVC stream_id: `149, 2927, 30270` (**149 = MP2+HEVC dupli**).
 
-**HEVC se NE transkoduje** (skup video transcode). Za betu: klijent detektuje i prikaže poruku (kao MP2 video-only fallback). Vidi M1.6.
+**HEVC se NE transkoduje** (skup video transcode). Za betu: klijent detektuje i prikaže
+poruku (M1.6-d). MP2 se rešava server-side (v9 transcode).
 
-## Razlike hardened vs live (ADD-only, ništa postojeće nije obrisano)
+## Šta GC-patch dodaje na v9 (ADD-only, ništa postojeće nije obrisano)
+
+Deploy-ovano 2026-06-08. 50 dodatih linija, 0 uklonjenih. Token inline netaknut.
 
 1. **Globalni concurrency cap** (`SHADOW_MAX_CONCURRENT_BUILDS`, default 4): pre nego što
-   POKRENE novi ffmpeg build, broji aktivne build-ove (sveži `remux.lock`); iznad capa →
-   `503 Retry-After: 3`. Serviranje iz keša nikad ne udara u cap. Sprečava ffmpeg poplavu.
-2. **Inline cache GC** (`SHADOW_CACHE_GC_MAX_AGE`, default 7200s): na 1-od-N zahteva (default 1/25)
-   briše cache prozore starije od max-age. Bounduje `/tmp` rast. Ne dira prozor koji se gradi.
-3. **Dinamička codec-mapa / step-aside**: ako cron-mapa kaže da je stream već AAC/MP3 →
-   shadow vrati `409` (`X-Lumen-Shadow: step-aside-safe`) i klijent ide normalnim putem
-   (bez nepotrebnog transkoda). `unknown`/stale mapa → fail-open na pravi ffprobe, pa
-   kanal koji se prebaci na MP2 i dalje biva uhvaćen pri sledećem build-u.
+   POKRENE NOVI ffmpeg build, broji aktivne build-ove (sveži `remux.lock` < 300s); iznad
+   capa → `503 Retry-After: 5`. **Serviranje iz keša i čekanje na postojeći lock nikad ne
+   udaraju u cap** — štiti CPU samo od poplave novih transkoda pod beta opterećenjem.
+2. **Inline cache GC** (`SHADOW_CACHE_GC_MAX_AGE`, default 7200s; `SHADOW_CACHE_GC_PROBABILITY`,
+   default 1/25): na ~1-od-25 zahteva briše cache prozore starije od max-age koji nemaju svež
+   lock. Bounduje `/tmp` rast. Reuse-uje postojeću v9 `shadowRemoveTree()`. **NB:** pošto shadow
+   trenutno nema saobraćaj, inline GC se neće okidati sam dok klijent ne počne da gađa endpoint.
 
-Sve podešljivo preko env varijabli — nema potrebe za izmenom koda za tuning.
+## Šta `.hardened` dodatno nosi (za buduće širenje, NIJE deploy-ovano)
+
+3. **Dinamička codec-mapa / step-aside**: ako cron-mapa (`probe-codec-map.sh` →
+   `/tmp/catchup_shadow_codecmap.json`) kaže da je stream već browser-safe (AAC/MP3 audio +
+   non-HEVC video) → shadow vrati `409` i Lumen klijent ide normalnim (jeftinijim) putem
+   (M1.6-c već hendluje `409 step-aside`). `unknown`/stale mapa → fail-open na pravi build,
+   pa kanal koji se prebaci na MP2 i dalje biva uhvaćen.
+4. **Token iz env-a** (`getenv('SHADOW_TOKEN_KEY')`) umesto inline — da se NE commit-uje u git.
+   Zahteva `env[SHADOW_TOKEN_KEY]` u php-fpm pool conf-u + reload FPM-a (zato nije u GC-patch-u).
 
 ## 🔐 Tajne (token) — NIJE u repo-u
 
-`SHADOW_TOKEN_KEY` (XOR ključ za token URL-ove) **nije committovan**. Hardened verzija
-ga čita iz okruženja (`getenv('SHADOW_TOKEN_KEY')`) i odbija da radi ako nije postavljen.
-`live.php` u repo-u ima `REDACTED_SEE_SERVER_ENV` umesto prave vrednosti. Originalna
-vrednost živi **samo na serveru** (u originalnom `timeshift_shadow.php`, md5 `a4ae3c60…`).
+`SHADOW_TOKEN_KEY` (XOR ključ za token URL-ove) **nije committovan**. Sve `.php` kopije u
+repou imaju `REDACTED_SEE_SERVER_ENV`. Prava vrednost živi **samo na serveru** (inline u
+production `timeshift_shadow.php`). GC-patch je zato i odabran za prvi deploy — ne dira token.
 
-Na serveru postavi token u PHP-FPM pool env (ili non-repo include), npr. u
-`/home/xtreamcodes/iptv_xtream_codes/php/etc/...` pool conf:
-```
-env[SHADOW_TOKEN_KEY] = "<vrednost-sa-servera>"
-```
-ili izvuci iz postojećeg live shadow-a pre zamene:
+Izvuci token sa servera kad zatreba (npr. za `.hardened` env postavku):
 ```bash
 ssh -p 8722 root@<server> "grep -o \"SHADOW_TOKEN_KEY', '[^']*'\" \
   /home/xtreamcodes/iptv_xtream_codes/wwwdir/streaming/timeshift_shadow.php"
 ```
 
-## Deploy procedura (izolovan test, bezbedna)
+## Deploy procedura — GC-patch (urađeno 2026-06-08)
 
-> Pravilo: **ADD-only**. Nikad modify/restart postojećeg. Spremno za instant rollback.
+> Pravilo: **ADD-only**, instant rollback, original `timeshift.php` se NIKAD ne dira.
 
 ```bash
-# 0) Backup live shadow (ako ga menjamo) — original timeshift.php se NE dira NIKAD
-ssh -p 8722 root@<recording-server> \
-  'cp -a /home/xtreamcodes/iptv_xtream_codes/wwwdir/streaming/timeshift_shadow.php \
-        /root/codex-backups/catchup/timeshift_shadow.$(date +%Y%m%d-%H%M%S).bak'
+SD=/home/xtreamcodes/iptv_xtream_codes/wwwdir/streaming
+SRV=100.64.1.34   # ns3239635, skok preko mainssl 100.96.250.114, port 8722
 
-# 1) Postavi hardened verziju kao shadow (vlasništvo xtreamcodes:xtreamcodes)
-scp -P 8722 timeshift_shadow.hardened.php \
-  root@<recording-server>:/home/xtreamcodes/iptv_xtream_codes/wwwdir/streaming/timeshift_shadow.php
-ssh -p 8722 root@<recording-server> \
-  'chown xtreamcodes:xtreamcodes /home/xtreamcodes/iptv_xtream_codes/wwwdir/streaming/timeshift_shadow.php'
+# 1) Backup živog v9
+cp -p $SD/timeshift_shadow.php /root/codex-backups/catchup/<TS>-pre-gc-patch/timeshift_shadow.php.v9-orig
 
-# 2) php -l provera NA serveru
-ssh -p 8722 root@<recording-server> \
-  'php -l /home/xtreamcodes/iptv_xtream_codes/wwwdir/streaming/timeshift_shadow.php'
+# 2) Patch na KOPIJI (gc_patch.py ubacuje 3 const + 2 fn + GC poziv + cap; token netaknut)
+cat $SD/timeshift_shadow.php > /tmp/cand.php; chmod 644 /tmp/cand.php
+python3 gc_patch.py /tmp/cand.php
+php -l /tmp/cand.php            # mora: No syntax errors
 
-# 3) Codec-map cron skripta
-scp -P 8722 probe-codec-map.sh \
-  root@<recording-server>:/home/xtreamcodes/iptv_xtream_codes/wwwdir/streaming/probe-codec-map.sh
-ssh -p 8722 root@<recording-server> \
-  'chmod +x /home/xtreamcodes/iptv_xtream_codes/wwwdir/streaming/probe-codec-map.sh && \
-   /home/xtreamcodes/iptv_xtream_codes/wwwdir/streaming/probe-codec-map.sh && \
-   cat /tmp/catchup_shadow_codecmap.json | head'
+# 3) Atomska zamena (očuvaj owner xtreamcodes:xtreamcodes, perm 644)
+cat /tmp/cand.php > $SD/.stage; chown xtreamcodes:xtreamcodes $SD/.stage; chmod 644 $SD/.stage
+mv -f $SD/.stage $SD/timeshift_shadow.php
 
-# 4) Cron (zaseban fajl, NE diramo postojeće cronove)
-ssh -p 8722 root@<recording-server> \
-  'echo "*/30 * * * * xtreamcodes /home/xtreamcodes/iptv_xtream_codes/wwwdir/streaming/probe-codec-map.sh >/dev/null 2>&1" \
-        > /etc/cron.d/lumen-shadow-codecmap'
+# 4) Verifikacija
+php -l $SD/timeshift_shadow.php
+curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8080/streaming/timeshift_shadow.php  # 400 = OK (kontrolisan)
 
-# 5) Nginx routing — DODATI location SAMO ako .php u /streaming/ nije već rutiran.
-#    (Tipično XUI već servira sve .php u /streaming/ preko fastcgi — proveriti prvo.)
-#    NE menjati postojeće server{} blokove. Ako treba reload: nginx -t && systemctl reload nginx
+# 5) Jednokratno očisti stari /tmp cache (oslobađa GB)
+#    (briše samo dirove starije od 7200s bez svežeg locka)
 ```
 
 ### Rollback (instant)
 ```bash
-# Vrati prethodni shadow iz backup-a (original timeshift.php je netaknut svejedno)
-ssh -p 8722 root@<recording-server> \
-  'cp -a /root/codex-backups/catchup/timeshift_shadow.<TS>.bak \
-        /home/xtreamcodes/iptv_xtream_codes/wwwdir/streaming/timeshift_shadow.php'
-# Ukloni cron
-ssh -p 8722 root@<recording-server> 'rm -f /etc/cron.d/lumen-shadow-codecmap'
+cp -p /root/codex-backups/catchup/<TS>-pre-gc-patch/timeshift_shadow.php.v9-orig \
+  $SD/timeshift_shadow.php
+chown xtreamcodes:xtreamcodes $SD/timeshift_shadow.php
 ```
-Pošto shadow nije rutiran/korišćen od strane postojećih klijenata, gašenje shadow-a
-(ili vraćanje originala) **ne utiče ni na jednog postojećeg korisnika**.
+Pošto shadow trenutno ne servira saobraćaj postojećim klijentima, vraćanje **ne utiče ni na
+jednog korisnika**.
 
-## Recording serveri (Tailscale, skok preko `mainssl` 100.96.250.114)
+## Sledeći koraci (NISU urađeni — čekaju odluku)
+
+- **Periodičan GC cron** (`*/30` poziva standalone GC skriptu) — za period dok shadow nema
+  saobraćaja, da `/tmp` ne naraste ponovo (inline GC se okida samo na saobraćaju).
+- **`.hardened` deploy** (codec-map step-aside + token iz env-a) — kad se odluči da se shadow
+  ponovo uključi za betu i da Lumen klijent gađa ovaj host (`VITE_CATCHUP_SHADOW_HOSTS`).
+- Codec-map cron (`probe-codec-map.sh` → `/etc/cron.d/...`) — preduslov za codec-map step-aside.
+- Merenje CPU troška transkoda pod realnim beta opterećenjem (očekivano nisko: audio-only,
+  video copy, 16 jezgara).
+
+## Recording serveri (Tailscale, skok preko `mainssl` 100.96.250.114, port 8722)
 
 | Server | Tailscale | Arhiva | CPU |
 |---|---|---|---|
@@ -118,10 +132,3 @@ Pošto shadow nije rutiran/korišćen od strane postojećih klijenata, gašenje 
 | `videoteka-16tb-hetzner` | 100.64.1.14 | (SSH nestabilan) | — |
 
 **Snimanje NIJE na `mainssl`** (`tv_archive` prazan). Shadow mora živeti tamo gde su snimci.
-
-## Otvorena pitanja pre širenja
-
-- Klijentska strana: Lumen treba da gađa `timeshift_shadow.php` (token/credentials format isti kao original) i da hendluje `409 step-aside` → fallback na normalan put.
-- Da li shadow ide na sve recording servere ili samo glavni (ovh) za betu.
-- Merenje stvarnog CPU troška transkoda pod realnim opterećenjem (očekivano nisko: audio-only, video copy, 16 jezgara).
-- HEVC kanali (klijentska detekcija + poruka).
