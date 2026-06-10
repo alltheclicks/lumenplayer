@@ -388,6 +388,12 @@ export class HlsPlayerAdapter implements PlayerAdapter {
   private nativeHlsLoaded = false;
   private hlsSourceMode: HlsSourceMode | null = null;
   private loadGeneration = 0;
+  // Catch-up startup diagnostics: track whether a fragment is currently being
+  // fetched so a startup watchdog can tell "slow first segment in flight" apart
+  // from "no segment will ever come" and avoid reseeking on top of a live load.
+  private fragmentInFlight = false;
+  private lastFragmentLoadStartedAt: number | null = null;
+  private lastFragmentLoadedAt: number | null = null;
   private readonly onUnsupportedAudioCodec?: (event: UnsupportedAudioCodecEvent) => void;
   private readonly onUnsupportedVideoCodec?: (event: UnsupportedVideoCodecEvent) => void;
 
@@ -403,6 +409,9 @@ export class HlsPlayerAdapter implements PlayerAdapter {
 
   async load(source: MediaSource): Promise<void> {
     const loadGeneration = this.nextLoadGeneration();
+    this.fragmentInFlight = false;
+    this.lastFragmentLoadStartedAt = null;
+    this.lastFragmentLoadedAt = null;
     HlsPlayerAdapter.stopCompetingPlayback(this);
     const nextHlsSourceMode = source.type === 'hls'
       ? HlsPlayerAdapter.resolveHlsSourceMode((source as PlaybackMetadataCarrier).metadata?.mode)
@@ -521,6 +530,20 @@ export class HlsPlayerAdapter implements PlayerAdapter {
 
   getState(): PlaybackState {
     return this.state;
+  }
+
+  // Catch-up startup diagnostics. A startup watchdog can use this to avoid
+  // reseeking while a (slow) fragment is still legitimately downloading.
+  getSegmentLoadDiagnostics(): {
+    fragmentInFlight: boolean;
+    lastFragmentLoadStartedAt: number | null;
+    lastFragmentLoadedAt: number | null;
+  } {
+    return {
+      fragmentInFlight: this.fragmentInFlight,
+      lastFragmentLoadStartedAt: this.lastFragmentLoadStartedAt,
+      lastFragmentLoadedAt: this.lastFragmentLoadedAt,
+    };
   }
 
   setVolume(volume: number): void {
@@ -1061,6 +1084,22 @@ export class HlsPlayerAdapter implements PlayerAdapter {
             seekLiveStartupToBufferedRange();
           };
 
+          const onFragLoading = () => {
+            if (!this.isCurrentLoad(loadGeneration) || this.hls !== hls) {
+              return;
+            }
+            this.fragmentInFlight = true;
+            this.lastFragmentLoadStartedAt = Date.now();
+          };
+
+          const onFragLoaded = () => {
+            if (!this.isCurrentLoad(loadGeneration) || this.hls !== hls) {
+              return;
+            }
+            this.fragmentInFlight = false;
+            this.lastFragmentLoadedAt = Date.now();
+          };
+
           const cleanupStartupListeners = () => {
             hls.off(Hls.Events.MANIFEST_PARSED, onManifestParsed);
             hls.off(Hls.Events.MANIFEST_LOADED, onManifestLoaded);
@@ -1069,6 +1108,8 @@ export class HlsPlayerAdapter implements PlayerAdapter {
           hls.on(Hls.Events.MANIFEST_LOADED, onManifestLoaded);
           hls.on(Hls.Events.MANIFEST_PARSED, onManifestParsed);
           hls.on(Hls.Events.ERROR, onHlsError);
+          hls.on(Hls.Events.FRAG_LOADING, onFragLoading);
+          hls.on(Hls.Events.FRAG_LOADED, onFragLoaded);
           hls.on(Hls.Events.AUDIO_TRACKS_UPDATED, onAudioTracksUpdated);
           hls.on(Hls.Events.AUDIO_TRACK_SWITCHED, onAudioTrackSwitched);
           hls.on(Hls.Events.SUBTITLE_TRACKS_UPDATED, onSubtitleTracksUpdated);

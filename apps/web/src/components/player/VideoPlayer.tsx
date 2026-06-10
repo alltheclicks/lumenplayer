@@ -18,6 +18,7 @@ import {
   resolveCatchUpTargetOrigin,
   type CatchUpTransportAttempt,
 } from './catchupTransport';
+import { catchUpFirstSegmentLikelyInFlight } from './catchUpSegmentInFlight';
 import {
   shouldKeepPendingAutoplayOnIdle,
   shouldClearPendingAutoplayOnPlaybackError,
@@ -159,8 +160,17 @@ const LIVE_STARTUP_DETACHED_RETRY_DELAY_MS = 450;
 const LIVE_UNEXPECTED_PAUSE_MAX_RETRIES = 1;
 const STARTUP_HARD_RETRY_DELAY_MS = 3_000;
 const CATCH_UP_STARTUP_WATCHDOG_DELAY_MS = 35_000;
-const CATCH_UP_MANIFEST_NO_FRAME_FALLBACK_DELAY_MS = 8_000;
+// Raised from 8s: the CDN edge cache-miss on the first catch-up segment is
+// measured at 3-6s, occasionally up to ~6.2s. At 8s the watchdog fired while
+// that first segment was still legitimately downloading, reseeking on top of an
+// in-flight load and re-fetching seg=0 in a loop. 12s + segment-in-flight
+// awareness (see catchUpFirstSegmentLikelyInFlight) covers the slow first fetch.
+const CATCH_UP_MANIFEST_NO_FRAME_FALLBACK_DELAY_MS = 12_000;
 const CATCH_UP_MANIFEST_NO_FRAME_UNAVAILABLE_DELAY_MS = 24_000;
+// How long after a fragment started loading we still consider it "in flight"
+// and worth waiting for, rather than reseeking. Covers the slow first-segment
+// fetch plus MP2->AAC remux before the first renderable frame appears.
+const CATCH_UP_SEGMENT_IN_FLIGHT_GRACE_MS = 9_000;
 const CATCH_UP_VISIBLE_LOADING_UNAVAILABLE_MS = 60_000;
 const CATCH_UP_SEEK_WATCHDOG_DELAY_MS = 10_000;
 const CATCH_UP_SEEK_SETTLE_TOLERANCE_MS = 20_000;
@@ -194,6 +204,7 @@ const createLoadingProgressState = (
     updatedAtMs: nowMs,
   };
 };
+
 interface ParsedCatchUpAttemptState {
   attempts: CatchUpTransportAttempt[];
   currentAttemptIndex: number;
@@ -1850,7 +1861,13 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
 
         clearCatchUpManifestNoFrameWatchdog();
         const watchedSourceUrl = source.url;
-        catchUpManifestNoFrameWatchdogTimerRef.current = setTimeout(() => {
+        const armManifestNoFrameWatchdog = (delayMs: number) => {
+          catchUpManifestNoFrameWatchdogTimerRef.current = setTimeout(
+            runManifestNoFrameWatchdog,
+            Math.max(0, delayMs),
+          );
+        };
+        const runManifestNoFrameWatchdog = () => {
           catchUpManifestNoFrameWatchdogTimerRef.current = null;
           const currentSession = sessionRef.current;
           const currentSource = currentSession.source;
@@ -1865,6 +1882,28 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
 
           const mediaElement = videoRef.current;
           if (hasRenderableMediaFrame(mediaElement)) {
+            return;
+          }
+
+          // A slow first segment may still be in flight from the edge. Reseeking
+          // now would re-fetch seg=0 on top of the live load and loop. Wait one
+          // more grace window for the segment to land before giving up.
+          if (catchUpFirstSegmentLikelyInFlight(
+            adapterRef.current?.getSegmentLoadDiagnostics(),
+            CATCH_UP_SEGMENT_IN_FLIGHT_GRACE_MS,
+          )) {
+            emitWebObservabilityEvent({
+              name: 'catchup.startup_segment_in_flight',
+              severity: 'info',
+              metadata: {
+                renderer: currentSession.renderer,
+                ...buildCatchUpEventMetadata(currentSource, {
+                  status: 'segment_in_flight',
+                  errorCode: 'STARTUP_TIMEOUT_DEFERRED',
+                }),
+              },
+            });
+            armManifestNoFrameWatchdog(CATCH_UP_SEGMENT_IN_FLIGHT_GRACE_MS);
             return;
           }
 
@@ -1950,7 +1989,8 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
               }),
             },
           });
-        }, watchdogDelayMs);
+        };
+        armManifestNoFrameWatchdog(watchdogDelayMs);
 
         const requestHost = resolveCatchUpTargetOrigin(requestedUrl);
         const finalHost = rememberCatchUpHostAffinity(requestedUrl, finalUrl) ??
@@ -2888,9 +2928,16 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
     }
 
     const elapsedMs = loadingTickMs - loadingProgress.startedAtMs;
+    // Do not reseek while the first segment is still legitimately downloading
+    // from a slow edge — that would re-fetch seg=0 on top of an in-flight load.
+    const segmentLikelyInFlight = catchUpFirstSegmentLikelyInFlight(
+      adapterRef.current?.getSegmentLoadDiagnostics(),
+      CATCH_UP_SEGMENT_IN_FLIGHT_GRACE_MS,
+    );
     if (
       elapsedMs >= CATCH_UP_MANIFEST_NO_FRAME_FALLBACK_DELAY_MS &&
       !hasRenderableMediaFrame(videoRef.current) &&
+      !segmentLikelyInFlight &&
       switchToCatchUpFallbackIfAvailable('STARTUP_TIMEOUT')
     ) {
       return;
