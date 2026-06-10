@@ -207,6 +207,7 @@ describe('HlsPlayerAdapter', () => {
     const listeners = new Map<string, Set<() => void>>();
     const video = {
       src: '',
+      currentSrc: '',
       srcObject: null as object | null,
       currentTime: 0,
       duration: 0,
@@ -1470,5 +1471,44 @@ describe('HlsPlayerAdapter', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it('does not call video.play() when no source is attached', () => {
+    const video = createMockVideoElement();
+    const playSpy = vi.spyOn(video, 'play');
+    const adapter = new HlsPlayerAdapter(video);
+
+    // No load() yet: no hls, empty src. Autoplay-recovery could call play()
+    // here; the guard must skip it to avoid the "Empty src" error flood.
+    adapter.play();
+
+    expect(playSpy).not.toHaveBeenCalled();
+  });
+
+  it('calls video.play() once a native source src is set', () => {
+    const video = createMockVideoElement();
+    const playSpy = vi.spyOn(video, 'play');
+    const adapter = new HlsPlayerAdapter(video);
+
+    (video as unknown as { src: string }).src = 'https://example.com/stream-a.mp4';
+    adapter.play();
+
+    expect(playSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('swallows a code-4 media error when no real source is attached', () => {
+    const video = createMockVideoElement();
+    const adapter = new HlsPlayerAdapter(video);
+    const errors: unknown[] = [];
+    adapter.onError((error) => errors.push(error));
+
+    // Simulate the transient teardown/attach "Empty src" media error.
+    (video as unknown as { error: { code: number; message: string } }).error = {
+      code: 4,
+      message: 'MEDIA_ELEMENT_ERROR: Empty src attribute',
+    };
+    (video as unknown as { dispatchEvent: (event: string) => void }).dispatchEvent('error');
+
+    expect(errors).toHaveLength(0);
   });
 });

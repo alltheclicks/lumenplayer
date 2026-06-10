@@ -479,8 +479,30 @@ export class HlsPlayerAdapter implements PlayerAdapter {
     this.updateState('paused');
   }
 
+  // True when the media element actually has something to play: hls.js is
+  // attached (MSE blob source) or a non-empty src/currentSrc is set. Used to
+  // avoid calling play() on a source-less element, which throws "Empty src"
+  // and, under autoplay-recovery retries, floods MEDIA_ELEMENT_4 errors.
+  private hasPlayableSource(): boolean {
+    if (this.hls !== null) {
+      return true;
+    }
+    const src = this.video.src ?? '';
+    const currentSrc = this.video.currentSrc ?? '';
+    const pageHref = typeof window !== 'undefined' ? window.location.href : '';
+    const hasExplicitSrc = src !== '' && src !== pageHref;
+    const hasResolvedSrc = currentSrc !== '' && currentSrc !== pageHref;
+    return hasExplicitSrc || hasResolvedSrc;
+  }
+
   play(): void {
     HlsPlayerAdapter.stopCompetingPlayback(this);
+    // Autoplay-recovery may call play() before the source is attached. Calling
+    // play() with no source produces a spurious "Empty src" media error in a
+    // tight loop; skip the call until a real source exists.
+    if (!this.hasPlayableSource()) {
+      return;
+    }
     this.video.play().catch((error: unknown) => {
       const message = error instanceof Error && error.message
         ? `Unable to start playback: ${error.name}: ${error.message}`
@@ -1265,8 +1287,17 @@ export class HlsPlayerAdapter implements PlayerAdapter {
         return;
       }
 
-      const isSrcNotSupported = mediaError.code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED;
+      // MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED === 4. Use the numeric code
+      // directly so this does not depend on the MediaError global being present.
+      const isSrcNotSupported = mediaError.code === 4;
       const isManagedByHls = this.hls !== null;
+
+      // A code-4 "Empty src attribute" while no real source is attached is
+      // transient teardown/attach noise (src was cleared, MSE not yet bound).
+      // Emitting it floods MEDIA_ELEMENT_4 during autoplay-recovery; swallow it.
+      if (isSrcNotSupported && !this.hasPlayableSource()) {
+        return;
+      }
 
       this.emitError({
         code: `MEDIA_ELEMENT_${mediaError.code}`,
