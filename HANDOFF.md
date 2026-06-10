@@ -1,5 +1,15 @@
 # Handoff — Lumen Player
 
+## Session 2026-06-10 — MVP merge u main + prvi produkcijski deploy (VPS)
+
+- **Merge:** svi gejtovi zeleni (`typecheck` ✅ `lint` ✅ `test:unit` 342/342 ✅ `build` ✅) → lokalni `main` fast-forward na `c59fbeb` (108 commitova). Push na origin `main` ide kroz **PR #225** (https://github.com/alltheclicks/lumenplayer/pull/225) — čeka vlasnički merge klik.
+- **VPS (PrimeHost VPS M):** `151.241.151.105` (`filip-vps-m`, Ubuntu 24.04, 4 vCPU / 8 GB / 77 GB). Provisioned: nginx 1.24, Node v22.22.3, ufw (22/80/443), system user `lumen`.
+- **Proxy deploy:** `apps/proxy` build → `/opt/lumen/proxy`, systemd servis **`lumen-proxy`** (User=lumen, Restart=always, env u `/opt/lumen/proxy/proxy.env`: `HOST=127.0.0.1 PORT=8788 XTREAM_PROXY_ALLOWED_HOSTS=gw.castcdn.net XTREAM_PROXY_ALLOWED_CORS_ORIGINS=http://151.241.151.105`).
+- **Web deploy:** produkcijski build (`VITE_XTREAM_SERVER=https://gw.castcdn.net:443`, `VITE_XTREAM_PROXY_ORIGIN=http://151.241.151.105`, shadow OFF, Cast App ID prazan) → `/var/www/player`, nginx vhost (SPA fallback, `/xui-api` + `/catchup-gateway` + `/health` → 127.0.0.1:8788, immutable cache za `/assets`, `proxy_buffering off`).
+- **Smoke (sve ✅):** spolja `http://151.241.151.105/` → 200; `/health` → `{"ok":true}`; `player_api` kroz nginx→proxy→gw.castcdn.net → 200.
+- **Poznata ograničenja deploy-a:** (1) **nema TLS/domena** → PWA service worker se NE registruje na http://IP — treba domen (npr. `player.exyu.tv`) + DNS A record na 151.241.151.105 + certbot, pa rebuild web-a sa novim `VITE_XTREAM_PROXY_ORIGIN`; (2) **sav saobraćaj (uklj. video) trenutno ide kroz VPS proxy** — OK za finalni test 1 korisnika, NE za 600 (4 TB/mes cap) → pre bete CORS na `gw.castcdn.net` da video ide direktno sa CDN-a (EX-1); (3) Cast bez prod App ID-a.
+- **Next:** vlasnik: merge PR #225 + finalni ručni test na `http://151.241.151.105/` + odluka o domenu. Zatim EX-1 blok (brend config + SSO sloj sa exyu.tv + CDN CORS + error sink), pa FAZA 2 `B2.1-a`.
+
 ## Session 2026-06-08 (c) — Live test (gw.castcdn.net) + catch-up decode-recovery fix + shadow korenski uzrok
 
 - Grana: `final-road/M1.6-c`. Commit: **`9481f50`** `fix(web): give catch-up the same media-error recovery budget as live`.
