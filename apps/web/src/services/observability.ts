@@ -69,6 +69,53 @@ const defaultSink: ObservabilitySink = {
   },
 };
 
+// Best-effort beacon to a server sink (the proxy /observe endpoint). Enabled
+// only when VITE_OBSERVABILITY_BEACON_URL is set; otherwise this is a no-op and
+// the console-only behavior above is unchanged. Failures are swallowed so
+// telemetry never affects playback.
+const resolveBeaconUrl = (): string => {
+  const raw = (import.meta.env.VITE_OBSERVABILITY_BEACON_URL ?? "").trim();
+  return raw.replace(/\/+$/, "");
+};
+
+const sendBeacon = (payload: Record<string, unknown>): void => {
+  const url = resolveBeaconUrl();
+  if (!url || typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    const body = JSON.stringify(payload);
+    if (typeof navigator !== "undefined" && typeof navigator.sendBeacon === "function") {
+      navigator.sendBeacon(url, new Blob([body], { type: "application/json" }));
+      return;
+    }
+    void fetch(url, {
+      method: "POST",
+      body,
+      headers: { "content-type": "application/json" },
+      keepalive: true,
+    }).catch(() => {});
+  } catch {
+    // Telemetry must never throw into the playback path.
+  }
+};
+
+const beaconSink: ObservabilitySink = {
+  info: (prefix, payload) => {
+    defaultSink.info(prefix, payload);
+    sendBeacon(payload);
+  },
+  warn: (prefix, payload) => {
+    defaultSink.warn(prefix, payload);
+    sendBeacon(payload);
+  },
+  error: (prefix, payload) => {
+    defaultSink.error(prefix, payload);
+    sendBeacon(payload);
+  },
+};
+
 const trimWindow = (timestamps: number[], nowMs: number, windowMs: number): number[] => (
   timestamps.filter((timestampMs) => nowMs - timestampMs <= windowMs)
 );
@@ -162,7 +209,9 @@ export const createWebObservability = (
   };
 };
 
-const webObservability = createWebObservability();
+const webObservability = createWebObservability(
+  resolveBeaconUrl() ? beaconSink : defaultSink,
+);
 
 export const emitWebObservabilityEvent = (event: ObservabilityEvent): void => {
   webObservability.emit(event);

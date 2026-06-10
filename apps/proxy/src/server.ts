@@ -963,6 +963,25 @@ export const createProxyServer = (options: ProxyServerOptions = {}): FastifyInst
     service: "@lumen/proxy",
   }));
 
+  // Client observability beacon sink. The web client POSTs structured
+  // playback/cast events here when VITE_OBSERVABILITY_BEACON_URL is set, so
+  // production playback problems (catch-up startup stalls, repeated segments,
+  // 403/429 bursts) land in the proxy log where we can read them live.
+  app.options("/observe", async (_request, reply) => {
+    applyCorsHeaders(reply, "OPTIONS,POST");
+    reply.code(204).send();
+  });
+
+  app.post("/observe", async (request, reply) => {
+    applyCorsHeaders(reply, "OPTIONS,POST");
+    const body = request.body as Record<string, unknown> | null | undefined;
+    const events = Array.isArray(body?.events) ? body!.events : body ? [body] : [];
+    for (const event of events.slice(0, 50)) {
+      app.log.info({ event: "client_observe", client: event });
+    }
+    reply.code(204).send();
+  });
+
   app.options("/catchup-gateway/resolve", async (_request, reply) => {
     applyCorsHeaders(reply, "GET,HEAD,OPTIONS,POST");
     reply.code(204).send();
