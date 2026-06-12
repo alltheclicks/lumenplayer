@@ -873,6 +873,91 @@ describe('HlsPlayerAdapter', () => {
     expect(mutableVideo.play).toHaveBeenCalledTimes(1);
   });
 
+  it('seeks catch-up startup past the header-less dead zone to the first buffered keyframe', async () => {
+    const video = createMockVideoElement();
+    const adapter = new HlsPlayerAdapter(video);
+    const source = {
+      url: 'https://example.com/archive.m3u8',
+      type: 'hls' as const,
+      title: 'Archive',
+      metadata: {
+        mode: 'catchup',
+      },
+    };
+
+    const loadPromise = adapter.load(source);
+    const hls = hlsMockState.instances.at(-1);
+    expect(hls).toBeDefined();
+
+    hls?.emit(hlsMockState.MockHls.Events.MANIFEST_LOADED, { url: source.url });
+    hls?.emit(hlsMockState.MockHls.Events.MANIFEST_PARSED);
+    await loadPromise;
+
+    const mutableVideo = video as unknown as {
+      buffered: {
+        length: number;
+        start: ReturnType<typeof vi.fn>;
+      };
+      currentTime: number;
+      paused: boolean;
+      play: ReturnType<typeof vi.fn>;
+    };
+    // hls.js drops the header-less frames at the segment head, so the first
+    // buffered range begins at the first decodable keyframe (e.g. 1.8s in).
+    mutableVideo.currentTime = 0;
+    mutableVideo.paused = false;
+    mutableVideo.buffered.length = 1;
+    mutableVideo.buffered.start.mockReturnValue(1.8);
+
+    hls?.emit(hlsMockState.MockHls.Events.BUFFER_APPENDED);
+
+    expect(mutableVideo.currentTime).toBeCloseTo(1.85, 2);
+    expect(mutableVideo.play).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not seek catch-up startup backwards when already past the buffered keyframe', async () => {
+    const video = createMockVideoElement();
+    const adapter = new HlsPlayerAdapter(video);
+    const source = {
+      url: 'https://example.com/archive.m3u8',
+      type: 'hls' as const,
+      title: 'Archive',
+      metadata: {
+        mode: 'catchup',
+        catchUpHlsStartPositionSeconds: 120,
+      },
+    };
+
+    const loadPromise = adapter.load(source);
+    const hls = hlsMockState.instances.at(-1);
+    expect(hls).toBeDefined();
+
+    hls?.emit(hlsMockState.MockHls.Events.MANIFEST_LOADED, { url: source.url });
+    hls?.emit(hlsMockState.MockHls.Events.MANIFEST_PARSED);
+    await loadPromise;
+
+    const mutableVideo = video as unknown as {
+      buffered: {
+        length: number;
+        start: ReturnType<typeof vi.fn>;
+      };
+      currentTime: number;
+      paused: boolean;
+      play: ReturnType<typeof vi.fn>;
+    };
+    // User scrubbed to 120s; the buffered range starts at the keyframe behind
+    // it. The startup seek must not yank playback back to the dead-zone edge.
+    mutableVideo.currentTime = 120;
+    mutableVideo.paused = false;
+    mutableVideo.buffered.length = 1;
+    mutableVideo.buffered.start.mockReturnValue(118.4);
+
+    hls?.emit(hlsMockState.MockHls.Events.BUFFER_APPENDED);
+
+    expect(mutableVideo.currentTime).toBe(120);
+    expect(mutableVideo.play).not.toHaveBeenCalled();
+  });
+
   it('uses progressive fragment startup for catch-up archives', async () => {
     const video = createMockVideoElement();
     const adapter = new HlsPlayerAdapter(video);

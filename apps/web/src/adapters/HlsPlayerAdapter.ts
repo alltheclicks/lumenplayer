@@ -802,7 +802,7 @@ export class HlsPlayerAdapter implements PlayerAdapter {
       try {
         await new Promise<void>((resolve, reject) => {
           let mediaErrorRecoveryAttempts = 0;
-          let liveStartupBufferSeekApplied = false;
+          let startupBufferSeekApplied = false;
           let startupSettled = false;
 
           const resolveStartup = () => {
@@ -815,12 +815,28 @@ export class HlsPlayerAdapter implements PlayerAdapter {
             reject(error);
           };
 
-          const seekLiveStartupToBufferedRange = () => {
+          // Snap startup playback to the first buffered range (the first
+          // decodable keyframe). hls.js gates its init segment on sps && pps,
+          // so buffered.start(0) is the first frame that actually carries
+          // parameter sets — everything before it the demuxer already dropped.
+          //
+          // Live always benefits (skip to the live-edge buffer). Catch-up now
+          // benefits too: provider archives are byte-copied mid-GOP, so each
+          // segment opens with header-less P-frames the decoder chokes on
+          // ("muca pa krene"). With the provider's per-keyframe SPS/PPS fix
+          // (dump_extra) in place, the first buffered range is a clean,
+          // self-contained keyframe — so snapping past the dead zone is safe
+          // and no longer re-stutters on the next segment boundary.
+          const seekStartupToBufferedRange = () => {
             if (!this.isCurrentLoad(loadGeneration)) {
               return;
             }
 
-            if (!isLiveSource || liveStartupBufferSeekApplied) {
+            if (!isLiveSource && !isCatchUpSource) {
+              return;
+            }
+
+            if (startupBufferSeekApplied) {
               return;
             }
 
@@ -845,7 +861,7 @@ export class HlsPlayerAdapter implements PlayerAdapter {
               return;
             }
 
-            liveStartupBufferSeekApplied = true;
+            startupBufferSeekApplied = true;
             this.video.currentTime = bufferStart + 0.05;
             if (!this.video.paused) {
               this.video.play().catch(() => {
@@ -1103,7 +1119,7 @@ export class HlsPlayerAdapter implements PlayerAdapter {
             // Fresh data means the network recovered — reset the throttled
             // NETWORK_ERROR recovery budget so future blips get full retries.
             this.networkErrorRecoveryAttempts = 0;
-            seekLiveStartupToBufferedRange();
+            seekStartupToBufferedRange();
           };
 
           const onFragLoading = () => {
