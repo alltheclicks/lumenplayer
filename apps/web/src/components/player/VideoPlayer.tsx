@@ -637,6 +637,12 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
   const lastRecordedCatchUpRuntimeCompatibilityRef = useRef<string | null>(null);
   const catchUpRuntimeTimelineAnchorRef = useRef<CatchUpRuntimeTimelineAnchor | null>(null);
   const startupHardRetrySourceUrlRef = useRef<string | null>(null);
+  // Time-to-first-renderable-frame (TTFRF) telemetry. Captures the wall-clock
+  // ms from the moment the current catch-up load started (loadingProgress
+  // startedAtMs) to the first renderable frame, emitted once per load via
+  // `catchup.first_frame`. Gate-2 metric for the server-side SPS/PPS fix.
+  const catchUpLoadStartedAtMsRef = useRef<number | null>(null);
+  const catchUpFirstFrameEmittedRef = useRef(false);
   const playbackWantsPlaying = sessionWantsPlayback(session);
   const isLocalRenderer = session.renderer === 'local-web' || session.renderer === 'airplay';
 
@@ -797,6 +803,9 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
     const nowMs = Date.now();
     setLoadingProgress(createLoadingProgressState(phase, nowMs));
     setLoadingTickMs(nowMs);
+    // New load cycle: re-anchor the TTFRF clock and re-arm the one-shot emit.
+    catchUpLoadStartedAtMsRef.current = nowMs;
+    catchUpFirstFrameEmittedRef.current = false;
   }, []);
 
   const updateLoadingProgressPhase = useCallback((phase: CatchUpLoadingPhase) => {
@@ -1000,6 +1009,28 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
 
       if (hasRenderableMediaFrame(video)) {
         updateLoadingProgressPhase('frame');
+        // TTFRF: emit once per load, the wall-clock ms from load start to the
+        // first renderable frame. Gate-2 metric for the server SPS/PPS fix.
+        if (!catchUpFirstFrameEmittedRef.current) {
+          catchUpFirstFrameEmittedRef.current = true;
+          const startedAtMs = catchUpLoadStartedAtMsRef.current;
+          const ttfrfMs = startedAtMs !== null
+            ? Math.max(0, Math.round(Date.now() - startedAtMs))
+            : null;
+          const currentSession = sessionRef.current;
+          emitWebObservabilityEvent({
+            name: 'catchup.first_frame',
+            severity: 'info',
+            metadata: {
+              renderer: currentSession.renderer,
+              ttfrfMs,
+              ...buildCatchUpEventMetadata(currentSession.source, {
+                status: 'first_frame',
+                errorCode: null,
+              }),
+            },
+          });
+        }
         return;
       }
 
