@@ -1,5 +1,14 @@
 # Handoff — Lumen Player
 
+## Session 2026-06-12 (b) — catch-up startup: playhead snap na prvi keyframe (`e0a491a`)
+
+- **Grana:** `final-road/EX-live-refocus-emptysrc`, commit **`e0a491a`** (nadovezuje se na `4d4a8fd` čiji BUFFER_APPENDED snap u praksi nije opalio).
+- **Koren (verifikovano čitanjem hls.js 1.6.15 source-a):** mrtva zona (header-less P-frejmovi pre prvog IDR-a) se NIKAD ne dekodira — `mp4-remuxer` je dropuje kad keyframe stigne u istom batch-u (`forceKeyFrameOnDiscontinuity`, default on), a `stream-controller` gap-markira keyframe-less prve chunk-ove (`independent:false` → `frag.gap=true`, video chunk se ne append-uje). Stvarni problem je **playhead**: video bafer počinje na prvom IDR-u (0.6–1.5s), `currentTime` ostaje 0, a sa `startPosition: 0` je hls.js `seekToStartPos()` mrtav kod (`currentTime < startPosition` nikad ne važi za 0). Gap-controller je slep dok je presek A/V bafera prazan (audio kreće od ~0, video tek od IDR-a), a njegova 2s startup-jump heuristika se trka sa session watchdozima → restart petlja, "muca pa krene".
+- **Fix (`HlsPlayerAdapter.ts`):** catch-up "od početka" → `startPosition: 0.1` + `startOnSegmentBoundary: true` (hls.js sam snap-uje start na prvi buffered keyframe na FRAG_BUFFERED; čiste arhive se razreše nazad na 0, ništa se ne preskače). Scrub zadržava tačnu poziciju i NE dobija boundary snap (snap-uje i unazad!). Raniji BUFFER_APPENDED snap sužen na live + from-start (scrub regresija: bafer-head keyframe je PRE tražene pozicije, snap bi odvukao korisnika na granicu segmenta pre hls.js seek-a).
+- **Dep:** `hls.js` deklaracija `^1.5.15` → `^1.6.15` (`startOnSegmentBoundary` je 1.6+; instalirano već 1.6.15, lockfile samo specifier).
+- **Validacija:** adapter 42/42, unit 357/357, typecheck/lint/build ✅. Push na origin nije rađen u ovoj sesiji (grana je ahead 2: `4d4a8fd` + `e0a491a`).
+- **Next:** runtime verifikacija na realnom catch-up (Pink/105, RTS/112) + TTFRF telemetrija pre/posle; server segmenter fix (SPS/PPS+IDR na početku segmenta) i dalje pending kod XUI dev-a — klijentski fix uklanja startup petlju, ali rupice od ~1.5s na granicama segmenata ostaju dok server ne snimi čisto.
+
 ## Session 2026-06-12 — UI/UX runda + tab-refocus fix + prod deploy + catch-up 15h provera
 
 - **Grane (push-ovane na origin):** `final-road/EX-ui-layout-presets` (`871c042` layout preseti za velike ekrane, `11ea1cd` mobile UX + dismissible HEVC notice) i `final-road/EX-live-refocus-emptysrc` (`f6a7276`).
