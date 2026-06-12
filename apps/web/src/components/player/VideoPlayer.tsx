@@ -1,5 +1,5 @@
 import { useRef, useEffect, useState, useCallback, forwardRef, useImperativeHandle } from 'react';
-import { AlertCircle, Loader2, Radio, WifiOff, ShieldAlert } from 'lucide-react';
+import { AlertCircle, Loader2, Radio, WifiOff, ShieldAlert, X } from 'lucide-react';
 import type { SessionSource } from '@lumen/session-core';
 import { Button } from '@/components/ui/button';
 import { useSessionContext } from '@/context/session-context';
@@ -131,6 +131,24 @@ export interface VideoPlayerHandle {
 type PlayerError = SourceBlockingError;
 type UnsupportedAudioCodec = 'mp2';
 type UnsupportedVideoCodec = 'hevc';
+
+let cachedHevcPlaybackSupport: boolean | null = null;
+
+// Browsers that can decode HEVC (e.g. Safari/iOS) should not warn about it.
+const isHevcPlaybackLikelySupported = (): boolean => {
+  if (cachedHevcPlaybackSupport !== null) {
+    return cachedHevcPlaybackSupport;
+  }
+  if (typeof document === 'undefined') {
+    return false;
+  }
+  const probe = document.createElement('video');
+  cachedHevcPlaybackSupport = [
+    'video/mp4; codecs="hvc1.1.6.L123.B0"',
+    'video/mp4; codecs="hev1.1.6.L123.B0"',
+  ].some((type) => probe.canPlayType(type) !== '');
+  return cachedHevcPlaybackSupport;
+};
 
 type WebKitPictureInPictureVideoElement = HTMLVideoElement & {
   webkitSupportsPresentationMode?: (mode: string) => boolean;
@@ -610,6 +628,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
   const error = errorState?.error ?? null;
   const [unsupportedAudioCodec, setUnsupportedAudioCodec] = useState<UnsupportedAudioCodec | null>(null);
   const [unsupportedVideoCodec, setUnsupportedVideoCodec] = useState<UnsupportedVideoCodec | null>(null);
+  const [isCodecNoticeDismissed, setIsCodecNoticeDismissed] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isPictureInPicture, setIsPictureInPicture] = useState(false);
   const [isAirPlayAvailable, setIsAirPlayAvailable] = useState(false);
@@ -3057,6 +3076,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
     setUnsupportedVideoCodec(
       sessionRef.current.source?.metadata?.unsupportedVideoCodec === 'hevc' ? 'hevc' : null,
     );
+    setIsCodecNoticeDismissed(false);
     const sourceMetadataForReset = (
       typeof sessionRef.current.source?.metadata === 'object' &&
       sessionRef.current.source.metadata !== null
@@ -3847,10 +3867,12 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
   const unsupportedAudioMessage = unsupportedAudioCodec === 'mp2'
     ? 'Zvuk nije dostupan za ovaj kanal. Kanal koristi MP2 audio, koji trenutno nije podržan u web browser playback-u. Video može raditi bez zvuka.'
     : null;
-  const unsupportedVideoMessage = unsupportedVideoCodec === 'hevc'
+  const unsupportedVideoMessage = unsupportedVideoCodec === 'hevc' && !isHevcPlaybackLikelySupported()
     ? 'Slika možda neće raditi za ovaj kanal. Kanal koristi HEVC (H.265) video, koji nije podržan u svim browserima (radi na Safari/iOS, ali ne na Chrome desktop/Android).'
     : null;
-  const unsupportedCodecMessage = unsupportedVideoMessage ?? unsupportedAudioMessage;
+  const unsupportedCodecMessage = isCodecNoticeDismissed
+    ? null
+    : unsupportedVideoMessage ?? unsupportedAudioMessage;
 
   return (
     <div className={`pointer-events-none relative w-full h-full bg-black ${className}`}>
@@ -3889,9 +3911,17 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
 
       {unsupportedCodecMessage && !error && (
         <div className="pointer-events-none absolute inset-x-3 top-3 z-20 flex justify-center">
-          <div className="flex max-w-[min(560px,calc(100vw-24px))] items-start gap-2 rounded-md border border-amber-300/40 bg-black/75 px-3 py-2 text-left text-xs leading-5 text-white shadow-lg backdrop-blur-sm">
+          <div className="pointer-events-auto flex max-w-[min(560px,calc(100vw-24px))] items-start gap-2 rounded-md border border-amber-300/40 bg-black/75 px-3 py-2 text-left text-xs leading-5 text-white shadow-lg backdrop-blur-sm">
             <AlertCircle className="mt-0.5 h-4 w-4 flex-none text-amber-300" />
             <span>{unsupportedCodecMessage}</span>
+            <button
+              type="button"
+              onClick={() => setIsCodecNoticeDismissed(true)}
+              className="-mr-1 -mt-0.5 flex h-6 w-6 flex-none items-center justify-center rounded-md text-white/70 transition-colors hover:bg-white/10 hover:text-white"
+              aria-label="Zatvori obaveštenje"
+            >
+              <X className="h-4 w-4" />
+            </button>
           </div>
         </div>
       )}

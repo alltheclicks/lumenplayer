@@ -124,7 +124,7 @@ const formatFullDate = (date: Date): string => {
   if (date.toDateString() === today.toDateString()) return 'Danas';
   if (date.toDateString() === yesterday.toDateString()) return 'Juče';
 
-  return date.toLocaleDateString('sr-RS', { weekday: 'long', day: 'numeric', month: 'long' });
+  return date.toLocaleDateString('sr-Latn-RS', { weekday: 'long', day: 'numeric', month: 'long' });
 };
 
 
@@ -1051,7 +1051,7 @@ const PlayerControls = ({
         {subtitleTrackPanel}
         {showCatchUp && (
           <div
-            className="absolute right-0 top-0 bottom-0 z-40 w-full border-l border-border/50 bg-background/95 backdrop-blur-md sm:w-96"
+            className="fixed inset-0 z-50 w-full bg-background/95 backdrop-blur-md sm:absolute sm:inset-auto sm:bottom-0 sm:right-0 sm:top-0 sm:z-40 sm:w-96 sm:border-l sm:border-border/50"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="flex h-full flex-col">

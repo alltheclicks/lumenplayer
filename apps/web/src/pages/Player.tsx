@@ -206,7 +206,7 @@ const formatCatchUpDateLabel = (date: Date): string => {
   if (date.toDateString() === today.toDateString()) return 'Danas';
   if (date.toDateString() === yesterday.toDateString()) return 'Juče';
 
-  return date.toLocaleDateString('sr-RS', { weekday: 'long', day: 'numeric', month: 'long' });
+  return date.toLocaleDateString('sr-Latn-RS', { weekday: 'long', day: 'numeric', month: 'long' });
 };
 
 const normalizeCatchUpVariantBaseName = (channelName: string): string => (
@@ -3019,11 +3019,11 @@ const Player = () => {
                   </div>
                 </div>
 
-                <div className="border-t border-border p-2">
+                <div className="flex gap-1.5 border-t border-border p-2">
                   <label className="sr-only" htmlFor="mobile-channel-category">
                     Kategorija kanala
                   </label>
-                  <div className="relative min-w-0">
+                  <div className="relative min-w-0 flex-[1.2]">
                     <Tv2 className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                     <select
                       id="mobile-channel-category"
@@ -3032,7 +3032,7 @@ const Player = () => {
                         const value = event.target.value;
                         setSelectedCategory(value === '__all__' ? null : value);
                       }}
-                      className="h-9 w-full min-w-0 appearance-none rounded-lg border border-border bg-secondary py-0 pl-9 pr-9 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                      className="h-9 w-full min-w-0 appearance-none rounded-lg border border-border bg-secondary py-0 pl-9 pr-7 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                     >
                       {desktopCategoryItems.map((item) => (
                         <option key={item.id ?? '__all__'} value={item.id ?? '__all__'}>
@@ -3040,15 +3040,12 @@ const Player = () => {
                         </option>
                       ))}
                     </select>
-                    <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   </div>
-                </div>
-
-                <div className="border-t border-border p-2">
-                  <div className="relative min-w-0">
+                  <div className="relative min-w-0 flex-1">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                     <Input
-                      placeholder="Pretraži kanale..."
+                      placeholder="Pretraži..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       className="h-9 min-w-0 rounded-lg border-border bg-secondary pl-9"
