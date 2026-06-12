@@ -18,6 +18,10 @@ import {
   CalendarDays,
   Clock,
   ChevronDown,
+  ChevronsDown,
+  ChevronsLeft,
+  ChevronsRight,
+  ChevronsUp,
   Home,
   Play,
   Pause,
@@ -58,6 +62,11 @@ import {
   loadAppSettings,
   type AppSettings,
 } from '@/services/appSettings';
+import {
+  loadPlayerLayoutPreferences,
+  savePlayerLayoutPreferences,
+  type PlayerLayoutPreferences,
+} from '@/services/playerLayoutPreferences';
 import { xtreamCodesService } from '@/services/xtreamService';
 import { addWatchHistoryEntry, loadLastWatchedChannelId } from '@/services/watchHistory';
 import { emitWebObservabilityEvent } from '@/services/observability';
@@ -409,6 +418,22 @@ const Player = () => {
   const [numericZapMatchName, setNumericZapMatchName] = useState<string | null>(null);
   const [appSettings, setAppSettings] = useState<AppSettings>(getDefaultAppSettings());
   const [isSettingsHydrated, setIsSettingsHydrated] = useState(false);
+  const [layoutPreferences, setLayoutPreferences] = useState<PlayerLayoutPreferences>(
+    loadPlayerLayoutPreferences,
+  );
+  const updateLayoutPreferences = useCallback(
+    (patch: Partial<PlayerLayoutPreferences>) => {
+      setLayoutPreferences((previous) => {
+        const next = { ...previous, ...patch };
+        savePlayerLayoutPreferences(next);
+        return next;
+      });
+    },
+    [],
+  );
+  const isCategorySidebarWide = layoutPreferences.categorySidebarWidth === 'wide';
+  const isChannelListWide = layoutPreferences.channelListWidth === 'wide';
+  const isGuidePanelExpanded = layoutPreferences.guidePanelSize === 'expanded';
   const [isPictureInPictureSupported, setIsPictureInPictureSupported] = useState(false);
   const [isPictureInPicture, setIsPictureInPicture] = useState(false);
   const [isAirPlaySupported, setIsAirPlaySupported] = useState(false);
@@ -2057,8 +2082,12 @@ const Player = () => {
         {/* Sidebar for desktop */}
         {!isOnDemandSource ? (
           <div className="hidden min-h-0 lg:flex lg:h-full">
-            <aside className="flex h-full w-[180px] flex-col border-r border-border bg-card/50">
-              <div className="p-4 flex justify-center border-b border-border">
+            <aside
+              className={`flex h-full flex-col border-r border-border bg-card/50 transition-[width] duration-200 ${
+                isCategorySidebarWide ? 'w-[240px]' : 'w-[180px]'
+              }`}
+            >
+              <div className="relative p-4 flex justify-center border-b border-border">
                 <button
                   type="button"
                   className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center hover:scale-105 transition-transform"
@@ -2066,6 +2095,23 @@ const Player = () => {
                   aria-label="Player"
                 >
                   <Play className="w-5 h-5 text-primary-foreground fill-current" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    updateLayoutPreferences({
+                      categorySidebarWidth: isCategorySidebarWide ? 'normal' : 'wide',
+                    })
+                  }
+                  className="absolute right-1 top-1/2 -translate-y-1/2 flex h-8 w-6 items-center justify-center rounded-lg text-muted-foreground hover:bg-secondary hover:text-foreground transition-all"
+                  title={isCategorySidebarWide ? 'Suzi kategorije' : 'Proširi kategorije'}
+                  aria-label={isCategorySidebarWide ? 'Suzi kategorije' : 'Proširi kategorije'}
+                >
+                  {isCategorySidebarWide ? (
+                    <ChevronsLeft className="w-4 h-4" />
+                  ) : (
+                    <ChevronsRight className="w-4 h-4" />
+                  )}
                 </button>
               </div>
 
@@ -2079,7 +2125,7 @@ const Player = () => {
                         key={item.id ?? 'all'}
                         type="button"
                         onClick={() => setSelectedCategory(item.id)}
-                        className={`relative w-[160px] h-12 rounded-xl flex items-center justify-start gap-2 px-3 transition-all ${
+                        className={`relative ${isCategorySidebarWide ? 'w-[220px]' : 'w-[160px]'} h-12 rounded-xl flex items-center justify-start gap-2 px-3 transition-all ${
                           isActive
                             ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/25'
                             : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
@@ -2110,7 +2156,7 @@ const Player = () => {
                   <button
                     type="button"
                     onClick={() => navigate('/vod')}
-                    className="starlight-border starlight-border-amber w-[160px] h-10 rounded-xl flex items-center justify-start gap-2 px-3 transition-all bg-gradient-to-br from-amber-500/20 to-yellow-600/20 border border-amber-500/30 text-amber-400 hover:from-amber-500/30 hover:to-yellow-600/30 hover:border-amber-500/50 hover:scale-105"
+                    className={`starlight-border starlight-border-amber ${isCategorySidebarWide ? 'w-[220px]' : 'w-[160px]'} h-10 rounded-xl flex items-center justify-start gap-2 px-3 transition-all bg-gradient-to-br from-amber-500/20 to-yellow-600/20 border border-amber-500/30 text-amber-400 hover:from-amber-500/30 hover:to-yellow-600/30 hover:border-amber-500/50 hover:scale-105`}
                   >
                     <Film className="w-4 h-4 shrink-0" />
                     <span className="text-xs font-semibold">Filmovi</span>
@@ -2118,7 +2164,7 @@ const Player = () => {
                   <button
                     type="button"
                     onClick={() => navigate('/series')}
-                    className="starlight-border starlight-border-purple w-[160px] h-10 rounded-xl flex items-center justify-start gap-2 px-3 transition-all bg-gradient-to-br from-purple-500/20 to-pink-500/20 border border-purple-500/30 text-purple-400 hover:from-purple-500/30 hover:to-pink-500/30 hover:border-purple-500/50 hover:scale-105"
+                    className={`starlight-border starlight-border-purple ${isCategorySidebarWide ? 'w-[220px]' : 'w-[160px]'} h-10 rounded-xl flex items-center justify-start gap-2 px-3 transition-all bg-gradient-to-br from-purple-500/20 to-pink-500/20 border border-purple-500/30 text-purple-400 hover:from-purple-500/30 hover:to-pink-500/30 hover:border-purple-500/50 hover:scale-105`}
                   >
                     <Clapperboard className="w-4 h-4 shrink-0" />
                     <span className="text-xs font-semibold">Serije</span>
@@ -2169,7 +2215,13 @@ const Player = () => {
               </div>
             </aside>
 
-            <aside className="w-72 xl:w-80 2xl:w-96 bg-card border-r border-border flex flex-col overflow-hidden shrink-0">
+            <aside
+              className={`bg-card border-r border-border flex flex-col overflow-hidden shrink-0 transition-[width] duration-200 ${
+                isChannelListWide
+                  ? 'w-96 xl:w-[28rem] 2xl:w-[32rem]'
+                  : 'w-72 xl:w-80 2xl:w-96'
+              }`}
+            >
               <div className="p-4 border-b border-border">
                 <div className="flex items-center justify-between mb-3">
                   <span className="font-bold text-lg text-foreground">
@@ -2187,6 +2239,23 @@ const Player = () => {
                         <Airplay className={`w-4 h-4 ${isAirPlayConnected ? 'text-primary' : ''}`} />
                       </Button>
                     )}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() =>
+                        updateLayoutPreferences({
+                          channelListWidth: isChannelListWide ? 'normal' : 'wide',
+                        })
+                      }
+                      title={isChannelListWide ? 'Suzi listu kanala' : 'Proširi listu kanala'}
+                      aria-label={isChannelListWide ? 'Suzi listu kanala' : 'Proširi listu kanala'}
+                    >
+                      {isChannelListWide ? (
+                        <ChevronsLeft className="w-4 h-4" />
+                      ) : (
+                        <ChevronsRight className="w-4 h-4" />
+                      )}
+                    </Button>
                   </div>
                 </div>
 
@@ -2318,7 +2387,17 @@ const Player = () => {
           {/* Player area */}
           <div
             ref={containerRef}
-            className={`relative w-full min-w-0 max-w-full shrink-0 overflow-hidden bg-black ${isFullscreen ? 'fixed inset-0 z-50' : 'aspect-video max-h-[36svh] lg:max-h-none'}`}
+            className={`relative w-full min-w-0 max-w-full shrink-0 overflow-hidden bg-black ${
+              isFullscreen
+                ? 'fixed inset-0 z-50'
+                : `aspect-video max-h-[36svh] transition-[max-height] duration-300 ${
+                    isOnDemandSource
+                      ? 'lg:max-h-none'
+                      : isGuidePanelExpanded
+                        ? 'lg:max-h-[50svh]'
+                        : 'lg:max-h-[calc(100svh-320px)]'
+                  }`
+            }`}
           >
             {numericZapBuffer && (
               <div className="absolute top-4 right-4 z-[60] rounded-lg bg-black/80 border border-primary/40 px-3 py-2 text-sm">
@@ -2647,9 +2726,33 @@ const Player = () => {
             <div className="hidden lg:flex flex-1 flex-col bg-card/50 border-t border-border overflow-hidden">
               <div className="flex-1 min-h-0 overflow-y-auto player-scrollbar p-6 space-y-6">
                 <div>
-                  <div className="flex items-center gap-2 mb-2">
-                    <Clock className="w-4 h-4 text-primary" />
-                    <span className="text-sm font-medium text-muted-foreground">Sada na programu</span>
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <div className="flex items-center gap-2">
+                      <Clock className="w-4 h-4 text-primary" />
+                      <span className="text-sm font-medium text-muted-foreground">Sada na programu</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        updateLayoutPreferences({
+                          guidePanelSize: isGuidePanelExpanded ? 'normal' : 'expanded',
+                        })
+                      }
+                      className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-muted-foreground bg-secondary/40 hover:bg-secondary hover:text-foreground transition-all"
+                      title={isGuidePanelExpanded ? 'Smanji TV vodič' : 'Proširi TV vodič'}
+                    >
+                      {isGuidePanelExpanded ? (
+                        <>
+                          <ChevronsDown className="w-3.5 h-3.5" />
+                          <span>Smanji vodič</span>
+                        </>
+                      ) : (
+                        <>
+                          <ChevronsUp className="w-3.5 h-3.5" />
+                          <span>Proširi vodič</span>
+                        </>
+                      )}
+                    </button>
                   </div>
                   {currentProgram ? (
                     <div className="w-full text-left bg-primary/10 border border-primary/30 rounded-xl p-4">
