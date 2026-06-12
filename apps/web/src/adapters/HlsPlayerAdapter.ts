@@ -1299,6 +1299,17 @@ export class HlsPlayerAdapter implements PlayerAdapter {
         return;
       }
 
+      // hls.js detachMedia() (live startup retry, source switch) removes the
+      // src attribute and calls load(), which queues an async "Empty src
+      // attribute" error. When it fires mid-reload (e.g. during the live codec
+      // probe await), video.currentSrc can still report the stale MSE blob URL,
+      // so hasPlayableSource() above lets it through and it would surface as a
+      // fatal error that tears down an otherwise-recovering stream. With no hls
+      // instance and no src attribute there is nothing to play — swallow it.
+      if (isSrcNotSupported && !isManagedByHls && !this.video.getAttribute('src')) {
+        return;
+      }
+
       this.emitError({
         code: `MEDIA_ELEMENT_${mediaError.code}`,
         message: mediaError.message || 'Playback error',

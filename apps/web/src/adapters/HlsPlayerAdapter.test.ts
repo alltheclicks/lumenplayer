@@ -234,6 +234,9 @@ describe('HlsPlayerAdapter', () => {
           video.src = '';
         }
       }),
+      getAttribute: vi.fn((attribute: string) => (
+        attribute === 'src' && video.src !== '' ? video.src : null
+      )),
       pause: vi.fn(() => {
         video.paused = true;
       }),
@@ -1510,5 +1513,54 @@ describe('HlsPlayerAdapter', () => {
     (video as unknown as { dispatchEvent: (event: string) => void }).dispatchEvent('error');
 
     expect(errors).toHaveLength(0);
+  });
+
+  it('swallows a stale code-4 "Empty src" error when currentSrc still holds the detached blob URL', () => {
+    const video = createMockVideoElement();
+    const adapter = new HlsPlayerAdapter(video);
+    const errors: unknown[] = [];
+    adapter.onError((error) => errors.push(error));
+
+    // After hls.destroy()/detachMedia() (live startup retry on tab refocus)
+    // the src attribute is gone, but Chrome can still report the old MSE blob
+    // URL via currentSrc when the queued "Empty src attribute" error fires.
+    const mutableVideo = video as unknown as {
+      src: string;
+      currentSrc: string;
+      error: { code: number; message: string } | null;
+      dispatchEvent: (event: string) => void;
+    };
+    mutableVideo.src = '';
+    mutableVideo.currentSrc = 'blob:http://localhost:8080/0bd28e91-stale';
+    mutableVideo.error = {
+      code: 4,
+      message: 'MEDIA_ELEMENT_ERROR: Empty src attribute',
+    };
+    mutableVideo.dispatchEvent('error');
+
+    expect(errors).toHaveLength(0);
+  });
+
+  it('still surfaces a fatal code-4 error when a real native source is attached', () => {
+    const video = createMockVideoElement();
+    const adapter = new HlsPlayerAdapter(video);
+    const errors: Array<{ code: string; fatal: boolean }> = [];
+    adapter.onError((error) => errors.push({ code: error.code, fatal: error.fatal }));
+
+    const mutableVideo = video as unknown as {
+      src: string;
+      currentSrc: string;
+      error: { code: number; message: string } | null;
+      dispatchEvent: (event: string) => void;
+    };
+    mutableVideo.src = 'https://example.com/stream.mp4';
+    mutableVideo.currentSrc = 'https://example.com/stream.mp4';
+    mutableVideo.error = {
+      code: 4,
+      message: 'MEDIA_ELEMENT_ERROR: Format error',
+    };
+    mutableVideo.dispatchEvent('error');
+
+    expect(errors).toEqual([{ code: 'MEDIA_ELEMENT_4', fatal: true }]);
   });
 });
