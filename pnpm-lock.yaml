@@ -122,7 +122,7 @@ importers:
         specifier: ^2.1.1
         version: 2.1.1
       hls.js:
-        specifier: ^1.5.15
+        specifier: ^1.6.15
         version: 1.6.15
       lucide-react:
         specifier: ^0.462.0

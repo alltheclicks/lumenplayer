@@ -654,6 +654,7 @@ describe('HlsPlayerAdapter', () => {
       lowLatencyMode: false,
       progressive: true,
     });
+    expect(hls?.config).not.toHaveProperty('startOnSegmentBoundary');
 
     hls?.emit(hlsMockState.MockHls.Events.MANIFEST_LOADED, { url: source.url });
     hls?.emit(hlsMockState.MockHls.Events.MANIFEST_PARSED);
@@ -946,7 +947,8 @@ describe('HlsPlayerAdapter', () => {
       play: ReturnType<typeof vi.fn>;
     };
     // User scrubbed to 120s; the buffered range starts at the keyframe behind
-    // it. The startup seek must not yank playback back to the dead-zone edge.
+    // it. Scrubbed loads are excluded from the startup buffer snap entirely,
+    // so playback must stay at the position the user picked.
     mutableVideo.currentTime = 120;
     mutableVideo.paused = false;
     mutableVideo.buffered.length = 1;
@@ -955,6 +957,52 @@ describe('HlsPlayerAdapter', () => {
     hls?.emit(hlsMockState.MockHls.Events.BUFFER_APPENDED);
 
     expect(mutableVideo.currentTime).toBe(120);
+    expect(mutableVideo.play).not.toHaveBeenCalled();
+  });
+
+  it('does not snap a scrubbed catch-up start to the segment-head keyframe', async () => {
+    const video = createMockVideoElement();
+    const adapter = new HlsPlayerAdapter(video);
+    const source = {
+      url: 'https://example.com/archive.m3u8',
+      type: 'hls' as const,
+      title: 'Archive',
+      metadata: {
+        mode: 'catchup',
+        catchUpHlsStartPositionSeconds: 145,
+      },
+    };
+
+    const loadPromise = adapter.load(source);
+    const hls = hlsMockState.instances.at(-1);
+    expect(hls).toBeDefined();
+
+    hls?.emit(hlsMockState.MockHls.Events.MANIFEST_LOADED, { url: source.url });
+    hls?.emit(hlsMockState.MockHls.Events.MANIFEST_PARSED);
+    await loadPromise;
+
+    const mutableVideo = video as unknown as {
+      buffered: {
+        length: number;
+        start: ReturnType<typeof vi.fn>;
+      };
+      currentTime: number;
+      paused: boolean;
+      play: ReturnType<typeof vi.fn>;
+    };
+    // The first buffered chunk lands at the segment-head keyframe (121.5s)
+    // while hls.js has not yet seeked the media element to the requested 145s
+    // (currentTime is still 0). Snapping here would strand the user ~23s
+    // before the position they picked; hls.js's own startPosition seek is the
+    // one that must move the playhead.
+    mutableVideo.currentTime = 0;
+    mutableVideo.paused = false;
+    mutableVideo.buffered.length = 1;
+    mutableVideo.buffered.start.mockReturnValue(121.5);
+
+    hls?.emit(hlsMockState.MockHls.Events.BUFFER_APPENDED);
+
+    expect(mutableVideo.currentTime).toBe(0);
     expect(mutableVideo.play).not.toHaveBeenCalled();
   });
 
@@ -976,7 +1024,8 @@ describe('HlsPlayerAdapter', () => {
     expect(hls?.config).toMatchObject({
       enableWorker: true,
       lowLatencyMode: false,
-      startPosition: 0,
+      startPosition: 0.1,
+      startOnSegmentBoundary: true,
       progressive: true,
       fragLoadingTimeOut: 60_000,
       startFragPrefetch: true,
@@ -1166,13 +1215,16 @@ describe('HlsPlayerAdapter', () => {
       progressive: true,
       startFragPrefetch: true,
     });
+    // A scrubbed start must never snap to the segment boundary — that would
+    // pull the user back from the position they picked.
+    expect(hls?.config).not.toHaveProperty('startOnSegmentBoundary');
 
     hls?.emit(hlsMockState.MockHls.Events.MANIFEST_LOADED, { url: source.url });
     hls?.emit(hlsMockState.MockHls.Events.MANIFEST_PARSED);
     await loadPromise;
   });
 
-  it('starts catch-up HLS from the first archive position by default', async () => {
+  it('starts default catch-up just past zero with a segment-boundary snap', async () => {
     const video = createMockVideoElement();
     const adapter = new HlsPlayerAdapter(video);
     const source = {
@@ -1187,8 +1239,12 @@ describe('HlsPlayerAdapter', () => {
     const loadPromise = adapter.load(source);
     const hls = hlsMockState.instances.at(-1);
     expect(hls).toBeDefined();
+    // startPosition 0 would make hls.js's seekToStartPos a no-op and leave the
+    // playhead stranded in the archive's header-less dead zone; a tiny positive
+    // position plus startOnSegmentBoundary snaps onto the first buffered keyframe.
     expect(hls?.config).toMatchObject({
-      startPosition: 0,
+      startPosition: 0.1,
+      startOnSegmentBoundary: true,
       progressive: true,
       startFragPrefetch: true,
     });
@@ -1258,8 +1314,10 @@ describe('HlsPlayerAdapter', () => {
     const completeHls = hlsMockState.instances.at(-1);
     expect(completeHls).toBeDefined();
     expect(completeHls).not.toBe(progressiveHls);
+    // The complete-mode retry keeps the from-the-beginning start contract.
     expect(completeHls?.config).toMatchObject({
-      startPosition: 0,
+      startPosition: 0.1,
+      startOnSegmentBoundary: true,
     });
     expect(completeHls?.config).not.toHaveProperty('progressive');
     expect(completeHls?.config).not.toHaveProperty('startFragPrefetch');

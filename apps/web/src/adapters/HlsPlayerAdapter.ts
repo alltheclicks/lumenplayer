@@ -52,6 +52,17 @@ const HLS_NETWORK_ERROR_RECOVERY_MAX_ATTEMPTS = 3;
 // HTTP statuses that must never be retried — the upstream is rejecting auth, so
 // retrying only burns request budget and risks provider rate limiting.
 const HLS_NON_RETRYABLE_HTTP_STATUSES = new Set([401, 403]);
+// Catch-up archives are byte-copied mid-GOP, so the first buffered video frame
+// (first keyframe with SPS/PPS) lands 0.6-1.5s past the segment's nominal start
+// while the playhead sits at 0. hls.js can snap the start position onto the
+// buffer start (stream-controller seekToStartPos + startOnSegmentBoundary), but
+// that code path only runs when currentTime < startPosition — with a
+// startPosition of exactly 0 it is dead code and the playhead is stranded in
+// the dead zone. Start "from the beginning" at a tiny positive position
+// instead; combined with startOnSegmentBoundary the start then snaps to the
+// first decodable keyframe, and for clean archives (buffer starts at 0) the
+// snap resolves right back to 0, so nothing is skipped.
+const HLS_CATCHUP_START_FROM_BEGINNING_POSITION_SECONDS = 0.1;
 const PLAYBACK_LOAD_CANCELLED_MESSAGE = 'Playback load was cancelled.';
 
 type StateListener = (state: PlaybackState) => void;
@@ -751,9 +762,16 @@ export class HlsPlayerAdapter implements PlayerAdapter {
       const MpegAudioStrippingFragmentLoader = useMpegAudioVideoOnlyFallback
         ? createMpegAudioStrippingFragmentLoader(Hls.DefaultConfig.loader as unknown as HlsLoaderConstructor)
         : null;
+      // "From the beginning" must not map to startPosition 0: hls.js's
+      // seekToStartPos() is a no-op at 0 (currentTime < startPosition never
+      // holds), which strands the playhead inside the archive's header-less
+      // dead zone. See HLS_CATCHUP_START_FROM_BEGINNING_POSITION_SECONDS.
+      const isCatchUpFromProgramStart = isCatchUpSource && catchUpStartPositionSeconds <= 0;
       const safeCatchUpStartPositionSeconds = (
         isCatchUpSource
-          ? Math.max(0, catchUpStartPositionSeconds)
+          ? (isCatchUpFromProgramStart
+            ? HLS_CATCHUP_START_FROM_BEGINNING_POSITION_SECONDS
+            : catchUpStartPositionSeconds)
           : -1
       );
       const hls = new Hls({
@@ -766,6 +784,12 @@ export class HlsPlayerAdapter implements PlayerAdapter {
         // hammers the playlist endpoint (429 risk).
         lowLatencyMode: isLiveSource && codecProbe.lowLatencyHls,
         startPosition: safeCatchUpStartPositionSeconds,
+        // Snap the start position onto the first buffered keyframe so playback
+        // never starts inside the mid-GOP dead zone at the archive head. Only
+        // for "from the beginning" loads: startOnSegmentBoundary also snaps
+        // BACKWARD (seekToStartPos applies a negative delta), which would yank
+        // a user who scrubbed mid-program back to the segment boundary.
+        ...(isCatchUpFromProgramStart ? { startOnSegmentBoundary: true } : {}),
         ...(shouldUseProgressiveLoading && !useMpegAudioVideoOnlyFallback ? { progressive: true } : {}),
         ...(MpegAudioStrippingFragmentLoader ? {
           fLoader: MpegAudioStrippingFragmentLoader as never,
@@ -816,23 +840,25 @@ export class HlsPlayerAdapter implements PlayerAdapter {
           };
 
           // Snap startup playback to the first buffered range (the first
-          // decodable keyframe). hls.js gates its init segment on sps && pps,
-          // so buffered.start(0) is the first frame that actually carries
-          // parameter sets — everything before it the demuxer already dropped.
+          // decodable keyframe). hls.js never appends the archive's header-less
+          // dead-zone frames (the mp4-remuxer drops them on the keyframe batch,
+          // and the stream-controller gap-marks keyframe-less first chunks), so
+          // buffered.start(0) is the first decodable keyframe — but the
+          // playhead is left at 0 in front of it, where playback stalls.
           //
-          // Live always benefits (skip to the live-edge buffer). Catch-up now
-          // benefits too: provider archives are byte-copied mid-GOP, so each
-          // segment opens with header-less P-frames the decoder chokes on
-          // ("muca pa krene"). With the provider's per-keyframe SPS/PPS fix
-          // (dump_extra) in place, the first buffered range is a clean,
-          // self-contained keyframe — so snapping past the dead zone is safe
-          // and no longer re-stutters on the next segment boundary.
+          // This is the earliest snap layer (per BUFFER_APPENDED chunk, before
+          // hls.js's own seekToStartPos which waits for the whole first
+          // fragment). Live skips to the live-edge buffer. Catch-up gets it
+          // only for "from the beginning" loads: on a scrubbed load the buffer
+          // start (segment head keyframe) sits BEFORE the requested position,
+          // and snapping would land the user at the segment boundary instead —
+          // there hls.js's startPosition seek is already reliable.
           const seekStartupToBufferedRange = () => {
             if (!this.isCurrentLoad(loadGeneration)) {
               return;
             }
 
-            if (!isLiveSource && !isCatchUpSource) {
+            if (!isLiveSource && !isCatchUpFromProgramStart) {
               return;
             }
 
