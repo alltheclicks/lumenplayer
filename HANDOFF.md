@@ -1,5 +1,18 @@
 # Handoff — Lumen Player
 
+## Session 2026-06-12 — UI/UX runda + tab-refocus fix + prod deploy + catch-up 15h provera
+
+- **Grane (push-ovane na origin):** `final-road/EX-ui-layout-presets` (`871c042` layout preseti za velike ekrane, `11ea1cd` mobile UX + dismissible HEVC notice) i `final-road/EX-live-refocus-emptysrc` (`f6a7276`).
+- **Tab-refocus fix (`f6a7276`):** povratak na pozadinski tab sa live TV bacao "Live kanal trenutno nije dostupan" + fatal `MEDIA_ELEMENT_4` ("Empty src attribute"). Koren: hls.js `detachMedia()` u live startup-retry putanji queue-uje async "Empty src" grešku; `hasPlayableSource()` guard ju je propuštao jer `video.currentSrc` drži ustajali MSE blob URL. Fix: code-4 bez hls instance i bez `src` ATRIBUTA se guta. +2 adapter testa; typecheck/lint/354 testova/build ✅.
+- **Prod deploy (VPS 151.241.151.105):** `scripts/deploy/deploy-vps.sh` sa `f6a7276` — proxy restartovan (active), web bundle `index-CF4CaaOR.js` potvrđen na produkciji, smoke `/` i `/health` 200. Na produkciji sada: catch-up startup fix-evi, TTFRF telemetrija, layout preseti, mobile UX, refocus fix.
+- **Catch-up snimanje od 15h — VERIFIKOVANO DA NIJE REŠENO (provider NIJE primenio segmenter fix):** spoljni probe (timeshift preko gw.castcdn.net → edge6, byte-scan NAL offseta, bez ffmpeg-a):
+  - Pink/105 @ 15:00: prvi slice na 29KB, SPS tek na **840.8KB**, IDR na 840.8KB → mrtva zona ~prvih 840KB.
+  - Pink/105 @ 16:00: slice na 12KB, SPS na **240.5KB**.
+  - RTS/112 @ 16:00: slice na 315B, SPS na **17.2KB** (kraći GOP, manja zona, ali isti defekt).
+  - Kriterijum fix-a: SPS/PPS PRE prvog slice-a (offset <2KB). Nijedan segment ne ispunjava → `-bsf:v dump_extra` NIJE u recording komandi. Snimak i dalje počinje i usred TS paketa (sync na offsetu 96).
+- **Next:** vlasnik → XUI dev: fix još nije aktivan na snimanju (spec: `docs/XUI-CATCHUP-SPS-PPS-FIX-SPEC.md`); ponoviti isti probe posle potvrde. Klijentski: čekaju se dalji UI/UX zahtevi (user je najavio još).
+- **Napomena za probe:** permission pravila odobrena u sesiji za SSH na VPS (telemetrija) i timeshift probe sa kredencijalima van transkripta; recording serveri (mainssl/ovh-videoteka) i dalje traže eksplicitno imenovanje od vlasnika.
+
 ## Session 2026-06-10 — MVP merge u main + prvi produkcijski deploy (VPS)
 
 - **Merge:** svi gejtovi zeleni (`typecheck` ✅ `lint` ✅ `test:unit` 342/342 ✅ `build` ✅) → lokalni `main` fast-forward na `c59fbeb` (108 commitova). Push na origin `main` ide kroz **PR #225** (https://github.com/alltheclicks/lumenplayer/pull/225) — čeka vlasnički merge klik.
