@@ -637,6 +637,16 @@ const isCatchUpRequestUrl = (upstreamUrl: URL): boolean => {
   );
 };
 
+// The provider-side MP2->AAC shadow endpoint (timeshift_shadow.php) builds an
+// fMP4 HLS manifest by re-muxing every archive minute of a program. A COLD build
+// of a multi-hour program can take well over the default 10s upstream budget
+// before it serves the manifest (the server caches the result, so subsequent
+// hits are fast). Give shadow manifest requests a much longer timeout so the
+// cold build can finish instead of aborting and forcing the legacy fallback.
+const isShadowRemuxRequestUrl = (upstreamUrl: URL): boolean => (
+  upstreamUrl.pathname.toLowerCase() === "/streaming/timeshift_shadow.php"
+);
+
 const isRemuxPlaybackHint = (upstreamUrl: URL): boolean => (
   upstreamUrl.searchParams.get("__lumenTransport") === "remux-hls"
 );
@@ -683,6 +693,12 @@ export const createProxyServer = (options: ProxyServerOptions = {}): FastifyInst
     parseAllowedHosts(env.XTREAM_PROXY_ALLOWED_HOSTS)
   ).map(normalizeAllowedHostEntry);
   const timeoutMs = options.timeoutMs ?? parseNonNegativeInteger(env.XTREAM_PROXY_TIMEOUT_MS, 10_000);
+  // Cold shadow remux builds (timeshift_shadow.php) can take much longer than a
+  // normal upstream request; give them a dedicated, larger budget.
+  const shadowRemuxTimeoutMs = parseNonNegativeInteger(
+    env.XTREAM_PROXY_SHADOW_TIMEOUT_MS,
+    90_000,
+  );
   const retryCount = options.retryCount ?? parseNonNegativeInteger(env.XTREAM_PROXY_RETRY_COUNT, 1);
   const sweepIntervalMs = options.sweepIntervalMs ?? parseNonNegativeInteger(
     env.LUMEN_CATCHUP_GATEWAY_SWEEP_INTERVAL_MS,
@@ -827,12 +843,15 @@ export const createProxyServer = (options: ProxyServerOptions = {}): FastifyInst
 
     const maxAttempts = RETRYABLE_METHODS.has(requestMethod) ? retryCount + 1 : 1;
     const startedAt = performance.now();
+    const effectiveTimeoutMs = isShadowRemuxRequestUrl(upstreamUrl)
+      ? shadowRemuxTimeoutMs
+      : timeoutMs;
 
     for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
       const abortController = new AbortController();
       const timeoutHandle = setTimeout(() => {
         abortController.abort();
-      }, timeoutMs);
+      }, effectiveTimeoutMs);
       let responseFinished = false;
       const handleResponseFinish = () => {
         responseFinished = true;
@@ -946,7 +965,7 @@ export const createProxyServer = (options: ProxyServerOptions = {}): FastifyInst
           reply,
           errorCode,
           errorCode === "upstream_timeout"
-            ? `Upstream request timed out after ${timeoutMs}ms.`
+            ? `Upstream request timed out after ${effectiveTimeoutMs}ms.`
             : "Failed to reach upstream target.",
         );
         return;

@@ -733,6 +733,64 @@ describe("createProxyServer", () => {
     await app.close();
   });
 
+  it("gives shadow remux (timeshift_shadow.php) a longer timeout than the default budget", async () => {
+    // Default budget is tiny (5ms). The shadow budget is generous. A fetch that
+    // resolves after ~40ms must time out on a normal request but succeed for a
+    // shadow request — proving the per-request shadow timeout is applied.
+    const slowOk = (waitMs: number) => vi.fn().mockImplementation((
+      _url: unknown,
+      init?: { signal?: AbortSignal },
+    ) => new Promise((resolve, reject) => {
+      const signal = init?.signal;
+      const timer = setTimeout(() => resolve(new Response("#EXTM3U\n", {
+        status: 200,
+        headers: { "content-type": "application/vnd.apple.mpegurl" },
+      })), waitMs);
+      // Honour the abort signal like the real fetch does, so the default-budget
+      // path actually times out.
+      signal?.addEventListener("abort", () => {
+        clearTimeout(timer);
+        reject(new DOMException("Aborted", "AbortError"));
+      });
+    }));
+
+    // 1) normal request with tiny default budget -> times out
+    const normalFetch = slowOk(40);
+    const normalApp = createProxyServer({
+      allowedHosts: ["edge6.castcdn.net"],
+      retryCount: 0,
+      timeoutMs: 5,
+      fetchImpl: normalFetch as unknown as typeof fetch,
+      logger: false,
+      remuxController: createTestRemuxController(),
+    });
+    const normalResponse = await normalApp.inject({
+      method: "GET",
+      url: `/xui-api/${encodeTarget("https://edge6.castcdn.net")}/streaming/timeshift.php?token=abc&extension=m3u8`,
+    });
+    expect(normalResponse.statusCode).toBe(504);
+    await normalApp.close();
+
+    // 2) shadow request with the same tiny default budget but a generous shadow
+    //    budget -> succeeds
+    const shadowFetch = slowOk(40);
+    const shadowApp = createProxyServer({
+      allowedHosts: ["edge6.castcdn.net"],
+      retryCount: 0,
+      timeoutMs: 5,
+      env: { ...process.env, XTREAM_PROXY_SHADOW_TIMEOUT_MS: "5000" },
+      fetchImpl: shadowFetch as unknown as typeof fetch,
+      logger: false,
+      remuxController: createTestRemuxController(),
+    });
+    const shadowResponse = await shadowApp.inject({
+      method: "GET",
+      url: `/xui-api/${encodeTarget("https://edge6.castcdn.net")}/streaming/timeshift_shadow.php?token=abc&extension=m3u8`,
+    });
+    expect(shadowResponse.statusCode).toBe(200);
+    await shadowApp.close();
+  });
+
   it("streams media payload from real upstream without buffering", async () => {
     const upstream = createServer((_, response) => {
       response.writeHead(200, {
