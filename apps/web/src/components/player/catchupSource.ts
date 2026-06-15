@@ -190,14 +190,25 @@ const buildShadowOnlyResult = ({
     url: gateway.playbackUrl,
     strategy: 'shadow-validation' as const,
   };
+  // Keep the original (legacy timeshift.php) attempts as fallbacks behind the
+  // shadow attempt. The shadow endpoint produces a clean A/V-normalized fMP4
+  // stream, but if it fails to play (e.g. the player can't start the fMP4
+  // source, or a segment errors), the player must still be able to fall back to
+  // the legacy path rather than dying with no source. This makes enabling
+  // shadow strictly non-regressive: worst case is the old (overlapping) stream.
+  const legacyAttempts = result.transportPlan.allAttempts.filter(
+    (attempt) => attempt.url !== initialAttempt.url,
+  );
+  const fallbackUrls = legacyAttempts.map((attempt) => attempt.url);
+  const allAttempts = [initialAttempt, ...legacyAttempts];
   const sourceMetadata = {
     ...(result.source.metadata as Record<string, unknown>),
     gateway,
-    catchUpAttemptPlan: [initialAttempt],
+    catchUpAttemptPlan: allAttempts,
     catchUpAttemptIndex: 0,
     catchUpAttemptStrategy: initialAttempt.strategy,
-    catchUpFallbackUrl: '',
-    catchUpFallbackUrls: [],
+    catchUpFallbackUrl: fallbackUrls[0] ?? '',
+    catchUpFallbackUrls: fallbackUrls,
     catchUpFallbackIndex: -1,
     catchUpFallbackUsed: false,
   };
@@ -211,8 +222,8 @@ const buildShadowOnlyResult = ({
     },
     transportPlan: {
       initialAttempt,
-      fallbackAttempts: [],
-      allAttempts: [initialAttempt],
+      fallbackAttempts: legacyAttempts,
+      allAttempts,
     },
     gateway,
   };

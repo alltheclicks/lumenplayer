@@ -176,7 +176,7 @@ describe('resolveCatchUpPlaybackSource', () => {
     expect((result.source.metadata as Record<string, unknown>).gateway).toBeNull();
   });
 
-  it('uses a shadow-only transport plan when shadow validation resolves a tokenized edge manifest', async () => {
+  it('leads with the shadow attempt but keeps legacy timeshift.php attempts as fallbacks', async () => {
     const fetchImpl = vi.fn().mockResolvedValue({
       ok: true,
       url: 'https://edge6.castcdn.net/streaming/timeshift.php?token=abc123',
@@ -206,11 +206,18 @@ describe('resolveCatchUpPlaybackSource', () => {
 
     expect(fetchImpl).toHaveBeenCalledTimes(1);
     expect(String(fetchImpl.mock.calls[0]?.[0])).toContain('/streaming/timeshift.php?username=user');
+    // Shadow leads.
     expect(result.source.url).toBe('https://edge6.castcdn.net/streaming/timeshift_shadow.php?token=abc123');
-    expect(result.transportPlan.allAttempts).toHaveLength(1);
-    expect(result.transportPlan.fallbackAttempts).toHaveLength(0);
     expect(result.transportPlan.initialAttempt.strategy).toBe('shadow-validation');
-    expect((result.source.metadata as Record<string, unknown>).catchUpFallbackUrls).toEqual([]);
+    // ...but legacy timeshift.php attempts remain as fallbacks, so a shadow
+    // playback failure degrades to the old path instead of killing catch-up.
+    expect(result.transportPlan.fallbackAttempts.length).toBeGreaterThan(0);
+    expect(result.transportPlan.allAttempts.length).toBeGreaterThan(1);
+    expect(result.transportPlan.fallbackAttempts.every(
+      (attempt) => !attempt.url.includes('timeshift_shadow.php'),
+    )).toBe(true);
+    const fallbackUrls = (result.source.metadata as Record<string, unknown>).catchUpFallbackUrls as string[];
+    expect(fallbackUrls.length).toBeGreaterThan(0);
     expect((result.source.metadata as Record<string, unknown>).catchUpAttemptStrategy).toBe('shadow-validation');
     expect(result.gateway).toMatchObject({
       serverId: 'shadow-validation',
