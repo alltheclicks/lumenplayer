@@ -413,6 +413,19 @@ const resolveCatchUpLoadingCopy = ({
     };
   }
 
+  // Default (request sent, no manifest yet). For catch-up this is where the
+  // provider's shadow remux runs — a COLD build of a long programme (a 4h show
+  // is hundreds of archive minutes) can take a minute or two before the
+  // manifest is ready. Escalate the copy over time so the wait reads as
+  // "preparing a clean HD recording", not a freeze.
+  if (elapsedSeconds >= 8) {
+    return {
+      title: 'Pripremam snimak',
+      detail: 'Pripremam snimak visokog kvaliteta. Duže emisije mogu da potraju do minut-dva — snimak nije pao.',
+      status: 'priprema u toku',
+    };
+  }
+
   return {
     title: 'Učitavam TV unazad',
     detail: 'Tražim snimak kod provajdera.',
