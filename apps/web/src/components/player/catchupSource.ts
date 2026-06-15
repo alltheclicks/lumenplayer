@@ -30,7 +30,6 @@ export interface CatchUpPlaybackSourceResult {
 }
 
 const CATCHUP_SHADOW_VALIDATION_ENABLED = import.meta.env.VITE_CATCHUP_SHADOW_VALIDATION === '1';
-const SHADOW_VALIDATION_UNAVAILABLE_ERROR = 'catchup_shadow_validation_unavailable';
 const MEDIAKING_CATCHUP_SAFE_START_POSITION_SECONDS = 75;
 
 const MEDIAKING_CATCHUP_HOSTS = [
@@ -504,41 +503,44 @@ export const resolveCatchUpPlaybackSource = async ({
       sourceCandidates,
       fetchImpl: gatewayOptions?.fetchImpl,
     }).catch(() => null);
-    if (!shadowGateway) {
-      throw new Error(SHADOW_VALIDATION_UNAVAILABLE_ERROR);
+    // Graceful fallback: if the shadow (MP2->AAC remux) endpoint can't be
+    // resolved for this program, fall through to the original timeshift.php
+    // gateway path below instead of throwing. The legacy path still plays
+    // (with the minute-boundary overlap) — far better than killing catch-up
+    // entirely. Shadow stays best-effort, per-program.
+    if (shadowGateway) {
+      const providerSafeStartPositionSeconds = resolveProviderSafeStartPositionSeconds({
+        sourceCandidates,
+        gateway: shadowGateway,
+        durationSeconds: resolvedDurationSeconds,
+        streamId: channel.streamId,
+      });
+      const stableStartupMetadata = buildProviderSafeStartMetadata(
+        metadata,
+        shadowGateway,
+        providerSafeStartPositionSeconds,
+      );
+      const resolvedSource = buildCatchUpSessionSourceFromMetadata({
+        channel,
+        metadata: stableStartupMetadata,
+        channelTitle,
+        urlBuilder,
+        preferredPositionSeconds: timelineInitialPositionSeconds,
+        initialPositionGuardSeconds: 0,
+      });
+      const result = {
+        source: resolvedSource.source,
+        transportPlan: resolvedSource.transportPlan,
+        initialPositionSeconds: timelineInitialPositionSeconds,
+        fullDurationSeconds,
+        gateway: shadowGateway,
+      };
+
+      return buildShadowOnlyResult({
+        result: attachCatchUpWebProviderIssue(result, capability),
+        gateway: shadowGateway,
+      });
     }
-
-    const providerSafeStartPositionSeconds = resolveProviderSafeStartPositionSeconds({
-      sourceCandidates,
-      gateway: shadowGateway,
-      durationSeconds: resolvedDurationSeconds,
-      streamId: channel.streamId,
-    });
-    const stableStartupMetadata = buildProviderSafeStartMetadata(
-      metadata,
-      shadowGateway,
-      providerSafeStartPositionSeconds,
-    );
-    const resolvedSource = buildCatchUpSessionSourceFromMetadata({
-      channel,
-      metadata: stableStartupMetadata,
-      channelTitle,
-      urlBuilder,
-      preferredPositionSeconds: timelineInitialPositionSeconds,
-      initialPositionGuardSeconds: 0,
-    });
-    const result = {
-      source: resolvedSource.source,
-      transportPlan: resolvedSource.transportPlan,
-      initialPositionSeconds: timelineInitialPositionSeconds,
-      fullDurationSeconds,
-      gateway: shadowGateway,
-    };
-
-    return buildShadowOnlyResult({
-      result: attachCatchUpWebProviderIssue(result, capability),
-      gateway: shadowGateway,
-    });
   }
 
   const gateway = await resolveCatchUpGatewayPlayback({

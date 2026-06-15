@@ -219,13 +219,13 @@ describe('resolveCatchUpPlaybackSource', () => {
     });
   });
 
-  it('fails fast instead of silently falling back when shadow validation is enabled but unavailable', async () => {
+  it('gracefully falls back to the legacy gateway path when shadow validation is enabled but unavailable', async () => {
     const fetchImpl = vi.fn().mockResolvedValue({
       ok: false,
       url: 'http://smart.mediaking.fi:8080/streaming/timeshift.php',
     });
 
-    await expect(resolveCatchUpPlaybackSource({
+    const result = await resolveCatchUpPlaybackSource({
       channel: {
         id: 'channel-1',
         name: 'Channel 1',
@@ -245,7 +245,14 @@ describe('resolveCatchUpPlaybackSource', () => {
         fetchImpl: fetchImpl as typeof fetch,
       },
       shadowValidation: true,
-    })).rejects.toThrow('catchup_shadow_validation_unavailable');
+    });
+
+    // Shadow could not be resolved (ok:false) — instead of throwing and killing
+    // catch-up, the resolver must fall through to the original timeshift.php
+    // gateway path and return a playable source (the legacy, non-shadow path).
+    expect(result.source.url).toBeTruthy();
+    expect(result.source.url).not.toContain('timeshift_shadow.php');
+    expect(result.transportPlan.initialAttempt.strategy).not.toBe('shadow-validation');
   });
 
   it('keeps known provider archive issues playable while carrying runtime failure evidence', async () => {
