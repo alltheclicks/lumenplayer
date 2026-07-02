@@ -402,4 +402,48 @@ describe('mpegTsPtsRebase', () => {
     const outcome = rebaseCatchUpSegment(session, 0, buildSegment({ audioPtsList }));
     expect(outcome).toMatchObject({ status: 'failed', reason: 'intra-file-pts-jump' });
   });
+
+  it('realigns a segment cut mid-packet by the stock XUI seg=0 fseek', () => {
+    const session = createCatchUpRebaseSession();
+    const aligned = buildSegment();
+    // Simulate fseek(filesize * 0.3) landing inside a packet: the served
+    // bytes start with the tail of a cut packet and end mid-packet too.
+    const leadingTail = new Uint8Array(101).fill(0x55);
+    const trailingHead = new Uint8Array(59).fill(0x99);
+    const misaligned = new Uint8Array(leadingTail.length + aligned.length + trailingHead.length);
+    misaligned.set(leadingTail, 0);
+    misaligned.set(aligned, leadingTail.length);
+    misaligned.set(trailingHead, leadingTail.length + aligned.length);
+
+    const outcome = rebaseOrThrow(session, 0, misaligned);
+    expect(outcome.record.anomalies).toContain('leading-partial-packet');
+    expect(outcome.record.anomalies).toContain('trailing-partial-packet');
+    expect(outcome.record.rebasedChainStartPts).toBe(BASE_PAD_PTS);
+
+    const rebased = new Uint8Array(outcome.data);
+    expect(rebased.length).toBe(aligned.length);
+    expect(rebased[0]).toBe(0x47);
+    // Same rewrite as the aligned segment would get.
+    const reference = buildSegment();
+    rebaseOrThrow(createCatchUpRebaseSession(), 0, reference);
+    expect(rebased).toEqual(reference);
+  });
+
+  it('does not misdetect alignment from stray sync bytes in the cut prefix', () => {
+    const session = createCatchUpRebaseSession();
+    const aligned = buildSegment();
+    // A prefix containing 0x47 bytes at non-periodic positions must be
+    // skipped in favour of the true packet grid.
+    const leadingTail = new Uint8Array(150).fill(0x00);
+    leadingTail[3] = 0x47;
+    leadingTail[80] = 0x47;
+    const misaligned = new Uint8Array(leadingTail.length + aligned.length);
+    misaligned.set(leadingTail, 0);
+    misaligned.set(aligned, leadingTail.length);
+
+    const outcome = rebaseOrThrow(session, 0, misaligned);
+    const rebased = new Uint8Array(outcome.data);
+    expect(rebased.length).toBe(aligned.length);
+    expect(rebased[0]).toBe(0x47);
+  });
 });

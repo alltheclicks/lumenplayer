@@ -203,6 +203,49 @@ const hasPcrField = (data: Uint8Array, offset: number): boolean => {
   return adaptationLength >= 7 && (data[offset + 5] & 0x10) !== 0;
 };
 
+interface TsAlignment {
+  start: number;
+  end: number;
+  anomalies: string[];
+}
+
+// Stock XUI serves seg=0 from fseek(filesize * 0.3), which usually lands in
+// the middle of a TS packet: the buffer then starts with the tail of a cut
+// packet and every 188-byte step misses the sync byte. Locate the first
+// offset with sync-byte periodicity (3 consecutive packets) and drop the
+// partial packet prefix/suffix so the segment scans and rewrites cleanly.
+const findTsAlignment = (data: Uint8Array): TsAlignment | null => {
+  if (data.length < 3 * TS_PACKET_SIZE) {
+    return null;
+  }
+  const hasSyncRun = (start: number): boolean => {
+    const probeCount = Math.min(5, Math.floor((data.length - start) / TS_PACKET_SIZE));
+    for (let k = 0; k < probeCount; k += 1) {
+      if (data[start + k * TS_PACKET_SIZE] !== TS_SYNC_BYTE) {
+        return false;
+      }
+    }
+    return true;
+  };
+
+  const searchLimit = Math.min(TS_PACKET_SIZE, data.length - 2 * TS_PACKET_SIZE - 1);
+  for (let start = 0; start <= searchLimit; start += 1) {
+    if (!hasSyncRun(start)) {
+      continue;
+    }
+    const end = start + Math.floor((data.length - start) / TS_PACKET_SIZE) * TS_PACKET_SIZE;
+    const anomalies: string[] = [];
+    if (start > 0) {
+      anomalies.push('leading-partial-packet');
+    }
+    if (end < data.length) {
+      anomalies.push('trailing-partial-packet');
+    }
+    return { start, end, anomalies };
+  }
+  return null;
+};
+
 const createTrackState = (defaultFrameDurationPts: number): RebaseTrackState => ({
   firstPts: Number.POSITIVE_INFINITY,
   lastPts: Number.NEGATIVE_INFINITY,
@@ -396,7 +439,9 @@ const assignOffset = (
   const previous = session.records.get(index - 1);
   if (previous) {
     return {
-      offsetPts: previous.rebasedChainEndPts - chainFirstPts,
+      // Chain-end carries a fractional average frame duration; keep offsets
+      // integral so every rewritten 33-bit field is exact.
+      offsetPts: Math.round(previous.rebasedChainEndPts - chainFirstPts),
       assignment: 'chained',
     };
   }
@@ -405,9 +450,11 @@ const assignOffset = (
   if (earlier) {
     const gapSegments = index - earlier.index - 1;
     return {
-      offsetPts: earlier.rebasedChainEndPts
+      offsetPts: Math.round(
+        earlier.rebasedChainEndPts
         + gapSegments * session.nominalSegmentPts
         - chainFirstPts,
+      ),
       assignment: 'extrapolated-forward',
     };
   }
@@ -415,9 +462,11 @@ const assignOffset = (
   const later = findNearestRecord(session.records, index, 1);
   if (later) {
     return {
-      offsetPts: later.rebasedChainStartPts
+      offsetPts: Math.round(
+        later.rebasedChainStartPts
         - (later.index - index) * session.nominalSegmentPts
         - chainFirstPts,
+      ),
       assignment: 'extrapolated-backward',
     };
   }
@@ -438,11 +487,22 @@ export const rebaseCatchUpSegment = (
   segmentIndex: number,
   input: ArrayBuffer | Uint8Array,
 ): RebaseOutcome => {
-  const data = toUint8Array(input);
+  const raw = toUint8Array(input);
+  const alignment = findTsAlignment(raw);
+  if (!alignment) {
+    return { status: 'failed', reason: 'not-ts' };
+  }
+  // A misaligned segment (stock XUI fseek cut) is realigned into a copy so
+  // packet offsets, the in-place rewrite, and the returned buffer all agree.
+  const data = alignment.start > 0 || alignment.end < raw.length
+    ? raw.slice(alignment.start, alignment.end)
+    : raw;
+
   const scan = scanSegment(data);
   if ('failure' in scan) {
     return { status: 'failed', reason: scan.failure };
   }
+  scan.anomalies.push(...alignment.anomalies);
 
   // The chain track is audio when present (audio joints are the audible
   // ones); pure video channels chain on video instead.
