@@ -20,6 +20,7 @@ import {
   getCatchUpWebCapabilityNotice,
   resolveCatchUpWebCapability,
 } from './catchupCapability';
+import { readCatchUpClientRebaseFailure } from './catchupClientRebaseCompat';
 
 export interface CatchUpPlaybackSourceResult {
   source: SessionSource;
@@ -30,6 +31,7 @@ export interface CatchUpPlaybackSourceResult {
 }
 
 const CATCHUP_SHADOW_VALIDATION_ENABLED = import.meta.env.VITE_CATCHUP_SHADOW_VALIDATION === '1';
+const CATCHUP_CLIENT_REBASE_ENABLED = import.meta.env.VITE_CATCHUP_CLIENT_REBASE === '1';
 const MEDIAKING_CATCHUP_SAFE_START_POSITION_SECONDS = 75;
 
 const MEDIAKING_CATCHUP_HOSTS = [
@@ -444,6 +446,7 @@ export const resolveCatchUpPlaybackSource = async ({
   channelTitle,
   gatewayOptions,
   shadowValidation = CATCHUP_SHADOW_VALIDATION_ENABLED,
+  clientRebase = CATCHUP_CLIENT_REBASE_ENABLED,
 }: {
   channel: Pick<PlayerChannel, 'id' | 'name' | 'streamId' | 'source' | 'catchUpDays' | 'hasCatchUp'>;
   program: Pick<Program, 'id' | 'title' | 'startTime' | 'endTime'>;
@@ -455,6 +458,7 @@ export const resolveCatchUpPlaybackSource = async ({
   channelTitle?: string;
   gatewayOptions?: CatchUpGatewayClientOptions;
   shadowValidation?: boolean;
+  clientRebase?: boolean;
 }): Promise<CatchUpPlaybackSourceResult> => {
   const startTimestamp = Math.floor(program.startTime.getTime() / 1000);
   const fullDurationSeconds = Math.max(
@@ -507,7 +511,16 @@ export const resolveCatchUpPlaybackSource = async ({
     ),
   };
 
-  if (shadowValidation) {
+  // Client-side PTS rebase stitches the legacy TS segments into one
+  // continuous timeline in the browser (mpegTsPtsRebase.ts) — no server
+  // involvement. When active it takes precedence over the server shadow
+  // attempt (starts instantly, no cold remux build); a previous runtime
+  // failure for this channel disables it for a while (compat cache) and
+  // restores today's shadow → gateway → transport-plan behavior unchanged.
+  const clientRebaseActive = clientRebase
+    && readCatchUpClientRebaseFailure(channel.streamId) === null;
+
+  if (shadowValidation && !clientRebaseActive) {
     const shadowGateway = await resolveShadowValidationPlayback({
       channelId: channel.id,
       programId: program.id,
@@ -576,7 +589,9 @@ export const resolveCatchUpPlaybackSource = async ({
   );
   const resolvedSource = buildCatchUpSessionSourceFromMetadata({
     channel,
-    metadata: stableStartupMetadata,
+    metadata: clientRebaseActive
+      ? { ...stableStartupMetadata, catchUpClientRebase: true }
+      : stableStartupMetadata,
     channelTitle,
     urlBuilder,
     preferredPositionSeconds: timelineInitialPositionSeconds,

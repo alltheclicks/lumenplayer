@@ -71,6 +71,7 @@ import {
   type CatchUpRuntimeCompatibilityReasonCode,
   type CatchUpRuntimeCompatibilityStatus,
 } from './catchupRuntimeCompatibility';
+import { recordCatchUpClientRebaseFailure } from './catchupClientRebaseCompat';
 import {
   buildPlayerErrorState,
   resolvePlayerErrorActionSource,
@@ -1887,6 +1888,58 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
             channelId: currentSource.channelId ?? null,
             streamId: metadata.streamId ?? null,
             unsupportedVideoCodec,
+          },
+        });
+      },
+      onCatchUpRebaseFallback: ({ reason, sourceUrl }) => {
+        const currentSession = sessionRef.current;
+        const currentSource = currentSession.source;
+        const metadata = (
+          typeof currentSource?.metadata === 'object' &&
+          currentSource.metadata !== null
+        )
+          ? currentSource.metadata as Record<string, unknown>
+          : {};
+        const streamId = parseNumericMetadataValue(metadata.streamId);
+        if (typeof streamId === 'number') {
+          recordCatchUpClientRebaseFailure(streamId, reason);
+        }
+        emitWebObservabilityEvent({
+          name: 'catchup.rebase',
+          severity: 'warn',
+          metadata: {
+            status: 'fallback',
+            reason,
+            renderer: currentSession.renderer,
+            channelId: currentSource?.channelId ?? null,
+            streamId: streamId ?? null,
+            sourceUrl,
+          },
+        });
+      },
+      onCatchUpRebaseSummary: (stats) => {
+        const currentSession = sessionRef.current;
+        const currentSource = currentSession.source;
+        const metadata = (
+          typeof currentSource?.metadata === 'object' &&
+          currentSource.metadata !== null
+        )
+          ? currentSource.metadata as Record<string, unknown>
+          : {};
+        emitWebObservabilityEvent({
+          name: 'catchup.rebase',
+          severity: 'info',
+          metadata: {
+            status: 'summary',
+            renderer: currentSession.renderer,
+            channelId: currentSource?.channelId ?? null,
+            streamId: metadata.streamId ?? null,
+            segments: stats.segments,
+            chained: stats.chained,
+            anchored: stats.anchored,
+            trimmedPackets: stats.trimmedPackets,
+            anomalies: stats.anomalies,
+            maxBoundaryDeltaMs: stats.maxBoundaryDeltaMs,
           },
         });
       },

@@ -1,10 +1,10 @@
-const TS_PACKET_SIZE = 188;
-const TS_SYNC_BYTE = 0x47;
-const MPEG_AUDIO_STREAM_TYPES = new Set([0x03, 0x04]);
-const AAC_AUDIO_STREAM_TYPE = 0x0f;
+export const TS_PACKET_SIZE = 188;
+export const TS_SYNC_BYTE = 0x47;
+export const MPEG_AUDIO_STREAM_TYPES = new Set([0x03, 0x04]);
+export const AAC_AUDIO_STREAM_TYPE = 0x0f;
 // PMT stream_type values: 0x02 = MPEG-2 video, 0x1b = H.264/AVC, 0x24 = H.265/HEVC.
 const HEVC_VIDEO_STREAM_TYPE = 0x24;
-const VIDEO_STREAM_TYPES = new Set([0x02, 0x1b, HEVC_VIDEO_STREAM_TYPE]);
+export const VIDEO_STREAM_TYPES = new Set([0x02, 0x1b, HEVC_VIDEO_STREAM_TYPE]);
 
 export interface MpegTsAudioDetection {
   hasVideo: boolean;
@@ -17,32 +17,32 @@ export interface MpegTsAudioDetection {
   pmtPid: number | null;
 }
 
-interface PmtStreamEntry {
+export interface PmtStreamEntry {
   streamType: number;
   pid: number;
   start: number;
   end: number;
 }
 
-interface PmtParseResult {
+export interface PmtParseResult {
   pmtPid: number;
   streams: PmtStreamEntry[];
   section: Uint8Array;
 }
 
-const toUint8Array = (data: ArrayBuffer | Uint8Array): Uint8Array => (
+export const toUint8Array = (data: ArrayBuffer | Uint8Array): Uint8Array => (
   data instanceof Uint8Array ? data : new Uint8Array(data)
 );
 
-const getPacketPid = (packet: Uint8Array, offset: number): number => (
+export const getPacketPid = (packet: Uint8Array, offset: number): number => (
   ((packet[offset + 1] & 0x1f) << 8) | packet[offset + 2]
 );
 
-const hasPayloadUnitStart = (packet: Uint8Array, offset: number): boolean => (
+export const hasPayloadUnitStart = (packet: Uint8Array, offset: number): boolean => (
   (packet[offset + 1] & 0x40) !== 0
 );
 
-const getPayloadOffset = (packet: Uint8Array, offset: number): number | null => {
+export const getPayloadOffset = (packet: Uint8Array, offset: number): number | null => {
   const adaptationControl = (packet[offset + 3] >> 4) & 0x03;
   if (adaptationControl === 0 || adaptationControl === 2) {
     return null;
@@ -158,7 +158,7 @@ const parsePmt = (data: Uint8Array, pmtPid: number): PmtParseResult | null => {
   };
 };
 
-const parseTs = (data: Uint8Array): PmtParseResult | null => {
+export const parseTs = (data: Uint8Array): PmtParseResult | null => {
   const patSection = readSectionForPid(data, 0);
   const pmtPid = parsePatForPmtPid(patSection);
   return pmtPid === null ? null : parsePmt(data, pmtPid);

@@ -16,6 +16,12 @@ import {
   detectMpegTsAudio,
   stripUnsupportedMpegAudioFromTs,
 } from './mpegTsAudioStrip';
+import {
+  createCatchUpRebaseSession,
+  rebaseCatchUpSegment,
+  type CatchUpRebaseSession,
+  type CatchUpRebaseSessionStats,
+} from './mpegTsPtsRebase';
 
 const HLS_MIME_TYPE = 'application/vnd.apple.mpegurl';
 const HLS_BUFFERING_RECOVERY_DELAY_MS = 4_000;
@@ -92,11 +98,18 @@ interface UnsupportedVideoCodecEvent {
   playbackMode: 'live';
 }
 
+interface CatchUpRebaseFallbackEvent {
+  reason: string;
+  sourceUrl: string;
+}
+
 interface HlsPlayerAdapterOptions {
   preferNativeHls?: boolean;
   onManifestResolved?: (event: ManifestResolvedEvent) => void;
   onUnsupportedAudioCodec?: (event: UnsupportedAudioCodecEvent) => void;
   onUnsupportedVideoCodec?: (event: UnsupportedVideoCodecEvent) => void;
+  onCatchUpRebaseFallback?: (event: CatchUpRebaseFallbackEvent) => void;
+  onCatchUpRebaseSummary?: (stats: CatchUpRebaseSessionStats) => void;
 }
 
 type PlaybackMetadataCarrier = MediaSource & {
@@ -105,6 +118,7 @@ type PlaybackMetadataCarrier = MediaSource & {
     streamId?: unknown;
     catchUpHlsStartupMode?: unknown;
     catchUpHlsStartPositionSeconds?: unknown;
+    catchUpClientRebase?: unknown;
   };
 };
 
@@ -345,6 +359,127 @@ const createMpegAudioStrippingFragmentLoader = (
   }
 };
 
+// Rewrites each catch-up TS segment in place so the per-minute archive files
+// form one continuous PTS timeline (see mpegTsPtsRebase.ts). Un-rebased bytes
+// must never reach the discontinuity-stripped timeline, so any rebase failure
+// escalates through `onFatal` and the adapter reloads without rebasing.
+const createCatchUpRebaseFragmentLoader = (
+  BaseLoader: HlsLoaderConstructor,
+  session: CatchUpRebaseSession,
+  hooks: { onFatal: (reason: string) => void },
+): HlsLoaderConstructor => class {
+  private readonly loader: HlsLoaderInstance;
+  context: unknown = null;
+  stats: unknown;
+
+  constructor(config: unknown) {
+    this.loader = new BaseLoader(config);
+    this.stats = this.loader.stats;
+  }
+
+  load(context: unknown, config: unknown, callbacks: HlsLoaderCallbacks): void {
+    this.context = context;
+    const fragmentSn = (context as { frag?: { sn?: unknown } } | null)?.frag?.sn;
+    this.loader.load(context, config, {
+      ...callbacks,
+      onSuccess: (response, stats, callbackContext, networkDetails) => {
+        const payload = response.data;
+        if (!(payload instanceof ArrayBuffer) || typeof fragmentSn !== 'number') {
+          callbacks.onSuccess(response, stats, callbackContext, networkDetails);
+          return;
+        }
+
+        const outcome = rebaseCatchUpSegment(session, fragmentSn, payload);
+        if (outcome.status === 'rebased') {
+          callbacks.onSuccess(
+            { ...response, data: outcome.data },
+            stats,
+            callbackContext,
+            networkDetails,
+          );
+          return;
+        }
+
+        hooks.onFatal(outcome.reason);
+      },
+    });
+  }
+
+  abort(): void {
+    this.loader.abort();
+  }
+
+  destroy(): void {
+    this.loader.destroy();
+  }
+
+  getCacheAge(): number | null {
+    return this.loader.getCacheAge?.() ?? null;
+  }
+
+  getResponseHeader(name: string): string | null {
+    return this.loader.getResponseHeader?.(name) ?? null;
+  }
+};
+
+const stripDiscontinuityTags = (playlist: string): string => (
+  playlist
+    .split(/\r?\n/)
+    .filter((line) => line.trim() !== '#EXT-X-DISCONTINUITY')
+    .join('\n')
+);
+
+// Companion to the rebase fragment loader: with the per-segment timestamps
+// rewritten into one continuous timeline, the #EXT-X-DISCONTINUITY tags must
+// disappear so hls.js keeps a single continuity counter and never resets the
+// demuxer/remuxer at the archive minute boundaries.
+const createDiscontinuityStrippingPlaylistLoader = (
+  BaseLoader: HlsLoaderConstructor,
+): HlsLoaderConstructor => class {
+  private readonly loader: HlsLoaderInstance;
+  context: unknown = null;
+  stats: unknown;
+
+  constructor(config: unknown) {
+    this.loader = new BaseLoader(config);
+    this.stats = this.loader.stats;
+  }
+
+  load(context: unknown, config: unknown, callbacks: HlsLoaderCallbacks): void {
+    this.context = context;
+    this.loader.load(context, config, {
+      ...callbacks,
+      onSuccess: (response, stats, callbackContext, networkDetails) => {
+        const payload = response.data;
+        callbacks.onSuccess(
+          typeof payload === 'string' && payload.includes('#EXTINF')
+            ? { ...response, data: stripDiscontinuityTags(payload) }
+            : response,
+          stats,
+          callbackContext,
+          networkDetails,
+        );
+      },
+    });
+  }
+
+  abort(): void {
+    this.loader.abort();
+  }
+
+  destroy(): void {
+    this.loader.destroy();
+  }
+
+  getCacheAge(): number | null {
+    return this.loader.getCacheAge?.() ?? null;
+  }
+
+  getResponseHeader(name: string): string | null {
+    return this.loader.getResponseHeader?.(name) ?? null;
+  }
+};
+
 interface NativeAudioTrack {
   enabled?: boolean;
   language?: string;
@@ -407,6 +542,9 @@ export class HlsPlayerAdapter implements PlayerAdapter {
   private lastFragmentLoadedAt: number | null = null;
   private readonly onUnsupportedAudioCodec?: (event: UnsupportedAudioCodecEvent) => void;
   private readonly onUnsupportedVideoCodec?: (event: UnsupportedVideoCodecEvent) => void;
+  private readonly onCatchUpRebaseFallback?: (event: CatchUpRebaseFallbackEvent) => void;
+  private readonly onCatchUpRebaseSummary?: (stats: CatchUpRebaseSessionStats) => void;
+  private catchUpRebaseSession: CatchUpRebaseSession | null = null;
 
   constructor(video: HTMLVideoElement, options: HlsPlayerAdapterOptions = {}) {
     this.video = video;
@@ -414,6 +552,8 @@ export class HlsPlayerAdapter implements PlayerAdapter {
     this.onManifestResolved = options.onManifestResolved;
     this.onUnsupportedAudioCodec = options.onUnsupportedAudioCodec;
     this.onUnsupportedVideoCodec = options.onUnsupportedVideoCodec;
+    this.onCatchUpRebaseFallback = options.onCatchUpRebaseFallback;
+    this.onCatchUpRebaseSummary = options.onCatchUpRebaseSummary;
     this.removeVideoListeners = this.attachVideoListeners();
     HlsPlayerAdapter.activeAdapters.add(this);
   }
@@ -469,6 +609,9 @@ export class HlsPlayerAdapter implements PlayerAdapter {
           ? 'complete'
           : 'progressive'
       );
+      const catchUpClientRebase = (
+        (source as PlaybackMetadataCarrier).metadata?.catchUpClientRebase === true
+      );
       await this.loadHlsSource(
         source.url,
         sourceMode === 'live',
@@ -477,6 +620,7 @@ export class HlsPlayerAdapter implements PlayerAdapter {
         catchUpStartupMode,
         catchUpStartPositionSeconds,
         sourceMode === 'live' && typeof streamId === 'number' && Number.isFinite(streamId),
+        catchUpClientRebase,
         loadGeneration,
       );
       return;
@@ -726,6 +870,7 @@ export class HlsPlayerAdapter implements PlayerAdapter {
     catchUpStartupMode: CatchUpHlsStartupMode = 'progressive',
     catchUpStartPositionSeconds = 0,
     probeLiveMpegAudio = false,
+    catchUpClientRebase = false,
     loadGeneration = this.loadGeneration,
   ): Promise<void> {
     const codecProbe = isLiveSource && probeLiveMpegAudio
@@ -762,6 +907,75 @@ export class HlsPlayerAdapter implements PlayerAdapter {
       const MpegAudioStrippingFragmentLoader = useMpegAudioVideoOnlyFallback
         ? createMpegAudioStrippingFragmentLoader(Hls.DefaultConfig.loader as unknown as HlsLoaderConstructor)
         : null;
+
+      // Client-side PTS rebase: stitch the per-minute archive files into one
+      // continuous timeline (fLoader) and drop the discontinuity tags
+      // (pLoader). Any rebase failure tears this hls instance down and
+      // reloads the same URL without rebasing, so the legacy discontinuity
+      // path behaves exactly as before.
+      const catchUpRebaseSession = isCatchUpSource && catchUpClientRebase
+        ? createCatchUpRebaseSession()
+        : null;
+      let rebaseFatalHandled = false;
+      const onCatchUpRebaseFatal = (reason: string) => {
+        if (rebaseFatalHandled || !this.isCurrentLoad(loadGeneration)) {
+          return;
+        }
+        rebaseFatalHandled = true;
+        // The loader callback runs deep inside hls.js's fragment pipeline;
+        // defer the teardown so hls is never destroyed from its own stack.
+        globalThis.setTimeout(() => {
+          if (!this.isCurrentLoad(loadGeneration)) {
+            return;
+          }
+          this.onCatchUpRebaseFallback?.({ reason, sourceUrl: url });
+          this.emitCatchUpRebaseSummaryIfAny();
+          const shouldResumePlayback = !this.video.paused;
+          const resumePositionSeconds = (this.video.currentTime || 0) > 1
+            ? this.video.currentTime
+            : catchUpStartPositionSeconds;
+          if (this.hls) {
+            this.hls.destroy();
+            this.hls = null;
+          }
+          this.updateState('loading');
+          this.loadHlsSource(
+            url,
+            isLiveSource,
+            isCatchUpSource,
+            liveStartupMediaRetryCount,
+            catchUpStartupMode,
+            resumePositionSeconds,
+            probeLiveMpegAudio,
+            false,
+            loadGeneration,
+          ).then(() => {
+            if (shouldResumePlayback && this.isCurrentLoad(loadGeneration)) {
+              this.play();
+            }
+          }).catch((error: unknown) => {
+            this.emitError({
+              code: 'PLAYBACK_START_FAILED',
+              message: error instanceof Error
+                ? error.message
+                : 'Catch-up reload without client rebase failed.',
+              fatal: true,
+            });
+          });
+        }, 0);
+      };
+      const CatchUpRebaseFragmentLoader = catchUpRebaseSession
+        ? createCatchUpRebaseFragmentLoader(
+          Hls.DefaultConfig.loader as unknown as HlsLoaderConstructor,
+          catchUpRebaseSession,
+          { onFatal: onCatchUpRebaseFatal },
+        )
+        : null;
+      const DiscontinuityStrippingPlaylistLoader = catchUpRebaseSession
+        ? createDiscontinuityStrippingPlaylistLoader(
+          Hls.DefaultConfig.loader as unknown as HlsLoaderConstructor,
+        )
+        : null;
       // "From the beginning" must not map to startPosition 0: hls.js's
       // seekToStartPos() is a no-op at 0 (currentTime < startPosition never
       // holds), which strands the playhead inside the archive's header-less
@@ -790,9 +1004,19 @@ export class HlsPlayerAdapter implements PlayerAdapter {
         // BACKWARD (seekToStartPos applies a negative delta), which would yank
         // a user who scrubbed mid-program back to the segment boundary.
         ...(isCatchUpFromProgramStart ? { startOnSegmentBoundary: true } : {}),
-        ...(shouldUseProgressiveLoading && !useMpegAudioVideoOnlyFallback ? { progressive: true } : {}),
-        ...(MpegAudioStrippingFragmentLoader ? {
+        // Progressive fragment streaming bypasses the onSuccess loader
+        // transform (chunks flow through onProgress), so it must stay off
+        // whenever a byte-rewriting fragment loader is active.
+        ...(shouldUseProgressiveLoading && !useMpegAudioVideoOnlyFallback && !catchUpRebaseSession
+          ? { progressive: true }
+          : {}),
+        ...(CatchUpRebaseFragmentLoader ? {
+          fLoader: CatchUpRebaseFragmentLoader as never,
+        } : MpegAudioStrippingFragmentLoader ? {
           fLoader: MpegAudioStrippingFragmentLoader as never,
+        } : {}),
+        ...(DiscontinuityStrippingPlaylistLoader ? {
+          pLoader: DiscontinuityStrippingPlaylistLoader as never,
         } : {}),
         ...(useProgressiveCatchUpStartup ? {
           fragLoadingTimeOut: 60_000,
@@ -821,6 +1045,7 @@ export class HlsPlayerAdapter implements PlayerAdapter {
       });
       this.assertCurrentLoad(loadGeneration);
       this.hls = hls;
+      this.catchUpRebaseSession = catchUpRebaseSession;
       this.hlsSourceMode = isLiveSource ? 'live' : isCatchUpSource ? 'catchup' : 'other';
 
       try {
@@ -961,6 +1186,7 @@ export class HlsPlayerAdapter implements PlayerAdapter {
                   catchUpStartupMode,
                   catchUpStartPositionSeconds,
                   probeLiveMpegAudio,
+                  catchUpClientRebase,
                   loadGeneration,
                 ).then(() => {
                   if (shouldResumePlayback && this.isCurrentLoad(loadGeneration)) {
@@ -1008,6 +1234,7 @@ export class HlsPlayerAdapter implements PlayerAdapter {
                     'complete',
                     catchUpStartPositionSeconds,
                     probeLiveMpegAudio,
+                    catchUpClientRebase,
                     loadGeneration,
                   ).then(() => {
                     if (shouldResumePlayback && this.isCurrentLoad(loadGeneration)) {
@@ -1412,6 +1639,7 @@ export class HlsPlayerAdapter implements PlayerAdapter {
 
   private clearHls(): void {
     this.resetBufferingRecovery();
+    this.emitCatchUpRebaseSummaryIfAny();
     if (!this.hls) {
       this.hlsSourceMode = null;
       return;
@@ -1421,6 +1649,16 @@ export class HlsPlayerAdapter implements PlayerAdapter {
     this.hls.destroy();
     this.hls = null;
     this.hlsSourceMode = null;
+  }
+
+  // Surfaces per-session rebase statistics (segment counts, joint deltas,
+  // trims) once, when the rebased playback session ends.
+  private emitCatchUpRebaseSummaryIfAny(): void {
+    const session = this.catchUpRebaseSession;
+    this.catchUpRebaseSession = null;
+    if (session && session.stats.segments > 0) {
+      this.onCatchUpRebaseSummary?.({ ...session.stats });
+    }
   }
 
   private resetPlaybackState(flushMediaElement: boolean): void {

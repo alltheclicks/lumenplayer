@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import { resolveCatchUpPlaybackSource } from './catchupSource';
+import {
+  clearCatchUpClientRebaseFailures,
+  recordCatchUpClientRebaseFailure,
+} from './catchupClientRebaseCompat';
 
 const createUrlBuilder = () => ({
   getCatchUpRedirectUrlVariants: (
@@ -202,6 +206,10 @@ describe('resolveCatchUpPlaybackSource', () => {
         fetchImpl: fetchImpl as typeof fetch,
       },
       shadowValidation: true,
+      // This test targets the shadow path; pin the orthogonal client-rebase
+      // flag off so a dev .env with VITE_CATCHUP_CLIENT_REBASE=1 cannot make
+      // the resolver skip the shadow attempt.
+      clientRebase: false,
     });
 
     expect(fetchImpl).toHaveBeenCalledTimes(1);
@@ -252,6 +260,7 @@ describe('resolveCatchUpPlaybackSource', () => {
         fetchImpl: fetchImpl as typeof fetch,
       },
       shadowValidation: true,
+      clientRebase: false,
     });
 
     // Shadow could not be resolved (ok:false) — instead of throwing and killing
@@ -416,5 +425,80 @@ describe('resolveCatchUpPlaybackSource', () => {
       catchUpHlsStartPositionSeconds: 0,
       catchUpProviderSafeStartPositionSeconds: 75,
     });
+  });
+
+  it('leads with the client rebase path (metadata flag set, shadow skipped) when enabled', async () => {
+    clearCatchUpClientRebaseFailures();
+    const fetchImpl = vi.fn().mockResolvedValue({
+      ok: true,
+      url: 'https://edge6.castcdn.net/streaming/timeshift.php?token=abc123',
+    });
+
+    const result = await resolveCatchUpPlaybackSource({
+      channel: {
+        id: 'channel-1',
+        name: 'Channel 1',
+        streamId: 112,
+        source: 'xtream',
+        catchUpDays: 7,
+        hasCatchUp: true,
+      },
+      program: {
+        id: 'program-1',
+        title: 'Program 1',
+        startTime: new Date('2026-03-06T10:00:00Z'),
+        endTime: new Date('2026-03-06T10:30:00Z'),
+      },
+      urlBuilder: createShadowValidationUrlBuilder(),
+      gatewayOptions: {
+        fetchImpl: fetchImpl as typeof fetch,
+      },
+      shadowValidation: true,
+      clientRebase: true,
+    });
+
+    // The client rebase needs no server round-trip: the shadow seed fetch is
+    // skipped and the plain transport plan leads with the rebase flag set.
+    expect(result.source.url).not.toContain('timeshift_shadow.php');
+    expect(result.transportPlan.initialAttempt.strategy).not.toBe('shadow-validation');
+    expect((result.source.metadata as Record<string, unknown>).catchUpClientRebase).toBe(true);
+  });
+
+  it('restores the shadow path after a recorded client-rebase runtime failure', async () => {
+    clearCatchUpClientRebaseFailures();
+    recordCatchUpClientRebaseFailure(112, 'no-aac-audio');
+    const fetchImpl = vi.fn().mockResolvedValue({
+      ok: true,
+      url: 'https://edge6.castcdn.net/streaming/timeshift.php?token=abc123',
+    });
+
+    const result = await resolveCatchUpPlaybackSource({
+      channel: {
+        id: 'channel-1',
+        name: 'Channel 1',
+        streamId: 112,
+        source: 'xtream',
+        catchUpDays: 7,
+        hasCatchUp: true,
+      },
+      program: {
+        id: 'program-1',
+        title: 'Program 1',
+        startTime: new Date('2026-03-06T10:00:00Z'),
+        endTime: new Date('2026-03-06T10:30:00Z'),
+      },
+      urlBuilder: createShadowValidationUrlBuilder(),
+      gatewayOptions: {
+        fetchImpl: fetchImpl as typeof fetch,
+      },
+      shadowValidation: true,
+      clientRebase: true,
+    });
+
+    // The compat-cache failure disables rebase for this channel, so the
+    // resolver behaves exactly as before: shadow attempt leads again.
+    expect(result.source.url).toBe('https://edge6.castcdn.net/streaming/timeshift_shadow.php?token=abc123');
+    expect((result.source.metadata as Record<string, unknown>).catchUpClientRebase).toBeUndefined();
+    clearCatchUpClientRebaseFailures();
   });
 });

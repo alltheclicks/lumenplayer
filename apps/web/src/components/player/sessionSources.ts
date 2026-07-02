@@ -36,6 +36,7 @@ export interface CatchUpSessionSourceMetadata {
   catchUpMediaOffsetSeconds?: number;
   catchUpPendingTimelineSeekMs?: number;
   catchUpPendingMediaSeekSeconds?: number;
+  catchUpClientRebase?: boolean;
   catchUpWebProviderIssue?: {
     reasonCode: string;
     channelName: string;
@@ -86,6 +87,7 @@ type SessionSourceMetadataShape = {
   catchUpMediaOffsetSeconds?: number;
   catchUpPendingTimelineSeekMs?: number;
   catchUpPendingMediaSeekSeconds?: number;
+  catchUpClientRebase?: boolean;
   catchUpWebProviderIssue?: CatchUpSessionSourceMetadata['catchUpWebProviderIssue'];
 };
 
@@ -361,6 +363,7 @@ export const parseSessionSourceMetadata = (
       catchUpMediaOffsetSeconds: parseNumericValue(metadata.catchUpMediaOffsetSeconds),
       catchUpPendingTimelineSeekMs: parseNumericValue(metadata.catchUpPendingTimelineSeekMs),
       catchUpPendingMediaSeekSeconds: parseNumericValue(metadata.catchUpPendingMediaSeekSeconds),
+      catchUpClientRebase: metadata.catchUpClientRebase === true ? true : undefined,
       catchUpWebProviderIssue: parseCatchUpWebProviderIssueMetadata(metadata),
     };
   }
