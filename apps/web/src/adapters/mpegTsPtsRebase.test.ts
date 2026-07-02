@@ -403,6 +403,20 @@ describe('mpegTsPtsRebase', () => {
     expect(outcome).toMatchObject({ status: 'failed', reason: 'intra-file-pts-jump' });
   });
 
+  it('drops the truncated final video PES as null packets (wall-clock cut mid-frame)', () => {
+    const session = createCatchUpRebaseSession();
+    const segment = buildSegment();
+    const { record } = rebaseOrThrow(session, 0, segment);
+
+    // Fixture packet layout: [PAT, PMT, video0, video1, video2, audio0..3].
+    // The file's final video PES (video2) must be nulled; earlier ones intact.
+    expect(readPacketPid(segment, 2)).toBe(VIDEO_PID);
+    expect(readPacketPid(segment, 3)).toBe(VIDEO_PID);
+    expect(readPacketPid(segment, 4)).toBe(0x1fff);
+    expect(record.droppedTailPackets).toBe(1);
+    expect(segment.length % TS_PACKET_SIZE).toBe(0);
+  });
+
   it('realigns a segment cut mid-packet by the stock XUI seg=0 fseek', () => {
     const session = createCatchUpRebaseSession();
     const aligned = buildSegment();

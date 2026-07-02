@@ -33,6 +33,16 @@ const HLS_LIVE_MEDIA_RECOVERY_MAX_ATTEMPTS = 4;
 // timeline jump) before surfacing the error to the session layer, which would
 // otherwise skip ahead and leave a visible gap (KN catch-up decode-skip).
 const HLS_CATCHUP_MEDIA_RECOVERY_MAX_ATTEMPTS = 4;
+// Recoveries spaced further apart than this are treated as independent
+// incidents (fresh budget); closer together they accumulate toward the cap
+// so a hard-stuck decoder still escalates to the session layer.
+const HLS_ELEMENT_DECODE_RECOVERY_COOLDOWN_MS = 5_000;
+// recoverMediaError() detaches/re-attaches MediaSource; the session layer's
+// startup logic can react to the re-attach by pulling the playhead back to
+// the catch-up start. Enforce the pre-error position for this long after a
+// recovery so the viewer resumes where the decoder tripped.
+const HLS_DECODE_RECOVERY_RESUME_WINDOW_MS = 12_000;
+const HLS_DECODE_RECOVERY_RESUME_TOLERANCE_SECONDS = 3;
 const HLS_CATCHUP_MAX_BUFFER_LENGTH_SECONDS = 90;
 const HLS_CATCHUP_MAX_BUFFER_SIZE_MB = 180;
 const HLS_LIVE_MAX_BUFFER_LENGTH_SECONDS = 30;
@@ -531,6 +541,10 @@ export class HlsPlayerAdapter implements PlayerAdapter {
   // M1.1-e: throttled fatal NETWORK_ERROR recovery state.
   private networkErrorRecoveryTimer: ReturnType<typeof setTimeout> | null = null;
   private networkErrorRecoveryAttempts = 0;
+  private elementDecodeRecoveryAttempts = 0;
+  private lastElementDecodeRecoveryAt = 0;
+  private decodeRecoveryResumeAtSeconds: number | null = null;
+  private decodeRecoveryResumeDeadline = 0;
   private nativeHlsLoaded = false;
   private hlsSourceMode: HlsSourceMode | null = null;
   private loadGeneration = 0;
@@ -1047,6 +1061,9 @@ export class HlsPlayerAdapter implements PlayerAdapter {
       this.hls = hls;
       this.catchUpRebaseSession = catchUpRebaseSession;
       this.hlsSourceMode = isLiveSource ? 'live' : isCatchUpSource ? 'catchup' : 'other';
+      this.elementDecodeRecoveryAttempts = 0;
+      this.lastElementDecodeRecoveryAt = 0;
+      this.decodeRecoveryResumeAtSeconds = null;
 
       try {
         await new Promise<void>((resolve, reject) => {
@@ -1547,6 +1564,7 @@ export class HlsPlayerAdapter implements PlayerAdapter {
       if ((this.video.currentTime || 0) > 0.25) {
         this.bufferingRecoveryArmed = true;
       }
+      this.enforceDecodeRecoveryResumePosition();
       this.resetBufferingRecovery();
       this.timeListeners.forEach((listener) => listener(this.video.currentTime));
     };
@@ -1576,6 +1594,30 @@ export class HlsPlayerAdapter implements PlayerAdapter {
       // fatal error that tears down an otherwise-recovering stream. With no hls
       // instance and no src attribute there is nothing to play — swallow it.
       if (isSrcNotSupported && !isManagedByHls && !this.video.getAttribute('src')) {
+        return;
+      }
+
+      // A raw MEDIA_ERR_DECODE never reaches hls.js (it does not listen to
+      // the element's error event), so without this the session layer's
+      // runtime decode-skip (+15s reload) would be the first responder.
+      // Archive catch-up can trip the decoder right at the per-minute video
+      // holes (hls.js bridges them by stretching the next fragment's first
+      // sample); an in-place recoverMediaError() keeps the position and
+      // resolves in well under a second, so spend that budget first.
+      if (
+        mediaError.code === 3 &&
+        isManagedByHls &&
+        this.hlsSourceMode === 'catchup' &&
+        this.elementDecodeRecoveryAttempts < HLS_CATCHUP_MEDIA_RECOVERY_MAX_ATTEMPTS
+      ) {
+        this.elementDecodeRecoveryAttempts += 1;
+        this.lastElementDecodeRecoveryAt = performance.now();
+        const resumeAt = this.video.currentTime || 0;
+        if (resumeAt > 1) {
+          this.decodeRecoveryResumeAtSeconds = resumeAt;
+          this.decodeRecoveryResumeDeadline = performance.now() + HLS_DECODE_RECOVERY_RESUME_WINDOW_MS;
+        }
+        this.hls?.recoverMediaError();
         return;
       }
 
@@ -1948,11 +1990,43 @@ export class HlsPlayerAdapter implements PlayerAdapter {
     }
   }
 
+  // After recoverMediaError() the session layer's re-attach reactions can pull
+  // the playhead back toward the catch-up start. Whichever layer seeks last
+  // would win, so on every timeupdate inside the resume window the pre-error
+  // position is re-applied until playback actually continues from there.
+  private enforceDecodeRecoveryResumePosition(): void {
+    const resumeAt = this.decodeRecoveryResumeAtSeconds;
+    if (resumeAt === null) {
+      return;
+    }
+    if (performance.now() > this.decodeRecoveryResumeDeadline) {
+      this.decodeRecoveryResumeAtSeconds = null;
+      return;
+    }
+    const currentTime = this.video.currentTime || 0;
+    if (Math.abs(currentTime - resumeAt) <= HLS_DECODE_RECOVERY_RESUME_TOLERANCE_SECONDS) {
+      this.decodeRecoveryResumeAtSeconds = null;
+      return;
+    }
+    this.video.currentTime = resumeAt;
+    if (this.video.paused) {
+      this.video.play().catch(() => {
+        // The session-level autoplay recovery retries play() when needed.
+      });
+    }
+  }
+
   private resetBufferingRecovery(): void {
     this.clearBufferingRecoveryTimer();
     this.bufferingRecoveryAttempts = 0;
     this.clearNetworkErrorRecoveryTimer();
     this.networkErrorRecoveryAttempts = 0;
+    if (
+      this.elementDecodeRecoveryAttempts > 0 &&
+      performance.now() - this.lastElementDecodeRecoveryAt > HLS_ELEMENT_DECODE_RECOVERY_COOLDOWN_MS
+    ) {
+      this.elementDecodeRecoveryAttempts = 0;
+    }
   }
 
   private scheduleBufferingRecovery(): void {

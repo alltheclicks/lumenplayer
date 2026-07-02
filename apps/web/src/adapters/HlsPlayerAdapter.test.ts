@@ -1684,6 +1684,107 @@ describe('HlsPlayerAdapter', () => {
     expect(errors).toHaveLength(0);
   });
 
+  it('recovers a catch-up element decode error in place instead of surfacing it', async () => {
+    const video = createMockVideoElement();
+    const adapter = new HlsPlayerAdapter(video);
+    const errors: unknown[] = [];
+    adapter.onError((error) => errors.push(error));
+    const source = {
+      url: 'https://example.com/archive.m3u8',
+      type: 'hls' as const,
+      title: 'Archive',
+      metadata: {
+        mode: 'catchup',
+      },
+    };
+
+    const loadPromise = adapter.load(source);
+    const hls = hlsMockState.instances.at(-1);
+    hls?.emit(hlsMockState.MockHls.Events.MANIFEST_LOADED, { url: source.url });
+    hls?.emit(hlsMockState.MockHls.Events.MANIFEST_PARSED);
+    await loadPromise;
+
+    const mutableVideo = video as unknown as {
+      error: { code: number; message: string } | null;
+      dispatchEvent: (event: string) => void;
+    };
+    mutableVideo.error = {
+      code: 3,
+      message: 'PIPELINE_ERROR_DECODE',
+    };
+    mutableVideo.dispatchEvent('error');
+
+    // Cheap in-place recovery keeps the playback position; the session layer
+    // must not see the error (it would skip ahead +15s and reload).
+    expect(hls?.recoverMediaError).toHaveBeenCalledTimes(1);
+    expect(errors).toHaveLength(0);
+  });
+
+  it('surfaces a catch-up decode error once the in-place recovery budget is exhausted', async () => {
+    const video = createMockVideoElement();
+    const adapter = new HlsPlayerAdapter(video);
+    const errors: Array<{ code: string; fatal: boolean }> = [];
+    adapter.onError((error) => errors.push({ code: error.code, fatal: error.fatal }));
+    const source = {
+      url: 'https://example.com/archive.m3u8',
+      type: 'hls' as const,
+      title: 'Archive',
+      metadata: {
+        mode: 'catchup',
+      },
+    };
+
+    const loadPromise = adapter.load(source);
+    const hls = hlsMockState.instances.at(-1);
+    hls?.emit(hlsMockState.MockHls.Events.MANIFEST_LOADED, { url: source.url });
+    hls?.emit(hlsMockState.MockHls.Events.MANIFEST_PARSED);
+    await loadPromise;
+
+    const mutableVideo = video as unknown as {
+      error: { code: number; message: string } | null;
+      dispatchEvent: (event: string) => void;
+    };
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      mutableVideo.error = { code: 3, message: 'PIPELINE_ERROR_DECODE' };
+      mutableVideo.dispatchEvent('error');
+    }
+
+    // 4 budgeted recoveries, then the 5th error escalates to the session layer.
+    expect(hls?.recoverMediaError).toHaveBeenCalledTimes(4);
+    expect(errors).toEqual([{ code: 'MEDIA_ELEMENT_3', fatal: false }]);
+  });
+
+  it('does not spend catch-up decode recovery on live sources', async () => {
+    const video = createMockVideoElement();
+    const adapter = new HlsPlayerAdapter(video);
+    const errors: Array<{ code: string }> = [];
+    adapter.onError((error) => errors.push({ code: error.code }));
+    const source = {
+      url: 'https://example.com/live.m3u8',
+      type: 'hls' as const,
+      title: 'Live',
+      metadata: {
+        mode: 'live',
+      },
+    };
+
+    const loadPromise = adapter.load(source);
+    const hls = hlsMockState.instances.at(-1);
+    hls?.emit(hlsMockState.MockHls.Events.MANIFEST_LOADED, { url: source.url });
+    hls?.emit(hlsMockState.MockHls.Events.MANIFEST_PARSED);
+    await loadPromise;
+
+    const mutableVideo = video as unknown as {
+      error: { code: number; message: string } | null;
+      dispatchEvent: (event: string) => void;
+    };
+    mutableVideo.error = { code: 3, message: 'PIPELINE_ERROR_DECODE' };
+    mutableVideo.dispatchEvent('error');
+
+    expect(hls?.recoverMediaError).not.toHaveBeenCalled();
+    expect(errors).toEqual([{ code: 'MEDIA_ELEMENT_3' }]);
+  });
+
   it('still surfaces a fatal code-4 error when a real native source is attached', () => {
     const video = createMockVideoElement();
     const adapter = new HlsPlayerAdapter(video);

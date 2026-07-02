@@ -76,6 +76,8 @@ export interface SegmentRebaseRecord {
   /** Measured splice error against already-known neighbours, in PTS ticks. */
   boundaryDeltaPts: number;
   trimmedPackets: number;
+  /** Packets of the file's truncated final video PES converted to null packets. */
+  droppedTailPackets: number;
   anomalies: string[];
 }
 
@@ -136,6 +138,8 @@ interface SegmentScan {
   video: RebaseTrackState | null;
   audioUnits: AudioPesUnit[];
   audioPid: number | null;
+  /** Packet offsets of the file's final video PES (see rebase note). */
+  trailingVideoPesPacketOffsets: number[];
   anomalies: string[];
 }
 
@@ -305,6 +309,7 @@ const scanSegment = (data: Uint8Array): SegmentScan | { failure: string } => {
   let currentAudioUnit: AudioPesUnit | null = null;
   let previousAudioPts: number | null = null;
   let previousVideoPts: number | null = null;
+  let currentVideoPesPacketOffsets: number[] = [];
 
   for (let offset = 0; offset + TS_PACKET_SIZE <= data.length; offset += TS_PACKET_SIZE) {
     if (data[offset] !== TS_SYNC_BYTE) {
@@ -323,6 +328,14 @@ const scanSegment = (data: Uint8Array): SegmentScan | { failure: string } => {
     const isAudio = pid === audioPid;
     if (isAudio && currentAudioUnit?.packetOffsets && !hasPayloadUnitStart(data, offset)) {
       currentAudioUnit.packetOffsets.push(offset);
+    }
+
+    if (pid === videoPid) {
+      if (hasPayloadUnitStart(data, offset)) {
+        currentVideoPesPacketOffsets = [offset];
+      } else if (currentVideoPesPacketOffsets.length > 0) {
+        currentVideoPesPacketOffsets.push(offset);
+      }
     }
 
     if (!hasPayloadUnitStart(data, offset)) {
@@ -400,6 +413,7 @@ const scanSegment = (data: Uint8Array): SegmentScan | { failure: string } => {
     video: finalizeTrackState(video, DEFAULT_VIDEO_FRAME_DURATION_PTS),
     audioUnits,
     audioPid,
+    trailingVideoPesPacketOffsets: currentVideoPesPacketOffsets,
     anomalies,
   };
 };
@@ -565,6 +579,19 @@ export const rebaseCatchUpSegment = (
     }
   }
 
+  // The XUI writer cuts archive files on the wall clock, usually mid-frame, so
+  // the file's final video PES is truncated. On the legacy path the per-file
+  // discontinuity reset hid it, but on this continuous timeline the demuxer
+  // flushes the half frame into the SourceBuffer and strict hardware decoders
+  // (macOS VideoToolbox: kVTVideoDecoderBadDataErr) reject it right at the
+  // minute boundary. Dropping the last video PES costs at most one frame that
+  // sits in front of the boundary's video hole anyway.
+  let droppedTailPackets = 0;
+  for (const packetOffset of scan.trailingVideoPesPacketOffsets) {
+    nullOutPacket(data, packetOffset);
+    droppedTailPackets += 1;
+  }
+
   for (const pcrOffset of scan.pcrOffsets) {
     writePcrBase(data, pcrOffset, readPcrBase(data, pcrOffset) + offsetPts);
   }
@@ -579,6 +606,7 @@ export const rebaseCatchUpSegment = (
     rebasedChainStartPts,
     boundaryDeltaPts,
     trimmedPackets,
+    droppedTailPackets,
     anomalies,
   };
   session.records.set(segmentIndex, record);
