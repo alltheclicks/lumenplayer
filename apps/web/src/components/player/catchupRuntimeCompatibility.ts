@@ -1,4 +1,5 @@
 import type { SessionSource } from '@lumen/session-core';
+import { BRAND_SHORT } from '@/config/brand';
 import type { SourceBlockingError } from './sourceBlockingError';
 
 export type CatchUpRuntimeCompatibilityStatus = 'playable' | 'unsupported';
@@ -367,7 +368,7 @@ export const resolveCatchUpRuntimeCompatibilityBlockingError = (
   return {
     type: 'format',
     message: 'Snimak za TV unazad nije dostupan u web playeru',
-    details: `${channelName} trenutno ne može da se gleda unazad u ovom browseru. Poslednja provera trenutnog catch-up source-a nije dobila podržan audio/video format ili prvi video kadar u očekivanom roku. Live kanal može raditi normalno. Nije do vašeg uređaja niti do Lumen playera.`,
+    details: `${channelName} trenutno ne može da se gleda unazad u ovom browseru. Poslednja provera trenutnog catch-up source-a nije dobila podržan audio/video format ili prvi video kadar u očekivanom roku. Live kanal može raditi normalno. Nije do vašeg uređaja niti do ${BRAND_SHORT} playera.`,
     primaryAction: 'switch-to-live',
     primaryActionLabel: `Gledaj ${channelName} uživo`,
   };

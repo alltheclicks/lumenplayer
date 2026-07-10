@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo, type ChangeEvent, type ReactNode } from 'react';
+import { getBrandWordmark } from '@/config/brand';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
@@ -124,6 +125,8 @@ import {
   parseSessionSourceMetadata,
 } from '@/components/player/sessionSources';
 import { normalizeRestoredSessionSource } from '@/pages/restoreSessionSource';
+
+const brandWordmark = getBrandWordmark();
 
 const SHADOW_VALIDATION_ENABLED = import.meta.env.VITE_CATCHUP_SHADOW_VALIDATION === '1';
 
@@ -2225,7 +2228,7 @@ const Player = () => {
               <div className="p-4 border-b border-border">
                 <div className="flex items-center justify-between mb-3">
                   <span className="font-bold text-lg text-foreground">
-                    Lumen <span className="text-primary">Player</span>
+                    {brandWordmark.prefix}<span className="text-primary">{brandWordmark.accent}</span>
                   </span>
                   <div className="flex items-center gap-1">
                     {isAirPlaySupported && session.renderer !== 'cast' && (
@@ -2339,7 +2342,7 @@ const Player = () => {
                   <Play className="w-3 h-3 text-primary-foreground fill-current" />
                 </div>
                 <span className="truncate font-bold text-sm text-foreground">
-                  Lumen <span className="text-primary">Player</span>
+                  {brandWordmark.prefix}<span className="text-primary">{brandWordmark.accent}</span>
                 </span>
               </button>
 

@@ -1,4 +1,5 @@
 import type { SessionSource } from '@lumen/session-core';
+import { BRAND_SHORT } from '@/config/brand';
 
 export type SourceBlockingError = {
   type: 'network' | 'mixed-content' | 'format' | 'unknown';
@@ -113,7 +114,7 @@ export const resolveSessionSourceBlockingError = (
     return {
       type: playbackErrorCode === 'NETWORK_ERROR' ? 'network' : 'unknown',
       message: 'Live kanal trenutno nije dostupan',
-      details: `${channelName} trenutno ne može da se pokrene uživo. Stream ne stiže stabilno od provajdera ili servera. Nije do vašeg uređaja niti do Lumen playera.`,
+      details: `${channelName} trenutno ne može da se pokrene uživo. Stream ne stiže stabilno od provajdera ili servera. Nije do vašeg uređaja niti do ${BRAND_SHORT} playera.`,
       primaryAction: 'report-problem',
       primaryActionLabel: 'Prijavi problem',
     };
@@ -142,7 +143,7 @@ export const resolveCatchUpStartupUnavailableError = (
   return {
     type: 'network',
     message: 'Snimak za TV unazad trenutno nije dostupan',
-    details: 'Provajder trenutno ne vraća ispravan arhivski snimak za ovaj termin. Live kanal može raditi normalno. Nije do vašeg uređaja niti do Lumen playera.',
+    details: `Provajder trenutno ne vraća ispravan arhivski snimak za ovaj termin. Live kanal može raditi normalno. Nije do vašeg uređaja niti do ${BRAND_SHORT} playera.`,
     primaryAction: 'switch-to-live',
     primaryActionLabel: 'Gledaj kanal uživo',
   };

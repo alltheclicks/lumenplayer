@@ -87,6 +87,8 @@ const createProxyLogger = (label: string) => (proxy: {
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
+  const brandName = (env.VITE_BRAND_NAME ?? "").trim() || "Lumen Player";
+  const brandShort = brandName.replace(/\s+player$/i, "");
   const xtreamServerTarget = env.VITE_XTREAM_SERVER?.trim().replace(/\/+$/, "");
   const xuiProxyTarget = env.VITE_XUI_PROXY_ORIGIN?.trim().replace(/\/+$/, "");
   const catchUpGatewayTarget = env.VITE_CATCHUP_GATEWAY_ORIGIN?.trim().replace(/\/+$/, "") ||
@@ -159,6 +161,11 @@ export default defineConfig(({ mode }) => {
       ...(allowedHosts ? { allowedHosts } : {}),
     },
     plugins: [
+      {
+        name: "lumen-brand-html",
+        transformIndexHtml: (html: string) =>
+          html.replace(/<title>[^<]*<\/title>/, `<title>${brandName}</title>`),
+      },
       react(),
       VitePWA({
         registerType: "autoUpdate",
@@ -174,8 +181,8 @@ export default defineConfig(({ mode }) => {
           "apple-splash-1668x2388.png",
         ],
         manifest: {
-          name: "IPTV Player",
-          short_name: "IPTV",
+          name: brandName,
+          short_name: brandShort,
           description: "Watch live TV channels",
           theme_color: "#3B82F6",
           background_color: "#0a0a0a",

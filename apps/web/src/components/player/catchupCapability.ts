@@ -1,4 +1,5 @@
 import type { PlayerChannel } from '@lumen/types';
+import { BRAND_SHORT } from '@/config/brand';
 
 export type CatchUpWebCapabilityStatus = 'playable' | 'unsupported' | 'unknown';
 
@@ -230,7 +231,7 @@ export const isCatchUpWebCapabilityError = (
 
 const buildCapabilityNoticeDescription = (capability: CatchUpWebCapability): string => {
   if (capability.reasonCode === 'catchup-not-advertised') {
-    return `${capability.channelName} nema dostupnu TV unazad arhivu u web playeru. Nije do vašeg uređaja niti do Lumen playera.`;
+    return `${capability.channelName} nema dostupnu TV unazad arhivu u web playeru. Nije do vašeg uređaja niti do ${BRAND_SHORT} playera.`;
   }
 
   if (capability.reasonCode === 'unsupported-audio-codec') {

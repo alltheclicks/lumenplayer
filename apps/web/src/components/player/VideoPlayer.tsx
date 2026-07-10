@@ -1,4 +1,5 @@
 import { useRef, useEffect, useState, useCallback, forwardRef, useImperativeHandle } from 'react';
+import { BRAND_SHORT } from '@/config/brand';
 import { AlertCircle, Loader2, Radio, WifiOff, ShieldAlert, X } from 'lucide-react';
 import type { SessionSource } from '@lumen/session-core';
 import { Button } from '@/components/ui/button';
@@ -2248,7 +2249,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
           ) ?? {
             type: 'network',
             message: 'Live kanal trenutno nije dostupan',
-            details: 'Live stream se prekinuo tokom reprodukcije. Stream ne stiže stabilno od provajdera ili servera. Nije do vašeg uređaja niti do Lumen playera.',
+            details: `Live stream se prekinuo tokom reprodukcije. Stream ne stiže stabilno od provajdera ili servera. Nije do vašeg uređaja niti do ${BRAND_SHORT} playera.`,
             primaryAction: 'report-problem',
             primaryActionLabel: 'Prijavi problem',
           } satisfies PlayerError;
