@@ -46,11 +46,45 @@ export default {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        success: {
+          DEFAULT: "hsl(var(--success))",
+          foreground: "hsl(var(--success-foreground))",
+        },
+        live: {
+          DEFAULT: "hsl(var(--live))",
+          foreground: "hsl(var(--live-foreground))",
+        },
+        catchup: {
+          DEFAULT: "hsl(var(--catchup))",
+          foreground: "hsl(var(--catchup-foreground))",
+        },
+        overlay: "hsl(var(--overlay))",
+        glass: {
+          DEFAULT: "hsl(var(--glass))",
+          border: "hsl(var(--glass-border))",
+        },
+        elevated: "hsl(var(--elevated))",
+        scrim: "hsl(var(--scrim))",
+        "focus-glow": "hsl(var(--focus-glow))",
       },
       borderRadius: {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
+      },
+      transitionDuration: {
+        instant: "var(--motion-instant)",
+        fast: "var(--motion-fast)",
+        base: "var(--motion-base)",
+        slow: "var(--motion-slow)",
+        slower: "var(--motion-slower)",
+      },
+      transitionTimingFunction: {
+        "out-soft": "var(--ease-out-soft)",
+        "in-out-soft": "var(--ease-in-out-soft)",
+        exit: "var(--ease-exit)",
+        standard: "var(--ease-standard)",
+        spring: "var(--ease-spring)",
       },
       keyframes: {
         "accordion-down": {
@@ -61,10 +95,15 @@ export default {
           from: { height: "var(--radix-accordion-content-height)" },
           to: { height: "0" },
         },
+        "toast-in": {
+          from: { opacity: "0", transform: "translateY(12px) scale(.98)" },
+          to: { opacity: "1", transform: "none" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
+        "toast-in": "toast-in var(--motion-slow) var(--ease-spring) backwards",
       },
     },
   },

@@ -1,0 +1,138 @@
+<!-- @dsCard group="Motion" name="Motion — Feedback" subtitle="Toast enter/exit, alert, error shake, checkmark draw" -->
+<!doctype html>
+<html class="dark" lang="sr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Motion — Feedback — Lumen Player</title>
+<link rel="stylesheet" href="../foundations/tokens.css" />
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: "Space Grotesk", ui-sans-serif, system-ui, sans-serif; background: hsl(var(--background)); color: hsl(var(--foreground)); -webkit-font-smoothing: antialiased; }
+  .wrap { max-width: 52rem; margin: 0 auto; padding: 1.5rem; }
+  header { border-bottom: 1px solid hsl(var(--border)); padding-bottom: .75rem; margin-bottom: 1.5rem; }
+  h1 { font-size: 1.125rem; font-weight: 700; margin: 0 0 .25rem; letter-spacing: -.01em; }
+  .sub { font-size: .75rem; color: hsl(var(--muted-foreground)); margin: 0; }
+  h2 { font-size: .8125rem; font-weight: 600; color: hsl(var(--muted-foreground)); margin: 2rem 0 .75rem; text-transform: uppercase; letter-spacing: .06em; }
+  .grid { display: grid; gap: .75rem; }
+  .cols-2 { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .tile { background: hsl(var(--card)); border: 1px solid hsl(var(--border)); border-radius: var(--radius); padding: 1rem; }
+  .label { font-size: .75rem; font-weight: 600; }
+  .meta { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: .6875rem; color: hsl(var(--muted-foreground)); margin-top: .125rem; }
+  .hint { font-size: .6875rem; color: hsl(var(--muted-foreground)); margin-top: .75rem; }
+  .rm { font-size: .625rem; color: hsl(var(--muted-foreground)); margin-top: .6rem; padding-top: .6rem; border-top: 1px dashed hsl(var(--border)); }
+  .rm b { color: hsl(var(--foreground)); font-weight: 600; }
+  a { color: hsl(var(--primary)); } a:hover { color: hsl(var(--focus-glow)); }
+
+  /* ---- 1. toast enter/exit (auto ciklus) ---- */
+  @keyframes lp-toast-cycle {
+    0% { opacity: 0; transform: translateY(14px) scale(.97); animation-timing-function: var(--ease-spring); }
+    9%, 78% { opacity: 1; transform: none; animation-timing-function: var(--ease-exit); }
+    91%, 100% { opacity: 0; transform: translateY(10px) scale(.98); }
+  }
+  .toast-stage { position: relative; height: 96px; margin-top: .85rem; border-radius: calc(var(--radius) - 4px); border: 1px dashed hsl(var(--border)); overflow: hidden; }
+  .toast { position: absolute; right: 12px; bottom: 12px; display: flex; align-items: center; gap: .6rem; padding: .6rem .8rem; border-radius: calc(var(--radius) - 4px);
+    background: hsl(var(--elevated)); border: 1px solid hsl(var(--glass-border)/.4); box-shadow: 0 16px 40px -16px hsl(var(--shell-shadow));
+    font-size: .6875rem; animation: lp-toast-cycle 4.2s infinite; will-change: opacity, transform; }
+  .toast .dot { width: 8px; height: 8px; border-radius: 999px; background: hsl(var(--success)); flex: none; }
+
+  /* ---- 2. alert pojava (hover = replay) ---- */
+  @keyframes lp-alert-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+  .alert { display: flex; gap: .6rem; align-items: flex-start; margin-top: .85rem; padding: .75rem .85rem; border-radius: calc(var(--radius) - 4px);
+    background: hsl(var(--destructive)/.12); border: 1px solid hsl(var(--destructive)/.35); font-size: .6875rem; }
+  .alert-demo:hover .alert { animation: lp-alert-in var(--motion-base) var(--ease-out-soft) both; }
+  .alert b { color: hsl(var(--destructive)); font-weight: 600; }
+  .alert p { margin: .15rem 0 0; color: hsl(var(--muted-foreground)); }
+
+  /* ---- 3. error shake — jednom, na hover ---- */
+  @keyframes lp-shake {
+    0%, 100% { transform: translateX(0); }
+    20% { transform: translateX(-5px); } 40% { transform: translateX(4px); }
+    60% { transform: translateX(-3px); } 80% { transform: translateX(2px); }
+  }
+  .field { margin-top: .85rem; }
+  .field label { display: block; font-size: .625rem; color: hsl(var(--muted-foreground)); margin-bottom: .3rem; }
+  .input-err { display: flex; align-items: center; height: 38px; padding: 0 .7rem; border-radius: calc(var(--radius) - 4px);
+    background: hsl(var(--input)/.5); border: 1px solid hsl(var(--destructive)); font-size: .75rem; color: hsl(var(--foreground)); }
+  .shake-demo:hover .input-err { animation: lp-shake var(--motion-slow) var(--ease-standard) 1; }
+  .err-msg { font-size: .625rem; color: hsl(var(--destructive)); margin-top: .35rem; }
+
+  /* ---- 4. uspeh — checkmark draw (hover = replay) ---- */
+  @keyframes lp-draw { to { stroke-dashoffset: 0; } }
+  @keyframes lp-pop { from { opacity: 0; transform: scale(.6); } to { opacity: 1; transform: scale(1); } }
+  .ok { display: flex; align-items: center; gap: .7rem; margin-top: .85rem; }
+  .ok-ring { width: 44px; height: 44px; flex: none; }
+  .ok-ring circle { fill: hsl(var(--success)/.15); stroke: hsl(var(--success)); stroke-width: 2; }
+  .ok-ring polyline { fill: none; stroke: hsl(var(--success)); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 30; stroke-dashoffset: 0; }
+  .ok-demo:hover .ok-ring { animation: lp-pop var(--motion-fast) var(--ease-spring) both; }
+  .ok-demo:hover .ok-ring polyline { stroke-dashoffset: 30; animation: lp-draw var(--motion-slow) var(--ease-out-soft) forwards; animation-delay: var(--motion-fast); }
+  .ok-text { font-size: .6875rem; }
+  .ok-text .meta { margin-top: .1rem; }
+
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Motion — Feedback</h1>
+    <p class="sub">Feedback motion je jednokratan i kratak — potvrdi, pa se skloni. Greška se naglašava jednom; uspeh se iscrta i ostane miran.</p>
+  </header>
+
+  <h2>Toast — enter / exit ciklus (auto)</h2>
+  <section class="tile">
+    <div class="meta">enter: --ease-spring (jedini overshoot) &nbsp;·&nbsp; exit: --ease-exit, brži nestanak niže putanje</div>
+    <div class="toast-stage">
+      <div class="toast"><span class="dot"></span><span><b>Snimanje zakazano</b> · Liga šampiona, 20:45</span></div>
+    </div>
+    <p class="hint">Ulaz 14px odozdo sa spring karakterom; izlaz kraći i niži — toast „ode“ pre nego što dosadi.</p>
+    <p class="rm"><b>Reduced motion:</b> toast se pojavljuje i nestaje trenutno (opacity flip), trajanje prikaza isto.</p>
+  </section>
+
+  <h2>Alert &amp; greška</h2>
+  <section class="grid cols-2">
+    <div class="tile alert-demo">
+      <div class="label">Alert pojava — pređi mišem za replay</div>
+      <div class="meta">--motion-base · --ease-out-soft · −6px odozgo</div>
+      <div class="alert">
+        <div>
+          <b>Stream nedostupan</b>
+          <p>Izvor 102 · Sport HD ne odgovara. Pokušavamo rezervni link…</p>
+        </div>
+      </div>
+      <p class="hint">Alert ulazi iz smera konteksta (vrh sekcije), malom distancom.</p>
+      <p class="rm"><b>Reduced motion:</b> pojavljuje se trenutno.</p>
+    </div>
+    <div class="tile shake-demo">
+      <div class="label">Error shake — jednom, pređi mišem</div>
+      <div class="meta">--motion-slow · amplituda ≤5px · 1 iteracija</div>
+      <div class="field">
+        <label>Playlist URL</label>
+        <div class="input-err">htp://lista.m3u</div>
+        <div class="err-msg">Neispravna adresa — proveri protokol.</div>
+      </div>
+      <p class="hint">Suptilan horizontalni shake, nikad u petlji. Poruka ostaje kao trajni nosilac greške.</p>
+      <p class="rm"><b>Reduced motion:</b> bez shake-a; crvena ivica + poruka su dovoljni.</p>
+    </div>
+  </section>
+
+  <h2>Uspeh — checkmark draw (pređi mišem za replay)</h2>
+  <section class="tile ok-demo">
+    <div class="meta">pop: --motion-fast · --ease-spring, zatim draw: --motion-slow · --ease-out-soft</div>
+    <div class="ok">
+      <svg class="ok-ring" viewBox="0 0 44 44" aria-hidden="true">
+        <circle cx="22" cy="22" r="20"></circle>
+        <polyline points="14,23 20,29 31,17"></polyline>
+      </svg>
+      <div class="ok-text">
+        Nalog povezan
+        <div class="meta">Xtream Codes · 4 profila učitana</div>
+      </div>
+    </div>
+    <p class="hint">Jedini dozvoljeni izuzetak od transform/opacity pravila: <code>stroke-dashoffset</code> na sitnoj, jednokratnoj SVG potvrdi — nikad tokom reprodukcije preko videa.</p>
+    <p class="rm"><b>Reduced motion:</b> checkmark je odmah iscrtan (bazno stanje), bez pop-a i draw-a.</p>
+  </section>
+</div>
+</body>
+</html>

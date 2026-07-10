@@ -30,7 +30,7 @@ const statusText: Record<PushSupportStatus, string> = {
 };
 
 const statusClassName: Record<PushSupportStatus, string> = {
-  supported: 'text-emerald-600 dark:text-emerald-400',
+  supported: 'text-success',
   'requires-install': 'text-amber-600 dark:text-amber-400',
   unsupported: 'text-rose-600 dark:text-rose-400',
 };
@@ -383,7 +383,7 @@ const Settings = () => {
                 <CardContent className="space-y-4">
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     {isOnline ? (
-                      <Wifi className="h-4 w-4 text-emerald-500" />
+                      <Wifi className="h-4 w-4 text-success" />
                     ) : (
                       <WifiOff className="h-4 w-4 text-amber-500" />
                     )}
@@ -391,7 +391,7 @@ const Settings = () => {
                   </div>
 
                   {isInstalled && (
-                    <p className="text-sm text-emerald-600 dark:text-emerald-400">
+                    <p className="text-sm text-success">
                       App is already installed on this device.
                     </p>
                   )}
@@ -532,7 +532,7 @@ const Settings = () => {
 
                   {pushCompatibility.status === 'supported' && pushPermission === 'granted' && (
                     <div className="space-y-2">
-                      <p className="text-sm text-emerald-600 dark:text-emerald-400">
+                      <p className="text-sm text-success">
                         Notification permission is active on this device.
                       </p>
                       <Button variant="outline" onClick={() => void handleDisablePush()} disabled={isSyncingPushSubscription}>

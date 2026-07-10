@@ -1,0 +1,137 @@
+<!-- @dsCard group="TV Motion (10-foot koncept)" viewport="1920x1080" name="TV — Player" subtitle="Reveal kontrola, zap, info banner, idle → ambient" -->
+<!doctype html>
+<html class="dark" lang="sr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>TV — Player — Lumen Player</title>
+<link rel="stylesheet" href="../foundations/tokens.css" />
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; font-family: "Space Grotesk", ui-sans-serif, system-ui, sans-serif; background: hsl(var(--background)); color: hsl(var(--foreground)); -webkit-font-smoothing: antialiased; }
+  .canvas { width: 1920px; height: 1080px; padding: 64px 96px; display: flex; flex-direction: column; gap: 36px; }
+  h1 { font-size: 44px; font-weight: 700; margin: 0; letter-spacing: -.01em; }
+  .sub { font-size: 26px; color: hsl(var(--muted-foreground)); margin: 10px 0 0; max-width: 1500px; }
+  h2 { font-size: 24px; font-weight: 600; color: hsl(var(--muted-foreground)); margin: 0 0 18px; text-transform: uppercase; letter-spacing: .08em; }
+  .meta { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 21px; color: hsl(var(--muted-foreground)); }
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; flex: 1; min-height: 0; }
+  .demo { background: hsl(var(--card)); border: 1px solid hsl(var(--border)); border-radius: 24px; padding: 28px; display: flex; flex-direction: column; }
+  .hint { font-size: 21px; color: hsl(var(--muted-foreground)); margin: 16px 0 0; line-height: 1.4; }
+  .rm { font-size: 22px; color: hsl(var(--muted-foreground)); border-top: 1px dashed hsl(var(--border)); padding-top: 18px; }
+  .rm b { color: hsl(var(--foreground)); }
+  a { color: hsl(var(--primary)); } a:hover { color: hsl(var(--focus-glow)); }
+
+  .screen { position: relative; flex: 1; min-height: 0; border-radius: 18px; overflow: hidden; border: 1px solid hsl(var(--border));
+    background: radial-gradient(120% 90% at 30% 25%, hsl(var(--primary)/.2), transparent 60%), radial-gradient(100% 80% at 80% 80%, hsl(var(--catchup)/.16), transparent 55%), hsl(var(--overlay)); }
+  .tag { position: absolute; top: 16px; left: 20px; font-family: ui-monospace, Menlo, monospace; font-size: 19px; color: hsl(var(--foreground)/.4); letter-spacing: .1em; }
+
+  /* ---- 1. reveal kontrola (auto ciklus: show → hold → hide) ---- */
+  @keyframes lp-tv-scrim { 0% { opacity: 0; } 12%, 66% { opacity: 1; } 82%, 100% { opacity: 0; } }
+  @keyframes lp-tv-bar {
+    0% { opacity: 0; transform: translateY(26px); animation-timing-function: var(--ease-out-soft); }
+    14%, 64% { opacity: 1; transform: none; animation-timing-function: var(--ease-exit); }
+    84%, 100% { opacity: 0; transform: translateY(26px); }
+  }
+  .tv-scrim { position: absolute; inset: 45% 0 0 0; background: linear-gradient(to top, hsl(var(--scrim)/.8), transparent); animation: lp-tv-scrim 6s infinite; will-change: opacity; }
+  .tv-bar { position: absolute; left: 28px; right: 28px; bottom: 22px; display: flex; align-items: center; gap: 20px; animation: lp-tv-bar 6s infinite; will-change: opacity, transform; }
+  .tv-btn { width: 64px; height: 64px; flex: none; border-radius: 999px; background: hsl(var(--glass)/.85); border: 1px solid hsl(var(--glass-border)/.35); display: grid; place-items: center; font-size: 26px; color: hsl(var(--foreground)); }
+  .tv-btn.focused { box-shadow: 0 0 0 4px hsl(var(--ring)), 0 0 0 10px hsl(var(--focus-glow)/.28), 0 0 44px 3px hsl(var(--focus-glow)/.5); transform: scale(1.08); }
+  .tv-rail { position: relative; flex: 1; height: 8px; border-radius: 999px; background: hsl(var(--foreground)/.22); }
+  .tv-fill { position: absolute; inset: 0 34% 0 0; border-radius: 999px; background: hsl(var(--primary)); }
+  .tv-time { font-family: ui-monospace, Menlo, monospace; font-size: 21px; color: hsl(var(--foreground)/.85); }
+
+  /* ---- 2. zap + info banner ---- */
+  @keyframes lp-tv-zap { 0%, 40% { opacity: 0; transform: scale(1.02); } 46%, 90% { opacity: 1; transform: scale(1); } 96%, 100% { opacity: 0; transform: scale(1.02); } }
+  @keyframes lp-tv-banner {
+    0%, 44% { opacity: 0; transform: translateY(-22px); animation-timing-function: var(--ease-out-soft); }
+    52%, 82% { opacity: 1; transform: none; animation-timing-function: var(--ease-exit); }
+    92%, 100% { opacity: 0; transform: translateY(-22px); }
+  }
+  .zap-b { position: absolute; inset: 0; background: radial-gradient(110% 90% at 70% 70%, hsl(var(--catchup)/.28), transparent 60%), hsl(var(--overlay)); animation: lp-tv-zap 7s infinite; will-change: opacity, transform; }
+  .banner { position: absolute; top: 20px; left: 24px; right: 24px; display: flex; align-items: center; gap: 18px; padding: 18px 22px; border-radius: 16px;
+    background: hsl(var(--glass)/.9); border: 1px solid hsl(var(--glass-border)/.35); animation: lp-tv-banner 7s infinite; will-change: opacity, transform; }
+  .b-num { font-family: ui-monospace, Menlo, monospace; font-size: 26px; color: hsl(var(--primary)); font-weight: 700; }
+  .b-name { font-size: 26px; font-weight: 600; }
+  .b-show { font-size: 22px; color: hsl(var(--muted-foreground)); margin-left: auto; }
+  .b-live { display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px; border-radius: 999px; background: hsl(var(--live)); color: hsl(var(--live-foreground)); font-size: 18px; font-weight: 700; letter-spacing: .05em; }
+  @keyframes lp-pulse-dot { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .4; transform: scale(.72); } }
+  .b-dot { width: 9px; height: 9px; border-radius: 999px; background: currentColor; animation: lp-pulse-dot 1.6s var(--ease-standard) infinite; }
+
+  /* ---- 3. idle → ambient ---- */
+  @keyframes lp-ambient-dim { 0%, 30% { opacity: 0; } 55%, 78% { opacity: 1; } 92%, 100% { opacity: 0; } }
+  @keyframes lp-ambient-ui { 0%, 30% { opacity: 1; transform: none; } 50%, 80% { opacity: 0; transform: translateY(14px); } 94%, 100% { opacity: 1; transform: none; } }
+  @keyframes lp-ambient-clock { 0%, 38% { opacity: 0; } 58%, 76% { opacity: .8; } 90%, 100% { opacity: 0; } }
+  .dim { position: absolute; inset: 0; background: hsl(var(--scrim)/.45); animation: lp-ambient-dim 8s var(--ease-in-out-soft) infinite; will-change: opacity; }
+  .amb-ui { position: absolute; left: 28px; right: 28px; bottom: 22px; display: flex; align-items: center; gap: 20px; animation: lp-ambient-ui 8s var(--ease-in-out-soft) infinite; will-change: opacity, transform; }
+  .amb-clock { position: absolute; top: 24px; right: 28px; font-family: ui-monospace, Menlo, monospace; font-size: 30px; color: hsl(var(--foreground)/.8); opacity: 0; animation: lp-ambient-clock 8s var(--ease-in-out-soft) infinite; }
+
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="canvas">
+  <div>
+    <h1>TV — Player</h1>
+    <p class="sub">Kontrole su krupnije i reveal je sporiji nego na webu: <span class="meta">enter --motion-tv-reveal · --ease-out-soft</span>, exit sa <span class="meta">--ease-exit</span>. Na pritisak tastera fokus reaguje za <span class="meta">--motion-instant (&lt;100ms)</span> — dekorativni deo sme da kasni.</p>
+  </div>
+
+  <div class="cols">
+    <div class="demo">
+      <h2>Kontrole na dugme — show / hold / hide (auto)</h2>
+      <div class="screen">
+        <span class="tag">VIDEO · 102 SPORT HD</span>
+        <div class="tv-scrim"></div>
+        <div class="tv-bar">
+          <div class="tv-btn focused">⏸</div>
+          <div class="tv-btn">⏮</div>
+          <div class="tv-btn">⏭</div>
+          <div class="tv-rail"><div class="tv-fill"></div></div>
+          <span class="tv-time">20:51</span>
+        </div>
+      </div>
+      <p class="hint">Bar ulazi 26px odozdo; fokus je već na Play/Pause. Izlaz kreće tek posle idle perioda, nikad dok se korisnik kreće po kontrolama.</p>
+    </div>
+
+    <div class="demo">
+      <h2>Zap + info banner (auto)</h2>
+      <div class="screen">
+        <span class="tag">VIDEO · ZAP 101 → 102</span>
+        <div class="zap-b"></div>
+        <div class="banner">
+          <span class="b-num">102</span>
+          <span class="b-name">Sport HD</span>
+          <span class="b-live"><span class="b-dot"></span>UŽIVO</span>
+          <span class="b-show">Liga šampiona · 20:45–22:45</span>
+        </div>
+      </div>
+      <p class="hint">Kratak crossfade + scale(1.02→1) bez crnog reza; banner klizi odozgo, stoji ~3s, pa se povuče sa --ease-exit.</p>
+    </div>
+  </div>
+
+  <div class="cols" style="flex:1.1">
+    <div class="demo">
+      <h2>Idle → ambient (auto)</h2>
+      <div class="screen">
+        <span class="tag">VIDEO · IDLE</span>
+        <div class="dim"></div>
+        <div class="amb-ui">
+          <div class="tv-btn">⏸</div>
+          <div class="tv-rail"><div class="tv-fill"></div></div>
+        </div>
+        <span class="amb-clock">21:04</span>
+      </div>
+      <p class="hint">Posle idle perioda kontrole se povlače, slika se suptilno zatamni (opacity scrim sloja — nikad filter na videu) i ostaje samo sat.</p>
+    </div>
+
+    <div class="demo" style="justify-content:center">
+      <h2>Pravila odziva</h2>
+      <p class="hint" style="margin:0 0 14px; font-size:23px"><b style="color:hsl(var(--foreground))">1.</b> Prvi feedback na taster &lt;100ms (--motion-instant) — fokus prsten ili scale odmah.</p>
+      <p class="hint" style="margin:0 0 14px; font-size:23px"><b style="color:hsl(var(--foreground))">2.</b> Dekorativni deo (glide, scrim, banner) sme da traje duže, ali je uvek prekidljiv novim pritiskom.</p>
+      <p class="hint" style="margin:0 0 20px; font-size:23px"><b style="color:hsl(var(--foreground))">3.</b> Samo transform + opacity preko videa — bez blur-a i layout animacija.</p>
+      <p class="rm"><b>Reduced motion:</b> reveal/hide kontrola i banner postaju instant flip; zap je rez; ambient dim se pali trenutno; live tačka statična.</p>
+    </div>
+  </div>
+</div>
+</body>
+</html>

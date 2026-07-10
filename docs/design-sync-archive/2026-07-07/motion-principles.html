@@ -1,0 +1,174 @@
+<!-- @dsCard group="Motion" name="Motion — Principi i tokeni" subtitle="Skala trajanja, easing, koreografija, reduced-motion politika + tabela tokena" -->
+<!doctype html>
+<html class="dark" lang="sr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Motion — Principi i tokeni — Lumen Player</title>
+<link rel="stylesheet" href="../foundations/tokens.css" />
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: "Space Grotesk", ui-sans-serif, system-ui, sans-serif; background: hsl(var(--background)); color: hsl(var(--foreground)); -webkit-font-smoothing: antialiased; }
+  .wrap { max-width: 52rem; margin: 0 auto; padding: 1.5rem; }
+  header { border-bottom: 1px solid hsl(var(--border)); padding-bottom: .75rem; margin-bottom: 1.5rem; }
+  h1 { font-size: 1.125rem; font-weight: 700; margin: 0 0 .25rem; letter-spacing: -.01em; }
+  .sub { font-size: .75rem; color: hsl(var(--muted-foreground)); margin: 0; }
+  h2 { font-size: .8125rem; font-weight: 600; color: hsl(var(--muted-foreground)); margin: 2rem 0 .75rem; text-transform: uppercase; letter-spacing: .06em; }
+  .grid { display: grid; gap: .75rem; }
+  .cols-2 { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .tile { background: hsl(var(--card)); border: 1px solid hsl(var(--border)); border-radius: var(--radius); padding: 1rem; }
+  .label { font-size: .75rem; font-weight: 600; }
+  .meta { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: .6875rem; color: hsl(var(--muted-foreground)); margin-top: .125rem; }
+  .hint { font-size: .6875rem; color: hsl(var(--muted-foreground)); margin-top: .75rem; }
+  .rm { font-size: .625rem; color: hsl(var(--muted-foreground)); margin-top: .6rem; padding-top: .6rem; border-top: 1px dashed hsl(var(--border)); }
+  .rm b { color: hsl(var(--foreground)); font-weight: 600; }
+
+  /* ---- Trka trajanja: hover pokreće sve pucke istovremeno ---- */
+  .race { display: grid; gap: .4rem; margin-top: .85rem; }
+  .lane { display: grid; grid-template-columns: 8.5rem 1fr; align-items: center; gap: .6rem; }
+  .lane .meta { margin: 0; }
+  .lane-track { container-type: inline-size; position: relative; height: 22px; border-radius: 999px; background: hsl(var(--muted)/.6); }
+  .puck { position: absolute; top: 4px; left: 4px; width: 14px; height: 14px; border-radius: 999px; background: hsl(var(--primary)); transform: translateX(0); transition: transform var(--motion-base) var(--ease-standard); }
+  .race-demo:hover .puck { transform: translateX(calc(100cqw - 22px)); }
+  .race-demo:hover .puck.t-instant { transition: transform var(--motion-instant) var(--ease-out-soft); }
+  .race-demo:hover .puck.t-fast    { transition: transform var(--motion-fast) var(--ease-out-soft); }
+  .race-demo:hover .puck.t-base    { transition: transform var(--motion-base) var(--ease-out-soft); }
+  .race-demo:hover .puck.t-slow    { transition: transform var(--motion-slow) var(--ease-out-soft); }
+  .race-demo:hover .puck.t-slower  { transition: transform var(--motion-slower) var(--ease-out-soft); }
+
+  /* ---- Trka easinga: isto trajanje, različite krive ---- */
+  .ease-demo:hover .puck { transition: transform var(--motion-slower); }
+  .ease-demo:hover .puck.e-out    { transition-timing-function: var(--ease-out-soft); }
+  .ease-demo:hover .puck.e-inout  { transition-timing-function: var(--ease-in-out-soft); }
+  .ease-demo:hover .puck.e-exit   { transition-timing-function: var(--ease-exit); }
+  .ease-demo:hover .puck.e-spring { transition-timing-function: var(--ease-spring); }
+  .puck.e-spring { background: hsl(var(--catchup)); }
+
+  /* ---- Stagger ---- */
+  @keyframes lp-enter { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+  .stagger-rows { display: grid; gap: .35rem; margin-top: .85rem; }
+  .srow { height: 26px; border-radius: calc(var(--radius) - 6px); background: hsl(var(--secondary)); border: 1px solid hsl(var(--border)); }
+  .stagger-demo:hover .srow { animation: lp-enter var(--motion-base) var(--ease-out-soft) both; animation-delay: calc(var(--i) * var(--motion-stagger)); }
+
+  /* ---- Enter brži od exit ---- */
+  .gate { position: relative; height: 74px; margin-top: .85rem; }
+  .panel { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: .6875rem; color: hsl(var(--muted-foreground)); border-radius: calc(var(--radius) - 4px); background: hsl(var(--elevated)); border: 1px solid hsl(var(--glass-border)/.4);
+    opacity: 0; transform: translateY(8px);
+    transition: opacity var(--motion-slower) var(--ease-exit), transform var(--motion-slower) var(--ease-exit); }
+  .enterexit-demo:hover .panel { opacity: 1; transform: none; transition: opacity var(--motion-base) var(--ease-out-soft), transform var(--motion-base) var(--ease-out-soft); }
+  .gate-bg { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: .6875rem; color: hsl(var(--muted-foreground)/.6); border-radius: calc(var(--radius) - 4px); border: 1px dashed hsl(var(--border)); }
+
+  /* ---- Mala distanca ---- */
+  .dist { display: flex; gap: .75rem; margin-top: .85rem; }
+  .chip { flex: 1; display: flex; align-items: center; justify-content: center; height: 56px; border-radius: calc(var(--radius) - 4px); background: hsl(var(--secondary)); border: 1px solid hsl(var(--border)); font-size: .6875rem; transition: transform var(--motion-fast) var(--ease-out-soft); }
+  .dist:hover .chip.good { transform: translateY(-4px); }
+  .dist:hover .chip.bad { transform: translateY(-28px); }
+  .chip.bad { border-style: dashed; color: hsl(var(--destructive)); }
+
+  /* ---- Tabela tokena ---- */
+  table { width: 100%; border-collapse: collapse; font-size: .6875rem; }
+  th, td { text-align: left; padding: .5rem .6rem; border-bottom: 1px solid hsl(var(--border)); vertical-align: top; }
+  th { font-size: .625rem; text-transform: uppercase; letter-spacing: .06em; color: hsl(var(--muted-foreground)); font-weight: 600; }
+  td:first-child, td:nth-child(2) { font-family: ui-monospace, "SF Mono", Menlo, monospace; white-space: nowrap; }
+  td:nth-child(3) { color: hsl(var(--muted-foreground)); }
+  a { color: hsl(var(--primary)); } a:hover { color: hsl(var(--focus-glow)); }
+
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Motion — Principi i tokeni</h1>
+    <p class="sub">Motion komunicira stanje — fokus, učitavanje, prelaz. Ništa se ne mrda bez razloga. Isključivo CSS; animira se samo <code>transform</code> i <code>opacity</code>. Tokeni žive u <code>foundations/tokens.css</code>.</p>
+  </header>
+
+  <h2>Skala trajanja — pređi mišem za trku</h2>
+  <section class="tile race-demo">
+    <div class="race">
+      <div class="lane"><span class="meta">--motion-instant · 80ms</span><div class="lane-track"><div class="puck t-instant"></div></div></div>
+      <div class="lane"><span class="meta">--motion-fast · 140ms</span><div class="lane-track"><div class="puck t-fast"></div></div></div>
+      <div class="lane"><span class="meta">--motion-base · 220ms</span><div class="lane-track"><div class="puck t-base"></div></div></div>
+      <div class="lane"><span class="meta">--motion-slow · 360ms</span><div class="lane-track"><div class="puck t-slow"></div></div></div>
+      <div class="lane"><span class="meta">--motion-slower · 560ms</span><div class="lane-track"><div class="puck t-slower"></div></div></div>
+    </div>
+    <p class="hint">Instant = prvi feedback (&lt;100ms). Fast = hover/press. Base = enter/reveal. Slow = overlay i show kontrola. Slower = exit kontrola, ambient, zap.</p>
+    <p class="rm"><b>Reduced motion:</b> sve trke se gase; stanja se menjaju trenutno.</p>
+  </section>
+
+  <h2>Easing krive — isto trajanje, drugačiji karakter</h2>
+  <section class="tile ease-demo">
+    <div class="race">
+      <div class="lane"><span class="meta">--ease-out-soft</span><div class="lane-track"><div class="puck e-out"></div></div></div>
+      <div class="lane"><span class="meta">--ease-in-out-soft</span><div class="lane-track"><div class="puck e-inout"></div></div></div>
+      <div class="lane"><span class="meta">--ease-exit</span><div class="lane-track"><div class="puck e-exit"></div></div></div>
+      <div class="lane"><span class="meta">--ease-spring</span><div class="lane-track"><div class="puck e-spring"></div></div></div>
+    </div>
+    <p class="hint"><code>--ease-spring</code> koristi CSS <code>linear()</code> spring aproksimaciju (Chromium) sa <code>cubic-bezier</code> fallback-om — suptilan overshoot, nikad gumeno. Enter → out-soft; glide pozicije → in-out-soft; hide → exit.</p>
+    <p class="rm"><b>Reduced motion:</b> gasi se; krive nemaju semantičko značenje bez kretanja.</p>
+  </section>
+
+  <h2>Koreografija</h2>
+  <section class="grid cols-2">
+    <div class="tile stagger-demo">
+      <div class="label">Stagger — 30ms korak</div>
+      <div class="meta">delay: calc(var(--i) * var(--motion-stagger))</div>
+      <div class="stagger-rows">
+        <div class="srow" style="--i:0"></div>
+        <div class="srow" style="--i:1"></div>
+        <div class="srow" style="--i:2"></div>
+        <div class="srow" style="--i:3"></div>
+        <div class="srow" style="--i:4"></div>
+      </div>
+      <p class="hint">Kaskada 20–40ms po stavci; nikad više od ~8 vidljivih koraka.</p>
+      <p class="rm"><b>Reduced motion:</b> lista se pojavljuje odjednom, bez kaskade.</p>
+    </div>
+    <div class="tile enterexit-demo">
+      <div class="label">Enter brži od exit</div>
+      <div class="meta">enter: base/out-soft · exit: slower/exit</div>
+      <div class="gate">
+        <div class="gate-bg">pređi mišem — pusti da vidiš izlaz</div>
+        <div class="panel">UI odgovara odmah, povlači se diskretno</div>
+      </div>
+      <p class="hint">Ono što korisnik traži stiže brzo; ono što odlazi ne otima pažnju.</p>
+      <p class="rm"><b>Reduced motion:</b> panel se pali/gasi trenutno.</p>
+    </div>
+  </section>
+
+  <section class="tile dist" style="margin-top:.75rem">
+    <div class="chip good">−4px · dovoljno</div>
+    <div class="chip bad">−28px · previše</div>
+  </section>
+  <p class="hint" style="margin-top:.5rem">Distanca pomeraja je mala: 4–12px za UI, ≤ jedne širine kartice za trake. Veliki skokovi deluju jeftino.</p>
+
+  <h2>Reduced-motion politika</h2>
+  <section class="tile">
+    <p class="hint" style="margin-top:0">Svaka kartica u sistemu dokumentuje svoje <code>prefers-reduced-motion</code> ponašanje. Globalno pravilo: <b>gase se</b> sve tranzicije, kaskade, pulsevi i auto-petlje; <b>ostaju</b> trenutne promene stanja (fokus prsten, boje, prikaz/sakrivanje kontrola kao instant flip). Ništa funkcionalno ne sme zavisiti od animacije.</p>
+  </section>
+
+  <h2>Tabela motion tokena</h2>
+  <section class="tile" style="padding:.25rem .5rem">
+    <table>
+      <thead><tr><th>Ime</th><th>Vrednost</th><th>Gde se koristi</th></tr></thead>
+      <tbody>
+        <tr><td>--motion-instant</td><td>80ms</td><td>Prvi feedback na press/fokus (&lt;100ms pravilo); D-pad odziv</td></tr>
+        <tr><td>--motion-fast</td><td>140ms</td><td>Hover, toggle, press-release, fokus prsten</td></tr>
+        <tr><td>--motion-base</td><td>220ms</td><td>Enter elemenata, reveal, zap crossfade, stagger stavke</td></tr>
+        <tr><td>--motion-slow</td><td>360ms</td><td>Overlay/panel, show player kontrola, toast enter</td></tr>
+        <tr><td>--motion-slower</td><td>560ms</td><td>Exit player kontrola, ambient dim, toast exit</td></tr>
+        <tr><td>--motion-stagger</td><td>30ms</td><td>Korak kaskade u listama, katalozima, TV reveal-u</td></tr>
+        <tr><td>--motion-tv-focus</td><td>180ms</td><td>TV fokus glide (150–200ms, prekidljivo)</td></tr>
+        <tr><td>--motion-tv-reveal</td><td>480ms</td><td>TV ulazak u ekran, prelaz sekcija</td></tr>
+        <tr><td>--ease-out-soft</td><td>cubic-bezier(0.22, 1, 0.36, 1)</td><td>Podrazumevano za enter i hover — siguran decel</td></tr>
+        <tr><td>--ease-in-out-soft</td><td>cubic-bezier(0.65, 0, 0.35, 1)</td><td>Glide pozicija: TV trake, kamera-fokus, sekcije</td></tr>
+        <tr><td>--ease-exit</td><td>cubic-bezier(0.4, 0, 1, 1)</td><td>Hide/exit — ubrzava iz kadra</td></tr>
+        <tr><td>--ease-standard</td><td>cubic-bezier(0.4, 0, 0.2, 1)</td><td>Neutralne promene boje/stanja</td></tr>
+        <tr><td>--ease-spring</td><td>linear(…) + cb fallback</td><td>Toast enter, thumb pojava, fokus pop — suptilan overshoot</td></tr>
+      </tbody>
+    </table>
+  </section>
+  <p class="hint">Legacy: <code>--dur-1/2/3</code> i <code>--ease-out</code> su sada aliasi novih tokena — ne koristiti u novom radu.</p>
+</div>
+</body>
+</html>

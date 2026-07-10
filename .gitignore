@@ -14,3 +14,7 @@ test-results/
 apps/**/.tmp-remux-tests/
 lumen-local-*
 lumen-*-browser-*.md
+
+# design-sync derived bundle
+scripts/design-sync/dist/
+scripts/design-sync/.build/

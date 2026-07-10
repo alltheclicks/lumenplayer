@@ -1161,18 +1161,21 @@ const PlayerControls = ({
             </div>
           </div>
         )}
-        <div className={`absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/95 via-black/60 to-transparent p-2.5 sm:p-6 transition-all duration-300 ${showControls && !showCatchUp ? 'opacity-100 translate-y-0' : 'pointer-events-none opacity-0 translate-y-4'}`}>
+        <div className={`lp-player-overlay absolute bottom-0 left-0 right-0 p-2.5 pt-14 sm:p-6 sm:pt-[5.5rem] transition-all duration-slow ease-out-soft ${showControls && !showCatchUp ? 'opacity-100 translate-y-0' : 'pointer-events-none opacity-0 translate-y-4'}`}>
         <div className="mb-2 flex items-center gap-2 sm:mb-4 sm:gap-4">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-background/10 backdrop-blur sm:h-16 sm:w-16 sm:rounded-2xl">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-foreground/10 backdrop-blur sm:h-16 sm:w-16 sm:rounded-2xl">
             <ChannelLogo logo={channel.logo} name={channel.name} size="lg" />
           </div>
           <div className="flex-1 min-w-0">
             <div className="mb-1 flex items-center gap-2">
-              <span className={`badge-live ${catchUpProgram ? 'bg-orange-500' : ''}`}>
+              <span className={catchUpProgram ? 'badge-catchup' : 'badge-live inline-flex items-center gap-1.5'}>
+                {!catchUpProgram && (
+                  <span className="lp-live-dot inline-block h-1.5 w-1.5 rounded-full bg-current" aria-hidden />
+                )}
                 {catchUpProgram ? 'UNAZAD' : 'UŽIVO'}
               </span>
             </div>
-            <h3 className="truncate text-sm font-semibold text-foreground sm:text-xl">{channel.name}</h3>
+            <h3 className="truncate text-sm font-semibold tracking-tight text-foreground [text-shadow:0_1px_20px_hsl(var(--overlay))] sm:text-xl">{channel.name}</h3>
             {(catchUpProgram || currentProgram) && (
               <p className="truncate text-xs text-muted-foreground sm:text-sm">{catchUpProgram?.title || currentProgram?.title}</p>
             )}
@@ -1183,11 +1186,11 @@ const PlayerControls = ({
           <div className="mb-2 sm:mb-4">
             <div
               data-testid="catchup-timeline"
-              className="h-1.5 bg-secondary/50 rounded-full overflow-hidden cursor-pointer"
+              className="h-1.5 bg-foreground/15 shadow-[inset_0_0_0_1px_hsl(var(--foreground)/0.05)] rounded-full overflow-hidden cursor-pointer"
               onClick={handleSeek}
             >
               <div
-                className="h-full bg-primary rounded-full transition-all"
+                className="h-full rounded-full bg-gradient-to-r from-primary to-[hsl(var(--focus-glow))] shadow-[0_0_14px_hsl(var(--primary)/0.65)] transition-all"
                 style={{
                   width: `${catchUpProgressPercent}%`
                 }}
@@ -1200,10 +1203,8 @@ const PlayerControls = ({
           </div>
         ) : (
           <div
-            className={`group/livebar relative mb-2 h-1 rounded-full bg-secondary/50 overflow-visible transition-all sm:mb-4 ${
-              canTimeshiftFromLiveBar
-                ? 'cursor-pointer hover:h-1.5 focus-visible:h-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70 focus-visible:ring-offset-2 focus-visible:ring-offset-black'
-                : ''
+            className={`group/livebar relative mb-2 h-1.5 rounded-full bg-foreground/15 shadow-[inset_0_0_0_1px_hsl(var(--foreground)/0.05)] overflow-visible transition-[height] duration-base ease-out-soft sm:mb-4 ${
+              canTimeshiftFromLiveBar ? 'cursor-pointer hover:h-[9px] focus-visible:h-[9px] focus-visible:outline-none' : ''
             }`}
             onClick={handleLiveProgressClick}
             onKeyDown={handleLiveProgressKeyDown}
@@ -1213,9 +1214,12 @@ const PlayerControls = ({
             tabIndex={canTimeshiftFromLiveBar ? 0 : -1}
             aria-label={canTimeshiftFromLiveBar ? 'Pokreni TV unazad sa ove pozicije' : undefined}
           >
-            <div className="h-full bg-primary rounded-full transition-all relative" style={{ width: `${progress}%` }}>
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-primary to-[hsl(var(--focus-glow))] shadow-[0_0_14px_hsl(var(--primary)/0.65)] transition-all relative"
+              style={{ width: `${progress}%` }}
+            >
               <div
-                className={`absolute right-0 top-1/2 h-3 w-3 -translate-y-1/2 rounded-full border border-primary/40 bg-primary shadow-[0_0_0_2px_rgba(0,0,0,0.35)] transition-transform ${
+                className={`absolute right-0 top-1/2 h-[15px] w-[15px] -translate-y-1/2 rounded-full bg-white shadow-[0_0_0_4px_hsl(var(--primary)/0.35),0_2px_10px_hsl(var(--overlay))] transition-transform ${
                   isLiveProgressFocused ? 'scale-125' : 'scale-100 group-hover/livebar:scale-125'
                 }`}
                 aria-hidden
@@ -1226,13 +1230,13 @@ const PlayerControls = ({
 
         <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-            <div className="flex items-center gap-0.5 rounded-lg border border-border/40 bg-background/20 p-0.5 backdrop-blur-sm sm:gap-1 sm:rounded-xl sm:p-1">
+            <div className="flex items-center gap-0.5 rounded-lg border border-glass-border/50 bg-glass/50 p-0.5 backdrop-blur-[18px] backdrop-saturate-125 shadow-[0_10px_34px_-14px_hsl(var(--overlay)),inset_0_1px_0_hsl(var(--foreground)/0.07)] sm:gap-1 sm:rounded-xl sm:p-1">
               {catchUpProgram ? (
                 <>
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-8 w-8 hover:bg-secondary/50 sm:h-9 sm:w-9"
+                    className="h-8 w-8 text-muted-foreground hover:bg-foreground/10 hover:text-foreground sm:h-9 sm:w-9"
                     data-testid="catchup-seek-backward-10"
                     onPointerDown={(event) => handleSeekButtonPointerDown(event, 'backward', 10)}
                     onPointerUp={handleSeekButtonPointerUp}
@@ -1245,7 +1249,7 @@ const PlayerControls = ({
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-8 w-8 hover:bg-secondary/50 sm:h-9 sm:w-9"
+                    className="h-8 w-8 text-muted-foreground hover:bg-foreground/10 hover:text-foreground sm:h-9 sm:w-9"
                     data-testid="catchup-play-toggle"
                     onClick={togglePlay}
                   >
@@ -1254,7 +1258,7 @@ const PlayerControls = ({
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-8 w-8 hover:bg-secondary/50 sm:h-9 sm:w-9"
+                    className="h-8 w-8 text-muted-foreground hover:bg-foreground/10 hover:text-foreground sm:h-9 sm:w-9"
                     data-testid="catchup-seek-forward-10"
                     onPointerDown={(event) => handleSeekButtonPointerDown(event, 'forward', 10)}
                     onPointerUp={handleSeekButtonPointerUp}
@@ -1277,13 +1281,13 @@ const PlayerControls = ({
                 </>
               ) : (
                 <>
-                  <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-secondary/50 sm:h-9 sm:w-9" onClick={onPrevChannel}>
+                  <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:bg-foreground/10 hover:text-foreground sm:h-9 sm:w-9" onClick={onPrevChannel}>
                     <ChevronLeft className="h-4 w-4 sm:h-5 sm:w-5" />
                   </Button>
-                  <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-secondary/50 sm:h-9 sm:w-9" onClick={togglePlay}>
+                  <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:bg-foreground/10 hover:text-foreground sm:h-9 sm:w-9" onClick={togglePlay}>
                     {isPlaying ? <Pause className="h-4 w-4 sm:h-5 sm:w-5" /> : <Play className="h-4 w-4 sm:h-5 sm:w-5" />}
                   </Button>
-                  <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-secondary/50 sm:h-9 sm:w-9" onClick={onNextChannel}>
+                  <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:bg-foreground/10 hover:text-foreground sm:h-9 sm:w-9" onClick={onNextChannel}>
                     <ChevronRight className="h-4 w-4 sm:h-5 sm:w-5" />
                   </Button>
                 </>
@@ -1299,14 +1303,14 @@ const PlayerControls = ({
           </div>
 
           <div className="flex flex-wrap items-center gap-1.5 lg:justify-end">
-            <div className="flex items-center gap-0.5 rounded-lg border border-border/40 bg-background/20 p-0.5 backdrop-blur-sm sm:gap-1 sm:rounded-xl sm:p-1">
-              <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-secondary/50 sm:h-9 sm:w-9" onClick={handleMuteAction}>
+            <div className="flex items-center gap-0.5 rounded-lg border border-glass-border/50 bg-glass/50 p-0.5 backdrop-blur-[18px] backdrop-saturate-125 shadow-[0_10px_34px_-14px_hsl(var(--overlay)),inset_0_1px_0_hsl(var(--foreground)/0.07)] sm:gap-1 sm:rounded-xl sm:p-1">
+              <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:bg-foreground/10 hover:text-foreground sm:h-9 sm:w-9" onClick={handleMuteAction}>
                 {isMuted || volume === 0 ? <VolumeX className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> : <Volume2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />}
               </Button>
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8 hover:bg-secondary/50 sm:h-9 sm:w-9"
+                className="h-8 w-8 text-muted-foreground hover:bg-foreground/10 hover:text-foreground sm:h-9 sm:w-9"
                 aria-label="Prikaži kontrole zvuka"
                 aria-expanded={showVolumeSlider}
                 onClick={handleToggleVolumeSlider}
@@ -1326,15 +1330,15 @@ const PlayerControls = ({
               )}
             </div>
 
-            <div className="flex items-center gap-0.5 rounded-lg border border-border/40 bg-background/20 p-0.5 backdrop-blur-sm sm:gap-1 sm:rounded-xl sm:p-1">
-              <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-secondary/50 sm:h-9 sm:w-9" onClick={onToggleFavorite}>
+            <div className="flex items-center gap-0.5 rounded-lg border border-glass-border/50 bg-glass/50 p-0.5 backdrop-blur-[18px] backdrop-saturate-125 shadow-[0_10px_34px_-14px_hsl(var(--overlay)),inset_0_1px_0_hsl(var(--foreground)/0.07)] sm:gap-1 sm:rounded-xl sm:p-1">
+              <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:bg-foreground/10 hover:text-foreground sm:h-9 sm:w-9" onClick={onToggleFavorite}>
                 <Heart className={`h-3.5 w-3.5 sm:h-4 sm:w-4 ${isFavorite ? 'fill-primary text-primary' : ''}`} />
               </Button>
               {channel.hasCatchUp && (
                 <Button
                   variant="ghost"
                   size="icon"
-                  className={`h-8 w-8 hover:bg-secondary/50 sm:h-9 sm:w-9 ${catchUpProgram ? 'text-primary' : ''}`}
+                  className={`h-8 w-8 text-muted-foreground hover:bg-foreground/10 hover:text-foreground sm:h-9 sm:w-9 ${catchUpProgram ? 'text-primary' : ''}`}
                   aria-label="Otvori TV unazad"
                   data-testid="catchup-open"
                   onClick={handleCatchUpAction}
@@ -1346,7 +1350,7 @@ const PlayerControls = ({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className={`h-8 w-8 hover:bg-secondary/50 sm:h-9 sm:w-9 ${showAudioTracks ? 'text-primary' : ''}`}
+                  className={`h-8 w-8 text-muted-foreground hover:bg-foreground/10 hover:text-foreground sm:h-9 sm:w-9 ${showAudioTracks ? 'text-primary' : ''}`}
                   onClick={() => {
                     setShowVolumeSlider(false);
                     setShowSubtitleTracks(false);
@@ -1360,7 +1364,7 @@ const PlayerControls = ({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className={`h-8 w-8 hover:bg-secondary/50 sm:h-9 sm:w-9 ${showSubtitleTracks ? 'text-primary' : ''}`}
+                  className={`h-8 w-8 text-muted-foreground hover:bg-foreground/10 hover:text-foreground sm:h-9 sm:w-9 ${showSubtitleTracks ? 'text-primary' : ''}`}
                   title={`Titlovi: ${selectedSubtitleTrackLabel}`}
                   onClick={() => {
                     setShowVolumeSlider(false);
@@ -1375,7 +1379,7 @@ const PlayerControls = ({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className={`h-8 w-8 hover:bg-secondary/50 sm:h-9 sm:w-9 ${isPictureInPicture ? 'text-primary' : ''}`}
+                  className={`h-8 w-8 text-muted-foreground hover:bg-foreground/10 hover:text-foreground sm:h-9 sm:w-9 ${isPictureInPicture ? 'text-primary' : ''}`}
                   title="Slika u slici (P / plavo dugme)"
                   onClick={handleTogglePictureInPicture}
                 >
@@ -1386,7 +1390,7 @@ const PlayerControls = ({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className={`h-8 w-8 hover:bg-secondary/50 sm:h-9 sm:w-9 ${castControl.isConnected ? 'text-primary' : ''}`}
+                  className={`h-8 w-8 text-muted-foreground hover:bg-foreground/10 hover:text-foreground sm:h-9 sm:w-9 ${castControl.isConnected ? 'text-primary' : ''}`}
                   disabled={castControl.isConnecting || Boolean(castControl.disabledReason)}
                   title={castControl.disabledReason ?? (castControl.isConnected ? 'Prekini cast' : 'Poveži cast')}
                   onClick={() => {
@@ -1396,7 +1400,7 @@ const PlayerControls = ({
                   <Cast className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                 </Button>
               )}
-              <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-secondary/50 sm:h-9 sm:w-9" onClick={onToggleFullscreen}>
+              <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:bg-foreground/10 hover:text-foreground sm:h-9 sm:w-9" onClick={onToggleFullscreen}>
                 <Maximize className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               </Button>
             </div>
@@ -1528,28 +1532,31 @@ const PlayerControls = ({
       )}
 
       <div
-        className={`absolute top-0 left-0 right-0 bg-gradient-to-b from-black/90 via-black/50 to-transparent p-4 sm:p-6 transition-all duration-300 z-20 ${showControls && !showCatchUp ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4 pointer-events-none'
+        className={`absolute top-0 left-0 right-0 bg-gradient-to-b from-overlay/90 via-overlay/50 to-transparent p-4 sm:p-6 transition-all duration-slow ease-out-soft z-20 ${showControls && !showCatchUp ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4 pointer-events-none'
           }`}
       >
         <div className="flex items-center justify-between max-w-screen-2xl mx-auto">
           <div className="flex items-center gap-3 sm:gap-4">
-            <div className="w-10 h-10 sm:w-14 sm:h-14 rounded-xl bg-background/20 backdrop-blur-sm flex items-center justify-center">
+            <div className="w-10 h-10 sm:w-14 sm:h-14 rounded-xl bg-foreground/10 backdrop-blur flex items-center justify-center">
               <ChannelLogo logo={channel.logo} name={channel.name} size="lg" />
             </div>
             <div>
               <div className="flex items-center gap-2 mb-1">
-                <span className={`badge-live ${catchUpProgram ? 'bg-orange-500' : ''}`}>
+                <span className={catchUpProgram ? 'badge-catchup' : 'badge-live inline-flex items-center gap-1.5'}>
+                  {!catchUpProgram && (
+                    <span className="lp-live-dot inline-block h-1.5 w-1.5 rounded-full bg-current" aria-hidden />
+                  )}
                   {catchUpProgram ? 'UNAZAD' : 'UŽIVO'}
                 </span>
               </div>
-              <h2 className="text-base sm:text-xl font-semibold text-foreground">{channel.name}</h2>
+              <h2 className="text-base sm:text-xl font-semibold tracking-tight text-foreground [text-shadow:0_1px_20px_hsl(var(--overlay))]">{channel.name}</h2>
             </div>
           </div>
 
           <Button
             variant="ghost"
             size="icon"
-            className="w-10 h-10 rounded-full bg-background/20 backdrop-blur-sm hover:bg-background/40"
+            className="w-10 h-10 rounded-full bg-glass/50 backdrop-blur-[18px] backdrop-saturate-125 hover:bg-foreground/15"
             onClick={(e) => {
               e.stopPropagation();
               onToggleFullscreen();
@@ -1569,7 +1576,7 @@ const PlayerControls = ({
             <Button
               variant="ghost"
               size="icon"
-              className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-background/20 backdrop-blur-sm hover:bg-background/40 hover:scale-110 transition-transform flex flex-col items-center justify-center gap-0"
+              className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-glass/50 backdrop-blur-[18px] backdrop-saturate-125 hover:bg-foreground/15 hover:scale-110 transition-transform flex flex-col items-center justify-center gap-0"
               data-testid="catchup-seek-backward-10"
               onPointerDown={(e) => handleSeekButtonPointerDown(e, 'backward', 10)}
               onPointerUp={handleSeekButtonPointerUp}
@@ -1601,7 +1608,7 @@ const PlayerControls = ({
             <Button
               variant="ghost"
               size="icon"
-              className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-background/20 backdrop-blur-sm hover:bg-background/40 hover:scale-110 transition-transform flex flex-col items-center justify-center gap-0"
+              className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-glass/50 backdrop-blur-[18px] backdrop-saturate-125 hover:bg-foreground/15 hover:scale-110 transition-transform flex flex-col items-center justify-center gap-0"
               data-testid="catchup-seek-forward-10"
               onPointerDown={(e) => handleSeekButtonPointerDown(e, 'forward', 10)}
               onPointerUp={handleSeekButtonPointerUp}
@@ -1618,7 +1625,7 @@ const PlayerControls = ({
             <Button
               variant="ghost"
               size="icon"
-              className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-background/20 backdrop-blur-sm hover:bg-background/40 hover:scale-110 transition-transform"
+              className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-glass/50 backdrop-blur-[18px] backdrop-saturate-125 hover:bg-foreground/15 hover:scale-110 transition-transform"
               onClick={(e) => {
                 e.stopPropagation();
                 onPrevChannel();
@@ -1646,7 +1653,7 @@ const PlayerControls = ({
             <Button
               variant="ghost"
               size="icon"
-              className="w-10 h-10 sm:w-14 sm:h-14 rounded-full bg-background/20 backdrop-blur-sm hover:bg-background/40 hover:scale-110 transition-transform"
+              className="w-10 h-10 sm:w-14 sm:h-14 rounded-full bg-glass/50 backdrop-blur-[18px] backdrop-saturate-125 hover:bg-foreground/15 hover:scale-110 transition-transform"
               onClick={(e) => {
                 e.stopPropagation();
                 onNextChannel();
@@ -1659,7 +1666,7 @@ const PlayerControls = ({
       </div>
 
       <div
-        className={`absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent p-2.5 sm:p-6 transition-all duration-300 z-20 ${showControls && !showCatchUp ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'
+        className={`lp-player-overlay absolute bottom-0 left-0 right-0 p-2.5 pt-14 sm:p-6 sm:pt-[5.5rem] transition-all duration-slow ease-out-soft z-20 ${showControls && !showCatchUp ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'
           }`}
       >
         <div className="max-w-screen-2xl mx-auto space-y-2 sm:space-y-4">
@@ -1714,10 +1721,10 @@ const PlayerControls = ({
                 )}
 
                 <div
-                  className="h-full bg-primary rounded-full transition-all relative"
+                  className="h-full rounded-full bg-gradient-to-r from-primary to-[hsl(var(--focus-glow))] shadow-[0_0_14px_hsl(var(--primary)/0.65)] transition-all relative"
                   style={{ width: `${catchUpProgressPercent}%` }}
                 >
-                  <div className="absolute right-0 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 bg-primary rounded-full shadow-lg transform scale-100 group-hover:scale-110 transition-transform" />
+                  <div className="absolute right-0 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 bg-white rounded-full shadow-[0_0_0_4px_hsl(var(--primary)/0.35),0_2px_10px_hsl(var(--overlay))] transform scale-100 group-hover:scale-110 transition-transform" />
                 </div>
 
                 {hoverPosition !== null && (
@@ -1738,13 +1745,9 @@ const PlayerControls = ({
           ) : (
             <div className="group/livebar relative">
               <div
-                className={`rounded-full bg-secondary/50 overflow-visible transition-all ${
-                  isLiveProgressFocused ? 'h-2' : 'h-1 group-hover/livebar:h-2'
-                } ${
-                  canTimeshiftFromLiveBar
-                    ? 'cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70 focus-visible:ring-offset-2 focus-visible:ring-offset-black'
-                    : ''
-                }`}
+                className={`rounded-full bg-foreground/15 shadow-[inset_0_0_0_1px_hsl(var(--foreground)/0.05)] overflow-visible transition-[height] duration-base ease-out-soft ${
+                  isLiveProgressFocused ? 'h-[9px]' : 'h-1.5 group-hover/livebar:h-[9px]'
+                } ${canTimeshiftFromLiveBar ? 'cursor-pointer focus-visible:outline-none' : ''}`}
                 onClick={handleLiveProgressClick}
                 onKeyDown={handleLiveProgressKeyDown}
                 onFocus={() => setIsLiveProgressFocused(true)}
@@ -1754,11 +1757,11 @@ const PlayerControls = ({
                 aria-label={canTimeshiftFromLiveBar ? 'Pokreni TV unazad sa ove pozicije' : undefined}
               >
                 <div
-                  className="h-full bg-primary rounded-full transition-all relative"
+                  className="h-full rounded-full bg-gradient-to-r from-primary to-[hsl(var(--focus-glow))] shadow-[0_0_14px_hsl(var(--primary)/0.65)] transition-all relative"
                   style={{ width: `${progress}%` }}
                 >
                   <div
-                    className={`absolute right-0 top-1/2 -translate-y-1/2 h-3 w-3 rounded-full border border-primary/40 bg-primary shadow-[0_0_0_2px_rgba(0,0,0,0.35)] transition-transform ${
+                    className={`absolute right-0 top-1/2 -translate-y-1/2 h-[15px] w-[15px] rounded-full bg-white shadow-[0_0_0_4px_hsl(var(--primary)/0.35),0_2px_10px_hsl(var(--overlay))] transition-transform ${
                       isLiveProgressFocused ? 'scale-125' : 'scale-100 group-hover/livebar:scale-125'
                     }`}
                     aria-hidden
@@ -1773,7 +1776,7 @@ const PlayerControls = ({
               <Button
                 variant="ghost"
                 size="icon"
-                className="w-8 h-8 sm:w-10 sm:h-10 hover:bg-secondary/50"
+                className="w-8 h-8 sm:w-10 sm:h-10 text-muted-foreground hover:bg-foreground/10 hover:text-foreground"
                 data-testid="catchup-play-toggle"
                 onClick={(e) => {
                   e.stopPropagation();
@@ -1788,7 +1791,7 @@ const PlayerControls = ({
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="w-8 h-8 sm:w-10 sm:h-10 hover:bg-secondary/50 flex flex-col items-center justify-center gap-0"
+                    className="w-8 h-8 sm:w-10 sm:h-10 text-muted-foreground hover:bg-foreground/10 hover:text-foreground flex flex-col items-center justify-center gap-0"
                     data-testid="catchup-seek-backward-30"
                     onPointerDown={(e) => handleSeekButtonPointerDown(e, 'backward', 30)}
                     onPointerUp={handleSeekButtonPointerUp}
@@ -1802,7 +1805,7 @@ const PlayerControls = ({
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="w-8 h-8 sm:w-10 sm:h-10 hover:bg-secondary/50 flex flex-col items-center justify-center gap-0"
+                    className="w-8 h-8 sm:w-10 sm:h-10 text-muted-foreground hover:bg-foreground/10 hover:text-foreground flex flex-col items-center justify-center gap-0"
                     data-testid="catchup-seek-forward-30"
                     onPointerDown={(e) => handleSeekButtonPointerDown(e, 'forward', 30)}
                     onPointerUp={handleSeekButtonPointerUp}
@@ -1816,11 +1819,11 @@ const PlayerControls = ({
                 </>
               )}
 
-              <div className="relative flex items-center gap-0.5 rounded-lg border border-border/40 bg-background/20 p-0.5 backdrop-blur-sm sm:gap-1 sm:rounded-xl sm:p-1">
+              <div className="relative flex items-center gap-0.5 rounded-lg border border-glass-border/50 bg-glass/50 p-0.5 backdrop-blur-[18px] backdrop-saturate-125 shadow-[0_10px_34px_-14px_hsl(var(--overlay)),inset_0_1px_0_hsl(var(--foreground)/0.07)] sm:gap-1 sm:rounded-xl sm:p-1">
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="w-8 h-8 sm:w-10 sm:h-10 hover:bg-secondary/50"
+                  className="w-8 h-8 sm:w-10 sm:h-10 text-muted-foreground hover:bg-foreground/10 hover:text-foreground"
                   onClick={(e) => {
                     e.stopPropagation();
                     handleMuteAction();
@@ -1836,7 +1839,7 @@ const PlayerControls = ({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="w-8 h-8 sm:w-10 sm:h-10 hover:bg-secondary/50"
+                  className="w-8 h-8 sm:w-10 sm:h-10 text-muted-foreground hover:bg-foreground/10 hover:text-foreground"
                   aria-label="Prikaži kontrole zvuka"
                   aria-expanded={showVolumeSlider}
                   onClick={(e) => {
@@ -1865,7 +1868,7 @@ const PlayerControls = ({
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="hidden sm:flex gap-1 h-8 px-3 hover:bg-secondary/50"
+                  className="hidden sm:flex gap-1 h-8 px-3 text-muted-foreground hover:bg-foreground/10 hover:text-foreground"
                   data-testid="catchup-go-live"
                   onClick={(e) => {
                     e.stopPropagation();
@@ -1890,7 +1893,7 @@ const PlayerControls = ({
               <Button
                 variant="ghost"
                 size="icon"
-                className="w-8 h-8 sm:w-10 sm:h-10 hover:bg-secondary/50"
+                className="w-8 h-8 sm:w-10 sm:h-10 text-muted-foreground hover:bg-foreground/10 hover:text-foreground"
                 onClick={(e) => {
                   e.stopPropagation();
                   onToggleFavorite();
@@ -1902,7 +1905,7 @@ const PlayerControls = ({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className={`w-8 h-8 sm:w-10 sm:h-10 hover:bg-secondary/50 ${catchUpProgram ? 'text-primary' : ''}`}
+                  className={`w-8 h-8 sm:w-10 sm:h-10 text-muted-foreground hover:bg-foreground/10 hover:text-foreground ${catchUpProgram ? 'text-primary' : ''}`}
                   aria-label="Otvori TV unazad"
                   data-testid="catchup-open"
                   onClick={(e) => {
@@ -1917,7 +1920,7 @@ const PlayerControls = ({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className={`w-8 h-8 sm:w-10 sm:h-10 hover:bg-secondary/50 ${showAudioTracks ? 'text-primary' : ''}`}
+                  className={`w-8 h-8 sm:w-10 sm:h-10 text-muted-foreground hover:bg-foreground/10 hover:text-foreground ${showAudioTracks ? 'text-primary' : ''}`}
                   onClick={(e) => {
                     e.stopPropagation();
                     setShowVolumeSlider(false);
@@ -1932,7 +1935,7 @@ const PlayerControls = ({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className={`w-8 h-8 sm:w-10 sm:h-10 hover:bg-secondary/50 ${showSubtitleTracks ? 'text-primary' : ''}`}
+                  className={`w-8 h-8 sm:w-10 sm:h-10 text-muted-foreground hover:bg-foreground/10 hover:text-foreground ${showSubtitleTracks ? 'text-primary' : ''}`}
                   title={`Titlovi: ${selectedSubtitleTrackLabel}`}
                   onClick={(e) => {
                     e.stopPropagation();
@@ -1948,7 +1951,7 @@ const PlayerControls = ({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className={`w-8 h-8 sm:w-10 sm:h-10 hover:bg-secondary/50 ${isPictureInPicture ? 'text-primary' : ''}`}
+                  className={`w-8 h-8 sm:w-10 sm:h-10 text-muted-foreground hover:bg-foreground/10 hover:text-foreground ${isPictureInPicture ? 'text-primary' : ''}`}
                   title="Slika u slici (P / plavo dugme)"
                   onClick={(e) => {
                     e.stopPropagation();
@@ -1962,7 +1965,7 @@ const PlayerControls = ({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className={`w-8 h-8 sm:w-10 sm:h-10 hover:bg-secondary/50 ${castControl.isConnected ? 'text-primary' : ''}`}
+                  className={`w-8 h-8 sm:w-10 sm:h-10 text-muted-foreground hover:bg-foreground/10 hover:text-foreground ${castControl.isConnected ? 'text-primary' : ''}`}
                   disabled={castControl.isConnecting || Boolean(castControl.disabledReason)}
                   title={castControl.disabledReason ?? (castControl.isConnected ? 'Prekini cast' : 'Poveži cast')}
                   onClick={(e) => {
@@ -1976,7 +1979,7 @@ const PlayerControls = ({
               <Button
                 variant="ghost"
                 size="icon"
-                className="w-8 h-8 sm:w-10 sm:h-10 hover:bg-secondary/50"
+                className="w-8 h-8 sm:w-10 sm:h-10 text-muted-foreground hover:bg-foreground/10 hover:text-foreground"
                 onClick={(e) => {
                   e.stopPropagation();
                   onToggleFullscreen();

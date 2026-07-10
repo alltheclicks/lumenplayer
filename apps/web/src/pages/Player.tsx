@@ -2828,13 +2828,13 @@ const Player = () => {
                 {shouldShowTvUnazadSection && (
                   <div
                     ref={tvUnazadSectionRef}
-                    className={`rounded-xl transition-colors duration-300 ${isTvUnazadHighlighted ? 'bg-emerald-500/10' : ''}`}
+                    className={`rounded-xl transition-colors duration-300 ${isTvUnazadHighlighted ? 'bg-catchup/12' : ''}`}
                   >
                     <div className="flex items-center gap-2 mb-3">
-                      <div className="w-6 h-6 rounded-full bg-emerald-500/20 flex items-center justify-center">
-                        <Play className="w-3 h-3 text-emerald-500" />
+                      <div className="w-6 h-6 rounded-full bg-catchup/20 flex items-center justify-center">
+                        <Play className="w-3 h-3 text-catchup" />
                       </div>
-                      <span className="text-sm font-medium bg-gradient-to-r from-emerald-400 via-primary to-emerald-400 bg-[length:200%_100%] animate-shimmer bg-clip-text text-transparent">
+                      <span className="text-sm font-medium bg-gradient-to-r from-catchup via-primary to-catchup bg-[length:200%_100%] animate-shimmer bg-clip-text text-transparent">
                         TV Unazad
                       </span>
                       <span className="text-xs text-muted-foreground">(klikni za gledanje)</span>
@@ -2866,8 +2866,8 @@ const Player = () => {
                                       onClick={() => playCatchUpProgram(program)}
                                       className={`w-full flex items-center gap-4 p-3 rounded-xl transition-all group text-left ${
                                         isActiveCatchUp
-                                          ? 'bg-emerald-500/20 border-2 border-emerald-500/50'
-                                          : 'bg-emerald-500/5 hover:bg-emerald-500/15 border border-emerald-500/20'
+                                          ? 'bg-catchup/20 border-2 border-catchup/50'
+                                          : 'bg-catchup/[0.07] hover:bg-catchup/15 border border-catchup/25'
                                       }`}
                                     >
                                       <span className="text-sm text-muted-foreground w-16 shrink-0 tabular-nums">
@@ -2880,11 +2880,11 @@ const Player = () => {
                                             PUŠTENO
                                           </span>
                                         ) : (
-                                          <span className="text-[10px] font-semibold text-emerald-500 bg-emerald-500/20 px-2 py-1 rounded-full">
+                                          <span className="text-[10px] font-semibold text-catchup bg-catchup/20 px-2 py-1 rounded-full">
                                             CATCH-UP
                                           </span>
                                         )}
-                                        <Play className="w-4 h-4 text-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                        <Play className="w-4 h-4 text-catchup opacity-0 group-hover:opacity-100 transition-opacity" />
                                       </div>
                                     </button>
                                   );
@@ -2921,8 +2921,8 @@ const Player = () => {
                                           onClick={() => playCatchUpProgram(program)}
                                           className={`w-full flex items-center gap-4 p-3 rounded-xl transition-all group text-left ${
                                             isActiveCatchUp
-                                              ? 'bg-emerald-500/20 border-2 border-emerald-500/50'
-                                              : 'bg-emerald-500/5 hover:bg-emerald-500/15 border border-emerald-500/20'
+                                              ? 'bg-catchup/20 border-2 border-catchup/50'
+                                              : 'bg-catchup/[0.07] hover:bg-catchup/15 border border-catchup/25'
                                           }`}
                                         >
                                           <span className="text-sm text-muted-foreground w-16 shrink-0 tabular-nums">
@@ -2935,11 +2935,11 @@ const Player = () => {
                                                 PUŠTENO
                                               </span>
                                             ) : (
-                                              <span className="text-[10px] font-semibold text-emerald-500 bg-emerald-500/20 px-2 py-1 rounded-full">
+                                              <span className="text-[10px] font-semibold text-catchup bg-catchup/20 px-2 py-1 rounded-full">
                                                 CATCH-UP
                                               </span>
                                             )}
-                                            <Play className="w-4 h-4 text-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                            <Play className="w-4 h-4 text-catchup opacity-0 group-hover:opacity-100 transition-opacity" />
                                           </div>
                                         </button>
                                       );
@@ -2951,9 +2951,9 @@ const Player = () => {
                           </>
                         );
                       })() : (
-                        <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-4">
+                        <div className="rounded-xl border border-catchup/25 bg-catchup/[0.07] px-4 py-4">
                           <div className="flex items-start gap-3">
-                            <Clock className="mt-0.5 h-4 w-4 text-emerald-400" />
+                            <Clock className="mt-0.5 h-4 w-4 text-catchup" />
                             <div>
                               <p className="text-sm font-medium text-foreground">
                                 {tvUnazadEmptyStateReason?.title ?? 'TV Unazad trenutno nema stavki'}
@@ -2994,7 +2994,7 @@ const Player = () => {
                   <div className="grid grid-cols-3 gap-1.5">
                     <Button
                       variant="outline"
-                      className="h-9 min-w-0 justify-center gap-1 border-emerald-500/35 bg-emerald-500/12 px-1.5 text-xs text-emerald-400 hover:bg-emerald-500/20"
+                      className="h-9 min-w-0 justify-center gap-1 border-catchup/40 bg-catchup/12 px-1.5 text-xs text-catchup hover:bg-catchup/20"
                       onClick={requestCatchUpPanel}
                     >
                       <Play className="h-3.5 w-3.5 shrink-0" />

@@ -1,0 +1,136 @@
+<!-- @dsCard group="Motion" name="Motion — Liste i katalozi" subtitle="Stagger ulazak, hover/focus reda, lift kartica, skeleton, EPG now-line" -->
+<!doctype html>
+<html class="dark" lang="sr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Motion — Liste i katalozi — Lumen Player</title>
+<link rel="stylesheet" href="../foundations/tokens.css" />
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: "Space Grotesk", ui-sans-serif, system-ui, sans-serif; background: hsl(var(--background)); color: hsl(var(--foreground)); -webkit-font-smoothing: antialiased; }
+  .wrap { max-width: 52rem; margin: 0 auto; padding: 1.5rem; }
+  header { border-bottom: 1px solid hsl(var(--border)); padding-bottom: .75rem; margin-bottom: 1.5rem; }
+  h1 { font-size: 1.125rem; font-weight: 700; margin: 0 0 .25rem; letter-spacing: -.01em; }
+  .sub { font-size: .75rem; color: hsl(var(--muted-foreground)); margin: 0; }
+  h2 { font-size: .8125rem; font-weight: 600; color: hsl(var(--muted-foreground)); margin: 2rem 0 .75rem; text-transform: uppercase; letter-spacing: .06em; }
+  .grid { display: grid; gap: .75rem; }
+  .cols-2 { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .tile { background: hsl(var(--card)); border: 1px solid hsl(var(--border)); border-radius: var(--radius); padding: 1rem; }
+  .label { font-size: .75rem; font-weight: 600; }
+  .meta { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: .6875rem; color: hsl(var(--muted-foreground)); margin-top: .125rem; }
+  .hint { font-size: .6875rem; color: hsl(var(--muted-foreground)); margin-top: .75rem; }
+  .rm { font-size: .625rem; color: hsl(var(--muted-foreground)); margin-top: .6rem; padding-top: .6rem; border-top: 1px dashed hsl(var(--border)); }
+  .rm b { color: hsl(var(--foreground)); font-weight: 600; }
+  a { color: hsl(var(--primary)); } a:hover { color: hsl(var(--focus-glow)); }
+
+  /* ---- 1. stagger ulazak channel liste (hover = replay) ---- */
+  @keyframes lp-enter { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  .chl { display: grid; gap: 2px; margin-top: .85rem; }
+  .chrow { display: grid; grid-template-columns: 2.4rem 1fr auto; align-items: center; gap: .6rem; padding: .38rem .6rem; border-radius: 8px; background: hsl(var(--secondary)/.55); font-size: .6875rem; position: relative; cursor: pointer;
+    transition: transform var(--motion-fast) var(--ease-out-soft); }
+  .chnum { font-family: ui-monospace, Menlo, monospace; color: hsl(var(--muted-foreground)); }
+  .chnow { color: hsl(var(--muted-foreground)); font-size: .625rem; }
+  .stagger-demo:hover .chrow { animation: lp-enter var(--motion-base) var(--ease-out-soft) both; animation-delay: calc(var(--i) * var(--motion-stagger)); }
+  /* glow kao ::after sloj — animira se samo opacity, ne box-shadow */
+  .chrow::after { content: ""; position: absolute; inset: 0; border-radius: 8px; pointer-events: none; opacity: 0;
+    box-shadow: 0 0 0 1px hsl(var(--primary)/.55), 0 0 18px 0 hsl(var(--focus-glow)/.35); transition: opacity var(--motion-fast) var(--ease-out-soft); }
+  .chrow:hover, .chrow:focus-visible, .chrow.is-focused { transform: scale(1.012); outline: none; }
+  .chrow:hover::after, .chrow:focus-visible::after, .chrow.is-focused::after { opacity: 1; }
+
+  /* ---- 2. kartice kataloga — lift bez layout pomeranja ---- */
+  .cat { display: grid; grid-template-columns: repeat(3, 1fr); gap: .75rem; margin-top: .85rem; }
+  .ccard { position: relative; aspect-ratio: 2/3; border-radius: calc(var(--radius) - 4px); border: 1px solid hsl(var(--border)); cursor: pointer;
+    background: linear-gradient(160deg, hsl(var(--secondary)), hsl(var(--surface-1))); display: flex; align-items: flex-end; padding: .6rem; font-size: .6875rem; font-weight: 600;
+    transform: translateY(0) scale(1); transition: transform var(--motion-fast) var(--ease-out-soft); }
+  .ccard::after { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; opacity: 0;
+    box-shadow: 0 18px 40px -16px hsl(var(--shell-shadow)), 0 0 0 1px hsl(var(--primary)/.35); transition: opacity var(--motion-fast) var(--ease-out-soft); }
+  .ccard:hover, .ccard:focus-visible { transform: translateY(-4px) scale(1.02); outline: none; }
+  .ccard:hover::after, .ccard:focus-visible::after { opacity: 1; }
+
+  /* ---- 3. skeleton loading ---- */
+  @keyframes lp-skeleton { from { transform: translateX(-100%); } to { transform: translateX(240%); } }
+  .skel { display: grid; gap: .5rem; margin-top: .85rem; }
+  .sk { position: relative; overflow: hidden; border-radius: 8px; background: hsl(var(--muted)/.55); height: 30px; }
+  .sk.w60 { width: 60%; } .sk.w80 { width: 80%; }
+  .sk::after { content: ""; position: absolute; inset: 0; width: 55%;
+    background: linear-gradient(90deg, transparent, hsl(var(--foreground)/.07), transparent);
+    animation: lp-skeleton 1.6s var(--ease-in-out-soft) infinite; animation-delay: calc(var(--i, 0) * var(--motion-stagger) * 3); }
+
+  /* ---- 4. EPG now-line puls ---- */
+  @keyframes lp-nowline { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
+  .epg { position: relative; margin-top: .85rem; border-radius: calc(var(--radius) - 4px); border: 1px solid hsl(var(--border)); overflow: hidden; }
+  .epg-row { display: grid; grid-template-columns: 5.5rem 1fr 1fr 1.4fr; gap: 2px; padding: 2px; }
+  .epg-cell { padding: .45rem .55rem; font-size: .625rem; background: hsl(var(--secondary)/.5); border-radius: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .epg-cell.chan { font-family: ui-monospace, Menlo, monospace; color: hsl(var(--muted-foreground)); }
+  .nowline { position: absolute; top: 0; bottom: 0; left: 46%; width: 2px; background: hsl(var(--live)); }
+  .nowline::before { content: ""; position: absolute; top: 0; left: -3px; width: 8px; height: 8px; border-radius: 999px; background: hsl(var(--live)); }
+  .nowline::after { content: ""; position: absolute; inset: 0; background: hsl(var(--live)); opacity: 1; animation: lp-nowline 2.4s var(--ease-in-out-soft) infinite; box-shadow: 0 0 10px 1px hsl(var(--live)/.6); }
+
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Motion — Liste i katalozi</h1>
+    <p class="sub">Gustina ostaje (TiviMate nivo) — motion samo potvrđuje fokus i popunjava čekanje. Glow je unapred iscrtan <code>::after</code> sloj kome se animira samo <code>opacity</code>.</p>
+  </header>
+
+  <h2>Channel lista — pređi mišem za replay ulaska</h2>
+  <section class="tile stagger-demo">
+    <div class="meta">enter: --motion-base · --ease-out-soft · stagger 30ms &nbsp;·&nbsp; red: scale(1.012) + glow --motion-fast</div>
+    <div class="chl">
+      <div class="chrow" style="--i:0" tabindex="0"><span class="chnum">101</span><span>Prvi program HD</span><span class="chnow">Dnevnik 2</span></div>
+      <div class="chrow is-focused" style="--i:1" tabindex="0"><span class="chnum">102</span><span>Sport HD</span><span class="chnow">Liga šampiona</span></div>
+      <div class="chrow" style="--i:2" tabindex="0"><span class="chnum">103</span><span>Film Klasik</span><span class="chnow">Maratonci trče…</span></div>
+      <div class="chrow" style="--i:3" tabindex="0"><span class="chnum">104</span><span>Dokumentarni</span><span class="chnow">Planeta Zemlja</span></div>
+      <div class="chrow" style="--i:4" tabindex="0"><span class="chnum">105</span><span>Dečiji</span><span class="chnow">Crtani blok</span></div>
+    </div>
+    <p class="hint">Pomeraj ulaska je 8px — lista „sleže“, ne uleće. Fokusirani red (drugi) pokazuje statično stanje; tab-uj kroz redove za živi fokus.</p>
+    <p class="rm"><b>Reduced motion:</b> bez kaskade — lista odjednom; fokus glow se pali trenutno (fokus mora ostati vidljiv).</p>
+  </section>
+
+  <h2>Kartice kataloga — lift bez layout pomeranja</h2>
+  <section class="tile">
+    <div class="meta">translateY(-4px) scale(1.02) · --motion-fast · senka kao ::after opacity</div>
+    <div class="cat">
+      <div class="ccard" tabindex="0">Otac na službenom putu</div>
+      <div class="ccard" tabindex="0">Ko to tamo peva</div>
+      <div class="ccard" tabindex="0">Balkanski špijun</div>
+    </div>
+    <p class="hint">Kartica se izdiže u svom sloju — susedi se ne pomeraju ni piksel. Nikad <code>margin</code>/<code>width</code> na hover.</p>
+    <p class="rm"><b>Reduced motion:</b> lift se gasi; ostaje trenutna promena ivice/senke kao indikator.</p>
+  </section>
+
+  <h2>Skeleton &amp; EPG</h2>
+  <section class="grid cols-2">
+    <div class="tile">
+      <div class="label">Skeleton loading</div>
+      <div class="meta">translateX petlja 1.6s · stagger ×3 po redu</div>
+      <div class="skel">
+        <div class="sk" style="--i:0"></div>
+        <div class="sk w80" style="--i:1"></div>
+        <div class="sk w60" style="--i:2"></div>
+        <div class="sk w80" style="--i:3"></div>
+      </div>
+      <p class="hint">Talas ide odozgo nadole — sugeriše redosled učitavanja EPG-a/kataloga.</p>
+      <p class="rm"><b>Reduced motion:</b> statične sive ploče, bez talasa.</p>
+    </div>
+    <div class="tile">
+      <div class="label">EPG now-line puls</div>
+      <div class="meta">opacity 1→.45 · 2.4s · --ease-in-out-soft</div>
+      <div class="epg">
+        <div class="epg-row"><span class="epg-cell chan">101</span><span class="epg-cell">Dnevnik 2</span><span class="epg-cell">Kviz</span><span class="epg-cell">Film: Podzemlje</span></div>
+        <div class="epg-row"><span class="epg-cell chan">102</span><span class="epg-cell">Studio uživo</span><span class="epg-cell">Liga šampiona</span><span class="epg-cell">Pregled kola</span></div>
+        <div class="epg-row"><span class="epg-cell chan">103</span><span class="epg-cell">Jutarnji film</span><span class="epg-cell">Serija</span><span class="epg-cell">Veče klasika</span></div>
+        <div class="nowline"></div>
+      </div>
+      <p class="hint">Linija „sada“ diše sporo — orijentir, ne alarm. Pulsira glow sloj, ne geometrija.</p>
+      <p class="rm"><b>Reduced motion:</b> linija statična, punog intenziteta.</p>
+    </div>
+  </section>
+</div>
+</body>
+</html>

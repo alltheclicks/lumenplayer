@@ -1,0 +1,28 @@
+/* extracted from player-desktop.html style id=__lp_screen */
+/* ===== Channel browse — Netflix/TiviMate modernization (tokens only) ===== */
+/* Brand-unify catch-up indicators to the violet --catchup token */
+[class~="text-emerald-400"],[class~="text-emerald-500"]{ color: hsl(var(--catchup)) !important; }
+[class~="bg-emerald-500/5"]{ background: hsl(var(--catchup) / .07) !important; }
+[class~="bg-emerald-500/10"]{ background: hsl(var(--catchup) / .12) !important; }
+[class~="bg-emerald-500/15"]{ background: hsl(var(--catchup) / .16) !important; }
+[class~="bg-emerald-500/20"]{ background: hsl(var(--catchup) / .2) !important; }
+[class~="border-emerald-500/20"]{ border-color: hsl(var(--catchup) / .28) !important; }
+[class~="border-emerald-500/35"]{ border-color: hsl(var(--catchup) / .42) !important; }
+[class~="border-emerald-500/50"]{ border-color: hsl(var(--catchup) / .5) !important; }
+
+/* Channel rows */
+[data-testid="channel-row"] > div > div{
+  transition: background-color var(--motion-base) var(--ease-standard), box-shadow var(--motion-base) var(--ease-out-soft), transform var(--motion-fast) var(--ease-out-soft);
+}
+[data-testid="channel-row"] > div > div:hover{ background: hsl(var(--secondary) / .75) !important; }
+/* channel logo tile — make placeholders look intentional */
+[data-testid="channel-select"] > div:first-child{
+  background: linear-gradient(150deg, hsl(var(--surface-2)), hsl(var(--card))) !important;
+  box-shadow: inset 0 0 0 1px hsl(var(--border));
+  overflow: hidden;
+}
+[data-testid="channel-select"] .font-medium{ letter-spacing: -.005em; }
+/* favorite hover */
+[aria-label^="Dodaj"]:hover{ color: hsl(var(--live)) !important; }
+
+@media (prefers-reduced-motion: reduce){*,*::before,*::after{animation-duration:.001ms!important;transition-duration:.001ms!important;}}

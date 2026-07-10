@@ -1,0 +1,137 @@
+<!-- @dsCard group="TV Motion (10-foot koncept)" viewport="1920x1080" name="TV — Redovi i navigacija" subtitle="Horizontalni glide, vertikalni prelaz sekcija, staggered ulazak, brži povratak" -->
+<!doctype html>
+<html class="dark" lang="sr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>TV — Redovi i navigacija — Lumen Player</title>
+<link rel="stylesheet" href="../foundations/tokens.css" />
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; font-family: "Space Grotesk", ui-sans-serif, system-ui, sans-serif; background: hsl(var(--background)); color: hsl(var(--foreground)); -webkit-font-smoothing: antialiased; }
+  .canvas { width: 1920px; height: 1080px; padding: 44px 96px; display: flex; flex-direction: column; gap: 26px; }
+  h1 { font-size: 44px; font-weight: 700; margin: 0; letter-spacing: -.01em; }
+  .sub { font-size: 26px; color: hsl(var(--muted-foreground)); margin: 10px 0 0; max-width: 1500px; }
+  h2 { font-size: 23px; font-weight: 600; color: hsl(var(--muted-foreground)); margin: 0 0 14px; text-transform: uppercase; letter-spacing: .08em; }
+  .meta { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 21px; color: hsl(var(--muted-foreground)); }
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 26px; }
+  .demo { background: hsl(var(--card)); border: 1px solid hsl(var(--border)); border-radius: 24px; padding: 22px 26px; min-width: 0; }
+  .hint { font-size: 20px; color: hsl(var(--muted-foreground)); margin: 12px 0 0; line-height: 1.35; }
+  .rm { font-size: 22px; color: hsl(var(--muted-foreground)); border-top: 1px dashed hsl(var(--border)); padding-top: 20px; }
+  .rm b { color: hsl(var(--foreground)); }
+  a { color: hsl(var(--primary)); } a:hover { color: hsl(var(--focus-glow)); }
+
+  .tile { width: 236px; height: 108px; flex: none; border-radius: 16px; border: 1px solid hsl(var(--border));
+    background: linear-gradient(150deg, hsl(var(--secondary)), hsl(var(--surface-1))); display: flex; align-items: flex-end; padding: 14px; font-size: 20px; font-weight: 600; }
+
+  /* ---- 1. horizontalni glide trake ---- */
+  @keyframes lp-rail-x {
+    0%, 26% { transform: translateX(0); }
+    38%, 62% { transform: translateX(-262px); }
+    74%, 96% { transform: translateX(-524px); }
+    100% { transform: translateX(0); }
+  }
+  .clip { overflow: hidden; border-radius: 16px; }
+  .rail-x { display: flex; gap: 26px; animation: lp-rail-x 6.5s var(--ease-in-out-soft) infinite; will-change: transform; }
+
+  /* ---- 2. vertikalni prelaz sekcija ---- */
+  @keyframes lp-sections-y {
+    0%, 38% { transform: translateY(0); }
+    50%, 88% { transform: translateY(-152px); }
+    100% { transform: translateY(0); }
+  }
+  .vclip { overflow: hidden; height: 152px; border-radius: 16px; }
+  .vstack { animation: lp-sections-y 6.5s var(--ease-in-out-soft) infinite; will-change: transform; }
+  .vsec { height: 152px; display: flex; flex-direction: column; justify-content: center; gap: 14px; }
+  .vsec .meta { font-size: 20px; }
+  .vrow { display: flex; gap: 20px; }
+  .vrow .tile { width: 180px; height: 84px; font-size: 18px; }
+
+  /* ---- 3. ulazak u ekran — staggered reveal ---- */
+  @keyframes lp-reveal {
+    0% { opacity: 0; transform: translateY(22px); }
+    10% { opacity: 1; transform: none; }
+    86% { opacity: 1; transform: none; }
+    94%, 100% { opacity: 0; transform: translateY(22px); }
+  }
+  .reveal-stage .r { animation: lp-reveal 5.5s var(--ease-out-soft) infinite; animation-delay: calc(var(--i) * var(--motion-stagger) * 3); will-change: opacity, transform; }
+  .rev-title { font-size: 28px; font-weight: 700; margin-bottom: 12px; }
+  .rev-rows { display: grid; gap: 12px; }
+  .rev-row { display: flex; gap: 20px; }
+  .rev-row .tile { width: 168px; height: 76px; font-size: 17px; }
+
+  /* ---- 4. povratak nazad — obrnuta, brža koreografija ---- */
+  @keyframes lp-back {
+    0%, 55% { opacity: 1; transform: none; }
+    63%, 76% { opacity: 0; transform: translateY(14px) scale(.985); }
+    84%, 100% { opacity: 1; transform: none; }
+  }
+  .back-stage .b { animation: lp-back 5.5s var(--ease-exit) infinite; animation-delay: calc((2 - var(--i)) * var(--motion-stagger) * 2); will-change: opacity, transform; }
+</style>
+</head>
+<body>
+<div class="canvas">
+  <div>
+    <h1>TV — Redovi i navigacija</h1>
+    <p class="sub">Navigacija je kontinuirano kretanje kamere, nikad rez. Trake klize <span class="meta">--ease-in-out-soft</span>; ulazak u ekran je kaskada <span class="meta">stagger ×3 · --ease-out-soft</span>; povratak je ista koreografija obrnuto — ali kraća i sa <span class="meta">--ease-exit</span>.</p>
+  </div>
+
+  <div class="cols">
+    <div class="demo">
+      <h2>Horizontalno klizanje trake (auto)</h2>
+      <div class="clip">
+        <div class="rail-x">
+          <div class="tile">Podzemlje</div>
+          <div class="tile">Lepa sela…</div>
+          <div class="tile">Balkanski špijun</div>
+          <div class="tile">Ko to tamo peva</div>
+          <div class="tile">Maratonci</div>
+          <div class="tile">Otac na sl. putu</div>
+        </div>
+      </div>
+      <p class="hint">Traka se translira za tačno jednu ćeliju po pritisku; --motion-tv-focus, prekidljivo iz trenutne pozicije.</p>
+    </div>
+
+    <div class="demo">
+      <h2>Vertikalni prelaz između sekcija (auto)</h2>
+      <div class="vclip">
+        <div class="vstack">
+          <div class="vsec">
+            <span class="meta">NASTAVI GLEDANJE</span>
+            <div class="vrow"><div class="tile">Ep. 4</div><div class="tile">Ep. 7</div><div class="tile">Film</div></div>
+          </div>
+          <div class="vsec">
+            <span class="meta">PREPORUČENO</span>
+            <div class="vrow"><div class="tile">Novo</div><div class="tile">Top 10</div><div class="tile">Sport</div></div>
+          </div>
+        </div>
+      </div>
+      <p class="hint">Sekcije dele istu vertikalnu kameru — naslov i red putuju zajedno, bez pojedinačnih rezova.</p>
+    </div>
+
+    <div class="demo reveal-stage">
+      <h2>Ulazak u ekran — staggered reveal (auto)</h2>
+      <div class="rev-title r" style="--i:0">Uživo TV</div>
+      <div class="rev-rows">
+        <div class="rev-row r" style="--i:1"><div class="tile">101</div><div class="tile">102</div><div class="tile">103</div></div>
+        <div class="rev-row r" style="--i:2"><div class="tile">104</div><div class="tile">105</div><div class="tile">106</div></div>
+      </div>
+      <p class="hint">Naslov → red 1 → red 2, korak 90ms (stagger ×3), pomeraj 22px. Fokus je odmah upotrebljiv — kaskada je samo prezentacija.</p>
+    </div>
+
+    <div class="demo back-stage">
+      <h2>Povratak nazad — obrnuto i brže (auto)</h2>
+      <div class="rev-title b" style="--i:0">Uživo TV</div>
+      <div class="rev-rows">
+        <div class="rev-row b" style="--i:1"><div class="tile">101</div><div class="tile">102</div><div class="tile">103</div></div>
+        <div class="rev-row b" style="--i:2"><div class="tile">104</div><div class="tile">105</div><div class="tile">106</div></div>
+      </div>
+      <p class="hint">Izlaz ide odozdo nagore (obrnut redosled), upola kraćim koracima i sa --ease-exit — „nazad“ uvek deluje lakše od „napred“.</p>
+    </div>
+  </div>
+
+  <p class="rm"><b>Reduced motion:</b> sve petlje i kaskade se gase; promena sekcije/ekrana je instant rez, a pozicija trake se postavlja bez tranzicije. Sadržaj i fokus su uvek odmah dostupni.</p>
+</div>
+</body>
+</html>

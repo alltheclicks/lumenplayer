@@ -1,0 +1,7 @@
+/* extracted from alerts-toast.html style id=__lp_modernize */
+@keyframes lp-toast-in{from{opacity:0;transform:translateY(12px) scale(.98);}to{opacity:1;transform:none;}}
+.shadow-lg{animation:lp-toast-in var(--motion-slow) var(--ease-spring) backwards;}
+.shadow-lg{transition:transform var(--motion-base,220ms) var(--ease-out-soft),box-shadow var(--motion-base,220ms) var(--ease-out-soft);}
+.shadow-lg:hover{transform:translateY(-2px);box-shadow:0 22px 48px -20px hsl(var(--overlay));}
+[role="alert"],.rounded-lg.border.p-4{transition:border-color var(--motion-base,220ms) var(--ease-standard),background-color var(--motion-base,220ms) var(--ease-standard);}
+@media (prefers-reduced-motion: reduce){*,*::before,*::after{animation-duration:.001ms!important;transition-duration:.001ms!important;}}

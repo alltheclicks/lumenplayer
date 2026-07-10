@@ -1,0 +1,24 @@
+/* extracted from card.html style id=__lp_modernize */
+:where(button,[role="button"],a[href],input,select,textarea,[tabindex]){
+  transition:
+    background-color var(--motion-base,220ms) var(--ease-standard,ease),
+    border-color var(--motion-base,220ms) var(--ease-standard,ease),
+    color var(--motion-base,220ms) var(--ease-standard,ease),
+    box-shadow var(--motion-base,220ms) var(--ease-out-soft,ease),
+    transform var(--motion-fast,140ms) var(--ease-out-soft,ease);
+}
+button:active{transform:translateY(1px) scale(.985);transition-duration:var(--motion-instant,80ms);}
+button.bg-primary:hover{transform:translateY(-1px);box-shadow:0 8px 24px -8px hsl(var(--primary)/.6);}
+button.border-input:hover{transform:translateY(-1px);}
+.bg-card.rounded-lg.border{transition:transform var(--motion-base,220ms) var(--ease-out-soft),box-shadow var(--motion-base,220ms) var(--ease-out-soft),border-color var(--motion-base,220ms) var(--ease-out-soft);}
+.bg-card.rounded-lg.border:hover{transform:translateY(-2px);border-color:hsl(var(--primary)/.4);box-shadow:0 20px 44px -18px hsl(var(--overlay)),0 0 0 1px hsl(var(--primary)/.14);}
+*:focus-visible{outline:none;}
+button:focus-visible,a:focus-visible,[tabindex]:focus-visible{
+  outline:none;
+  box-shadow:
+    0 0 0 2px hsl(var(--background)),
+    0 0 0 4px hsl(var(--ring)),
+    0 0 0 6px hsl(var(--focus-glow)/.35),
+    0 0 24px 1px hsl(var(--focus-glow)/.5);
+}
+@media (prefers-reduced-motion: reduce){*,*::before,*::after{animation-duration:.001ms!important;transition-duration:.001ms!important;}}

@@ -1,0 +1,30 @@
+/* extracted from form.html style id=__lp_modernize */
+:where(button,[role="button"],a[href],input,select,textarea,[tabindex]){
+  transition:
+    background-color var(--motion-base,220ms) var(--ease-standard,ease),
+    border-color var(--motion-base,220ms) var(--ease-standard,ease),
+    color var(--motion-base,220ms) var(--ease-standard,ease),
+    box-shadow var(--motion-base,220ms) var(--ease-out-soft,ease),
+    transform var(--motion-fast,140ms) var(--ease-out-soft,ease);
+}
+input:hover:not(:disabled){border-color:hsl(var(--muted-foreground)/.5);background-color:hsl(var(--elevated));}
+input:focus-visible,input.ring-ring{border-color:hsl(var(--ring));}
+*:focus-visible{outline:none;}
+input:focus-visible,[tabindex]:focus-visible{
+  outline:none;
+  box-shadow:
+    0 0 0 2px hsl(var(--background)),
+    0 0 0 4px hsl(var(--ring)),
+    0 0 0 6px hsl(var(--focus-glow)/.35),
+    0 0 24px 1px hsl(var(--focus-glow)/.5);
+}
+.ring-ring.ring-2{
+  --tw-ring-shadow:0 0 #0000!important;
+  --tw-ring-offset-shadow:0 0 #0000!important;
+  box-shadow:
+    0 0 0 2px hsl(var(--background)),
+    0 0 0 4px hsl(var(--ring)),
+    0 0 0 6px hsl(var(--focus-glow)/.35),
+    0 0 24px 1px hsl(var(--focus-glow)/.5)!important;
+}
+@media (prefers-reduced-motion: reduce){*,*::before,*::after{animation-duration:.001ms!important;transition-duration:.001ms!important;}}

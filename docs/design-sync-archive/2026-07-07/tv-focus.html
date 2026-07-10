@@ -1,0 +1,103 @@
+<!-- @dsCard group="TV Motion (10-foot koncept)" viewport="1920x1080" name="TV — Fokus sistem" subtitle="Scale + glow + elevacija, susedi se sklanjaju, kamera-glide fokusa" -->
+<!doctype html>
+<html class="dark" lang="sr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>TV — Fokus sistem — Lumen Player</title>
+<link rel="stylesheet" href="../foundations/tokens.css" />
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; font-family: "Space Grotesk", ui-sans-serif, system-ui, sans-serif; background: hsl(var(--background)); color: hsl(var(--foreground)); -webkit-font-smoothing: antialiased; }
+  .canvas { width: 1920px; height: 1080px; padding: 48px 96px; display: flex; flex-direction: column; gap: 32px; }
+  h1 { font-size: 44px; font-weight: 700; margin: 0; letter-spacing: -.01em; }
+  .sub { font-size: 26px; color: hsl(var(--muted-foreground)); margin: 10px 0 0; max-width: 1400px; }
+  h2 { font-size: 24px; font-weight: 600; color: hsl(var(--muted-foreground)); margin: 0 0 20px; text-transform: uppercase; letter-spacing: .08em; }
+  .meta { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 22px; color: hsl(var(--muted-foreground)); }
+
+  /* ---- Fokusirana kartica + susedi se sklanjaju ---- */
+  .row-demo { display: flex; gap: 32px; align-items: center; }
+  .tvcard { position: relative; width: 300px; height: 170px; flex: none; border-radius: 20px; border: 1px solid hsl(var(--border)); cursor: pointer;
+    background: linear-gradient(150deg, hsl(var(--secondary)), hsl(var(--surface-1))); display: flex; align-items: flex-end; padding: 20px; font-size: 24px; font-weight: 600;
+    transform: translateX(0) scale(1); transition: transform var(--motion-tv-focus) var(--ease-out-soft); outline: none; }
+  .tvcard::after { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; opacity: 0;
+    box-shadow: 0 0 0 4px hsl(var(--ring)), 0 0 0 10px hsl(var(--focus-glow)/.28), 0 0 60px 4px hsl(var(--focus-glow)/.5), 0 36px 80px -28px hsl(var(--shell-shadow));
+    transition: opacity var(--motion-instant) var(--ease-out-soft); }
+  .tvcard.is-focused, .tvcard:focus-visible, .tvcard:hover { transform: scale(1.06); z-index: 2; }
+  .tvcard.is-focused::after, .tvcard:focus-visible::after, .tvcard:hover::after { opacity: 1; }
+  /* susedi se suptilno sklanjaju od fokusa */
+  .row-demo .tvcard.is-focused ~ .tvcard { transform: translateX(14px); }
+  .row-demo:has(.tvcard:hover) .tvcard.is-focused { transform: none; }
+  .row-demo:has(.tvcard:hover) .tvcard.is-focused::after { opacity: 0; }
+  .row-demo .tvcard:hover ~ .tvcard { transform: translateX(14px); }
+
+  /* ---- Kamera-glide: traka klizi, fokus prsten miruje ---- */
+  @keyframes lp-rail-glide {
+    0%, 22% { transform: translateX(0); }
+    33%, 55% { transform: translateX(-332px); }
+    66%, 88% { transform: translateX(-664px); }
+    100% { transform: translateX(0); }
+  }
+  .glide-stage { position: relative; height: 208px; overflow: hidden; border-radius: 24px; border: 1px dashed hsl(var(--border)); padding: 24px 0; }
+  .rail { display: flex; gap: 32px; padding-left: 460px; animation: lp-rail-glide 7s var(--ease-in-out-soft) infinite; will-change: transform; }
+  .rail .tvcard { pointer-events: none; }
+  .focus-ring { position: absolute; top: 24px; left: 460px; width: 300px; height: 170px; border-radius: 20px; pointer-events: none; z-index: 2;
+    box-shadow: 0 0 0 4px hsl(var(--ring)), 0 0 0 10px hsl(var(--focus-glow)/.28), 0 0 60px 4px hsl(var(--focus-glow)/.5); }
+
+  /* ---- pravila ---- */
+  .rules { display: grid; grid-template-columns: repeat(3, 1fr); gap: 32px; }
+  .rule { background: hsl(var(--card)); border: 1px solid hsl(var(--border)); border-radius: 20px; padding: 22px 26px; }
+  .rule .n { font-family: ui-monospace, Menlo, monospace; font-size: 22px; color: hsl(var(--primary)); }
+  .rule h3 { font-size: 26px; margin: 10px 0 8px; font-weight: 600; }
+  .rule p { font-size: 22px; line-height: 1.45; color: hsl(var(--muted-foreground)); margin: 0; }
+  .rm { font-size: 22px; color: hsl(var(--muted-foreground)); border-top: 1px dashed hsl(var(--border)); padding-top: 20px; }
+  .rm b { color: hsl(var(--foreground)); }
+  a { color: hsl(var(--primary)); } a:hover { color: hsl(var(--focus-glow)); }
+
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="canvas">
+  <div>
+    <h1>TV — Fokus sistem</h1>
+    <p class="sub">D-pad je jedini kursor. Fokus je kamera: <b>scale 1.06 + glow prsten + elevacija</b>, susedi se sklanjaju 14px. Prsten se pali za <span class="meta">--motion-instant</span>, glide traje <span class="meta">--motion-tv-focus · 180ms</span> i prekidljiv je.</p>
+  </div>
+
+  <div>
+    <h2>Fokusirano stanje — pređi mišem po karticama (simulacija D-pada)</h2>
+    <div class="row-demo">
+      <div class="tvcard" tabindex="0">Filmovi</div>
+      <div class="tvcard is-focused" tabindex="0">Uživo TV</div>
+      <div class="tvcard" tabindex="0">Serije</div>
+      <div class="tvcard" tabindex="0">Snimci</div>
+      <div class="tvcard" tabindex="0">Deca</div>
+    </div>
+  </div>
+
+  <div>
+    <h2>Kamera-glide — fokus miruje, traka klizi (auto)</h2>
+    <div class="glide-stage">
+      <div class="focus-ring"></div>
+      <div class="rail">
+        <div class="tvcard">101 · Prvi HD</div>
+        <div class="tvcard">102 · Sport HD</div>
+        <div class="tvcard">103 · Film Klasik</div>
+        <div class="tvcard">104 · Dokumentarni</div>
+        <div class="tvcard">105 · Dečiji</div>
+        <div class="tvcard">106 · Muzika</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="rules">
+    <div class="rule"><span class="n">01 · &lt;100ms</span><h3>Prvo feedback, pa dekoracija</h3><p>Na pritisak tastera prsten i scale kreću za <b>80ms</b> (--motion-instant). Glide i elevacija su dekorativni rep — smeju da kasne, odziv ne sme.</p></div>
+    <div class="rule"><span class="n">02 · prekidljivo</span><h3>Fokus klizi, ne skače</h3><p>Cela traka se translira (<b>--ease-in-out-soft</b>), kao da kamera prati. Novi pritisak preusmerava tranziciju iz trenutne pozicije — bez čekanja da se završi.</p></div>
+    <div class="rule"><span class="n">03 · compositor</span><h3>Samo transform + opacity</h3><p>Glow je unapred iscrtan <code>::after</code> sloj (animira se opacity). Bez blur-a, bez layout promena — 60fps i na slabim TV čipovima.</p></div>
+  </div>
+
+  <p class="rm"><b>Reduced motion:</b> scale i glide se gase — fokus prsten se pali trenutno i traka skače na poziciju bez animacije. Fokus indikacija nikad ne sme zavisiti od kretanja.</p>
+</div>
+</body>
+</html>

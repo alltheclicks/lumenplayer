@@ -1,0 +1,157 @@
+<!-- @dsCard group="Foundations" name="Motion" -->
+<!doctype html>
+<html class="dark" lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Motion — Lumen Player</title>
+<link rel="stylesheet" href="tokens.css" />
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+    background: hsl(var(--background));
+    color: hsl(var(--foreground));
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 48rem; margin: 0 auto; padding: 1.5rem; }
+  header { border-bottom: 1px solid hsl(var(--border)); padding-bottom: .75rem; margin-bottom: 1.5rem; }
+  h1 { font-size: 1.125rem; font-weight: 700; margin: 0 0 .25rem; letter-spacing: -.01em; }
+  .sub { font-size: .75rem; color: hsl(var(--muted-foreground)); margin: 0; }
+  h2 { font-size: .8125rem; font-weight: 600; color: hsl(var(--muted-foreground)); margin: 2rem 0 .75rem; text-transform: uppercase; letter-spacing: .06em; }
+  section { margin-bottom: .5rem; }
+  .grid { display: grid; gap: .75rem; }
+  .cols-2 { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .cols-3 { grid-template-columns: repeat(3, minmax(0,1fr)); }
+  .tile {
+    background: hsl(var(--card));
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius);
+    padding: 1rem;
+  }
+  .label { font-size: .75rem; font-weight: 600; }
+  .meta { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: .6875rem; color: hsl(var(--muted-foreground)); margin-top: .125rem; }
+  .hint { font-size: .6875rem; color: hsl(var(--muted-foreground)); margin-top: .75rem; }
+
+  /* Duration demo — a dot that travels a track on hover */
+  .track { position: relative; height: 8px; border-radius: 999px; background: hsl(var(--muted)); margin-top: .85rem; overflow: hidden; }
+  .fill { position: absolute; inset: 0 100% 0 0; border-radius: 999px; background: linear-gradient(90deg, hsl(var(--primary)), hsl(var(--catchup))); }
+  .tile:hover .fill.d1 { inset: 0 0 0 0; transition: inset var(--motion-fast) var(--ease-out-soft); }
+  .tile:hover .fill.d2 { inset: 0 0 0 0; transition: inset var(--motion-base) var(--ease-out-soft); }
+  .tile:hover .fill.d3 { inset: 0 0 0 0; transition: inset var(--motion-slow) var(--ease-out-soft); }
+  .fill.d1,.fill.d2,.fill.d3 { transition: inset var(--motion-base) var(--ease-standard); }
+
+  /* Easing demo — two squares slide on hover */
+  .ease-track { position: relative; height: 40px; border-radius: calc(var(--radius) - 4px); background: hsl(var(--muted)); margin-top: .85rem; overflow: hidden; }
+  .puck { position: absolute; top: 6px; left: 6px; width: 28px; height: 28px; border-radius: calc(var(--radius) - 6px); background: hsl(var(--primary)); }
+  .puck.glow { background: hsl(var(--catchup)); }
+  .ease-out-demo:hover .puck { left: calc(100% - 34px); transition: left var(--motion-slow) var(--ease-out-soft); }
+  .ease-std-demo:hover .puck { left: calc(100% - 34px); transition: left var(--motion-slow) var(--ease-standard); }
+  .puck { transition: left var(--motion-slow) var(--ease-standard); }
+
+  /* Interaction demos */
+  .btn {
+    appearance: none; border: 0; cursor: pointer;
+    font: inherit; font-weight: 600; font-size: .8125rem;
+    padding: .55rem 1rem; border-radius: calc(var(--radius) - 2px);
+    background: hsl(var(--primary)); color: hsl(var(--primary-foreground));
+    transition: transform var(--motion-fast) var(--ease-out-soft), box-shadow var(--motion-base) var(--ease-out-soft), background-color var(--motion-base) var(--ease-standard);
+  }
+  .btn:hover { transform: translateY(-2px); box-shadow: 0 10px 26px -10px hsl(var(--primary)/.65); }
+  .btn:active { transform: translateY(0) scale(.97); }
+  .btn.ghost { background: hsl(var(--secondary)); color: hsl(var(--secondary-foreground)); }
+  .btn.ghost:hover { box-shadow: 0 10px 26px -12px hsl(var(--overlay)); }
+
+  .focusable {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 100%; height: 56px; border-radius: var(--radius);
+    background: hsl(var(--surface-2)); border: 1px solid hsl(var(--border));
+    font-size: .75rem; color: hsl(var(--foreground)); cursor: pointer;
+    transition: box-shadow var(--motion-base) var(--ease-out-soft), transform var(--motion-fast) var(--ease-out-soft), border-color var(--motion-base) var(--ease-out-soft);
+    outline: none;
+  }
+  .focusable:focus-visible, .focusable.is-focused {
+    transform: scale(1.03);
+    border-color: transparent;
+    box-shadow:
+      0 0 0 2px hsl(var(--background)),
+      0 0 0 4px hsl(var(--ring)),
+      0 0 0 6px hsl(var(--focus-glow)/.35),
+      0 0 26px 2px hsl(var(--focus-glow)/.5);
+  }
+
+  @keyframes lp-pulse-dot { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: .4; transform: scale(.7); } }
+  .live { display: inline-flex; align-items: center; gap: .4rem; padding: .3rem .6rem; border-radius: calc(var(--radius) - 4px); background: hsl(var(--live)); color: hsl(var(--live-foreground)); font-size: .6875rem; font-weight: 700; letter-spacing: .04em; }
+  .live-dot { width: 6px; height: 6px; border-radius: 999px; background: currentColor; animation: lp-pulse-dot 1.6s var(--ease-standard) infinite; }
+
+  .chips { display: flex; flex-wrap: wrap; gap: .75rem; align-items: center; }
+  @media (prefers-reduced-motion: reduce) { *,*::before,*::after { animation-duration: .001ms !important; transition-duration: .001ms !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Motion</h1>
+    <p class="sub">CSS-only motion system — token skala u punom obimu je u grupi “Motion”. All demos are live: hover the tiles, tab onto the focus targets. Values live in <code>foundations/tokens.css</code>.</p>
+  </header>
+
+  <h2>Durations</h2>
+  <section class="grid cols-3">
+    <div class="tile">
+      <div class="label">Fast</div>
+      <div class="meta">--motion-fast · 140ms</div>
+      <div class="track"><div class="fill d1"></div></div>
+      <p class="hint">Presses, toggles, tiny state flips.</p>
+    </div>
+    <div class="tile">
+      <div class="label">Standard</div>
+      <div class="meta">--motion-base · 220ms</div>
+      <div class="track"><div class="fill d2"></div></div>
+      <p class="hint">Hovers, color &amp; elevation changes.</p>
+    </div>
+    <div class="tile">
+      <div class="label">Deliberate</div>
+      <div class="meta">--motion-slow · 360ms</div>
+      <div class="track"><div class="fill d3"></div></div>
+      <p class="hint">Overlays, panel &amp; row entrances.</p>
+    </div>
+  </section>
+
+  <h2>Easing</h2>
+  <section class="grid cols-2">
+    <div class="tile ease-out-demo">
+      <div class="label">Ease-out (signature)</div>
+      <div class="meta">--ease-out-soft · cubic-bezier(0.22, 1, 0.36, 1)</div>
+      <div class="ease-track"><div class="puck glow"></div></div>
+      <p class="hint">Confident decel. Default for enter &amp; hover.</p>
+    </div>
+    <div class="tile ease-std-demo">
+      <div class="label">Ease-standard</div>
+      <div class="meta">--ease-standard · cubic-bezier(0.4, 0, 0.2, 1)</div>
+      <div class="ease-track"><div class="puck"></div></div>
+      <p class="hint">Neutral in/out for color &amp; layout shifts.</p>
+    </div>
+  </section>
+
+  <h2>Interaction — hover &amp; press</h2>
+  <section class="tile">
+    <div class="chips">
+      <button class="btn">Gledaj</button>
+      <button class="btn ghost">Catch-up</button>
+      <span class="live"><span class="live-dot"></span>UŽIVO</span>
+    </div>
+    <p class="hint">Filled controls lift on hover with a colored shadow, sink on press. The live indicator pulses on <code>--motion</code> rhythm.</p>
+  </section>
+
+  <h2>Focus — TV / D-pad ready</h2>
+  <section class="grid cols-3">
+    <button class="focusable is-focused">Focused (static)</button>
+    <button class="focusable">Tab to me</button>
+    <button class="focusable">Tab to me</button>
+  </section>
+  <p class="hint">Focus is a first-class cursor: a layered ring — background gap, accent ring, then a soft <code>--focus-glow</code> halo — plus a subtle scale. One consistent treatment across every interactive element.</p>
+</div>
+</body>
+</html>

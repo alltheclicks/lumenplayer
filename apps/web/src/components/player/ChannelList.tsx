@@ -120,12 +120,12 @@ const ChannelList = ({
                   }`}
                 >
                   <div
-                    className={`relative flex h-full min-w-0 items-center rounded-xl transition-all ${
+                    className={`relative flex h-full min-w-0 items-center rounded-xl transition-all duration-base ease-standard ${
                       variant === 'desktop' ? 'gap-3 px-3 py-2' : 'gap-2 px-2 py-2.5'
                     } ${
                       isActive
-                        ? 'bg-primary/15 ring-2 ring-primary ring-inset shadow-[0_0_0_1px_hsl(var(--primary)/0.25)]'
-                        : 'hover:bg-secondary/60'
+                        ? 'bg-primary/15 ring-2 ring-primary ring-inset shadow-[0_0_0_1px_hsl(var(--primary)/0.25),0_0_18px_0_hsl(var(--focus-glow)/0.25)]'
+                        : 'hover:bg-secondary/75 hover:scale-[1.012] hover:shadow-[0_0_0_1px_hsl(var(--primary)/0.35),0_0_18px_0_hsl(var(--focus-glow)/0.2)]'
                     }`}
                   >
                     <span className="w-5 flex-shrink-0 text-xs tabular-nums text-muted-foreground">
@@ -138,7 +138,7 @@ const ChannelList = ({
                       className={`flex min-w-0 flex-1 items-center text-left ${variant === 'desktop' ? 'gap-3' : 'gap-2'}`}
                     >
                       <div
-                        className={`flex-shrink-0 rounded-lg bg-background/50 flex items-center justify-center ${
+                        className={`flex-shrink-0 overflow-hidden rounded-lg bg-gradient-to-br from-[hsl(var(--surface-2))] to-card shadow-[inset_0_0_0_1px_hsl(var(--border))] flex items-center justify-center ${
                           variant === 'desktop' ? 'w-9 h-9' : 'w-9 h-9'
                         }`}
                       >
@@ -153,9 +153,16 @@ const ChannelList = ({
                           <p className={`min-w-0 flex-1 truncate font-medium ${variant === 'desktop' ? 'text-[1rem] leading-tight' : 'text-sm'}`}>
                             {channel.name}
                           </p>
+                          {isActive && (
+                            <span className="lp-eq flex-shrink-0" title="Trenutno se reprodukuje" aria-label="Trenutno se reprodukuje">
+                              <span />
+                              <span />
+                              <span />
+                            </span>
+                          )}
                           {channel.hasCatchUp && (
                             <span
-                              className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-emerald-500/35 bg-emerald-500/15 text-emerald-400"
+                              className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-catchup/40 bg-catchup/15 text-catchup"
                               title="Kanal podržava TV unazad"
                               aria-label="Kanal podržava TV unazad"
                             >
@@ -178,7 +185,7 @@ const ChannelList = ({
                       className={`p-1.5 rounded-lg transition-colors flex-shrink-0 ${
                         favorite
                           ? 'text-primary hover:bg-primary/15'
-                          : 'text-muted-foreground/50 hover:bg-secondary/80 hover:text-foreground'
+                          : 'text-muted-foreground/50 hover:bg-secondary/80 hover:text-live'
                       }`}
                       aria-label={favorite ? `Ukloni ${channel.name} iz omiljenih` : `Dodaj ${channel.name} u omiljene`}
                       aria-pressed={favorite}
