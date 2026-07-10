@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { BRAND_NAME } from '@/config/brand';
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Helmet } from 'react-helmet-async';
@@ -187,7 +188,7 @@ const VodDetail = () => {
   return (
     <>
       <Helmet>
-        <title>{data ? `${data.title} - VOD` : 'VOD Detail - IPTV Player'}</title>
+        <title>{data ? `${data.title} - VOD` : `VOD Detail - ${BRAND_NAME}`}</title>
       </Helmet>
 
       <div className="bg-background">

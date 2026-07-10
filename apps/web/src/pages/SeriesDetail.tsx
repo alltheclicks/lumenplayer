@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { BRAND_NAME } from '@/config/brand';
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Helmet } from 'react-helmet-async';
@@ -302,7 +303,7 @@ const SeriesDetail = () => {
   return (
     <>
       <Helmet>
-        <title>{data ? `${data.title} - Series` : 'Series Detail - IPTV Player'}</title>
+        <title>{data ? `${data.title} - Series` : `Series Detail - ${BRAND_NAME}`}</title>
       </Helmet>
 
       <div className="bg-background">

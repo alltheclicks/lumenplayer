@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo, type ChangeEvent, type ReactNode } from 'react';
-import { getBrandWordmark } from '@/config/brand';
+import { getBrandWordmark, BRAND_NAME } from '@/config/brand';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
@@ -2027,10 +2027,10 @@ const Player = () => {
   const onDemandBackPath = onDemandContext?.backPath ?? '/vod';
   const onDemandBackLabel = onDemandContext?.backLabel ?? 'Back to VOD';
   const pageTitle = isOnDemandSource
-    ? `${session.source?.title ?? onDemandTitle} - IPTV Player`
+    ? `${session.source?.title ?? onDemandTitle} - ${BRAND_NAME}`
     : currentChannel
-      ? `${currentChannel.name} - IPTV Player`
-      : 'IPTV Player';
+      ? `${currentChannel.name} - ${BRAND_NAME}`
+      : BRAND_NAME;
 
   // Loading state
   if (isLoading) {

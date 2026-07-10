@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { BRAND_NAME } from '@/config/brand';
 import { useNavigate } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { parseM3U } from "@lumen/api";
@@ -95,7 +96,7 @@ const M3UImport = () => {
   return (
     <>
       <Helmet>
-        <title>Import M3U Playlist - IPTV Player</title>
+        <title>{`Import M3U Playlist - ${BRAND_NAME}`}</title>
       </Helmet>
 
       <div className="min-h-screen bg-background p-4 md:p-8">

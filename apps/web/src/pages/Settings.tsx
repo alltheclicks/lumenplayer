@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { BRAND_NAME } from '@/config/brand';
 import { Helmet } from 'react-helmet-async';
 import { Download, Loader2, Save, Settings2, Smartphone, Wifi, WifiOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -219,7 +220,7 @@ const Settings = () => {
   return (
     <>
       <Helmet>
-        <title>Settings - IPTV Player</title>
+        <title>{`Settings - ${BRAND_NAME}`}</title>
       </Helmet>
 
       <div className="bg-background p-4 md:p-6">
