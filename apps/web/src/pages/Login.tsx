@@ -10,12 +10,11 @@ import { useToast } from '@/hooks/use-toast';
 import {
   XTREAM_SERVER_URL,
   isServerConfigured,
-  getServerDisplayName,
   resolveXtreamCanonicalServer,
 } from '@/config/xtream';
 import { loadXtreamCredentials, saveXtreamCredentials } from '@/services/xtreamCredentials';
 import { xtreamCodesService } from '@/services/xtreamService';
-import { AlertCircle, Eye, EyeOff, Loader2, Server, Tv } from 'lucide-react';
+import { AlertCircle, Eye, EyeOff, Loader2, Tv } from 'lucide-react';
 
 const Login = () => {
   const navigate = useNavigate();
@@ -146,15 +145,6 @@ const Login = () => {
                   environment varijablama.
                 </AlertDescription>
               </Alert>
-            )}
-
-            {serverConfigured && (
-              <div className="mb-4 flex items-center gap-2 rounded-lg bg-secondary/50 p-2">
-                <Server className="h-4 w-4 text-muted-foreground" />
-                <span className="text-xs text-muted-foreground">
-                  Server: {getServerDisplayName()}
-                </span>
-              </div>
             )}
 
             <form onSubmit={handleSubmit} className="space-y-4">
