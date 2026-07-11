@@ -9,6 +9,7 @@ import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { RequireAuth } from '@/routes/RequireAuth';
 
 import Login from '@/pages/Login';
+import SsoLanding from '@/pages/SsoLanding';
 import M3UImport from '@/pages/M3UImport';
 import EpgGuide from '@/pages/EpgGuide';
 import Settings from '@/pages/Settings';
@@ -44,6 +45,7 @@ function App() {
               <Routes>
                 <Route path="/" element={<Navigate to="/login" replace />} />
                 <Route path="/login" element={<Login />} />
+                <Route path="/sso" element={<SsoLanding />} />
                 <Route path="/import/m3u" element={<M3UImport />} />
                 <Route
                   element={(

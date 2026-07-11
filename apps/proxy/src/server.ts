@@ -11,6 +11,13 @@ import {
   type CatchUpGatewayResolveRequest,
 } from "./catchup-gateway-contracts.js";
 import { createDefaultServerPolicy } from "./server-registry.js";
+import {
+  SSO_TOKEN_MAX_LENGTH,
+  createIpRateLimiter,
+  createSsoReplayCache,
+  decryptSsoToken,
+  parseSsoSecret,
+} from "./sso.js";
 
 const XTREAM_PROXY_BASE_PATH = "/xui-api";
 const XTREAM_HLS_ROOT_PATH = "/hlsr/";
@@ -713,6 +720,8 @@ export const createProxyServer = (options: ProxyServerOptions = {}): FastifyInst
     options.allowedCorsOrigins ??
     parseAllowedCorsOrigins(env.XTREAM_PROXY_ALLOWED_CORS_ORIGINS)
   );
+  const ssoSecret = parseSsoSecret(env.PLAYER_SSO_SECRET);
+  const ssoRateLimitPerMinute = parseNonNegativeInteger(env.LUMEN_SSO_RATE_LIMIT_PER_MINUTE, 10);
   const fetchImpl = options.fetchImpl ?? fetch;
 
   const app = Fastify({
@@ -999,6 +1008,85 @@ export const createProxyServer = (options: ProxyServerOptions = {}): FastifyInst
       app.log.info({ event: "client_observe", client: event });
     }
     reply.code(204).send();
+  });
+
+  // Player SSO token exchange (exyu.tv -> player.exyu.tv). The SPA lands on
+  // /sso#token=<t> and POSTs the token here; we decrypt it with the shared
+  // PLAYER_SSO_SECRET and hand back the Xtream credentials. Inert (404) unless
+  // the secret is configured, so non-EXYU deployments are unaffected.
+  const ssoReplayCache = createSsoReplayCache();
+  const ssoRateLimiter = createIpRateLimiter({ limitPerWindow: ssoRateLimitPerMinute });
+
+  app.options("/sso/exchange", async (_request, reply) => {
+    applyCorsHeaders(reply, "OPTIONS,POST");
+    reply.code(204).send();
+  });
+
+  app.post("/sso/exchange", { bodyLimit: 4096 }, async (request, reply) => {
+    applyCorsHeaders(reply, "OPTIONS,POST");
+    reply.type("application/json; charset=utf-8");
+
+    const rejectExchange = (statusCode: number, errorCode: string): void => {
+      request.log.warn({ event: "sso_exchange", outcome: "rejected", errorCode });
+      reply.code(statusCode).send({ error: errorCode });
+    };
+
+    if (!ssoSecret) {
+      rejectExchange(404, "sso_disabled");
+      return;
+    }
+
+    // Browser cross-site calls are rejected outright when an origin allowlist
+    // is configured; requests without an Origin header (curl, server-to-server)
+    // still have to present a valid token, which is the real gate.
+    const requestOrigin = request.headers.origin?.trim().toLowerCase();
+    if (allowedCorsOrigins.length > 0 && requestOrigin && !allowedCorsOrigins.includes(requestOrigin)) {
+      rejectExchange(403, "forbidden_origin");
+      return;
+    }
+
+    // The proxy binds to loopback behind nginx, so request.ip is always
+    // 127.0.0.1; the forwarding headers nginx/Cloudflare set carry the real
+    // client address for per-client rate limiting.
+    const cfConnectingIp = request.headers["cf-connecting-ip"];
+    const forwardedFor = request.headers["x-forwarded-for"];
+    const forwardedClient = (Array.isArray(forwardedFor) ? forwardedFor[0] : forwardedFor)
+      ?.split(",")[0]
+      ?.trim();
+    const clientKey = (typeof cfConnectingIp === "string" && cfConnectingIp.trim())
+      || forwardedClient
+      || request.ip;
+
+    if (!ssoRateLimiter.consume(clientKey, Date.now())) {
+      rejectExchange(429, "rate_limited");
+      return;
+    }
+
+    const body = request.body as Record<string, unknown> | null | undefined;
+    const token = body?.token;
+    if (typeof token !== "string" || token.length === 0 || token.length > SSO_TOKEN_MAX_LENGTH) {
+      rejectExchange(400, "invalid_request");
+      return;
+    }
+
+    const result = decryptSsoToken(token, ssoSecret, Math.floor(Date.now() / 1000));
+    if (!result.ok) {
+      rejectExchange(result.error === "malformed" ? 400 : 401, result.error);
+      return;
+    }
+
+    const { payload } = result;
+    if (!ssoReplayCache.checkAndRemember(payload.jti, payload.expiresAtSeconds, Math.floor(Date.now() / 1000))) {
+      rejectExchange(401, "replayed");
+      return;
+    }
+
+    // Never log the token or the credentials it carries.
+    request.log.info({ event: "sso_exchange", outcome: "ok" });
+    reply.code(200).send({
+      username: payload.username,
+      password: payload.password,
+    });
   });
 
   app.options("/catchup-gateway/resolve", async (_request, reply) => {
