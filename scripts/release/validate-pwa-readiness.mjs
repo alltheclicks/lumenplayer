@@ -92,8 +92,8 @@ requireSnippets(files.viteConfig, viteConfig, [
   'VitePWA({',
   'registerType: "autoUpdate"',
   'manifest: {',
-  'name: "IPTV Player"',
-  'short_name: "IPTV"',
+  'name: brandName',
+  'short_name: brandShort',
   'display: "standalone"',
   'start_url: "/"',
   'scope: "/"',
@@ -119,11 +119,11 @@ requireSnippets(files.indexHtml, indexHtml, [
   'apple-splash-1290x2796.png',
   'apple-splash-1536x2048.png',
   'apple-splash-1668x2388.png',
-  '<meta name="theme-color" content="#0a0a0a" />',
+  '<meta name="theme-color" content="#3B77F7" />',
 ]);
 
 requireSnippets(files.offlineHtml, offlineHtml, [
-  '<title>Offline - Lumen Player</title>',
+  '<title>Offline</title>',
   '<h1>You are offline</h1>',
   'window.location.reload()',
   '<a href="/">Open app</a>',

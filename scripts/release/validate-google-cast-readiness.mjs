@@ -91,7 +91,7 @@ requireSnippets(files.senderTest, senderTest, [
 ]);
 
 requireSnippets(files.receiver, receiver, [
-  '<title>Lumen Cast Receiver</title>',
+  '<title>Cast Receiver</title>',
   'cast_receiver_framework.js',
   'cast-media-player',
   "var BRIDGE_NAMESPACE = 'urn:x-cast:com.lumenplayer.bridge';",
