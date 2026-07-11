@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo, type ChangeEvent, type ReactNode } from 'react';
-import { getBrandWordmark, BRAND_NAME } from '@/config/brand';
+import { getBrandWordmark, BRAND_NAME, HAS_CUSTOM_BRAND } from '@/config/brand';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
@@ -127,6 +127,21 @@ import {
 import { normalizeRestoredSessionSource } from '@/pages/restoreSessionSource';
 
 const brandWordmark = getBrandWordmark();
+
+const BrandMark = ({ className }: { className: string }) => (
+  HAS_CUSTOM_BRAND ? (
+    <img
+      src="/apple-touch-icon.png"
+      alt=""
+      aria-hidden="true"
+      className={`${className} object-contain`}
+    />
+  ) : (
+    <span className={`${className} rounded-[inherit] bg-primary flex items-center justify-center`}>
+      <Play className="h-1/2 w-1/2 text-primary-foreground fill-current" />
+    </span>
+  )
+);
 
 const SHADOW_VALIDATION_ENABLED = import.meta.env.VITE_CATCHUP_SHADOW_VALIDATION === '1';
 
@@ -2093,11 +2108,11 @@ const Player = () => {
               <div className="relative p-4 flex justify-center border-b border-border">
                 <button
                   type="button"
-                  className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center hover:scale-105 transition-transform"
+                  className="w-10 h-10 rounded-xl flex items-center justify-center hover:scale-105 transition-transform"
                   onClick={goToPlayerHome}
                   aria-label="Player"
                 >
-                  <Play className="w-5 h-5 text-primary-foreground fill-current" />
+                  <BrandMark className="h-10 w-10" />
                 </button>
                 <button
                   type="button"
@@ -2338,9 +2353,7 @@ const Player = () => {
                 onClick={goToPlayerHome}
                 className="flex min-w-0 flex-1 items-center gap-2"
               >
-                <div className="w-7 h-7 shrink-0 rounded-lg bg-primary flex items-center justify-center">
-                  <Play className="w-3 h-3 text-primary-foreground fill-current" />
-                </div>
+                <BrandMark className="h-7 w-7 shrink-0 rounded-lg" />
                 <span className="truncate font-bold text-sm text-foreground">
                   {brandWordmark.prefix}<span className="text-primary">{brandWordmark.accent}</span>
                 </span>

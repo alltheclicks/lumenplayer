@@ -1,5 +1,8 @@
 const rawBrandName = (import.meta.env.VITE_BRAND_NAME ?? "").trim();
 
+/** Whether this build opted into a customer/product-specific visual identity. */
+export const HAS_CUSTOM_BRAND = rawBrandName.length > 0;
+
 /** Full product name shown in titles and wordmarks. */
 export const BRAND_NAME = rawBrandName || "Lumen Player";
 

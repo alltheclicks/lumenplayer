@@ -184,7 +184,7 @@ export default defineConfig(({ mode }) => {
           name: brandName,
           short_name: brandShort,
           description: "Watch live TV channels",
-          theme_color: "#3B82F6",
+          theme_color: "#3B77F7",
           background_color: "#0a0a0a",
           display: "standalone",
           orientation: "portrait",
