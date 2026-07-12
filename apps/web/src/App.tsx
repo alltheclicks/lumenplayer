@@ -7,6 +7,7 @@ import { SessionProvider } from '@/context/SessionProvider';
 import AppShell from '@/components/layout/AppShell';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { RequireAuth } from '@/routes/RequireAuth';
+import AnalyticsRouteTracker from '@/components/AnalyticsRouteTracker';
 
 import Login from '@/pages/Login';
 import SsoLanding from '@/pages/SsoLanding';
@@ -41,6 +42,7 @@ function App() {
       <HelmetProvider>
         <SessionProvider>
           <BrowserRouter>
+            <AnalyticsRouteTracker />
             <ErrorBoundary>
               <Routes>
                 <Route path="/" element={<Navigate to="/login" replace />} />

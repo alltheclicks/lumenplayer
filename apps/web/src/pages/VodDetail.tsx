@@ -10,6 +10,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { useSessionContext } from '@/context/session-context';
 import { loadXtreamCredentials } from '@/services/xtreamCredentials';
 import { xtreamCodesService } from '@/services/xtreamService';
+import { emitWebObservabilityEvent } from '@/services/observability';
 
 const DEMO_VOD_STREAM_URL = 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8';
 
@@ -153,6 +154,17 @@ const VodDetail = () => {
       navigate('/player');
       return;
     }
+
+    emitWebObservabilityEvent({
+      name: 'playback.source-selected',
+      metadata: {
+        contentKind: 'vod',
+        playbackMode: 'vod',
+        contentId: vodId ?? '',
+        contentTitle: data.title,
+        streamId: data.streamId,
+      },
+    });
 
     commands.setSource(
       {

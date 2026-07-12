@@ -3347,6 +3347,18 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
         type: sourceType,
         metadata: sourceMetadata,
       };
+      const analyticsLoadStartedAtMs = Date.now();
+      if (sourceType === 'hls') {
+        emitWebObservabilityEvent({
+          name: 'playback.manifest_started',
+          metadata: {
+            renderer: sessionRef.current.renderer,
+            channelId: currentSource?.channelId ?? null,
+            streamId: currentSourceMetadata?.streamId ?? null,
+            playbackMode: currentSourceMetadata?.mode ?? null,
+          },
+        });
+      }
 
       void adapter.load(sourceForAdapter).then(() => {
         if (cancelled) {
@@ -3364,6 +3376,18 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
           parseNumericMetadataValue(loadedMetadata?.catchUpSeekNoFrameRetryCount) ?? 0,
         );
         const loadedMediaElement = videoRef.current;
+        if (sourceType === 'hls') {
+          emitWebObservabilityEvent({
+            name: 'playback.manifest_succeeded',
+            metadata: {
+              renderer: loadedSession.renderer,
+              channelId: loadedSession.source?.channelId ?? null,
+              streamId: loadedMetadata?.streamId ?? null,
+              playbackMode: loadedMetadata?.mode ?? null,
+              durationMs: Date.now() - analyticsLoadStartedAtMs,
+            },
+          });
+        }
         const loadedHasRenderableFrame = Boolean(
           loadedMediaElement &&
           loadedMediaElement.readyState >= 2 &&
@@ -3492,6 +3516,20 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
         const message = loadError instanceof Error ? loadError.message : 'Neuspešno učitavanje streama';
         if (message === 'Playback load was cancelled.') {
           return;
+        }
+
+        if (sourceType === 'hls') {
+          emitWebObservabilityEvent({
+            name: 'playback.manifest_failed',
+            severity: 'error',
+            metadata: {
+              renderer: sessionRef.current.renderer,
+              channelId: sessionRef.current.source?.channelId ?? null,
+              errorCode: 'LOAD_FAILED',
+              message,
+              durationMs: Date.now() - analyticsLoadStartedAtMs,
+            },
+          });
         }
 
         const currentSession = sessionRef.current;

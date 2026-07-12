@@ -147,7 +147,7 @@ const Login = () => {
               </Alert>
             )}
 
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-4 rr-block" data-rr-block>
               <div className="space-y-2">
                 <Label htmlFor="username">Korisničko ime</Label>
                 <Input

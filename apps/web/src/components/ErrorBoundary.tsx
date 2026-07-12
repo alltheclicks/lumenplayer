@@ -1,6 +1,7 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { formatErrorBoundaryMessage } from './errorBoundaryMessage';
+import { captureReactAnalyticsError } from '@/services/playerAnalytics';
 
 interface ErrorBoundaryProps {
   children: ReactNode;
@@ -26,6 +27,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
   }
 
   componentDidCatch(error: unknown, info: ErrorInfo): void {
+    captureReactAnalyticsError(error, info.componentStack ?? undefined);
     if (this.props.onError) {
       this.props.onError(error, info);
       return;

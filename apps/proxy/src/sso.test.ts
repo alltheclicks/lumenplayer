@@ -16,6 +16,12 @@ const TEST_SECRET_HEX = "a".repeat(64);
 const TEST_KEY = parseSsoSecret(TEST_SECRET_HEX)!;
 const OTHER_KEY = parseSsoSecret("b".repeat(64))!;
 const NOW_SECONDS = 1_780_000_000;
+const ANALYTICS_FIELDS = {
+  subject: "c".repeat(64),
+  sessionId: "11111111-1111-4111-8111-111111111111",
+  ingestUrl: "https://exyu.tv/api/internal/player-analytics/ingest",
+  replayUrl: "https://exyu.tv/api/internal/player-analytics/replay",
+};
 
 const mintTestToken = (overrides: Partial<Parameters<typeof mintSsoToken>[1]> = {}): string => (
   mintSsoToken(TEST_KEY, {
@@ -52,6 +58,26 @@ describe("mintSsoToken / decryptSsoToken", () => {
         issuedAtSeconds: NOW_SECONDS,
         expiresAtSeconds: NOW_SECONDS + SSO_DEFAULT_TOKEN_TTL_SECONDS,
       },
+    });
+  });
+
+  it("keeps legacy tokens compatible and strictly validates optional analytics fields", () => {
+    const legacy = decryptSsoToken(mintTestToken(), TEST_KEY, NOW_SECONDS);
+    expect(legacy.ok && legacy.payload.analytics).toBeUndefined();
+
+    const withAnalytics = decryptSsoToken(
+      mintTestToken({ analytics: ANALYTICS_FIELDS }),
+      TEST_KEY,
+      NOW_SECONDS,
+    );
+    expect(withAnalytics).toMatchObject({ ok: true, payload: { analytics: ANALYTICS_FIELDS } });
+
+    const invalid = mintTestToken({
+      analytics: { ...ANALYTICS_FIELDS, subject: "viewer@example.com" },
+    });
+    expect(decryptSsoToken(invalid, TEST_KEY, NOW_SECONDS)).toEqual({
+      ok: false,
+      error: "invalid_payload",
     });
   });
 

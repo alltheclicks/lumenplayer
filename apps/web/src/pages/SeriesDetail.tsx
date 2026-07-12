@@ -11,6 +11,7 @@ import { loadXtreamCredentials } from '@/services/xtreamCredentials';
 import { xtreamCodesService } from '@/services/xtreamService';
 import { useSwitchToLiveMode } from '@/pages/switchToLiveMode';
 import { resolveSeriesArtworkUrl, resolveSeriesBackdropUrl } from '@/pages/seriesArtwork';
+import { emitWebObservabilityEvent } from '@/services/observability';
 
 const DEMO_EPISODE_STREAM_URL = 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8';
 
@@ -279,6 +280,19 @@ const SeriesDetail = () => {
     const backPath = query.length > 0
       ? `${location.pathname}?${query}`
       : location.pathname;
+
+    emitWebObservabilityEvent({
+      name: 'playback.source-selected',
+      metadata: {
+        contentKind: 'series',
+        playbackMode: 'series-episode',
+        contentId: seriesId ?? '',
+        contentTitle: data.title,
+        seasonNumber: episode.seasonNumber,
+        episodeId: episode.id,
+        episodeNumber: episode.episodeNumber,
+      },
+    });
 
     commands.setSource(
       {

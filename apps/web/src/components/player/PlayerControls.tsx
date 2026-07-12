@@ -676,8 +676,12 @@ const PlayerControls = ({
         severity: 'info',
         metadata: {
           channelId: channel.id,
+          channelName: channel.name,
+          channelCategory: channel.categoryName,
           streamId: channel.streamId,
           programId: program.id,
+          contentKind: 'catchup',
+          playbackMode: 'catchup',
           start: startTimestamp,
           duration,
           attempt: 1,
@@ -710,9 +714,13 @@ const PlayerControls = ({
         severity: 'error',
         metadata: {
           channelId: channel.id,
+          channelName: channel.name,
+          channelCategory: channel.categoryName,
           streamId: channel.streamId,
           programId: program.id,
           status: 'catchup_resolve_failed',
+          contentKind: 'catchup',
+          playbackMode: 'catchup',
           errorCode: error instanceof Error ? error.message : 'unknown_error',
         },
       });

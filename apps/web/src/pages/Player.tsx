@@ -71,6 +71,7 @@ import {
 import { xtreamCodesService } from '@/services/xtreamService';
 import { addWatchHistoryEntry, loadLastWatchedChannelId } from '@/services/watchHistory';
 import { emitWebObservabilityEvent } from '@/services/observability';
+import { endPlayerAnalyticsSession } from '@/services/playerAnalytics';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -610,8 +611,12 @@ const Player = () => {
         severity: 'info',
         metadata: {
           channelId: channel.id,
+          channelName: channel.name,
+          channelCategory: channel.categoryName,
           streamId: channel.streamId,
           source: channel.source,
+          contentKind: 'live',
+          playbackMode: 'live',
         },
       });
 
@@ -1159,8 +1164,12 @@ const Player = () => {
         severity: 'info',
         metadata: {
           channelId: currentChannelWithEPG.id,
+          channelName: currentChannelWithEPG.name,
+          channelCategory: currentChannelWithEPG.categoryName,
           streamId: currentChannelWithEPG.streamId,
           programId: program.id,
+          contentKind: 'catchup',
+          playbackMode: 'catchup',
           start: startTimestamp,
           duration,
           attempt: 1,
@@ -1187,9 +1196,13 @@ const Player = () => {
         severity: 'error',
         metadata: {
           channelId: currentChannelWithEPG.id,
+          channelName: currentChannelWithEPG.name,
+          channelCategory: currentChannelWithEPG.categoryName,
           streamId: currentChannelWithEPG.streamId,
           programId: program.id,
           status: 'catchup_resolve_failed',
+          contentKind: 'catchup',
+          playbackMode: 'catchup',
           errorCode: error instanceof Error ? error.message : 'unknown_error',
         },
       });
@@ -1655,6 +1668,7 @@ const Player = () => {
 
   // Handle logout
   const handleLogout = () => {
+    endPlayerAnalyticsSession();
     void clearXtreamCredentials().finally(() => {
       navigate('/login');
     });

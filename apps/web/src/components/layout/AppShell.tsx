@@ -3,6 +3,7 @@ import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { Tv, Film, Clapperboard, CalendarDays, Settings2 } from 'lucide-react';
 import { useSwitchToLiveMode } from '@/pages/switchToLiveMode';
 import { getAppShellRootClassName, isPlayerRoutePath } from './playerRouteLayout';
+import PlayerFeedbackButton from '@/components/PlayerFeedbackButton';
 
 const NAV_ITEMS = [
   { path: '/player', label: 'Live', shortLabel: 'TV', icon: Tv },
@@ -76,6 +77,7 @@ const AppShell = () => {
           </div>
         </nav>
       )}
+      <PlayerFeedbackButton />
     </div>
   );
 };

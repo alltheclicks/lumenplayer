@@ -9,6 +9,7 @@ const XTREAM_DEV_PROXY_BASE_PATH = "/xui-api";
 const CATCHUP_GATEWAY_PROXY_PATH = "/catchup-gateway";
 const XTREAM_HLS_ROOT_PROXY_PATH = "/hlsr";
 const SSO_EXCHANGE_PROXY_PATH = "/sso/exchange";
+const PLAYER_ANALYTICS_PROXY_PATH = "/player-analytics";
 const LOCAL_PROXY_FALLBACK_TARGET = "http://localhost";
 const LOCAL_DEV_NO_STORE_HEADERS = {
   "Cache-Control": "no-store, max-age=0",
@@ -155,6 +156,12 @@ export default defineConfig(({ mode }) => {
       changeOrigin: true,
       secure: false,
       configure: createProxyLogger("sso-exchange"),
+    },
+    [PLAYER_ANALYTICS_PROXY_PATH]: {
+      target: ssoExchangeTarget,
+      changeOrigin: true,
+      secure: false,
+      configure: createProxyLogger("player-analytics"),
     },
   };
 

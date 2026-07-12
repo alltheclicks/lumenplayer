@@ -12,6 +12,11 @@ import {
 import { loadXtreamCredentials, saveXtreamCredentials } from '@/services/xtreamCredentials';
 import { xtreamCodesService } from '@/services/xtreamService';
 import { AlertCircle, Loader2, Tv } from 'lucide-react';
+import {
+  configurePlayerAnalytics,
+  emitPlayerAnalyticsEvent,
+  type PlayerAnalyticsConfiguration,
+} from '@/services/playerAnalytics';
 
 const EXYU_PLAYER_PAGE_URL = 'https://exyu.tv/player';
 
@@ -74,9 +79,16 @@ const SsoLanding = () => {
           throw new Error(`sso_exchange_failed_${response.status}`);
         }
 
-        const data = (await response.json()) as { username?: unknown; password?: unknown };
+        const data = (await response.json()) as {
+          username?: unknown;
+          password?: unknown;
+          analytics?: unknown;
+        };
         if (typeof data.username !== 'string' || typeof data.password !== 'string') {
           throw new Error('sso_exchange_invalid_response');
+        }
+        if (data.analytics && typeof data.analytics === 'object') {
+          configurePlayerAnalytics(data.analytics as PlayerAnalyticsConfiguration);
         }
 
         const credentials = {
@@ -101,6 +113,9 @@ const SsoLanding = () => {
         await saveXtreamCredentials(canonicalCredentials);
         navigate('/player', { replace: true });
       } catch (err) {
+        emitPlayerAnalyticsEvent('sso.landing_failed', 'error', {
+          errorCode: err instanceof Error ? err.message : 'unknown_sso_error',
+        });
         console.error('SSO sign-in error:', err instanceof Error ? err.message : err);
         if (!(await fallbackToExistingSession())) {
           setStatus('error');

@@ -1,7 +1,7 @@
 const REDACTED = '[REDACTED]';
-const MAX_DEPTH = 6;
-const MAX_COLLECTION_ENTRIES = 50;
-const MAX_STRING_LENGTH = 4096;
+const MAX_DEPTH = 10;
+const MAX_COLLECTION_ENTRIES = 500;
+const MAX_STRING_LENGTH = 20_000;
 
 const normalizeFieldName = (fieldName: string): string => (
   fieldName
@@ -12,7 +12,7 @@ const normalizeFieldName = (fieldName: string): string => (
 
 const isSensitiveFieldName = (fieldName: string): boolean => {
   const normalized = normalizeFieldName(fieldName);
-  return /(^|_)(password|passwd|pwd|token|secret|authorization|cookie|credentials?|username|email)($|_)/.test(normalized);
+  return /(^|_)(password|passwd|pwd|token|secret|authorization|cookie|credentials?|username|email|api_key|stream_url|source_url|playback_url|manifest_url|request_headers?|response_headers?)($|_)/.test(normalized);
 };
 
 export const redactSensitiveText = (value: string): string => {

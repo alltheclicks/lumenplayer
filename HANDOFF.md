@@ -1,5 +1,15 @@
 # Handoff — Lumen Player
 
+## Session 2026-07-12 — EXYU beta analytics, crash/replay dijagnostika i feedback UX
+
+- Implementiran first-party analytics tok bez PostHog/Sentry servisa: opciona analytics polja iz `lps1` SSO tokena se strogo validiraju, a proxy izdaje 24h AES-GCM autentifikovan HttpOnly/Secure/SameSite cookie vezan za opaque subject + session UUID. Legacy SSO tokeni bez analytics polja ostaju kompatibilni.
+- Browser šalje isključivo na same-origin `/player-analytics/ingest` i `/player-analytics/replay`; samo proxy zna EXYU URL i `PLAYER_ANALYTICS_INGEST_SECRET`. Proxy prepisuje browser identity/session vrednosti, dva puta rediguje podatke, ograničava body/rate, radi kratak idempotent retry i u log upisuje samo brojeve, UUID sesije, ishod i latenciju.
+- `playerAnalytics.ts`: batch na 5s/25 događaja/visibility/unload beacon, bounded offline retry, session/device/foreground/active/playback metrike, route + semantički UI klikovi, search tekst, media QoE (first frame, buffering, switch latency, rezolucija, dropped/total frames), postojeći observability playback/catch-up/cast događaji, global error/unhandled rejection i React ErrorBoundary crash fingerprint.
+- rrweb 2.1 rolling buffer ~3 minuta; upload samo za crash/feedback. `video`, `audio`, `canvas` i `.rr-block` su blokirani; credential inputi maskirani, običan search/feedback tekst ostaje. Proxy raspakuje, ponovo rediguje i kompresuje replay pre EXYU prosleđivanja.
+- U AppShell dodat stalno dostupan responsive `Prijavi problem` dijalog sa devet kategorija, tekstom i opcionom ocenom 1–5; prijava nosi safe device/QoE/channel/last-30-events/replay dijagnostiku i čuva se za retry kada mreža nije dostupna.
+- Deployment fajlovi dopunjeni za analytics nginx lokacije/limite, proxy env i Vite dev proxy. Release build upisuje `VITE_PLAYER_RELEASE`. PostCSS tranzitivni CVE iz rrweb lanca zatvoren centralnim override-om na 8.5.10.
+- Validacija pre deploy-a: lint ✅, typecheck ✅, 416/416 unit ✅, production audit 0 poznatih ranjivosti ✅, production build ✅. Sledeće: commit/push, koordinisan Lumen deploy (EXYU API/schema su već live), realan SSO/feedback/replay smoke i potvrda u `panel-new`.
+
 ## Session 2026-07-12 — Public beta priprema: exyu.tv SSO hand-off + skidanje server hostname-a (grana `exyu/player-integration`)
 
 - **Nova stalna grana `exyu/player-integration`** (worktree `/Users/filip/Documents/Lumen Player-exyu`), forkovana sa **`8f9198d` (prod tip, `final-road/exyu-cosmetics`)** — NE sa `main` (main nema EXYU branding commite). Ovde ide sve exyu.tv-specifično (SSO, analitike...). Baseline commit `7fd717f` usvaja dotad necommit-ovane prod ops fajlove: prerađeni `deploy-vps.sh` (versioned releases + gates), `nginx-player-exyu.conf` (+bootstrap), `proxy-exyu.env.example`, dep pinovi za `security:audit:prod` (fastify 5.8.5, react-router-dom 6.30.4, pnpm overrides).

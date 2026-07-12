@@ -1,5 +1,9 @@
 # EXYU Player Beta Analytics — implementation brief for Sol
 
+> Status 12.7.2026: implementirano u namenskom `exyu/player-integration`
+> worktree-u. EXYU schema/API i `panel-new` dashboard su već live; Lumen kod
+> čeka završni commit/deploy i produkcioni signed-in smoke.
+
 ## Context
 
 EXYU.tv has opened `https://player.exyu.tv` to every signed-in subscriber with

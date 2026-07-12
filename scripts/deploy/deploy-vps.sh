@@ -112,7 +112,7 @@ fi
 
 if [[ "$TARGET" == "all" || "$TARGET" == "web" ]]; then
   echo "==> Building web (env from apps/web/.env.production)"
-  pnpm --filter @lumen/web build
+  VITE_PLAYER_RELEASE="$RELEASE_ID" pnpm --filter @lumen/web build
 fi
 
 echo "==> Reserving remote staging directories"

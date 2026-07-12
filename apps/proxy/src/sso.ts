@@ -1,4 +1,8 @@
 import { createCipheriv, createDecipheriv, randomBytes, randomUUID } from "node:crypto";
+import {
+  parsePlayerAnalyticsTokenFields,
+  type PlayerAnalyticsTokenFields,
+} from "./player-analytics.js";
 
 // Player SSO token exchange (exyu.tv -> player.exyu.tv hand-off).
 //
@@ -35,6 +39,7 @@ export interface SsoTokenPayload {
   issuedAtSeconds: number;
   expiresAtSeconds: number;
   jti: string;
+  analytics?: PlayerAnalyticsTokenFields;
 }
 
 export type SsoTokenResult =
@@ -59,6 +64,7 @@ export const mintSsoToken = (
     nowSeconds: number;
     ttlSeconds?: number;
     jti?: string;
+    analytics?: PlayerAnalyticsTokenFields;
   },
 ): string => {
   const issuedAtSeconds = Math.floor(options.nowSeconds);
@@ -69,6 +75,7 @@ export const mintSsoToken = (
     iat: issuedAtSeconds,
     exp: issuedAtSeconds + ttlSeconds,
     jti: options.jti ?? randomUUID(),
+    ...(options.analytics ? { analytics: options.analytics } : {}),
   });
 
   const iv = randomBytes(SSO_IV_LENGTH_BYTES);
@@ -97,13 +104,17 @@ const parsePayload = (plaintext: string, nowSeconds: number): SsoTokenResult => 
   const issuedAtSeconds = record.iat;
   const expiresAtSeconds = record.exp;
   const jti = record.jti;
+  const analytics = record.analytics === undefined
+    ? undefined
+    : parsePlayerAnalyticsTokenFields(record.analytics);
 
   if (
     typeof username !== "string" || username.length === 0 ||
     typeof password !== "string" || password.length === 0 ||
     typeof issuedAtSeconds !== "number" || !Number.isFinite(issuedAtSeconds) ||
     typeof expiresAtSeconds !== "number" || !Number.isFinite(expiresAtSeconds) ||
-    typeof jti !== "string" || jti.length === 0 || jti.length > 128
+    typeof jti !== "string" || jti.length === 0 || jti.length > 128 ||
+    (record.analytics !== undefined && !analytics)
   ) {
     return { ok: false, error: "invalid_payload" };
   }
@@ -122,7 +133,14 @@ const parsePayload = (plaintext: string, nowSeconds: number): SsoTokenResult => 
 
   return {
     ok: true,
-    payload: { username, password, issuedAtSeconds, expiresAtSeconds, jti },
+    payload: {
+      username,
+      password,
+      issuedAtSeconds,
+      expiresAtSeconds,
+      jti,
+      ...(analytics ? { analytics } : {}),
+    },
   };
 };
 
