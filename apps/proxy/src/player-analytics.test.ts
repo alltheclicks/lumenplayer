@@ -46,7 +46,10 @@ describe('player analytics security primitives', () => {
       sessionId: SESSION_ID,
     });
     expect(parsePlayerAnalyticsBinding(binding, key, 1_061)).toBeNull();
-    const tampered = `${binding.slice(0, -1)}${binding.endsWith('A') ? 'B' : 'A'}`;
+    const encoded = binding.slice('pa1.'.length);
+    const tamperedBytes = Buffer.from(encoded, 'base64url');
+    tamperedBytes[tamperedBytes.length - 1] ^= 0xff;
+    const tampered = `pa1.${tamperedBytes.toString('base64url')}`;
     expect(parsePlayerAnalyticsBinding(tampered, key, 1_001)).toBeNull();
   });
 

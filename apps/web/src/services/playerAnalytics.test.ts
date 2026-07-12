@@ -7,6 +7,7 @@ import {
   boundOfflineAnalyticsBatches,
   resolveAnalyticsFlushTransport,
   shouldFlushAnalyticsQueue,
+  analyticsInteger,
 } from './playerAnalytics';
 import { sanitizeTelemetryRecord } from './privacyRedaction';
 
@@ -75,5 +76,11 @@ describe('player analytics client safety helpers', () => {
     const bounded = Array.from({ length: 20 }, (_, index) => index)
       .reduce<number[]>((queue, entry) => boundOfflineAnalyticsBatches(queue, entry), []);
     expect(bounded).toEqual([10, 11, 12, 13, 14, 15, 16, 17, 18, 19]);
+  });
+
+  it('normalizes database millisecond fields to finite integers', () => {
+    expect(analyticsInteger(31_734.819)).toBe(31_735);
+    expect(analyticsInteger(Number.POSITIVE_INFINITY)).toBeUndefined();
+    expect(analyticsInteger('31734')).toBeUndefined();
   });
 });

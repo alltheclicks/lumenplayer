@@ -156,6 +156,11 @@ const finiteNumber = (value: unknown): number | undefined => (
   typeof value === 'number' && Number.isFinite(value) ? value : undefined
 );
 
+export const analyticsInteger = (value: unknown): number | undefined => {
+  const number = finiteNumber(value);
+  return number === undefined ? undefined : Math.round(number);
+};
+
 const stringValue = (value: unknown): string | undefined => (
   typeof value === 'string' && value.trim() ? value.trim() : undefined
 );
@@ -269,7 +274,7 @@ class PlayerAnalyticsClient {
   private flushTimer: number | null = null;
   private heartbeatTimer: number | null = null;
   private searchTimer: number | null = null;
-  private flushing = false;
+  private activeFlushPromise: Promise<boolean> | null = null;
   private lastStructuredCrash: { fingerprint: string; occurredAtMs: number } | null = null;
 
   initialize(): void {
@@ -436,8 +441,8 @@ class PlayerAnalyticsClient {
       ...(stringValue(safe.errorCode) ?? stringValue(safe.code)
         ? { errorCode: stringValue(safe.errorCode) ?? stringValue(safe.code) }
         : {}),
-      ...(finiteNumber(safe.durationMs) !== undefined ? { durationMs: finiteNumber(safe.durationMs) } : {}),
-      ...(finiteNumber(safe.positionMs) !== undefined ? { positionMs: finiteNumber(safe.positionMs) } : {}),
+      ...(analyticsInteger(safe.durationMs) !== undefined ? { durationMs: analyticsInteger(safe.durationMs) } : {}),
+      ...(analyticsInteger(safe.positionMs) !== undefined ? { positionMs: analyticsInteger(safe.positionMs) } : {}),
       properties: safe,
     };
     this.events.push(event);
@@ -615,7 +620,16 @@ class PlayerAnalyticsClient {
   }
 
   flush(status: 'active' | 'ended' | 'crashed', useBeacon = false): Promise<boolean> | boolean {
-    if (!this.configuration || this.flushing) return false;
+    if (!this.configuration) return false;
+    if (this.activeFlushPromise && !useBeacon) {
+      return this.activeFlushPromise.then(() => {
+        if (!this.configuration) return false;
+        if (this.events.length === 0 && this.crashes.length === 0 && this.feedback.length === 0) {
+          return true;
+        }
+        return this.flush(status);
+      });
+    }
     if (this.events.length === 0 && this.crashes.length === 0 && this.feedback.length === 0 && status === 'active') {
       return true;
     }
@@ -630,8 +644,7 @@ class PlayerAnalyticsClient {
       if (!accepted) this.storeOfflineBatch(batch);
       return accepted;
     }
-    this.flushing = true;
-    return fetch(this.configuration.ingestUrl, {
+    const requestPromise = fetch(this.configuration.ingestUrl, {
       method: 'POST',
       credentials: 'same-origin',
       headers: { 'content-type': 'application/json' },
@@ -646,7 +659,13 @@ class PlayerAnalyticsClient {
         this.storeOfflineBatch(batch);
         return false;
       })
-      .finally(() => { this.flushing = false; });
+      .finally(() => {
+        if (this.activeFlushPromise === requestPromise) {
+          this.activeFlushPromise = null;
+        }
+      });
+    this.activeFlushPromise = requestPromise;
+    return requestPromise;
   }
 
   private storeOfflineBatch(batch: QueuedBatch): void {
