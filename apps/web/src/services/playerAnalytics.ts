@@ -534,6 +534,7 @@ class PlayerAnalyticsClient {
         device: collectSafeDeviceSummary(),
         playback: this.collectPlaybackSnapshot(),
       }),
+      replayId,
     });
     this.crashCount += 1;
   }
@@ -560,6 +561,7 @@ class PlayerAnalyticsClient {
         device: collectSafeDeviceSummary(),
         playback: this.collectPlaybackSnapshot(),
       }),
+      replayId,
     });
     this.crashCount += 1;
     this.track('session.crashed', 'fatal', { fingerprint: buildCrashFingerprint(normalized.name, message, stack) });
