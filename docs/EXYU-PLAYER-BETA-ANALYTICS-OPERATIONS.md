@@ -31,6 +31,12 @@ LUMEN_PLAYER_REPLAY_RATE_LIMIT_PER_MINUTE=20
 
 Secret nije Vite promenljiva i ne sme biti u git-u ili browser bundle-u.
 
+Live VPS je trenutno iza Cloudflare Flexible moda i koristi
+`/etc/nginx/snippets/player-app.conf`, ne TLS-origin-only template. Kanonske
+deploy kopije su `scripts/deploy/nginx-player-exyu-cloudflare-snippet.conf` i
+`scripts/deploy/nginx-player-exyu-zones.conf`; ne zamenjivati live vhost
+`nginx-player-exyu.conf` templateom bez zasebne odluke o Cloudflare origin modu.
+
 ## Privatnost i replay
 
 - Čuvaju se običan search/feedback tekst, semantički klikovi, navigacija,
