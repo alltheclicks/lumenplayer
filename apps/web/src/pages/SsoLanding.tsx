@@ -64,6 +64,9 @@ const SsoLanding = () => {
       try {
         const response = await fetch('/sso/exchange', {
           method: 'POST',
+          cache: 'no-store',
+          credentials: 'same-origin',
+          referrerPolicy: 'no-referrer',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ token }),
         });

@@ -201,6 +201,10 @@ describe("POST /sso/exchange", () => {
       username: "viewer@example.com",
       password: "xtream-pass",
     });
+    expect(first.headers["cache-control"]).toBe("no-store");
+    expect(first.headers.pragma).toBe("no-cache");
+    expect(first.headers["referrer-policy"]).toBe("no-referrer");
+    expect(first.headers["x-content-type-options"]).toBe("nosniff");
 
     const replay = await app.inject({ method: "POST", url: "/sso/exchange", payload: { token } });
     expect(replay.statusCode).toBe(401);

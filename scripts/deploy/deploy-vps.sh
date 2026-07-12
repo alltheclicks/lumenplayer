@@ -350,12 +350,18 @@ validate_proxy_stage() {
     return 1
   fi
 
+  # proxy.env contains provider credentials and PLAYER_SSO_SECRET. Keep it
+  # readable only by the dedicated runtime user across every release switch.
+  chown lumen:lumen "$env_source"
+  chmod 0600 "$env_source"
+
   chmod -R u=rwX,go=rX "$proxy_stage"
   chown -R lumen:lumen "$proxy_stage"
   ln -s "$env_source" "$proxy_stage/proxy.env"
   chown -h lumen:lumen "$proxy_stage/proxy.env"
 
   runuser -u lumen -- /usr/bin/test -r "$proxy_stage/proxy.env"
+  [[ "$(stat -c '%a' "$env_source")" == "600" ]]
   runuser -u lumen -- /usr/bin/node --check "$proxy_stage/dist/index.js"
   runuser -u lumen -- /usr/bin/env LUMEN_STAGE="$proxy_stage" /usr/bin/node --input-type=module -e '
     const moduleUrl = `file://${process.env.LUMEN_STAGE}/dist/server.js`;

@@ -100,4 +100,61 @@ describe('web observability baseline', () => {
 
     expect(alertEvents).toHaveLength(0);
   });
+
+  it('redacts live, VOD and catch-up credentials before every sink receives them', () => {
+    const logged: LoggedRecord[] = [];
+    const observability = createWebObservability({
+      info: (_prefix, payload) => logged.push({ level: 'info', payload }),
+      warn: (_prefix, payload) => logged.push({ level: 'warn', payload }),
+      error: (_prefix, payload) => logged.push({ level: 'error', payload }),
+    });
+
+    observability.emit({
+      name: 'catchup.redirect',
+      metadata: {
+        streamId: 112,
+        sourceUrl: 'https://provider.example/live/viewer@example.com/live-pass/112.m3u8',
+        vodUrl: 'https://provider.example/movie/viewer@example.com/movie-pass/9.mp4',
+        requestUrl: 'https://provider.example/streaming/timeshift.php?username=viewer@example.com&password=catchup-pass&stream=112',
+        finalUrl: 'https://edge.example/streaming/timeshift.php?token=edge-secret&seg=0_1.ts',
+        account: {
+          email: 'viewer@example.com',
+          credentials: { password: 'nested-pass' },
+        },
+      },
+      timestampMs: Date.UTC(2026, 6, 12, 12, 0, 0),
+    });
+
+    const serialized = JSON.stringify(logged);
+    expect(serialized).not.toContain('viewer@example.com');
+    expect(serialized).not.toContain('live-pass');
+    expect(serialized).not.toContain('movie-pass');
+    expect(serialized).not.toContain('catchup-pass');
+    expect(serialized).not.toContain('edge-secret');
+    expect(serialized).not.toContain('nested-pass');
+    expect(serialized).toContain('provider.example');
+    expect(serialized).toContain('stream=112');
+    expect(logged[0]?.payload.streamId).toBe(112);
+  });
+
+  it('redacts SSO fragments, bearer tokens and account identifiers in free text', () => {
+    const logged: LoggedRecord[] = [];
+    const observability = createWebObservability({
+      info: (_prefix, payload) => logged.push({ level: 'info', payload }),
+      warn: (_prefix, payload) => logged.push({ level: 'warn', payload }),
+      error: (_prefix, payload) => logged.push({ level: 'error', payload }),
+    });
+
+    observability.emit({
+      name: 'playback.error',
+      metadata: {
+        message: 'viewer@example.com opened https://player.exyu.tv/sso#token=sso-secret with Bearer abc.def',
+      },
+    });
+
+    const serialized = JSON.stringify(logged);
+    expect(serialized).not.toContain('viewer@example.com');
+    expect(serialized).not.toContain('sso-secret');
+    expect(serialized).not.toContain('abc.def');
+  });
 });

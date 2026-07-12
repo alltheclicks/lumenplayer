@@ -129,6 +129,39 @@ describe("resolveCorsAllowOrigin (M1.3-e)", () => {
 });
 
 describe("createProxyServer", () => {
+  it("accepts privacy-safe observability events only from the configured browser origin", async () => {
+    const app = createProxyServer({
+      allowedHosts: ["*"],
+      allowedCorsOrigins: ["https://player.exyu.tv"],
+      logger: false,
+      sweepIntervalMs: 0,
+    });
+
+    const accepted = await app.inject({
+      method: "POST",
+      url: "/observe",
+      headers: { origin: "https://player.exyu.tv" },
+      payload: {
+        event: "playback.retry",
+        sourceUrl: "https://provider.example/live/viewer@example.com/pass/112.m3u8",
+      },
+    });
+    expect(accepted.statusCode).toBe(204);
+    expect(accepted.headers["cache-control"]).toBe("no-store");
+    expect(accepted.headers["referrer-policy"]).toBe("no-referrer");
+
+    const rejected = await app.inject({
+      method: "POST",
+      url: "/observe",
+      headers: { origin: "https://evil.example" },
+      payload: { event: "playback.retry" },
+    });
+    expect(rejected.statusCode).toBe(403);
+    expect(rejected.json()).toEqual({ error: "forbidden_origin" });
+
+    await app.close();
+  });
+
   it("does not return proxy-remuxed from gateway resolve even when env tries to allow remux", async () => {
     const app = createProxyServer({
       allowedHosts: ["*"],

@@ -11,6 +11,7 @@ import {
   type CatchUpGatewayResolveRequest,
 } from "./catchup-gateway-contracts.js";
 import { createDefaultServerPolicy } from "./server-registry.js";
+import { redactSensitiveText, sanitizeLogRecord } from "./privacy-redaction.js";
 import {
   SSO_TOKEN_MAX_LENGTH,
   createIpRateLimiter,
@@ -625,7 +626,7 @@ const createRequestLoggerPayload = (
   upstreamUrl: URL,
   durationMs: number,
   payload: Record<string, unknown>,
-): Record<string, unknown> => ({
+): Record<string, unknown> => sanitizeLogRecord({
   event: "xtream_proxy_request",
   method: request.method,
   path: request.url,
@@ -633,6 +634,36 @@ const createRequestLoggerPayload = (
   durationMs,
   ...payload,
 });
+
+const applyPrivateResponseHeaders = (reply: FastifyReply): void => {
+  reply.header("cache-control", "no-store");
+  reply.header("pragma", "no-cache");
+  reply.header("expires", "0");
+  reply.header("referrer-policy", "no-referrer");
+  reply.header("x-content-type-options", "nosniff");
+};
+
+const resolveClientKey = (request: FastifyRequest): string => {
+  const cfConnectingIp = request.headers["cf-connecting-ip"];
+  const forwardedFor = request.headers["x-forwarded-for"];
+  const forwardedClient = (Array.isArray(forwardedFor) ? forwardedFor[0] : forwardedFor)
+    ?.split(",")[0]
+    ?.trim();
+
+  return (typeof cfConnectingIp === "string" && cfConnectingIp.trim())
+    || forwardedClient
+    || request.ip;
+};
+
+const isAllowedBrowserOrigin = (
+  request: FastifyRequest,
+  allowedCorsOrigins: string[],
+): boolean => {
+  const requestOrigin = request.headers.origin?.trim().toLowerCase();
+  return allowedCorsOrigins.length === 0
+    || !requestOrigin
+    || allowedCorsOrigins.includes(requestOrigin);
+};
 
 const isCatchUpRequestUrl = (upstreamUrl: URL): boolean => {
   const pathname = upstreamUrl.pathname.toLowerCase();
@@ -722,24 +753,36 @@ export const createProxyServer = (options: ProxyServerOptions = {}): FastifyInst
   );
   const ssoSecret = parseSsoSecret(env.PLAYER_SSO_SECRET);
   const ssoRateLimitPerMinute = parseNonNegativeInteger(env.LUMEN_SSO_RATE_LIMIT_PER_MINUTE, 10);
+  const observeBodyLimitBytes = Math.min(
+    65_536,
+    Math.max(1_024, parseNonNegativeInteger(env.LUMEN_OBSERVE_BODY_LIMIT_BYTES, 16_384)),
+  );
+  const observeMaxEventsPerRequest = Math.min(
+    50,
+    Math.max(1, parseNonNegativeInteger(env.LUMEN_OBSERVE_MAX_EVENTS_PER_REQUEST, 10)),
+  );
+  const observeRateLimitPerMinute = parseNonNegativeInteger(env.LUMEN_OBSERVE_RATE_LIMIT_PER_MINUTE, 120);
   const fetchImpl = options.fetchImpl ?? fetch;
 
   const app = Fastify({
     logger: options.logger ?? true,
+    // Request URLs may contain provider query/path credentials. Operational
+    // events are logged explicitly below after privacy redaction instead.
+    disableRequestLogging: true,
   });
   const remuxController = options.remuxController ?? createCatchUpRemuxController({
     logger: {
-      info: (event, payload) => app.log.info({ event, ...payload }),
-      warn: (event, payload) => app.log.warn({ event, ...payload }),
-      error: (event, payload) => app.log.error({ event, ...payload }),
+      info: (event, payload) => app.log.info(sanitizeLogRecord({ event, ...payload })),
+      warn: (event, payload) => app.log.warn(sanitizeLogRecord({ event, ...payload })),
+      error: (event, payload) => app.log.error(sanitizeLogRecord({ event, ...payload })),
     },
     env,
   });
   const catchUpGateway = createCatchUpGateway({
     logger: {
-      info: (event, payload) => app.log.info({ event, ...payload }),
-      warn: (event, payload) => app.log.warn({ event, ...payload }),
-      error: (event, payload) => app.log.error({ event, ...payload }),
+      info: (event, payload) => app.log.info(sanitizeLogRecord({ event, ...payload })),
+      warn: (event, payload) => app.log.warn(sanitizeLogRecord({ event, ...payload })),
+      error: (event, payload) => app.log.error(sanitizeLogRecord({ event, ...payload })),
     },
     remuxController,
     env,
@@ -815,7 +858,7 @@ export const createProxyServer = (options: ProxyServerOptions = {}): FastifyInst
     if (isCatchUpRequestUrl(upstreamUrl) && isRemuxPlaybackHint(upstreamUrl)) {
       request.log.warn({
         event: "catchup.remux_disabled",
-        upstreamUrl: upstreamUrl.toString(),
+        upstreamUrl: redactSensitiveText(upstreamUrl.toString()),
       });
       sendRemuxDisabledError(reply);
       return;
@@ -842,8 +885,8 @@ export const createProxyServer = (options: ProxyServerOptions = {}): FastifyInst
       } catch (error) {
         request.log.warn({
           event: "catchup.remux_manifest_failed",
-          upstreamUrl: upstreamUrl.toString(),
-          message: toErrorMessage(error, "Catch-up remux manifest is unavailable."),
+          upstreamUrl: redactSensitiveText(upstreamUrl.toString()),
+          message: redactSensitiveText(toErrorMessage(error, "Catch-up remux manifest is unavailable.")),
         });
         sendRemuxError(reply, 502, toErrorMessage(error, "Catch-up remux manifest is unavailable."));
       }
@@ -995,17 +1038,41 @@ export const createProxyServer = (options: ProxyServerOptions = {}): FastifyInst
   // playback/cast events here when VITE_OBSERVABILITY_BEACON_URL is set, so
   // production playback problems (catch-up startup stalls, repeated segments,
   // 403/429 bursts) land in the proxy log where we can read them live.
-  app.options("/observe", async (_request, reply) => {
+  const observeRateLimiter = createIpRateLimiter({ limitPerWindow: observeRateLimitPerMinute });
+
+  app.options("/observe", async (request, reply) => {
     applyCorsHeaders(reply, "OPTIONS,POST");
+    applyPrivateResponseHeaders(reply);
+    if (!isAllowedBrowserOrigin(request, allowedCorsOrigins)) {
+      reply.code(403).send();
+      return;
+    }
     reply.code(204).send();
   });
 
-  app.post("/observe", async (request, reply) => {
+  app.post("/observe", { bodyLimit: observeBodyLimitBytes }, async (request, reply) => {
     applyCorsHeaders(reply, "OPTIONS,POST");
+    applyPrivateResponseHeaders(reply);
+    if (!isAllowedBrowserOrigin(request, allowedCorsOrigins)) {
+      reply.code(403).send({ error: "forbidden_origin" });
+      return;
+    }
+    if (!observeRateLimiter.consume(resolveClientKey(request), Date.now())) {
+      reply.code(429).send({ error: "rate_limited" });
+      return;
+    }
+
     const body = request.body as Record<string, unknown> | null | undefined;
     const events = Array.isArray(body?.events) ? body!.events : body ? [body] : [];
-    for (const event of events.slice(0, 50)) {
-      app.log.info({ event: "client_observe", client: event });
+    for (const event of events.slice(0, observeMaxEventsPerRequest)) {
+      if (typeof event !== "object" || event === null || Array.isArray(event)) {
+        continue;
+      }
+      const sanitizedEvent = sanitizeLogRecord(event as Record<string, unknown>);
+      if (typeof sanitizedEvent.event !== "string" || sanitizedEvent.event.length > 128) {
+        continue;
+      }
+      app.log.info({ event: "client_observe", client: sanitizedEvent });
     }
     reply.code(204).send();
   });
@@ -1019,11 +1086,13 @@ export const createProxyServer = (options: ProxyServerOptions = {}): FastifyInst
 
   app.options("/sso/exchange", async (_request, reply) => {
     applyCorsHeaders(reply, "OPTIONS,POST");
+    applyPrivateResponseHeaders(reply);
     reply.code(204).send();
   });
 
   app.post("/sso/exchange", { bodyLimit: 4096 }, async (request, reply) => {
     applyCorsHeaders(reply, "OPTIONS,POST");
+    applyPrivateResponseHeaders(reply);
     reply.type("application/json; charset=utf-8");
 
     const rejectExchange = (statusCode: number, errorCode: string): void => {
@@ -1039,8 +1108,7 @@ export const createProxyServer = (options: ProxyServerOptions = {}): FastifyInst
     // Browser cross-site calls are rejected outright when an origin allowlist
     // is configured; requests without an Origin header (curl, server-to-server)
     // still have to present a valid token, which is the real gate.
-    const requestOrigin = request.headers.origin?.trim().toLowerCase();
-    if (allowedCorsOrigins.length > 0 && requestOrigin && !allowedCorsOrigins.includes(requestOrigin)) {
+    if (!isAllowedBrowserOrigin(request, allowedCorsOrigins)) {
       rejectExchange(403, "forbidden_origin");
       return;
     }
@@ -1048,16 +1116,7 @@ export const createProxyServer = (options: ProxyServerOptions = {}): FastifyInst
     // The proxy binds to loopback behind nginx, so request.ip is always
     // 127.0.0.1; the forwarding headers nginx/Cloudflare set carry the real
     // client address for per-client rate limiting.
-    const cfConnectingIp = request.headers["cf-connecting-ip"];
-    const forwardedFor = request.headers["x-forwarded-for"];
-    const forwardedClient = (Array.isArray(forwardedFor) ? forwardedFor[0] : forwardedFor)
-      ?.split(",")[0]
-      ?.trim();
-    const clientKey = (typeof cfConnectingIp === "string" && cfConnectingIp.trim())
-      || forwardedClient
-      || request.ip;
-
-    if (!ssoRateLimiter.consume(clientKey, Date.now())) {
+    if (!ssoRateLimiter.consume(resolveClientKey(request), Date.now())) {
       rejectExchange(429, "rate_limited");
       return;
     }
