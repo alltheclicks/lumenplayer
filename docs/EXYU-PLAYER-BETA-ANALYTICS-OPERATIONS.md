@@ -51,9 +51,21 @@ deploy kopije su `scripts/deploy/nginx-player-exyu-cloudflare-snippet.conf` i
 
 ## Produkciono stanje 12.7.2026
 
-- EXYU analytics backend: release `20260712132854`, commit `a901b98`.
-- Lumen web/proxy: release `20260712T113638Z-d6acd52` na grani
+- EXYU analytics backend: release `20260712164625`, commit `5d73414`
+  (funnel/heatmap insights od `40ee6d0`).
+- Lumen web/proxy: release `20260712T144323Z-2d2cad6` na grani
   `exyu/player-integration`.
+- `panel-new/player-analytics.php` prikazuje opseg 7/30/90 dana, playback funnel,
+  semantički heatmap, koordinatni 10×6 heatmap, greške i crash fingerprint grupe.
+  Jedan klik može imati najviše jedan `errorFollowup` u prozoru od 30 sekundi.
+- Klikovi od release-a `7ca9443` nose normalizovane koordinate, viewport i input
+  metodu. Stariji klikovi ostaju vidljivi u semantičkom heatmapu, ali se ne
+  retroaktivno pojavljuju u koordinatnoj mreži.
+- Novi tab obnavlja opaque subject/session i same-origin rute preko
+  `GET /player-analytics/config`. Ruta zahteva postojeći autentifikovan cookie i
+  validan Origin; nikada ne vraća XUI podatke, ingestion secret ili upstream URL.
+- Kumulativno vreme reprodukcije i funnel pragovi 1/5 minuta ostaju monotoni kroz
+  reload iste tab sesije od release-a `7ca9443` nadalje.
 - `sw.js` i `registerSW.js` imaju `no-store` i
   `Cloudflare-CDN-Cache-Control: no-store`; javni odgovor mora imati
   `CF-Cache-Status: BYPASS`. Hashovani `/assets/*` ostaju jednogodišnji
@@ -77,5 +89,9 @@ Posle Lumen deploy-a proveriti:
    playeru, bez video slike i bez credentiala/media URL-a.
 5. Neautorizovan direktan POST na obe Lumen analytics rute vraća 401, pogrešan
    Origin 403, a analytics kvar ne menja playback ponašanje.
+6. Otvaranje novog taba sa sačuvanim player kredencijalima dobija 200 sa
+   `/player-analytics/config`, a klik se pojavljuje u semantičkom i koordinatnom
+   heatmapu.
+7. U semantičkom heatmapu `errorRate` nikada nije veći od 100%.
 
 Admin pregled je na `https://serv.mediaking.fi:85/player-analytics.php`.
