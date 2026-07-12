@@ -8,7 +8,7 @@
 - rrweb 2.1 rolling buffer ~3 minuta; upload samo za crash/feedback. `video`, `audio`, `canvas` i `.rr-block` su blokirani; credential inputi maskirani, običan search/feedback tekst ostaje. Proxy raspakuje, ponovo rediguje i kompresuje replay pre EXYU prosleđivanja.
 - U AppShell dodat stalno dostupan responsive `Prijavi problem` dijalog sa devet kategorija, tekstom i opcionom ocenom 1–5; prijava nosi safe device/QoE/channel/last-30-events/replay dijagnostiku i čuva se za retry kada mreža nije dostupna.
 - Deployment fajlovi dopunjeni za analytics nginx lokacije/limite, proxy env i Vite dev proxy. Release build upisuje `VITE_PLAYER_RELEASE`. PostCSS tranzitivni CVE iz rrweb lanca zatvoren centralnim override-om na 8.5.10.
-- Validacija pre deploy-a: lint ✅, typecheck ✅, 416/416 unit ✅, production audit 0 poznatih ranjivosti ✅, production build ✅. Sledeće: commit/push, koordinisan Lumen deploy (EXYU API/schema su već live), realan SSO/feedback/replay smoke i potvrda u `panel-new`.
+- Validacija i produkcija: lint ✅, typecheck ✅, 417/417 unit ✅, production audit 0 poznatih ranjivosti ✅, production build ✅. EXYU backend release `20260712132854` (`a901b98`) i Lumen release `20260712T113638Z-d6acd52` su live. Realan SSO, playback, feedback, feedback-before-replay kompatibilnost, sintetički crash i rrweb download potvrđeni su kroz prijavljenu Chrome sesiju i `panel-new`; novi feedback i crash imaju direktan replay ID. Posle deploy-a nema novih `22P02`/`23503` grešaka. Cloudflare service-worker cache je prebačen na `no-store`/`BYPASS`, dok verzionisani `/assets/*` ostaju immutable.
 
 ## Session 2026-07-12 — Public beta priprema: exyu.tv SSO hand-off + skidanje server hostname-a (grana `exyu/player-integration`)
 

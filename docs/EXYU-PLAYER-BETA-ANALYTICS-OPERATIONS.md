@@ -49,6 +49,23 @@ deploy kopije su `scripts/deploy/nginx-player-exyu-cloudflare-snippet.conf` i
   su u `rr-block` zoni. Redakcija se izvršava u browseru, Lumen proxy-ju i EXYU
   API-ju.
 
+## Produkciono stanje 12.7.2026
+
+- EXYU analytics backend: release `20260712132854`, commit `a901b98`.
+- Lumen web/proxy: release `20260712T113638Z-d6acd52` na grani
+  `exyu/player-integration`.
+- `sw.js` i `registerSW.js` imaju `no-store` i
+  `Cloudflare-CDN-Cache-Control: no-store`; javni odgovor mora imati
+  `CF-Cache-Status: BYPASS`. Hashovani `/assets/*` ostaju jednogodišnji
+  immutable cache.
+- Feedback upload čeka replay najviše pet sekundi. Backend dodatno prihvata
+  redosled starih/keširanih klijenata u kome feedback ili crash stigne prvi,
+  čuva `pendingReplayId` i automatski postavlja strani ključ kada replay stigne.
+- Produkcioni signed-in smoke je potvrdio SSO, stvarni live playback, feedback,
+  replay, stari redosled, sintetički crash i preuzimanje/dekompresiju crash
+  replay-a. Posle finalnog deploy-a nema novih `22P02` ili `23503` storage
+  grešaka.
+
 ## Produkcioni smoke
 
 Posle Lumen deploy-a proveriti:
