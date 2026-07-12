@@ -467,7 +467,7 @@ class PlayerAnalyticsClient {
   async submitFeedback(input: PlayerFeedbackInput): Promise<boolean> {
     if (!this.configuration) return false;
     const replayId = randomId();
-    void this.uploadReplay('feedback', replayId);
+    const replayUploaded = await this.uploadReplay('feedback', replayId);
     const feedback: PlayerFeedback = {
       id: randomId(),
       submittedAt: new Date().toISOString(),
@@ -483,7 +483,7 @@ class PlayerAnalyticsClient {
         playerRelease: PLAYER_RELEASE,
       },
       lastEvents: [...this.recentEvents],
-      replayId,
+      ...(replayUploaded ? { replayId } : {}),
     };
     this.feedback.push(feedback);
     this.feedbackCount += 1;
@@ -534,7 +534,6 @@ class PlayerAnalyticsClient {
         device: collectSafeDeviceSummary(),
         playback: this.collectPlaybackSnapshot(),
       }),
-      replayId,
     });
     this.crashCount += 1;
   }
@@ -561,7 +560,6 @@ class PlayerAnalyticsClient {
         device: collectSafeDeviceSummary(),
         playback: this.collectPlaybackSnapshot(),
       }),
-      replayId,
     });
     this.crashCount += 1;
     this.track('session.crashed', 'fatal', { fingerprint: buildCrashFingerprint(normalized.name, message, stack) });
@@ -749,6 +747,7 @@ class PlayerAnalyticsClient {
     const json = JSON.stringify(events);
     let body: Blob;
     let encoding: string | undefined;
+    let timeout: number | null = null;
     try {
       if (typeof CompressionStream !== 'undefined') {
         const compressed = new Blob([json]).stream().pipeThrough(new CompressionStream('gzip'));
@@ -757,6 +756,8 @@ class PlayerAnalyticsClient {
       } else {
         body = new Blob([json], { type: 'application/octet-stream' });
       }
+      const controller = new AbortController();
+      timeout = window.setTimeout(() => controller.abort(), 5_000);
       const response = await fetch(this.configuration.replayUrl, {
         method: 'POST',
         credentials: 'same-origin',
@@ -769,10 +770,13 @@ class PlayerAnalyticsClient {
           'x-player-replay-ended-at': new Date(finiteNumber(events.at(-1)?.timestamp) ?? Date.now()).toISOString(),
         },
         body,
+        signal: controller.signal,
       });
       return response.ok;
     } catch {
       return false;
+    } finally {
+      if (timeout !== null) window.clearTimeout(timeout);
     }
   }
 
