@@ -140,6 +140,31 @@ describe('player analytics proxy forwarding', () => {
     const app = createServer(forwarded);
     const cookie = await establishBinding(app);
 
+    const missingConfigBinding = await app.inject({
+      method: 'GET',
+      url: '/player-analytics/config',
+      headers: { origin: 'https://player.exyu.tv' },
+    });
+    expect(missingConfigBinding.statusCode).toBe(401);
+    const forbiddenConfigOrigin = await app.inject({
+      method: 'GET',
+      url: '/player-analytics/config',
+      headers: { origin: 'https://evil.example', cookie },
+    });
+    expect(forbiddenConfigOrigin.statusCode).toBe(403);
+    const restoredConfig = await app.inject({
+      method: 'GET',
+      url: '/player-analytics/config',
+      headers: { origin: 'https://player.exyu.tv', cookie },
+    });
+    expect(restoredConfig.statusCode).toBe(200);
+    expect(restoredConfig.json()).toEqual({
+      subject: SUBJECT,
+      sessionId: SESSION_ID,
+      ingestUrl: '/player-analytics/ingest',
+      replayUrl: '/player-analytics/replay',
+    });
+
     const unauthorized = await app.inject({
       method: 'POST',
       url: '/player-analytics/ingest',

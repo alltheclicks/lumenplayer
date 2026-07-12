@@ -1260,6 +1260,34 @@ export const createProxyServer = (options: ProxyServerOptions = {}): FastifyInst
   let analyticsInFlight = 0;
   let analyticsReplayInFlight = 0;
 
+  app.get("/player-analytics/config", async (request, reply) => {
+    applyCorsHeaders(reply, "GET,OPTIONS");
+    applyPrivateResponseHeaders(reply);
+    if (!analyticsForwardingEnabled || !analyticsIngestUrl || !analyticsReplayUrl) {
+      reply.code(404).send({ error: "analytics_disabled" });
+      return;
+    }
+    if (!isAllowedBrowserOrigin(request, allowedCorsOrigins)) {
+      reply.code(403).send({ error: "forbidden_origin" });
+      return;
+    }
+    if (!analyticsRateLimiter.consume(resolveClientKey(request), Date.now())) {
+      reply.code(429).send({ error: "rate_limited" });
+      return;
+    }
+    const binding = resolveAnalyticsBinding(request);
+    if (!binding) {
+      reply.code(401).send({ error: "analytics_session_required" });
+      return;
+    }
+    reply.code(200).send({
+      subject: binding.subject,
+      sessionId: binding.sessionId,
+      ingestUrl: "/player-analytics/ingest",
+      replayUrl: "/player-analytics/replay",
+    });
+  });
+
   app.options("/player-analytics/ingest", async (request, reply) => {
     applyCorsHeaders(reply, "OPTIONS,POST");
     applyPrivateResponseHeaders(reply);

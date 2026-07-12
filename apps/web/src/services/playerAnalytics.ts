@@ -386,7 +386,33 @@ class PlayerAnalyticsClient {
       this.flush('active');
     }, HEARTBEAT_INTERVAL_MS);
 
-    if (this.configuration) this.startConfiguredSession(false);
+    if (this.configuration) {
+      this.startConfiguredSession(false);
+    } else {
+      void this.restoreConfigurationFromBinding();
+    }
+  }
+
+  private async restoreConfigurationFromBinding(): Promise<void> {
+    try {
+      const response = await fetch('/player-analytics/config', {
+        method: 'GET',
+        credentials: 'same-origin',
+        headers: { accept: 'application/json' },
+      });
+      if (!response.ok || this.configuration) return;
+      const configuration = await response.json() as unknown;
+      if (!isConfiguration(configuration)) return;
+      this.configuration = configuration;
+      try {
+        sessionStorage.setItem(STORAGE_KEY, JSON.stringify(configuration));
+      } catch {
+        // The signed HttpOnly binding remains authoritative.
+      }
+      this.startConfiguredSession(false);
+    } catch {
+      // Analytics restoration is best-effort and must never affect playback.
+    }
   }
 
   configure(configuration: PlayerAnalyticsConfiguration): void {
