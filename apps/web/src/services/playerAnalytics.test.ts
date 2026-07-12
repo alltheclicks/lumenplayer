@@ -8,6 +8,7 @@ import {
   resolveAnalyticsFlushTransport,
   shouldFlushAnalyticsQueue,
   analyticsInteger,
+  normalizeClickCoordinates,
 } from './playerAnalytics';
 import { sanitizeTelemetryRecord } from './privacyRedaction';
 
@@ -82,5 +83,18 @@ describe('player analytics client safety helpers', () => {
     expect(analyticsInteger(31_734.819)).toBe(31_735);
     expect(analyticsInteger(Number.POSITIVE_INFINITY)).toBeUndefined();
     expect(analyticsInteger('31734')).toBeUndefined();
+  });
+
+  it('normalizes pointer coordinates for responsive heatmaps', () => {
+    expect(normalizeClickCoordinates(195, 422, 390, 844)).toEqual({
+      xPercent: 50,
+      yPercent: 50,
+      viewportWidth: 390,
+      viewportHeight: 844,
+      viewportClass: 'mobile',
+    });
+    expect(normalizeClickCoordinates(720, 450, 1440, 900)?.viewportClass).toBe('desktop');
+    expect(normalizeClickCoordinates(-1, 10, 390, 844)).toBeNull();
+    expect(normalizeClickCoordinates(1, 1, 0, 844)).toBeNull();
   });
 });

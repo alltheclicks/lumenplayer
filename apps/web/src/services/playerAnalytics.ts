@@ -86,6 +86,7 @@ interface RrwebEvent {
 }
 
 const STORAGE_KEY = 'lumen:player-analytics:v1';
+const METRICS_STORAGE_KEY = 'lumen:player-analytics-metrics:v1';
 const OFFLINE_KEY = 'lumen:player-analytics-offline:v1';
 const FLUSH_INTERVAL_MS = 5_000;
 const HEARTBEAT_INTERVAL_MS = 30_000;
@@ -159,6 +160,40 @@ const finiteNumber = (value: unknown): number | undefined => (
 export const analyticsInteger = (value: unknown): number | undefined => {
   const number = finiteNumber(value);
   return number === undefined ? undefined : Math.round(number);
+};
+
+export interface NormalizedClickCoordinates {
+  xPercent: number;
+  yPercent: number;
+  viewportWidth: number;
+  viewportHeight: number;
+  viewportClass: 'mobile' | 'tablet' | 'desktop';
+}
+
+export const normalizeClickCoordinates = (
+  clientX: number,
+  clientY: number,
+  viewportWidth: number,
+  viewportHeight: number,
+): NormalizedClickCoordinates | null => {
+  if (
+    ![clientX, clientY, viewportWidth, viewportHeight].every(Number.isFinite) ||
+    viewportWidth <= 0 ||
+    viewportHeight <= 0 ||
+    clientX < 0 ||
+    clientY < 0 ||
+    clientX > viewportWidth ||
+    clientY > viewportHeight
+  ) {
+    return null;
+  }
+  return {
+    xPercent: Math.round((clientX / viewportWidth) * 10_000) / 100,
+    yPercent: Math.round((clientY / viewportHeight) * 10_000) / 100,
+    viewportWidth: Math.round(viewportWidth),
+    viewportHeight: Math.round(viewportHeight),
+    viewportClass: viewportWidth < 768 ? 'mobile' : viewportWidth < 1200 ? 'tablet' : 'desktop',
+  };
 };
 
 const stringValue = (value: unknown): string | undefined => (
@@ -374,14 +409,15 @@ class PlayerAnalyticsClient {
     this.replayEvents = [];
     try {
       sessionStorage.removeItem(STORAGE_KEY);
+      sessionStorage.removeItem(METRICS_STORAGE_KEY);
     } catch {
       // Session state is already disabled in memory.
     }
   }
 
   private startConfiguredSession(isFreshSso: boolean): void {
-    this.startedAtMs = Date.now();
-    this.lastTickMs = this.startedAtMs;
+    if (isFreshSso || !this.restoreMetricState()) this.resetMetricState();
+    this.lastTickMs = Date.now();
     void this.startReplayRecorder();
     this.track('session.started', 'info', {
       entrySource: isFreshSso ? 'exyu_player_sso' : 'session_restore',
@@ -389,6 +425,97 @@ class PlayerAnalyticsClient {
       device: collectSafeDeviceSummary(),
     });
     void this.retryOfflineBatches();
+  }
+
+  private resetMetricState(): void {
+    const now = Date.now();
+    this.startedAtMs = now;
+    this.lastTickMs = now;
+    this.foregroundMs = 0;
+    this.activeMs = 0;
+    this.playbackMs = 0;
+    this.rebufferMs = 0;
+    this.rebufferStartedAtMs = null;
+    this.rebufferCount = 0;
+    this.eventCount = 0;
+    this.errorCount = 0;
+    this.crashCount = 0;
+    this.feedbackCount = 0;
+    this.channelChanges = 0;
+    this.firstFrameMs = null;
+    this.lastActivityAtMs = now;
+    this.playbackActive = false;
+    this.currentRenderer = 'local-web';
+    this.currentChannel = {};
+    this.pendingChannelSwitchAtMs = null;
+    this.events = [];
+    this.crashes = [];
+    this.feedback = [];
+    this.recentEvents = [];
+    try {
+      sessionStorage.removeItem(METRICS_STORAGE_KEY);
+    } catch {
+      // Metrics remain available in memory.
+    }
+  }
+
+  private restoreMetricState(): boolean {
+    if (!this.configuration) return false;
+    try {
+      const parsed = JSON.parse(sessionStorage.getItem(METRICS_STORAGE_KEY) ?? 'null') as Record<string, unknown> | null;
+      if (!parsed || parsed.sessionId !== this.configuration.sessionId) return false;
+      const startedAtMs = finiteNumber(parsed.startedAtMs);
+      if (startedAtMs === undefined || startedAtMs <= 0) return false;
+      this.startedAtMs = startedAtMs;
+      this.foregroundMs = finiteNumber(parsed.foregroundMs) ?? 0;
+      this.activeMs = finiteNumber(parsed.activeMs) ?? 0;
+      this.playbackMs = finiteNumber(parsed.playbackMs) ?? 0;
+      this.rebufferMs = finiteNumber(parsed.rebufferMs) ?? 0;
+      this.rebufferCount = analyticsInteger(parsed.rebufferCount) ?? 0;
+      this.eventCount = analyticsInteger(parsed.eventCount) ?? 0;
+      this.errorCount = analyticsInteger(parsed.errorCount) ?? 0;
+      this.crashCount = analyticsInteger(parsed.crashCount) ?? 0;
+      this.feedbackCount = analyticsInteger(parsed.feedbackCount) ?? 0;
+      this.channelChanges = analyticsInteger(parsed.channelChanges) ?? 0;
+      this.firstFrameMs = finiteNumber(parsed.firstFrameMs) ?? null;
+      this.currentRenderer = stringValue(parsed.currentRenderer) ?? 'local-web';
+      if (typeof parsed.currentChannel === 'object' && parsed.currentChannel !== null && !Array.isArray(parsed.currentChannel)) {
+        const channel = parsed.currentChannel as Record<string, unknown>;
+        this.currentChannel = {
+          ...(stringValue(channel.id) ? { id: stringValue(channel.id) } : {}),
+          ...(stringValue(channel.name) ? { name: stringValue(channel.name) } : {}),
+          ...(stringValue(channel.category) ? { category: stringValue(channel.category) } : {}),
+        };
+      }
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  private persistMetricState(): void {
+    if (!this.configuration) return;
+    try {
+      sessionStorage.setItem(METRICS_STORAGE_KEY, JSON.stringify({
+        sessionId: this.configuration.sessionId,
+        startedAtMs: this.startedAtMs,
+        foregroundMs: this.foregroundMs,
+        activeMs: this.activeMs,
+        playbackMs: this.playbackMs,
+        rebufferMs: this.rebufferMs,
+        rebufferCount: this.rebufferCount,
+        eventCount: this.eventCount,
+        errorCount: this.errorCount,
+        crashCount: this.crashCount,
+        feedbackCount: this.feedbackCount,
+        channelChanges: this.channelChanges,
+        firstFrameMs: this.firstFrameMs,
+        currentRenderer: this.currentRenderer,
+        currentChannel: this.currentChannel,
+      }));
+    } catch {
+      // Metrics persistence is best-effort.
+    }
   }
 
   track(
@@ -578,6 +705,7 @@ class PlayerAnalyticsClient {
 
   private sessionRecord(status: 'active' | 'ended' | 'crashed'): Record<string, unknown> {
     this.tickMetrics();
+    this.persistMetricState();
     return {
       id: this.configuration?.sessionId,
       startedAt: new Date(this.startedAtMs).toISOString(),
@@ -792,9 +920,22 @@ class PlayerAnalyticsClient {
       ?? target.getAttribute('name')
       ?? target.textContent?.trim().replace(/\s+/g, ' ').slice(0, 100)
       ?? target.tagName.toLowerCase();
+    const clickCoordinates = event instanceof MouseEvent && event.detail > 0
+      ? normalizeClickCoordinates(event.clientX, event.clientY, window.innerWidth, window.innerHeight)
+      : null;
     this.track('ui.control_activated', 'info', {
       interactionTarget: semanticId,
       controlType: target.tagName.toLowerCase(),
+      ...(clickCoordinates ? {
+        clickXPercent: clickCoordinates.xPercent,
+        clickYPercent: clickCoordinates.yPercent,
+        viewportWidth: clickCoordinates.viewportWidth,
+        viewportHeight: clickCoordinates.viewportHeight,
+        viewportClass: clickCoordinates.viewportClass,
+        inputMethod: typeof PointerEvent !== 'undefined' && event instanceof PointerEvent
+          ? event.pointerType || 'pointer'
+          : 'mouse',
+      } : { inputMethod: 'keyboard_or_programmatic' }),
     });
   }
 
