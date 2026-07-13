@@ -5,8 +5,11 @@ type WebKitFullscreenDocument = Document & {
 
 export type WebKitFullscreenVideo = HTMLVideoElement & {
   webkitDisplayingFullscreen?: boolean;
+  webkitSupportsFullscreen?: boolean;
   webkitEnterFullscreen?: () => void;
+  webkitEnterFullScreen?: () => void;
   webkitExitFullscreen?: () => void;
+  webkitExitFullScreen?: () => void;
 };
 
 type WebKitFullscreenElement = HTMLElement & {
@@ -28,6 +31,34 @@ const findVideo = (container: HTMLElement): WebKitFullscreenVideo | null => (
   container.querySelector('video') as WebKitFullscreenVideo | null
 );
 
+interface FullscreenNavigator {
+  userAgent: string;
+  platform: string;
+  maxTouchPoints: number;
+}
+
+export const isIosLikeDevice = (targetNavigator: FullscreenNavigator | null): boolean => {
+  if (!targetNavigator) return false;
+  return (
+    /iPad|iPhone|iPod/i.test(targetNavigator.userAgent) ||
+    (targetNavigator.platform === 'MacIntel' && targetNavigator.maxTouchPoints > 1)
+  );
+};
+
+const enterNativeVideoFullscreen = (video: WebKitFullscreenVideo): boolean => {
+  const enter = video.webkitEnterFullscreen ?? video.webkitEnterFullScreen;
+  if (typeof enter !== 'function') return false;
+  enter.call(video);
+  return true;
+};
+
+const exitNativeVideoFullscreen = (video: WebKitFullscreenVideo): boolean => {
+  const exit = video.webkitExitFullscreen ?? video.webkitExitFullScreen;
+  if (typeof exit !== 'function') return false;
+  exit.call(video);
+  return true;
+};
+
 export const isPlayerFullscreenActive = (
   container: HTMLElement,
   targetDocument: Document = document,
@@ -48,6 +79,9 @@ export const isPlayerFullscreenActive = (
 export const togglePlayerFullscreen = async (
   container: HTMLElement,
   targetDocument: Document = document,
+  targetNavigator: FullscreenNavigator | null = typeof navigator === 'undefined'
+    ? null
+    : navigator,
 ): Promise<PlayerFullscreenResult> => {
   const webkitDocument = targetDocument as WebKitFullscreenDocument;
   const webkitContainer = container as WebKitFullscreenElement;
@@ -63,12 +97,25 @@ export const togglePlayerFullscreen = async (
         await webkitDocument.webkitExitFullscreen.call(targetDocument);
         return { ok: true, active: false, method: 'webkit-element' };
       }
-      if (video?.webkitDisplayingFullscreen && video.webkitExitFullscreen) {
-        video.webkitExitFullscreen();
+      if (video?.webkitDisplayingFullscreen && exitNativeVideoFullscreen(video)) {
         return { ok: true, active: false, method: 'webkit-video' };
       }
     } catch (error) {
       return { ok: false, active: true, method: 'failed', errorName: errorName(error) };
+    }
+  }
+
+  // iPhone does not support arbitrary element fullscreen. Its native video
+  // method must run synchronously inside the click/touch gesture. Trying and
+  // awaiting requestFullscreen() first consumes that gesture in iOS browsers,
+  // including Brave's WKWebView, so native fullscreen must be the first path.
+  if (video && isIosLikeDevice(targetNavigator)) {
+    try {
+      if (enterNativeVideoFullscreen(video)) {
+        return { ok: true, active: true, method: 'webkit-video' };
+      }
+    } catch (error) {
+      return { ok: false, active: false, method: 'failed', errorName: errorName(error) };
     }
   }
 
@@ -89,10 +136,11 @@ export const togglePlayerFullscreen = async (
     }
   }
 
-  if (typeof video?.webkitEnterFullscreen === 'function') {
+  if (video) {
     try {
-      video.webkitEnterFullscreen();
-      return { ok: true, active: true, method: 'webkit-video' };
+      if (enterNativeVideoFullscreen(video)) {
+        return { ok: true, active: true, method: 'webkit-video' };
+      }
     } catch (error) {
       return { ok: false, active: false, method: 'failed', errorName: errorName(error) };
     }
