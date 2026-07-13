@@ -12,6 +12,7 @@ import {
   mediaElementErrorDetails,
   normalizeClickCoordinates,
   resolveAnalyticsEventChannel,
+  shouldStartRebufferMeasurement,
 } from './playerAnalytics';
 import { sanitizeTelemetryRecord } from './privacyRedaction';
 
@@ -121,5 +122,14 @@ describe('player analytics client safety helpers', () => {
     expect(isDuplicateTelemetryOccurrence(previous, previous.fingerprint, 1_500, 1_000)).toBe(true);
     expect(isDuplicateTelemetryOccurrence(previous, previous.fingerprint, 2_000, 1_000)).toBe(false);
     expect(isDuplicateTelemetryOccurrence(previous, 'MEDIA_ELEMENT_2:4095:2:0', 1_500, 1_000)).toBe(false);
+  });
+
+  it('measures rebuffering only after active playback and outside channel startup', () => {
+    expect(shouldStartRebufferMeasurement('waiting', true, true, false)).toBe(true);
+    expect(shouldStartRebufferMeasurement('stalled', true, true, false)).toBe(true);
+    expect(shouldStartRebufferMeasurement('waiting', false, true, false)).toBe(false);
+    expect(shouldStartRebufferMeasurement('waiting', true, false, false)).toBe(false);
+    expect(shouldStartRebufferMeasurement('waiting', true, true, true)).toBe(false);
+    expect(shouldStartRebufferMeasurement('pause', true, true, false)).toBe(false);
   });
 });

@@ -267,6 +267,18 @@ export const resolveAnalyticsEventChannel = (
   category: explicit.category ?? current.category,
 });
 
+export const shouldStartRebufferMeasurement = (
+  mediaEventName: string,
+  wasPlaybackActive: boolean,
+  hasRenderedFirstFrame: boolean,
+  channelSwitchPending: boolean,
+): boolean => (
+  (mediaEventName === 'waiting' || mediaEventName === 'stalled') &&
+  wasPlaybackActive &&
+  hasRenderedFirstFrame &&
+  !channelSwitchPending
+);
+
 const parseUserAgent = (userAgent: string): Record<string, string> => {
   const browserMatch = userAgent.match(/(Edg|OPR|Chrome|CriOS|Firefox|FxiOS|Version)\/([\d.]+)/);
   const browserToken = browserMatch?.[1] ?? 'Unknown';
@@ -629,6 +641,14 @@ class PlayerAnalyticsClient {
       this.currentRenderer = stringValue(safe.to) ?? this.currentRenderer;
     }
     if (name === 'playback.source-selected') {
+      // A channel switch has its own latency metric. Do not carry an open
+      // rebuffer span into the next channel or keep counting the old source as
+      // active playback while the new source starts.
+      if (this.rebufferStartedAtMs !== null) {
+        this.rebufferMs += Math.max(0, timestampMs - this.rebufferStartedAtMs);
+        this.rebufferStartedAtMs = null;
+      }
+      this.playbackActive = false;
       this.channelChanges += 1;
       this.pendingChannelSwitchAtMs = timestampMs;
     }
@@ -1058,6 +1078,12 @@ class PlayerAnalyticsClient {
     if (!(event.target instanceof HTMLMediaElement)) return;
     const media = event.target;
     const now = Date.now();
+    // Attribute elapsed time to the state that was active before this media
+    // transition. Calling track() only after mutating playbackActive used to
+    // count startup waiting as playback and omit time immediately before a
+    // pause.
+    this.tickMetrics(now);
+    const wasPlaybackActive = this.playbackActive;
     const mediaError = eventName === 'error' ? mediaElementErrorDetails(media.error) : null;
     if (mediaError) {
       const fingerprint = [
@@ -1070,7 +1096,6 @@ class PlayerAnalyticsClient {
       this.lastMediaError = { fingerprint, occurredAtMs: now };
     }
     if (eventName === 'playing') {
-      this.playbackActive = true;
       if (this.firstFrameMs === null) this.firstFrameMs = now - this.startedAtMs;
       if (this.rebufferStartedAtMs !== null) {
         const durationMs = now - this.rebufferStartedAtMs;
@@ -1084,15 +1109,37 @@ class PlayerAnalyticsClient {
         });
         this.pendingChannelSwitchAtMs = null;
       }
+      this.playbackActive = true;
     }
     if (eventName === 'waiting' || eventName === 'stalled') {
-      if (this.rebufferStartedAtMs === null) {
+      this.playbackActive = false;
+      if (
+        this.rebufferStartedAtMs === null &&
+        shouldStartRebufferMeasurement(
+          eventName,
+          wasPlaybackActive,
+          this.firstFrameMs !== null,
+          this.pendingChannelSwitchAtMs !== null,
+        )
+      ) {
         this.rebufferStartedAtMs = now;
         this.rebufferCount += 1;
         this.track('playback.buffering_started', 'warn', { positionMs: media.currentTime * 1_000 });
       }
     }
-    if (eventName === 'pause' || eventName === 'ended' || eventName === 'error') this.playbackActive = false;
+    if (eventName === 'pause' || eventName === 'ended' || eventName === 'error') {
+      this.playbackActive = false;
+      if (this.rebufferStartedAtMs !== null) {
+        const durationMs = Math.max(0, now - this.rebufferStartedAtMs);
+        this.rebufferMs += durationMs;
+        this.rebufferStartedAtMs = null;
+        this.track('playback.buffering_interrupted', eventName === 'error' ? 'warn' : 'info', {
+          durationMs,
+          positionMs: media.currentTime * 1_000,
+          reason: eventName,
+        });
+      }
+    }
     const quality = media instanceof HTMLVideoElement && typeof media.getVideoPlaybackQuality === 'function'
       ? media.getVideoPlaybackQuality()
       : null;
