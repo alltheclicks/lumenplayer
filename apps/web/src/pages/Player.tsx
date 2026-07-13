@@ -126,6 +126,11 @@ import {
   parseSessionSourceMetadata,
 } from '@/components/player/sessionSources';
 import { normalizeRestoredSessionSource } from '@/pages/restoreSessionSource';
+import {
+  isPlayerFullscreenActive,
+  togglePlayerFullscreen,
+  type WebKitFullscreenVideo,
+} from '@/pages/playerFullscreen';
 
 const brandWordmark = getBrandWordmark();
 
@@ -1041,27 +1046,48 @@ const Player = () => {
   });
 
   // Toggle fullscreen
-  const toggleFullscreen = useCallback(() => {
-    if (!containerRef.current) return;
+  const toggleFullscreen = useCallback(async () => {
+    const container = containerRef.current;
+    if (!container) return;
 
-    if (!document.fullscreenElement) {
-      containerRef.current.requestFullscreen();
-      setIsFullscreen(true);
-    } else {
-      document.exitFullscreen();
-      setIsFullscreen(false);
+    const result = await togglePlayerFullscreen(container);
+    setIsFullscreen(result.active);
+    if (!result.ok) {
+      emitWebObservabilityEvent({
+        name: 'playback.fullscreen_failed',
+        severity: result.method === 'unsupported' ? 'warn' : 'error',
+        metadata: {
+          errorCode: result.method === 'unsupported'
+            ? 'FULLSCREEN_UNSUPPORTED'
+            : 'FULLSCREEN_REQUEST_FAILED',
+          fullscreenMethod: result.method,
+          errorName: result.errorName,
+        },
+      });
     }
   }, []);
 
   // Handle fullscreen change
   useEffect(() => {
+    const container = containerRef.current;
+    const video = container?.querySelector('video') as WebKitFullscreenVideo | null;
     const handleFullscreenChange = () => {
-      setIsFullscreen(!!document.fullscreenElement);
+      setIsFullscreen(container ? isPlayerFullscreenActive(container) : false);
     };
+    const handleNativeFullscreenEnter = () => setIsFullscreen(true);
+    const handleNativeFullscreenExit = () => setIsFullscreen(false);
 
     document.addEventListener('fullscreenchange', handleFullscreenChange);
-    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
-  }, []);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+    video?.addEventListener('webkitbeginfullscreen', handleNativeFullscreenEnter);
+    video?.addEventListener('webkitendfullscreen', handleNativeFullscreenExit);
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+      video?.removeEventListener('webkitbeginfullscreen', handleNativeFullscreenEnter);
+      video?.removeEventListener('webkitendfullscreen', handleNativeFullscreenExit);
+    };
+  }, [isPlaybackBootstrapReady, session.source]);
 
   // Navigate channels
   const goToNextChannel = useCallback(() => {

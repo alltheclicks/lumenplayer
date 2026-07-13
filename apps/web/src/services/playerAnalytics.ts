@@ -220,6 +220,53 @@ export const buildCrashFingerprint = (
   return `v1-${(hash >>> 0).toString(16).padStart(8, '0')}`;
 };
 
+interface TelemetryOccurrence {
+  fingerprint: string;
+  occurredAtMs: number;
+}
+
+export const isDuplicateTelemetryOccurrence = (
+  previous: TelemetryOccurrence | null,
+  fingerprint: string,
+  occurredAtMs: number,
+  windowMs: number,
+): boolean => Boolean(
+  previous?.fingerprint === fingerprint &&
+  occurredAtMs >= previous.occurredAtMs &&
+  occurredAtMs - previous.occurredAtMs < windowMs
+);
+
+export const mediaElementErrorDetails = (
+  error: Pick<MediaError, 'code' | 'message'> | null,
+): { errorCode: string; message: string } => {
+  const code = error?.code ?? 0;
+  const defaultMessages: Record<number, string> = {
+    1: 'Media playback was aborted',
+    2: 'A network error interrupted media playback',
+    3: 'The media stream could not be decoded',
+    4: 'The media source or format is unsupported',
+  };
+  return {
+    errorCode: code > 0 ? `MEDIA_ELEMENT_${code}` : 'MEDIA_ELEMENT_UNKNOWN',
+    message: error?.message?.trim() || defaultMessages[code] || 'Unknown media element error',
+  };
+};
+
+interface AnalyticsChannelContext {
+  id?: string;
+  name?: string;
+  category?: string;
+}
+
+export const resolveAnalyticsEventChannel = (
+  explicit: AnalyticsChannelContext,
+  current: AnalyticsChannelContext,
+): AnalyticsChannelContext => ({
+  id: explicit.id ?? current.id,
+  name: explicit.name ?? current.name,
+  category: explicit.category ?? current.category,
+});
+
 const parseUserAgent = (userAgent: string): Record<string, string> => {
   const browserMatch = userAgent.match(/(Edg|OPR|Chrome|CriOS|Firefox|FxiOS|Version)\/([\d.]+)/);
   const browserToken = browserMatch?.[1] ?? 'Unknown';
@@ -311,6 +358,8 @@ class PlayerAnalyticsClient {
   private searchTimer: number | null = null;
   private activeFlushPromise: Promise<boolean> | null = null;
   private lastStructuredCrash: { fingerprint: string; occurredAtMs: number } | null = null;
+  private lastUnhandledCrash: TelemetryOccurrence | null = null;
+  private lastMediaError: TelemetryOccurrence | null = null;
 
   initialize(): void {
     if (this.initialized || typeof window === 'undefined') return;
@@ -478,6 +527,9 @@ class PlayerAnalyticsClient {
     this.crashes = [];
     this.feedback = [];
     this.recentEvents = [];
+    this.lastStructuredCrash = null;
+    this.lastUnhandledCrash = null;
+    this.lastMediaError = null;
     try {
       sessionStorage.removeItem(METRICS_STORAGE_KEY);
     } catch {
@@ -568,6 +620,11 @@ class PlayerAnalyticsClient {
         category: channelCategory ?? this.currentChannel.category,
       };
     }
+    const eventChannel = resolveAnalyticsEventChannel({
+      id: channelId,
+      name: channelName,
+      category: channelCategory,
+    }, this.currentChannel);
     if (name === 'renderer.changed') {
       this.currentRenderer = stringValue(safe.to) ?? this.currentRenderer;
     }
@@ -586,9 +643,9 @@ class PlayerAnalyticsClient {
       screen: window.location.pathname,
       renderer: stringValue(safe.renderer) ?? this.currentRenderer,
       ...(stringValue(safe.interactionTarget) ? { interactionTarget: stringValue(safe.interactionTarget) } : {}),
-      ...(channelId ? { channelId } : {}),
-      ...(channelName ? { channelName } : {}),
-      ...(channelCategory ? { channelCategory } : {}),
+      ...(eventChannel.id ? { channelId: eventChannel.id } : {}),
+      ...(eventChannel.name ? { channelName: eventChannel.name } : {}),
+      ...(eventChannel.category ? { channelCategory: eventChannel.category } : {}),
       ...(contentKind ? { contentKind } : {}),
       ...(stringValue(safe.playbackMode) ? { playbackMode: stringValue(safe.playbackMode) } : {}),
       ...(stringValue(safe.errorCode) ?? stringValue(safe.code)
@@ -664,10 +721,7 @@ class PlayerAnalyticsClient {
       ?? errorName,
     );
     const fingerprint = buildCrashFingerprint(errorName, message);
-    if (
-      this.lastStructuredCrash?.fingerprint === fingerprint &&
-      occurredAtMs - this.lastStructuredCrash.occurredAtMs < 10_000
-    ) {
+    if (isDuplicateTelemetryOccurrence(this.lastStructuredCrash, fingerprint, occurredAtMs, 10_000)) {
       return;
     }
     this.lastStructuredCrash = { fingerprint, occurredAtMs };
@@ -697,12 +751,18 @@ class PlayerAnalyticsClient {
     const normalized = error instanceof Error ? error : new Error(String(error));
     const message = redactSensitiveText(normalized.message || 'Unknown error');
     const stack = normalized.stack ? redactSensitiveText(normalized.stack) : undefined;
+    const occurredAtMs = Date.now();
+    const fingerprint = buildCrashFingerprint(normalized.name, message, stack);
+    if (isDuplicateTelemetryOccurrence(this.lastUnhandledCrash, fingerprint, occurredAtMs, 30_000)) {
+      return;
+    }
+    this.lastUnhandledCrash = { fingerprint, occurredAtMs };
     const replayId = randomId();
     void this.uploadReplay('crash', replayId);
     this.crashes.push({
       id: randomId(),
-      occurredAt: new Date().toISOString(),
-      fingerprint: buildCrashFingerprint(normalized.name, message, stack),
+      occurredAt: new Date(occurredAtMs).toISOString(),
+      fingerprint,
       errorName: normalized.name || 'Error',
       message,
       ...(stack ? { stack } : {}),
@@ -717,7 +777,7 @@ class PlayerAnalyticsClient {
       replayId,
     });
     this.crashCount += 1;
-    this.track('session.crashed', 'fatal', { fingerprint: buildCrashFingerprint(normalized.name, message, stack) });
+    this.track('session.crashed', 'fatal', { fingerprint }, occurredAtMs);
     this.flush('crashed', true);
   }
 
@@ -998,6 +1058,17 @@ class PlayerAnalyticsClient {
     if (!(event.target instanceof HTMLMediaElement)) return;
     const media = event.target;
     const now = Date.now();
+    const mediaError = eventName === 'error' ? mediaElementErrorDetails(media.error) : null;
+    if (mediaError) {
+      const fingerprint = [
+        mediaError.errorCode,
+        this.currentChannel.id ?? 'unknown-channel',
+        media.networkState,
+        media.readyState,
+      ].join(':');
+      if (isDuplicateTelemetryOccurrence(this.lastMediaError, fingerprint, now, 1_000)) return;
+      this.lastMediaError = { fingerprint, occurredAtMs: now };
+    }
     if (eventName === 'playing') {
       this.playbackActive = true;
       if (this.firstFrameMs === null) this.firstFrameMs = now - this.startedAtMs;
@@ -1033,6 +1104,7 @@ class PlayerAnalyticsClient {
       paused: media.paused,
       muted: media.muted,
       volume: media.volume,
+      ...(mediaError ?? {}),
       ...(media instanceof HTMLVideoElement ? {
         resolutionWidth: media.videoWidth,
         resolutionHeight: media.videoHeight,

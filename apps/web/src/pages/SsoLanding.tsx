@@ -21,6 +21,7 @@ import {
 const EXYU_PLAYER_PAGE_URL = 'https://exyu.tv/player';
 
 type SsoStatus = 'exchanging' | 'unconfigured' | 'error';
+type SsoStage = 'token_exchange' | 'xtream_authentication' | 'credential_storage';
 
 /**
  * Landing route for the exyu.tv -> player SSO hand-off. exyu.tv redirects a
@@ -31,6 +32,7 @@ type SsoStatus = 'exchanging' | 'unconfigured' | 'error';
 const SsoLanding = () => {
   const navigate = useNavigate();
   const [status, setStatus] = useState<SsoStatus>('exchanging');
+  const [failureStage, setFailureStage] = useState<SsoStage | null>(null);
   const startedRef = useRef(false);
 
   useEffect(() => {
@@ -66,6 +68,7 @@ const SsoLanding = () => {
         return;
       }
 
+      let ssoStage: SsoStage = 'token_exchange';
       try {
         const response = await fetch('/sso/exchange', {
           method: 'POST',
@@ -98,6 +101,7 @@ const SsoLanding = () => {
         };
 
         xtreamCodesService.setCredentials(credentials);
+        ssoStage = 'xtream_authentication';
         const authResponse = await xtreamCodesService.authenticate();
         if (authResponse.user_info?.auth !== 1) {
           throw new Error('sso_xtream_auth_failed');
@@ -110,14 +114,20 @@ const SsoLanding = () => {
         const canonicalCredentials = canonicalServer === credentials.server
           ? credentials
           : { ...credentials, server: canonicalServer };
+        ssoStage = 'credential_storage';
         await saveXtreamCredentials(canonicalCredentials);
+        emitPlayerAnalyticsEvent('sso.landing_succeeded', 'info', {
+          ssoStage: 'completed',
+        });
         navigate('/player', { replace: true });
       } catch (err) {
         emitPlayerAnalyticsEvent('sso.landing_failed', 'error', {
           errorCode: err instanceof Error ? err.message : 'unknown_sso_error',
+          ssoStage,
         });
         console.error('SSO sign-in error:', err instanceof Error ? err.message : err);
         if (!(await fallbackToExistingSession())) {
+          setFailureStage(ssoStage);
           setStatus('error');
         }
       }
@@ -144,7 +154,11 @@ const SsoLanding = () => {
             </CardTitle>
             <CardDescription>
               {status === 'error'
-                ? 'Link za prijavu je istekao ili nije važeći.'
+                ? failureStage === 'token_exchange'
+                  ? 'Link za prijavu je istekao ili nije važeći.'
+                  : failureStage === 'credential_storage'
+                    ? 'Pregledač nije uspeo da sačuva prijavu. Pokušajte ponovo.'
+                    : 'IPTV server trenutno nije dostupan. Pokušajte ponovo za nekoliko trenutaka.'
                 : 'Povezujemo vaš EXYU nalog sa plejerom...'}
             </CardDescription>
           </CardHeader>

@@ -8,7 +8,10 @@ import {
   resolveAnalyticsFlushTransport,
   shouldFlushAnalyticsQueue,
   analyticsInteger,
+  isDuplicateTelemetryOccurrence,
+  mediaElementErrorDetails,
   normalizeClickCoordinates,
+  resolveAnalyticsEventChannel,
 } from './playerAnalytics';
 import { sanitizeTelemetryRecord } from './privacyRedaction';
 
@@ -96,5 +99,27 @@ describe('player analytics client safety helpers', () => {
     expect(normalizeClickCoordinates(720, 450, 1440, 900)?.viewportClass).toBe('desktop');
     expect(normalizeClickCoordinates(-1, 10, 390, 844)).toBeNull();
     expect(normalizeClickCoordinates(1, 1, 0, 844)).toBeNull();
+  });
+
+  it('inherits the current channel when a playback event omits channel metadata', () => {
+    expect(resolveAnalyticsEventChannel(
+      {},
+      { id: '4095', name: 'ARENA PREMIUM 1', category: 'Sport' },
+    )).toEqual({ id: '4095', name: 'ARENA PREMIUM 1', category: 'Sport' });
+    expect(resolveAnalyticsEventChannel(
+      { id: '1', name: 'RTS1' },
+      { id: '4095', name: 'ARENA PREMIUM 1', category: 'Sport' },
+    )).toEqual({ id: '1', name: 'RTS1', category: 'Sport' });
+  });
+
+  it('labels HTML media errors and suppresses only short duplicate bursts', () => {
+    expect(mediaElementErrorDetails({ code: 3, message: '' })).toEqual({
+      errorCode: 'MEDIA_ELEMENT_3',
+      message: 'The media stream could not be decoded',
+    });
+    const previous = { fingerprint: 'MEDIA_ELEMENT_3:4095:2:0', occurredAtMs: 1_000 };
+    expect(isDuplicateTelemetryOccurrence(previous, previous.fingerprint, 1_500, 1_000)).toBe(true);
+    expect(isDuplicateTelemetryOccurrence(previous, previous.fingerprint, 2_000, 1_000)).toBe(false);
+    expect(isDuplicateTelemetryOccurrence(previous, 'MEDIA_ELEMENT_2:4095:2:0', 1_500, 1_000)).toBe(false);
   });
 });
