@@ -37,6 +37,7 @@ import {
   resolveCatchUpTimelineSeekTargetMs,
   resolveCatchUpTimelineSeekTargetMsForSource,
   resolveCatchUpLoadingProgressPercent,
+  resolvePlaybackFailureTelemetry,
   resolveLiveUnexpectedStopDecision,
   shouldResumeRenderableLiveAfterUnexpectedStop,
   resolveCatchUpSeekNoFrameDecision,
@@ -63,6 +64,29 @@ const buildSession = (overrides: Partial<SessionState> = {}): SessionState => ({
 });
 
 describe('videoPlaybackSync', () => {
+  it('keeps deferred and still-rendering failures out of terminal playback errors', () => {
+    expect(resolvePlaybackFailureTelemetry('deferred', true)).toEqual({
+      name: 'playback.retry',
+      severity: 'warn',
+      terminal: false,
+    });
+    expect(resolvePlaybackFailureTelemetry('rendering-continues', true)).toEqual({
+      name: 'playback.warning',
+      severity: 'warn',
+      terminal: false,
+    });
+    expect(resolvePlaybackFailureTelemetry('terminal', false)).toEqual({
+      name: 'playback.error',
+      severity: 'warn',
+      terminal: true,
+    });
+    expect(resolvePlaybackFailureTelemetry('terminal', true)).toEqual({
+      name: 'playback.error',
+      severity: 'error',
+      terminal: true,
+    });
+  });
+
   it('treats playing and buffering as playback-intent states', () => {
     expect(sessionWantsPlayback(buildSession({ playback: 'playing' }))).toBe(true);
     expect(sessionWantsPlayback(buildSession({ playback: 'buffering' }))).toBe(true);

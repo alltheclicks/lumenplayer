@@ -1,6 +1,31 @@
 import type { SessionSource, SessionState } from '@lumen/session-core';
 import type { PlaybackError } from '@lumen/types';
 
+export type PlaybackFailureTelemetryDisposition = 'deferred' | 'rendering-continues' | 'terminal';
+
+export interface PlaybackFailureTelemetry {
+  name: 'playback.retry' | 'playback.warning' | 'playback.error';
+  severity: 'warn' | 'error';
+  terminal: boolean;
+}
+
+export const resolvePlaybackFailureTelemetry = (
+  disposition: PlaybackFailureTelemetryDisposition,
+  fatal: boolean,
+): PlaybackFailureTelemetry => {
+  if (disposition === 'deferred') {
+    return { name: 'playback.retry', severity: 'warn', terminal: false };
+  }
+  if (disposition === 'rendering-continues') {
+    return { name: 'playback.warning', severity: 'warn', terminal: false };
+  }
+  return {
+    name: 'playback.error',
+    severity: fatal ? 'error' : 'warn',
+    terminal: true,
+  };
+};
+
 export const sessionWantsPlayback = (session: Pick<SessionState, 'playback'>): boolean => (
   session.playback === 'playing' || session.playback === 'buffering'
 );

@@ -272,11 +272,32 @@ export const shouldStartRebufferMeasurement = (
   wasPlaybackActive: boolean,
   hasRenderedFirstFrame: boolean,
   channelSwitchPending: boolean,
+  isDocumentVisible = true,
 ): boolean => (
   (mediaEventName === 'waiting' || mediaEventName === 'stalled') &&
   wasPlaybackActive &&
   hasRenderedFirstFrame &&
-  !channelSwitchPending
+  !channelSwitchPending &&
+  isDocumentVisible
+);
+
+export const resolveRebufferDurationMs = (
+  startedAtMs: number,
+  endedAtMs: number,
+): number => Math.max(0, endedAtMs - startedAtMs);
+
+export const shouldCountAnalyticsError = (
+  name: string,
+  severity: PlayerAnalyticsSeverity,
+  metadata: Record<string, unknown>,
+): boolean => (
+  name === 'playback.error'
+    ? metadata.terminal === true
+    : severity === 'error' || severity === 'fatal'
+);
+
+export const resolveMediaAnalyticsEventName = (mediaEventName: string): string => (
+  mediaEventName === 'error' ? 'playback.media_error' : `playback.${mediaEventName}`
 );
 
 const parseUserAgent = (userAgent: string): Record<string, string> => {
@@ -400,10 +421,24 @@ class PlayerAnalyticsClient {
       });
     });
     window.addEventListener('online', () => void this.retryOfflineBatches());
-    window.addEventListener('pagehide', () => this.flush('ended', true));
+    window.addEventListener('pagehide', () => {
+      const now = Date.now();
+      this.tickMetrics(now);
+      this.interruptRebufferMeasurement(now, 'pagehide');
+      this.flush('ended', true);
+    });
     document.addEventListener('visibilitychange', () => {
-      this.tickMetrics();
-      this.track(document.hidden ? 'session.backgrounded' : 'session.foregrounded');
+      const now = Date.now();
+      this.tickMetrics(now);
+      if (document.hidden) {
+        this.interruptRebufferMeasurement(now, 'backgrounded');
+      }
+      this.track(
+        document.hidden ? 'session.backgrounded' : 'session.foregrounded',
+        'info',
+        {},
+        now,
+      );
       this.flush('active', document.hidden);
     });
     for (const eventName of ['pointerdown', 'keydown', 'touchstart']) {
@@ -489,6 +524,9 @@ class PlayerAnalyticsClient {
 
   endSession(): void {
     if (!this.configuration) return;
+    const now = Date.now();
+    this.tickMetrics(now);
+    this.interruptRebufferMeasurement(now, 'session_ended');
     this.flush('ended', true);
     this.configuration = null;
     this.stopReplay?.();
@@ -617,6 +655,11 @@ class PlayerAnalyticsClient {
     if (!this.configuration || !name) return;
     this.tickMetrics(timestampMs);
     const safe = sanitizeTelemetryRecord(metadata);
+    if (name === 'playback.source-selected') {
+      // Close any span against the previous source before the event updates
+      // currentChannel with the newly selected source.
+      this.interruptRebufferMeasurement(timestampMs, 'source_switch');
+    }
     const contentKind = stringValue(safe.contentKind);
     const channelId = stringValue(safe.channelId) ?? (
       !contentKind || contentKind === 'live' || contentKind === 'catchup'
@@ -644,15 +687,11 @@ class PlayerAnalyticsClient {
       // A channel switch has its own latency metric. Do not carry an open
       // rebuffer span into the next channel or keep counting the old source as
       // active playback while the new source starts.
-      if (this.rebufferStartedAtMs !== null) {
-        this.rebufferMs += Math.max(0, timestampMs - this.rebufferStartedAtMs);
-        this.rebufferStartedAtMs = null;
-      }
       this.playbackActive = false;
       this.channelChanges += 1;
       this.pendingChannelSwitchAtMs = timestampMs;
     }
-    if (severity === 'error' || severity === 'fatal' || name.endsWith('.error')) this.errorCount += 1;
+    if (shouldCountAnalyticsError(name, severity, safe)) this.errorCount += 1;
 
     const event: PlayerAnalyticsEvent = {
       id: randomId(),
@@ -680,7 +719,7 @@ class PlayerAnalyticsClient {
     this.recentEvents = this.recentEvents.slice(-30);
     this.eventCount += 1;
     const structuredFailure = (
-      (name === 'playback.error' && safe.fatal === true) ||
+      (name === 'playback.error' && safe.terminal === true && safe.fatal === true) ||
       (name === 'catalog.error' && severity === 'error') ||
       name === 'sso.landing_failed'
     );
@@ -807,6 +846,24 @@ class PlayerAnalyticsClient {
     if (nowMs - this.lastActivityAtMs <= 60_000) this.activeMs += elapsed;
     if (this.playbackActive) this.playbackMs += elapsed;
     this.lastTickMs = nowMs;
+  }
+
+  private interruptRebufferMeasurement(
+    timestampMs: number,
+    reason: string,
+    positionMs?: number,
+    severity: PlayerAnalyticsSeverity = 'info',
+  ): number | null {
+    if (this.rebufferStartedAtMs === null) return null;
+    const durationMs = resolveRebufferDurationMs(this.rebufferStartedAtMs, timestampMs);
+    this.rebufferStartedAtMs = null;
+    this.rebufferMs += durationMs;
+    this.track('playback.buffering_interrupted', severity, {
+      durationMs,
+      positionMs,
+      reason,
+    }, timestampMs);
+    return durationMs;
   }
 
   private sessionRecord(status: 'active' | 'ended' | 'crashed'): Record<string, unknown> {
@@ -1098,7 +1155,7 @@ class PlayerAnalyticsClient {
     if (eventName === 'playing') {
       if (this.firstFrameMs === null) this.firstFrameMs = now - this.startedAtMs;
       if (this.rebufferStartedAtMs !== null) {
-        const durationMs = now - this.rebufferStartedAtMs;
+        const durationMs = resolveRebufferDurationMs(this.rebufferStartedAtMs, now);
         this.rebufferMs += durationMs;
         this.track('playback.buffering_ended', 'info', { durationMs, positionMs: media.currentTime * 1_000 });
         this.rebufferStartedAtMs = null;
@@ -1120,6 +1177,7 @@ class PlayerAnalyticsClient {
           wasPlaybackActive,
           this.firstFrameMs !== null,
           this.pendingChannelSwitchAtMs !== null,
+          !document.hidden,
         )
       ) {
         this.rebufferStartedAtMs = now;
@@ -1129,36 +1187,38 @@ class PlayerAnalyticsClient {
     }
     if (eventName === 'pause' || eventName === 'ended' || eventName === 'error') {
       this.playbackActive = false;
-      if (this.rebufferStartedAtMs !== null) {
-        const durationMs = Math.max(0, now - this.rebufferStartedAtMs);
-        this.rebufferMs += durationMs;
-        this.rebufferStartedAtMs = null;
-        this.track('playback.buffering_interrupted', eventName === 'error' ? 'warn' : 'info', {
-          durationMs,
-          positionMs: media.currentTime * 1_000,
-          reason: eventName,
-        });
-      }
+      this.interruptRebufferMeasurement(
+        now,
+        eventName,
+        media.currentTime * 1_000,
+        eventName === 'error' ? 'warn' : 'info',
+      );
     }
     const quality = media instanceof HTMLVideoElement && typeof media.getVideoPlaybackQuality === 'function'
       ? media.getVideoPlaybackQuality()
       : null;
-    this.track(`playback.${eventName}`, eventName === 'error' ? 'error' : 'info', {
-      positionMs: media.currentTime * 1_000,
-      durationMs: Number.isFinite(media.duration) ? media.duration * 1_000 : undefined,
-      readyState: media.readyState,
-      networkState: media.networkState,
-      paused: media.paused,
-      muted: media.muted,
-      volume: media.volume,
-      ...(mediaError ?? {}),
-      ...(media instanceof HTMLVideoElement ? {
-        resolutionWidth: media.videoWidth,
-        resolutionHeight: media.videoHeight,
-        droppedVideoFrames: quality?.droppedVideoFrames,
-        totalVideoFrames: quality?.totalVideoFrames,
-      } : {}),
-    });
+    this.track(
+      resolveMediaAnalyticsEventName(eventName),
+      eventName === 'error' ? 'warn' : 'info',
+      {
+        positionMs: media.currentTime * 1_000,
+        durationMs: Number.isFinite(media.duration) ? media.duration * 1_000 : undefined,
+        readyState: media.readyState,
+        networkState: media.networkState,
+        paused: media.paused,
+        muted: media.muted,
+        volume: media.volume,
+        ...(eventName === 'error' ? { terminal: false } : {}),
+        ...(mediaError ?? {}),
+        ...(media instanceof HTMLVideoElement ? {
+          resolutionWidth: media.videoWidth,
+          resolutionHeight: media.videoHeight,
+          droppedVideoFrames: quality?.droppedVideoFrames,
+          totalVideoFrames: quality?.totalVideoFrames,
+        } : {}),
+      },
+      now,
+    );
   }
 
   private collectPlaybackSnapshot(): Record<string, unknown> {

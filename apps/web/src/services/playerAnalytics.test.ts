@@ -11,7 +11,10 @@ import {
   isDuplicateTelemetryOccurrence,
   mediaElementErrorDetails,
   normalizeClickCoordinates,
+  resolveMediaAnalyticsEventName,
+  resolveRebufferDurationMs,
   resolveAnalyticsEventChannel,
+  shouldCountAnalyticsError,
   shouldStartRebufferMeasurement,
 } from './playerAnalytics';
 import { sanitizeTelemetryRecord } from './privacyRedaction';
@@ -130,6 +133,36 @@ describe('player analytics client safety helpers', () => {
     expect(shouldStartRebufferMeasurement('waiting', false, true, false)).toBe(false);
     expect(shouldStartRebufferMeasurement('waiting', true, false, false)).toBe(false);
     expect(shouldStartRebufferMeasurement('waiting', true, true, true)).toBe(false);
+    expect(shouldStartRebufferMeasurement('waiting', true, true, false, false)).toBe(false);
     expect(shouldStartRebufferMeasurement('pause', true, true, false)).toBe(false);
+  });
+
+  it('closes rebuffer spans at the foreground boundary without negative durations', () => {
+    expect(resolveRebufferDurationMs(1_000, 3_500)).toBe(2_500);
+    expect(resolveRebufferDurationMs(3_500, 1_000)).toBe(0);
+  });
+
+  it('counts only terminal playback failures as session errors', () => {
+    expect(shouldCountAnalyticsError('playback.retry', 'warn', {
+      terminal: false,
+    })).toBe(false);
+    expect(shouldCountAnalyticsError('playback.error', 'error', {
+      fatal: true,
+      terminal: false,
+    })).toBe(false);
+    expect(shouldCountAnalyticsError('playback.error', 'warn', {
+      fatal: false,
+      terminal: true,
+    })).toBe(true);
+    expect(shouldCountAnalyticsError('catalog.error', 'error', {})).toBe(true);
+    expect(shouldCountAnalyticsError('catalog.error', 'info', {})).toBe(false);
+  });
+
+  it('keeps raw media-element errors separate from terminal playback failures', () => {
+    expect(resolveMediaAnalyticsEventName('error')).toBe('playback.media_error');
+    expect(resolveMediaAnalyticsEventName('playing')).toBe('playback.playing');
+    expect(shouldCountAnalyticsError('playback.media_error', 'warn', {
+      terminal: false,
+    })).toBe(false);
   });
 });

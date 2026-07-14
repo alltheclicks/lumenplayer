@@ -49,6 +49,7 @@ import {
   resolveCatchUpFallbackPlaybackPosition,
   resolveCatchUpTimelinePositionMsForSource,
   resolveCatchUpTimelineSeekTargetMsForSource,
+  resolvePlaybackFailureTelemetry,
   resolveLiveUnexpectedStopDecision,
   shouldAttemptCatchUpErrorFallback,
   shouldResumeRenderableLiveAfterUnexpectedStop,
@@ -2276,6 +2277,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
               channelId: recoverySession.source.channelId ?? null,
               code: errorCode,
               fatal: false,
+              terminal: true,
               status: `unexpected_${reason}_blocked`,
             },
           });
@@ -2674,12 +2676,14 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
         setError(null);
         setIsLoading(true);
         updateLoadingProgressPhase('segment');
+        const failureTelemetry = resolvePlaybackFailureTelemetry('deferred', playbackError.fatal);
         emitWebObservabilityEvent({
-          name: 'playback.error',
-          severity: playbackError.fatal ? 'error' : 'warn',
+          name: failureTelemetry.name,
+          severity: failureTelemetry.severity,
           metadata: {
             code: playbackError.code,
             fatal: playbackError.fatal,
+            terminal: failureTelemetry.terminal,
             message: playbackError.message,
             renderer: sessionRef.current.renderer,
             status: 'live_startup_deferred',
@@ -2697,12 +2701,14 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
         setError(null);
         setIsLoading(true);
         updateLoadingProgressPhase('segment');
+        const failureTelemetry = resolvePlaybackFailureTelemetry('deferred', playbackError.fatal);
         emitWebObservabilityEvent({
-          name: 'playback.error',
-          severity: playbackError.fatal ? 'error' : 'warn',
+          name: failureTelemetry.name,
+          severity: failureTelemetry.severity,
           metadata: {
             code: playbackError.code,
             fatal: playbackError.fatal,
+            terminal: failureTelemetry.terminal,
             message: playbackError.message,
             renderer: sessionRef.current.renderer,
             ...buildCatchUpEventMetadata(sessionRef.current.source, {
@@ -2821,6 +2827,15 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
         playbackError,
         { hasRenderableFrame },
       );
+      const terminalPlaybackFailure = Boolean(
+        providerIssueError ||
+        catchUpRuntimeUnavailableError ||
+        shouldShowPlaybackError
+      );
+      const failureTelemetry = resolvePlaybackFailureTelemetry(
+        terminalPlaybackFailure ? 'terminal' : 'rendering-continues',
+        playbackError.fatal,
+      );
       if (!providerIssueError &&
         shouldAttemptRuntimeFallback &&
         switchToCatchUpFallbackIfAvailable(playbackError.code)) {
@@ -2874,15 +2889,16 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
         clearLoadingProgress();
       }
       emitWebObservabilityEvent({
-        name: 'playback.error',
-        severity: playbackError.fatal ? 'error' : 'warn',
+        name: failureTelemetry.name,
+        severity: failureTelemetry.severity,
         metadata: {
           code: playbackError.code,
           fatal: playbackError.fatal,
+          terminal: failureTelemetry.terminal,
           message: playbackError.message,
           renderer: sessionRef.current.renderer,
           ...buildCatchUpEventMetadata(sessionRef.current.source, {
-            status: 'error',
+            status: terminalPlaybackFailure ? 'error' : 'rendering_continues',
             errorCode: playbackError.code,
           }),
         },
@@ -3548,12 +3564,14 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
           setError(null);
           setIsLoading(true);
           updateLoadingProgressPhase('requesting');
+          const failureTelemetry = resolvePlaybackFailureTelemetry('deferred', true);
           emitWebObservabilityEvent({
-            name: 'playback.error',
-            severity: 'error',
+            name: failureTelemetry.name,
+            severity: failureTelemetry.severity,
             metadata: {
               code: 'LOAD_FAILED',
               fatal: true,
+              terminal: failureTelemetry.terminal,
               message,
               renderer: currentSession.renderer,
               status: 'live_startup_deferred',
@@ -3579,12 +3597,14 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
           setError(null);
           setIsLoading(true);
           updateLoadingProgressPhase('segment');
+          const failureTelemetry = resolvePlaybackFailureTelemetry('deferred', true);
           emitWebObservabilityEvent({
-            name: 'playback.error',
-            severity: 'error',
+            name: failureTelemetry.name,
+            severity: failureTelemetry.severity,
             metadata: {
               code: 'LOAD_FAILED',
               fatal: true,
+              terminal: failureTelemetry.terminal,
               message,
               renderer: currentSession.renderer,
               ...buildCatchUpEventMetadata(currentSession.source, {
@@ -3619,6 +3639,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
           metadata: {
             code: 'LOAD_FAILED',
             fatal: true,
+            terminal: true,
             message,
             renderer: sessionRef.current.renderer,
             ...buildCatchUpEventMetadata(sessionRef.current.source, {

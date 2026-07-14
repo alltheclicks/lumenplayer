@@ -1227,6 +1227,7 @@ const Player = () => {
           streamId: currentChannelWithEPG.streamId,
           programId: program.id,
           status: 'catchup_resolve_failed',
+          terminal: true,
           contentKind: 'catchup',
           playbackMode: 'catchup',
           errorCode: error instanceof Error ? error.message : 'unknown_error',
