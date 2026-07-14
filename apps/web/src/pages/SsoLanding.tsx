@@ -22,6 +22,8 @@ import {
   emitPlayerAnalyticsEvent,
   type PlayerAnalyticsConfiguration,
 } from '@/services/playerAnalytics';
+import { saveManagedAccessMode, type ManagedAccessMode } from '@/services/managedAccessMode';
+import { useSessionContext } from '@/context/session-context';
 
 const EXYU_PLAYER_PAGE_URL = 'https://exyu.tv/player';
 
@@ -36,6 +38,7 @@ type SsoStage = 'token_exchange' | 'xtream_authentication' | 'credential_storage
  */
 const SsoLanding = () => {
   const navigate = useNavigate();
+  const { commands } = useSessionContext();
   const [status, setStatus] = useState<SsoStatus>('exchanging');
   const [failureStage, setFailureStage] = useState<SsoStage | null>(null);
   const [failureCode, setFailureCode] = useState<string | null>(null);
@@ -91,10 +94,18 @@ const SsoLanding = () => {
         const data = (await response.json()) as {
           username?: unknown;
           password?: unknown;
+          accessMode?: unknown;
           analytics?: unknown;
         };
         if (typeof data.username !== 'string' || typeof data.password !== 'string') {
           throw new Error('sso_exchange_invalid_response');
+        }
+        let accessMode: ManagedAccessMode = 'full';
+        if (data.accessMode !== undefined) {
+          if (data.accessMode !== 'full' && data.accessMode !== 'info_only') {
+            throw new Error('sso_exchange_invalid_response');
+          }
+          accessMode = data.accessMode;
         }
         if (data.analytics && typeof data.analytics === 'object') {
           configurePlayerAnalytics(data.analytics as PlayerAnalyticsConfiguration);
@@ -125,7 +136,11 @@ const SsoLanding = () => {
           ? credentials
           : { ...credentials, server: canonicalServer };
         ssoStage = 'credential_storage';
+        // Never restore a previously cached full-catalog/VOD source after an
+        // account has moved into the one-channel Info mode (or vice versa).
+        commands.stop();
         await saveXtreamCredentials(canonicalCredentials);
+        saveManagedAccessMode(accessMode);
         emitPlayerAnalyticsEvent('sso.landing_succeeded', 'info', {
           ssoStage: 'completed',
         });
@@ -150,7 +165,7 @@ const SsoLanding = () => {
     };
 
     void run();
-  }, [navigate]);
+  }, [commands, navigate]);
 
   return (
     <>

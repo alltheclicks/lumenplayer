@@ -55,10 +55,25 @@ describe("mintSsoToken / decryptSsoToken", () => {
       payload: {
         username: "viewer@example.com",
         password: "xtream-pass",
+        accessMode: "full",
         issuedAtSeconds: NOW_SECONDS,
         expiresAtSeconds: NOW_SECONDS + SSO_DEFAULT_TOKEN_TTL_SECONDS,
       },
     });
+  });
+
+  it("round-trips info-only access and rejects unknown access modes", () => {
+    expect(decryptSsoToken(
+      mintTestToken({ accessMode: "info_only" }),
+      TEST_KEY,
+      NOW_SECONDS,
+    )).toMatchObject({ ok: true, payload: { accessMode: "info_only" } });
+
+    expect(decryptSsoToken(
+      mintTestToken({ accessMode: "admin" as "full" }),
+      TEST_KEY,
+      NOW_SECONDS,
+    )).toEqual({ ok: false, error: "invalid_payload" });
   });
 
   it("keeps legacy tokens compatible and strictly validates optional analytics fields", () => {
@@ -226,6 +241,7 @@ describe("POST /sso/exchange", () => {
     expect(first.json()).toEqual({
       username: "viewer@example.com",
       password: "xtream-pass",
+      accessMode: "full",
     });
     expect(first.headers["cache-control"]).toBe("no-store");
     expect(first.headers.pragma).toBe("no-cache");

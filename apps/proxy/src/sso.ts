@@ -13,7 +13,8 @@ import {
 // in lockstep with the minting side (exyu-tv-nextjs `api/player-sso`).
 //
 // Wire format: "lps1." + base64url(iv[12] || authTag[16] || ciphertext)
-// Plaintext:   JSON {"u": username, "p": password, "iat": s, "exp": s, "jti": uuid}
+// Plaintext:   JSON {"u": username, "p": password, "mode": "full" | "info_only",
+//                    "iat": s, "exp": s, "jti": uuid}
 
 export const SSO_TOKEN_PREFIX = "lps1.";
 export const SSO_TOKEN_MAX_LENGTH = 2048;
@@ -36,6 +37,7 @@ export type SsoTokenErrorCode =
 export interface SsoTokenPayload {
   username: string;
   password: string;
+  accessMode: "full" | "info_only";
   issuedAtSeconds: number;
   expiresAtSeconds: number;
   jti: string;
@@ -64,6 +66,7 @@ export const mintSsoToken = (
     nowSeconds: number;
     ttlSeconds?: number;
     jti?: string;
+    accessMode?: "full" | "info_only";
     analytics?: PlayerAnalyticsTokenFields;
   },
 ): string => {
@@ -72,6 +75,7 @@ export const mintSsoToken = (
   const payload = JSON.stringify({
     u: options.username,
     p: options.password,
+    mode: options.accessMode ?? "full",
     iat: issuedAtSeconds,
     exp: issuedAtSeconds + ttlSeconds,
     jti: options.jti ?? randomUUID(),
@@ -104,6 +108,7 @@ const parsePayload = (plaintext: string, nowSeconds: number): SsoTokenResult => 
   const issuedAtSeconds = record.iat;
   const expiresAtSeconds = record.exp;
   const jti = record.jti;
+  const accessMode = record.mode === undefined ? "full" : record.mode;
   const analytics = record.analytics === undefined
     ? undefined
     : parsePlayerAnalyticsTokenFields(record.analytics);
@@ -114,6 +119,7 @@ const parsePayload = (plaintext: string, nowSeconds: number): SsoTokenResult => 
     typeof issuedAtSeconds !== "number" || !Number.isFinite(issuedAtSeconds) ||
     typeof expiresAtSeconds !== "number" || !Number.isFinite(expiresAtSeconds) ||
     typeof jti !== "string" || jti.length === 0 || jti.length > 128 ||
+    (accessMode !== "full" && accessMode !== "info_only") ||
     (record.analytics !== undefined && !analytics)
   ) {
     return { ok: false, error: "invalid_payload" };
@@ -136,6 +142,7 @@ const parsePayload = (plaintext: string, nowSeconds: number): SsoTokenResult => 
     payload: {
       username,
       password,
+      accessMode,
       issuedAtSeconds,
       expiresAtSeconds,
       jti,

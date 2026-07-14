@@ -8,6 +8,7 @@ import AppShell from '@/components/layout/AppShell';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { RequireAuth } from '@/routes/RequireAuth';
 import AnalyticsRouteTracker from '@/components/AnalyticsRouteTracker';
+import { BRAND_NAME } from '@/config/brand';
 
 import Login from '@/pages/Login';
 import SsoLanding from '@/pages/SsoLanding';
@@ -20,6 +21,7 @@ import SeriesCategories from '@/pages/SeriesCategories';
 import SeriesDetail from '@/pages/SeriesDetail';
 
 const Player = lazy(() => import('@/pages/Player'));
+const IS_MANAGED_EXYU_BUILD = BRAND_NAME.trim().toLowerCase() === 'exyu.tv';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -45,10 +47,10 @@ function App() {
             <AnalyticsRouteTracker />
             <ErrorBoundary>
               <Routes>
-                <Route path="/" element={<Navigate to="/login" replace />} />
-                <Route path="/login" element={<Login />} />
+                <Route path="/" element={<Navigate to={IS_MANAGED_EXYU_BUILD ? '/player' : '/login'} replace />} />
+                <Route path="/login" element={IS_MANAGED_EXYU_BUILD ? <Navigate to="/player" replace /> : <Login />} />
                 <Route path="/sso" element={<SsoLanding />} />
-                <Route path="/import/m3u" element={<M3UImport />} />
+                <Route path="/import/m3u" element={IS_MANAGED_EXYU_BUILD ? <Navigate to="/player" replace /> : <M3UImport />} />
                 <Route
                   element={(
                     <RequireAuth>

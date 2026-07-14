@@ -1197,6 +1197,7 @@ export const createProxyServer = (options: ProxyServerOptions = {}): FastifyInst
     reply.code(200).send({
       username: payload.username,
       password: payload.password,
+      accessMode: payload.accessMode,
       ...(analytics ? {
         analytics: {
           subject: analytics.subject,

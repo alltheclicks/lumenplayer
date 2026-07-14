@@ -4,6 +4,7 @@ import { BRAND_NAME } from '@/config/brand';
 import { isXtreamAccountActive } from '@lumen/api';
 import { loadXtreamCredentials } from '@/services/xtreamCredentials';
 import { xtreamCodesService } from '@/services/xtreamService';
+import { isInfoOnlyAccess } from '@/services/managedAccessMode';
 import { hasConfiguredPlaybackSource } from './routeGuard';
 
 interface RequireAuthProps {
@@ -23,13 +24,19 @@ const REQUIRES_EXYU_SSO = BRAND_NAME.trim().toLowerCase() === 'exyu.tv';
 export const RequireAuth = ({ children }: RequireAuthProps) => {
   const location = useLocation();
   const hasPlaybackSource = hasConfiguredPlaybackSource();
+  const infoOnlyAccess = REQUIRES_EXYU_SSO && isInfoOnlyAccess();
   const [managedAccess, setManagedAccess] = useState<ManagedAccessState>(
-    REQUIRES_EXYU_SSO && hasPlaybackSource ? 'checking' : 'allowed',
+    REQUIRES_EXYU_SSO ? (hasPlaybackSource ? 'checking' : 'reauthenticating') : 'allowed',
   );
 
   useEffect(() => {
-    if (!REQUIRES_EXYU_SSO || !hasPlaybackSource) {
+    if (!REQUIRES_EXYU_SSO) {
       setManagedAccess('allowed');
+      return;
+    }
+    if (!hasPlaybackSource) {
+      setManagedAccess('reauthenticating');
+      window.location.replace(EXYU_SSO_ENTRY_URL);
       return;
     }
 
@@ -76,8 +83,12 @@ export const RequireAuth = ({ children }: RequireAuthProps) => {
     return () => { cancelled = true; };
   }, [hasPlaybackSource]);
 
-  if (!hasPlaybackSource) {
+  if (!REQUIRES_EXYU_SSO && !hasPlaybackSource) {
     return <Navigate to="/login" replace state={{ from: location.pathname }} />;
+  }
+
+  if (infoOnlyAccess && location.pathname !== '/player') {
+    return <Navigate to="/player" replace />;
   }
 
   if (managedAccess !== 'allowed') {
