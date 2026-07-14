@@ -92,6 +92,7 @@ export default defineConfig(({ mode }) => {
   const brandName = (env.VITE_BRAND_NAME ?? "").trim() || "Lumen Player";
   const brandShort = brandName.replace(/\s+player$/i, "");
   const xtreamServerTarget = env.VITE_XTREAM_SERVER?.trim().replace(/\/+$/, "");
+  const xtreamProxyOrigin = env.VITE_XTREAM_PROXY_ORIGIN?.trim().replace(/\/+$/, "");
   const xuiProxyTarget = env.VITE_XUI_PROXY_ORIGIN?.trim().replace(/\/+$/, "");
   const catchUpGatewayTarget = env.VITE_CATCHUP_GATEWAY_ORIGIN?.trim().replace(/\/+$/, "") ||
     xuiProxyTarget;
@@ -101,6 +102,13 @@ export default defineConfig(({ mode }) => {
     xuiProxyTarget ||
     "http://127.0.0.1:8788";
   const allowedHosts = parseAllowedHosts(env.LUMEN_VITE_ALLOWED_HOSTS);
+
+  if (mode === "production" && brandName.toLowerCase() === "exyu.tv" && !xtreamProxyOrigin) {
+    throw new Error(
+      "EXYU production builds require VITE_XTREAM_PROXY_ORIGIN so browser control requests cannot bypass /xui-api.",
+    );
+  }
+
   const proxyConfig = {
     ...(xuiProxyTarget
       ? {
