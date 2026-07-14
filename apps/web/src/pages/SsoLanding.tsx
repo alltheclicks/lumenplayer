@@ -9,8 +9,13 @@ import {
   isServerConfigured,
   resolveXtreamCanonicalServer,
 } from '@/config/xtream';
-import { loadXtreamCredentials, saveXtreamCredentials } from '@/services/xtreamCredentials';
+import {
+  clearXtreamCredentials,
+  loadXtreamCredentials,
+  saveXtreamCredentials,
+} from '@/services/xtreamCredentials';
 import { xtreamCodesService } from '@/services/xtreamService';
+import { isXtreamAccountActive } from '@lumen/api';
 import { AlertCircle, Loader2, Tv } from 'lucide-react';
 import {
   configurePlayerAnalytics,
@@ -33,6 +38,7 @@ const SsoLanding = () => {
   const navigate = useNavigate();
   const [status, setStatus] = useState<SsoStatus>('exchanging');
   const [failureStage, setFailureStage] = useState<SsoStage | null>(null);
+  const [failureCode, setFailureCode] = useState<string | null>(null);
   const startedRef = useRef(false);
 
   useEffect(() => {
@@ -103,8 +109,12 @@ const SsoLanding = () => {
         xtreamCodesService.setCredentials(credentials);
         ssoStage = 'xtream_authentication';
         const authResponse = await xtreamCodesService.authenticate();
-        if (authResponse.user_info?.auth !== 1) {
-          throw new Error('sso_xtream_auth_failed');
+        if (!isXtreamAccountActive(authResponse.user_info)) {
+          throw new Error(
+            authResponse.user_info?.auth === 1
+              ? 'sso_xtream_subscription_inactive'
+              : 'sso_xtream_auth_failed',
+          );
         }
 
         const canonicalServer = resolveXtreamCanonicalServer(
@@ -121,13 +131,19 @@ const SsoLanding = () => {
         });
         navigate('/player', { replace: true });
       } catch (err) {
+        const errorCode = err instanceof Error ? err.message : 'unknown_sso_error';
         emitPlayerAnalyticsEvent('sso.landing_failed', 'error', {
-          errorCode: err instanceof Error ? err.message : 'unknown_sso_error',
+          errorCode,
           ssoStage,
         });
-        console.error('SSO sign-in error:', err instanceof Error ? err.message : err);
-        if (!(await fallbackToExistingSession())) {
+        console.error('SSO sign-in error:', errorCode);
+        const subscriptionInactive = errorCode === 'sso_xtream_subscription_inactive';
+        if (subscriptionInactive) {
+          await clearXtreamCredentials();
+        }
+        if (subscriptionInactive || !(await fallbackToExistingSession())) {
           setFailureStage(ssoStage);
+          setFailureCode(errorCode);
           setStatus('error');
         }
       }
@@ -154,7 +170,9 @@ const SsoLanding = () => {
             </CardTitle>
             <CardDescription>
               {status === 'error'
-                ? failureStage === 'token_exchange'
+                ? failureCode === 'sso_xtream_subscription_inactive'
+                  ? 'TV pretplata nije aktivna. Obnovite je preko EXYU.tv naloga.'
+                  : failureStage === 'token_exchange'
                   ? 'Link za prijavu je istekao ili nije važeći.'
                   : failureStage === 'credential_storage'
                     ? 'Pregledač nije uspeo da sačuva prijavu. Pokušajte ponovo.'

@@ -1,6 +1,9 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { BRAND_NAME } from '@/config/brand';
+import { isXtreamAccountActive } from '@lumen/api';
+import { loadXtreamCredentials } from '@/services/xtreamCredentials';
+import { xtreamCodesService } from '@/services/xtreamService';
 import { hasConfiguredPlaybackSource } from './routeGuard';
 
 interface RequireAuthProps {
@@ -43,6 +46,22 @@ export const RequireAuth = ({ children }: RequireAuthProps) => {
           setManagedAccess('reauthenticating');
           window.location.replace(EXYU_SSO_ENTRY_URL);
           return;
+        }
+        const credentials = await loadXtreamCredentials();
+        if (cancelled) return;
+        if (
+          credentials &&
+          credentials.username !== 'demo' &&
+          !credentials.server.includes('your-server.com')
+        ) {
+          xtreamCodesService.setCredentials(credentials);
+          const authResponse = await xtreamCodesService.authenticate();
+          if (cancelled) return;
+          if (!isXtreamAccountActive(authResponse.user_info)) {
+            setManagedAccess('reauthenticating');
+            window.location.replace(EXYU_SSO_ENTRY_URL);
+            return;
+          }
         }
         // Analytics/config outages must not take television offline. A missing
         // or expired signed binding (401) is the only response that requires a

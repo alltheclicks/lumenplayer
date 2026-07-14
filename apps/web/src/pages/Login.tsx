@@ -14,6 +14,7 @@ import {
 } from '@/config/xtream';
 import { loadXtreamCredentials, saveXtreamCredentials } from '@/services/xtreamCredentials';
 import { xtreamCodesService } from '@/services/xtreamService';
+import { isXtreamAccountActive } from '@lumen/api';
 import { AlertCircle, Eye, EyeOff, Loader2, Tv } from 'lucide-react';
 
 const Login = () => {
@@ -85,7 +86,7 @@ const Login = () => {
       xtreamCodesService.setCredentials(credentials);
       const response = await xtreamCodesService.authenticate();
 
-      if (response.user_info?.auth === 1) {
+      if (isXtreamAccountActive(response.user_info)) {
         const canonicalServer = resolveXtreamCanonicalServer(
           credentials.server,
           response.server_info,
@@ -103,7 +104,9 @@ const Login = () => {
         toast({
           variant: 'destructive',
           title: 'Neuspešna prijava',
-          description: 'Pogrešno korisničko ime ili lozinka.',
+          description: response.user_info?.auth === 1
+            ? 'TV pretplata nije aktivna. Obnovite je preko EXYU.tv naloga.'
+            : 'Pogrešno korisničko ime ili lozinka.',
         });
       }
     } catch (err) {
