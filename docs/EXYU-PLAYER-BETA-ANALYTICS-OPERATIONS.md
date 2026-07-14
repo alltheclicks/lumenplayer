@@ -51,13 +51,23 @@ deploy kopije su `scripts/deploy/nginx-player-exyu-cloudflare-snippet.conf` i
 
 ## Produkciono stanje 12.7.2026
 
-- EXYU analytics backend: release `20260712164625`, commit `5d73414`
-  (funnel/heatmap insights od `40ee6d0`).
+- EXYU analytics backend: release `20260714134629`, commit `d75b3c5`.
 - Lumen web/proxy: release `20260712T144323Z-2d2cad6` na grani
   `exyu/player-integration`.
 - `panel-new/player-analytics.php` prikazuje opseg 7/30/90 dana, playback funnel,
   semantički heatmap, koordinatni 10×6 heatmap, greške i crash fingerprint grupe.
   Jedan klik može imati najviše jedan `errorFollowup` u prozoru od 30 sekundi.
+- Vlasnički pregled na vrhu izdvaja merljive stope, najveći funnel pad, buffering,
+  crash sesije i sledeći preporučeni korak; dnevni timeline i poslednje sesije
+  odgovaraju na pitanja ko, kada, gde i na kom uređaju.
+- Vizuelni heatmap crta stvarne normalizovane pointer/touch zone preko desktop ili
+  mobilnog Lumen rasporeda, odvojeno po ekranu (`/player`, `/vod`, `/series`...) i
+  viewport klasi. Tastatura/daljinski ostaju semantičke aktivacije bez izmišljenih
+  koordinata.
+- Admin može preuzeti `exyu.player-analytics.llm-export.v1` JSON. Izvoz sadrži
+  definicije metrika, izvršni sažetak, nalaze, timeline, funnel, heatmap, uređaje,
+  sesije i feedback označen kao nepouzdan korisnički tekst; ne sadrži email,
+  replay sadržaj, tokene, credentiale ili provider URL-ove.
 - Klikovi od release-a `7ca9443` nose normalizovane koordinate, viewport i input
   metodu. Stariji klikovi ostaju vidljivi u semantičkom heatmapu, ali se ne
   retroaktivno pojavljuju u koordinatnoj mreži.
