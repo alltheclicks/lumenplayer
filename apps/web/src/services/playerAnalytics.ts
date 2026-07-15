@@ -1,4 +1,9 @@
 import { sanitizeTelemetryRecord, redactSensitiveText } from './privacyRedaction';
+import {
+  isPlayerFeedbackSuggestionFresh,
+  resolvePlayerFeedbackSuggestion,
+  type PlayerFeedbackSuggestion,
+} from './playerFeedbackSuggestion';
 
 export type PlayerAnalyticsSeverity = 'debug' | 'info' | 'warn' | 'error' | 'fatal';
 export type ReplayTrigger = 'crash' | 'feedback' | 'diagnostic' | 'sample';
@@ -393,6 +398,7 @@ class PlayerAnalyticsClient {
   private lastStructuredCrash: { fingerprint: string; occurredAtMs: number } | null = null;
   private lastUnhandledCrash: TelemetryOccurrence | null = null;
   private lastMediaError: TelemetryOccurrence | null = null;
+  private latestFeedbackSuggestion: PlayerFeedbackSuggestion | null = null;
 
   initialize(): void {
     if (this.initialized || typeof window === 'undefined') return;
@@ -652,9 +658,16 @@ class PlayerAnalyticsClient {
     metadata: Record<string, unknown> = {},
     timestampMs = Date.now(),
   ): void {
-    if (!this.configuration || !name) return;
-    this.tickMetrics(timestampMs);
+    if (!name) return;
     const safe = sanitizeTelemetryRecord(metadata);
+    if (name === 'playback.source-selected') {
+      this.latestFeedbackSuggestion = null;
+    } else {
+      const suggestion = resolvePlayerFeedbackSuggestion(name, safe, timestampMs);
+      if (suggestion) this.latestFeedbackSuggestion = suggestion;
+    }
+    if (!this.configuration) return;
+    this.tickMetrics(timestampMs);
     if (name === 'playback.source-selected') {
       // Close any span against the previous source before the event updates
       // currentChannel with the newly selected source.
@@ -762,6 +775,17 @@ class PlayerAnalyticsClient {
       interactionTarget: 'feedback.submit',
     });
     return this.flush('active');
+  }
+
+  getFeedbackSuggestion(nowMs = Date.now()): PlayerFeedbackSuggestion | null {
+    if (
+      !this.latestFeedbackSuggestion
+      || !isPlayerFeedbackSuggestionFresh(this.latestFeedbackSuggestion, nowMs)
+    ) {
+      this.latestFeedbackSuggestion = null;
+      return null;
+    }
+    return { ...this.latestFeedbackSuggestion };
   }
 
   captureReactError(error: unknown, componentStack?: string): void {
@@ -1264,6 +1288,9 @@ export const emitPlayerAnalyticsEvent = (
 export const trackPlayerRoute = (pathname: string): void => playerAnalytics.trackRoute(pathname);
 export const submitPlayerFeedback = (input: PlayerFeedbackInput): Promise<boolean> => (
   playerAnalytics.submitFeedback(input)
+);
+export const getPlayerFeedbackSuggestion = (): PlayerFeedbackSuggestion | null => (
+  playerAnalytics.getFeedbackSuggestion()
 );
 export const captureReactAnalyticsError = (error: unknown, componentStack?: string): void => {
   playerAnalytics.captureReactError(error, componentStack);

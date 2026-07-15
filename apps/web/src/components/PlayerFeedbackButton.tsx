@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { MessageSquareWarning } from 'lucide-react';
+import { MessageSquareWarning, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import {
@@ -11,7 +11,15 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { submitPlayerFeedback, emitPlayerAnalyticsEvent } from '@/services/playerAnalytics';
+import {
+  submitPlayerFeedback,
+  emitPlayerAnalyticsEvent,
+  getPlayerFeedbackSuggestion,
+} from '@/services/playerAnalytics';
+import type {
+  PlayerFeedbackCategory,
+  PlayerFeedbackSuggestion,
+} from '@/services/playerFeedbackSuggestion';
 
 const FEEDBACK_CATEGORIES = [
   ['channel_not_working', 'Kanal ne radi'],
@@ -23,11 +31,24 @@ const FEEDBACK_CATEGORIES = [
   ['interface', 'Problem sa komandama ili interfejsom'],
   ['suggestion', 'Predlog'],
   ['other', 'Drugo'],
-] as const;
+] as const satisfies ReadonlyArray<readonly [PlayerFeedbackCategory, string]>;
+
+const FEEDBACK_PLACEHOLDERS: Record<PlayerFeedbackCategory, string> = {
+  channel_not_working: 'Na primer: kanal ostaje na učitavanju ili prikazuje grešku...',
+  buffering: 'Na primer: slika zastaje na svakih nekoliko sekundi...',
+  no_audio: 'Na primer: slika radi, ali se zvuk ne čuje...',
+  av_sync: 'Na primer: zvuk kasni za slikom nekoliko sekundi...',
+  catchup_not_working: 'Na primer: emisija od juče se ne pokreće...',
+  wrong_epg: 'Na primer: prikazuje se pogrešna emisija ili vreme...',
+  interface: 'Na primer: dugme ili komanda ne reaguje...',
+  suggestion: 'Napiši kako bismo mogli da poboljšamo player...',
+  other: 'Ukratko opiši šta se dogodilo...',
+};
 
 const PlayerFeedbackButton = () => {
   const [open, setOpen] = useState(false);
-  const [category, setCategory] = useState(FEEDBACK_CATEGORIES[0][0]);
+  const [category, setCategory] = useState<PlayerFeedbackCategory>(FEEDBACK_CATEGORIES[0][0]);
+  const [suggestion, setSuggestion] = useState<PlayerFeedbackSuggestion | null>(null);
   const [message, setMessage] = useState('');
   const [score, setScore] = useState<number | undefined>();
   const [submitting, setSubmitting] = useState(false);
@@ -37,8 +58,12 @@ const PlayerFeedbackButton = () => {
     setOpen(nextOpen);
     if (nextOpen) {
       setResult(null);
+      const detectedSuggestion = getPlayerFeedbackSuggestion();
+      setSuggestion(detectedSuggestion);
+      if (detectedSuggestion) setCategory(detectedSuggestion.category);
       emitPlayerAnalyticsEvent('feedback.opened', 'info', {
         interactionTarget: 'feedback.open',
+        suggestedCategory: detectedSuggestion?.category,
       });
     } else if (!result) {
       emitPlayerAnalyticsEvent('feedback.cancelled', 'info', {
@@ -89,19 +114,47 @@ const PlayerFeedbackButton = () => {
           </AlertDialogHeader>
 
           <div className="space-y-4 text-left">
-            <div className="space-y-2">
-              <Label htmlFor="player-feedback-category">Šta nije u redu?</Label>
-              <select
-                id="player-feedback-category"
-                value={category}
-                onChange={(event) => setCategory(event.target.value as typeof category)}
-                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground"
-                data-analytics-id="feedback.category"
+            {suggestion && (
+              <button
+                type="button"
+                onClick={() => setCategory(suggestion.category)}
+                className="w-full rounded-lg border border-primary/40 bg-primary/10 p-3 text-left transition-colors hover:bg-primary/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                data-analytics-id="feedback.suggestion"
               >
+                <span className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                  <Sparkles className="h-4 w-4 text-primary" />
+                  Player predlaže
+                </span>
+                <span className="mt-1 block text-sm font-medium text-foreground">
+                  {suggestion.title}
+                </span>
+                <span className="mt-1 block text-xs text-muted-foreground">
+                  {suggestion.description}
+                </span>
+              </button>
+            )}
+
+            <div className="space-y-2">
+              <Label>Šta nije u redu?</Label>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Vrsta problema">
                 {FEEDBACK_CATEGORIES.map(([value, label]) => (
-                  <option key={value} value={value}>{label}</option>
+                  <button
+                    key={value}
+                    type="button"
+                    role="radio"
+                    aria-checked={category === value}
+                    onClick={() => setCategory(value)}
+                    className={`min-h-11 rounded-md border px-3 py-2 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                      category === value
+                        ? 'border-primary bg-primary text-primary-foreground'
+                        : 'border-input bg-background text-foreground hover:bg-accent'
+                    }`}
+                    data-analytics-id={`feedback.category.${value}`}
+                  >
+                    {label}
+                  </button>
                 ))}
-              </select>
+              </div>
             </div>
 
             <div className="space-y-2">
@@ -112,7 +165,7 @@ const PlayerFeedbackButton = () => {
                 onChange={(event) => setMessage(event.target.value)}
                 rows={4}
                 maxLength={10_000}
-                placeholder="Na primer: kanal se zaustavio posle nekoliko minuta..."
+                placeholder={FEEDBACK_PLACEHOLDERS[category]}
                 className="w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 data-analytics-id="feedback.message"
               />
