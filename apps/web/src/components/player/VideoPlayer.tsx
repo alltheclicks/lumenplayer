@@ -27,6 +27,7 @@ import {
   shouldPreservePlaybackIntentDuringBackgroundPause,
   shouldRecoverPlaybackAfterForeground,
   shouldDeferPlaybackFailureWhileBackgrounded,
+  shouldResumeForegroundRecoveryOnIdle,
   shouldResolveProviderBlockingErrorAfterPlaybackError,
   shouldHoldPauseSyncOnSourceStartup,
   shouldRetryPendingAutoplayAfterPausedEvent,
@@ -2676,6 +2677,13 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
 
       if (state === 'idle') {
         if (deferPlaybackFailureWhileBackgrounded('BACKGROUND_PLAYBACK_IDLE')) {
+          return;
+        }
+        if (shouldResumeForegroundRecoveryOnIdle(
+          currentSession,
+          foregroundPlaybackRecoverySourceRef.current,
+        )) {
+          adapter.play();
           return;
         }
         const shouldKeepPendingAutoplay = shouldKeepPendingAutoplayOnIdle(

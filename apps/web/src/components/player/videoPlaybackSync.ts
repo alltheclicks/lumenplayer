@@ -76,6 +76,19 @@ export const shouldDeferPlaybackFailureWhileBackgrounded = (
   );
 };
 
+export const shouldResumeForegroundRecoveryOnIdle = (
+  session: Pick<SessionState, 'source' | 'playback'>,
+  foregroundRecoverySourceUrl: string | null,
+): boolean => Boolean(
+  session.source &&
+  session.source.url === foregroundRecoverySourceUrl &&
+  sessionWantsPlayback(session) &&
+  (
+    session.source.metadata?.mode === 'live' ||
+    session.source.metadata?.mode === 'catchup'
+  )
+);
+
 const isLiveSourceMode = (session: SessionState): boolean => {
   if (!session.source) {
     return false;

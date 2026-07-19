@@ -7,6 +7,7 @@ import {
   shouldPreservePlaybackIntentDuringBackgroundPause,
   shouldRecoverPlaybackAfterForeground,
   shouldDeferPlaybackFailureWhileBackgrounded,
+  shouldResumeForegroundRecoveryOnIdle,
   shouldKeepPendingAutoplayOnIdle,
   shouldResolveProviderBlockingErrorAfterPlaybackError,
   shouldRetryPendingAutoplayAfterPausedEvent,
@@ -204,6 +205,31 @@ describe('videoPlaybackSync', () => {
       backgroundSourceUrl: session.source?.url ?? null,
       manualPauseRequested: true,
     })).toBe(false);
+  });
+
+  it('keeps a foreground HLS reattach idle event on the same source', () => {
+    const session = buildSession({
+      playback: 'playing',
+      source: {
+        url: 'https://example.com/live.m3u8',
+        type: 'hls',
+        title: 'Live',
+        metadata: { mode: 'live' },
+      },
+    });
+
+    expect(shouldResumeForegroundRecoveryOnIdle(
+      session,
+      session.source?.url ?? null,
+    )).toBe(true);
+    expect(shouldResumeForegroundRecoveryOnIdle(
+      session,
+      'https://example.com/other.m3u8',
+    )).toBe(false);
+    expect(shouldResumeForegroundRecoveryOnIdle(
+      buildSession({ playback: 'paused', source: session.source }),
+      session.source?.url ?? null,
+    )).toBe(false);
   });
 
   it('holds pause sync while initial autoplay startup is still pending', () => {
