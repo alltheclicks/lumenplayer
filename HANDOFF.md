@@ -1,5 +1,15 @@
 # Handoff — Lumen Player
 
+## Session 2026-07-19 (nastavak) — Background/resume mrtav MSE pipeline: uzrok dokazan uživo + fix `3bd4b47`
+
+- **Kontekst:** posle dužeg background taba video ostane sa živim adapterom, ali mrtvim MSE pipeline-om (`readyState=0`, `videoWidth=0`, `buffered=[]`, `play()` → `NotSupportedError`). Commitovi `203ec6a`→`99b4517` (release `20260719T200833Z-99b4517`) dodali su resume/rebuild putanju, ali simptom je opstao.
+- **Dokazano da prod tab izvršava novi kod:** `player.exyu.tv` → nginx `root /var/www/lumen-current` → release `99b4517`; SW aktivan bez waiting verzije; tab učitao `assets/Player-CxJkf9sf.js` (sadrži `resumeAfterBackground`/`pipeline-rebuilt` markere). Pažnja: `/var/www/player` (11.7.) služi samo port-80 default vhost po IP-u — ne domen.
+- **Uzrok, uhvaćen uživo instrumentacijom prod taba (RTS 1, kanal 112):** kada se element isprazni, Chromium u `video.currentSrc` ZADRŽI stari (revokovani) MSE blob URL iako je `src` atribut prazan. `hasPlayableSource()` zbog `currentSrc` vrati `true` → `isMediaPipelineDetached()` vrati `false` → `resumeAfterBackground` odgovori `pipeline-already-usable` (osmotreno 3× u beacon-ima), `play()` odbije `NotSupportedError` (non-fatal, progutano) → crn ekran zauvek, sesija i dalje `playing`. Dodatno osmotren i asinhroni scenario: pipeline zdrav u trenutku resume snapshota, pa ispražnjen ~400ms kasnije (`emptied`+`loadstart`+`error "Empty src attribute"` = potpis `resetPlaybackState`/`stop()` flush-a) — dijagnoza "usable" tada takođe ostaje pogrešna.
+- **Fix `3bd4b47` (grana `codex/prod-background-hls-recovery`):** (1) `isMediaPipelineDetached()` tretira zaostali `blob:` src/currentSrc bez aktivnog engine-a i bez media podataka kao detached; (2) verdikt "already usable" se verifikuje — ako element u roku od 2.5s od foreground resume-a emituje `emptied`/`error` ili i dalje nema media podataka, pipeline se transparentno rebuild-uje iz ISTOG source-a (isti kanal, ista catch-up pozicija iz `session.positionMs`); guard preko `loadGeneration` sprečava da rebuild pregazi channel switch u toku. Bez `commands.setSource`.
+- **Validacija:** adapter unit 53/53 (3 nova testa: stale-blob rebuild, async-death rebuild, healthy-no-reload), ceo web suite 335/335, typecheck+lint ✅.
+- **NIJE URAĐENO — deploy:** `scripts/deploy/deploy-vps.sh web` blokiran permission classifier-om ove sesije; commit `3bd4b47` čeka deploy na VPS.
+- **Otvoreno pitanje (sekundarno):** šta tačno okida `stop()`/flush ~400ms posle foreground povratka (load-effect re-run sa ranim izlazom?) — verifikovani resume sada to sanira, ali koren te putanje nije identifikovan.
+
 ## Session 2026-07-12 — EXYU beta analytics, crash/replay dijagnostika i feedback UX
 
 - Implementiran first-party analytics tok bez PostHog/Sentry servisa: opciona analytics polja iz `lps1` SSO tokena se strogo validiraju, a proxy izdaje 24h AES-GCM autentifikovan HttpOnly/Secure/SameSite cookie vezan za opaque subject + session UUID. Legacy SSO tokeni bez analytics polja ostaju kompatibilni.
