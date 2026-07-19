@@ -541,6 +541,9 @@ export class HlsPlayerAdapter implements PlayerAdapter {
   // M1.1-e: throttled fatal NETWORK_ERROR recovery state.
   private networkErrorRecoveryTimer: ReturnType<typeof setTimeout> | null = null;
   private networkErrorRecoveryAttempts = 0;
+  private documentHidden = false;
+  private backgroundMediaRecoveryPending = false;
+  private backgroundNetworkRecoveryPending = false;
   private elementDecodeRecoveryAttempts = 0;
   private lastElementDecodeRecoveryAt = 0;
   private decodeRecoveryResumeAtSeconds: number | null = null;
@@ -682,6 +685,30 @@ export class HlsPlayerAdapter implements PlayerAdapter {
         fatal: false,
       });
     });
+  }
+
+  setDocumentHidden(hidden: boolean): void {
+    this.documentHidden = hidden;
+    if (hidden) {
+      return;
+    }
+
+    const hls = this.hls;
+    const recoverMedia = this.backgroundMediaRecoveryPending;
+    const recoverNetwork = this.backgroundNetworkRecoveryPending;
+    this.backgroundMediaRecoveryPending = false;
+    this.backgroundNetworkRecoveryPending = false;
+    if (!hls || (!recoverMedia && !recoverNetwork)) {
+      return;
+    }
+
+    this.updateState('buffering');
+    if (recoverMedia) {
+      hls.recoverMediaError();
+    }
+    if (recoverNetwork) {
+      hls.startLoad();
+    }
   }
 
   pause(): void {
@@ -1179,6 +1206,24 @@ export class HlsPlayerAdapter implements PlayerAdapter {
           const onHlsError = (_event: string, data: ErrorData) => {
             if (!this.isCurrentLoad(loadGeneration) || this.hls !== hls) {
               return;
+            }
+
+            if (data.fatal && this.documentHidden) {
+              const httpStatus = HlsPlayerAdapter.resolveNetworkHttpStatus(data.networkDetails);
+              const deferMediaRecovery = data.type === Hls.ErrorTypes.MEDIA_ERROR;
+              const deferNetworkRecovery = (
+                data.type === Hls.ErrorTypes.NETWORK_ERROR &&
+                !(typeof httpStatus === 'number' && HLS_NON_RETRYABLE_HTTP_STATUSES.has(httpStatus))
+              );
+              if (deferMediaRecovery || deferNetworkRecovery) {
+                this.backgroundMediaRecoveryPending ||= deferMediaRecovery;
+                this.backgroundNetworkRecoveryPending ||= deferNetworkRecovery;
+                this.errorListeners.forEach((listener) => listener({
+                  ...this.mapHlsError(data),
+                  fatal: false,
+                }));
+                return;
+              }
             }
 
             if (data.fatal && data.type === Hls.ErrorTypes.MEDIA_ERROR) {
@@ -1681,6 +1726,8 @@ export class HlsPlayerAdapter implements PlayerAdapter {
 
   private clearHls(): void {
     this.resetBufferingRecovery();
+    this.backgroundMediaRecoveryPending = false;
+    this.backgroundNetworkRecoveryPending = false;
     this.emitCatchUpRebaseSummaryIfAny();
     if (!this.hls) {
       this.hlsSourceMode = null;

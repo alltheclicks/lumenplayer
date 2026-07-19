@@ -26,6 +26,7 @@ import {
   sessionWantsPlayback,
   shouldPreservePlaybackIntentDuringBackgroundPause,
   shouldRecoverPlaybackAfterForeground,
+  shouldDeferPlaybackFailureWhileBackgrounded,
   shouldResolveProviderBlockingErrorAfterPlaybackError,
   shouldHoldPauseSyncOnSourceStartup,
   shouldRetryPendingAutoplayAfterPausedEvent,
@@ -657,6 +658,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
   const lastStartedSourceRef = useRef<string | null>(null);
   const manualPauseRequestedRef = useRef(false);
   const backgroundPlaybackIntentSourceRef = useRef<string | null>(null);
+  const backgroundPlaybackFailureReportedRef = useRef(false);
   const foregroundPlaybackRecoverySourceRef = useRef<string | null>(null);
   const liveUnexpectedPauseRecoverySourceRef = useRef<string | null>(null);
   const liveUnexpectedPauseRecoveryAttemptsRef = useRef(0);
@@ -695,6 +697,37 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
     setErrorState((currentErrorState) => (
       currentErrorState ?? buildPlayerErrorState(nextError, sessionRef.current.source)
     ));
+  }, []);
+
+  const deferPlaybackFailureWhileBackgrounded = useCallback((
+    errorCode: string,
+    message?: string,
+  ): boolean => {
+    const currentSession = sessionRef.current;
+    if (!shouldDeferPlaybackFailureWhileBackgrounded(currentSession, {
+      isDocumentHidden: document.visibilityState === 'hidden',
+      backgroundSourceUrl: backgroundPlaybackIntentSourceRef.current,
+      manualPauseRequested: manualPauseRequestedRef.current,
+    })) {
+      return false;
+    }
+
+    if (!backgroundPlaybackFailureReportedRef.current) {
+      backgroundPlaybackFailureReportedRef.current = true;
+      emitWebObservabilityEvent({
+        name: 'playback.retry',
+        severity: 'warn',
+        metadata: {
+          renderer: currentSession.renderer,
+          channelId: currentSession.source?.channelId ?? null,
+          playbackMode: currentSession.source?.metadata?.mode ?? null,
+          status: 'background_failure_deferred',
+          errorCode,
+          message: message ?? null,
+        },
+      });
+    }
+    return true;
   }, []);
 
   const recordCatchUpRuntimeCompatibility = useCallback((
@@ -1011,6 +1044,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
   }, [session]);
 
   useEffect(() => {
+    let foregroundResumeRetryTimer: ReturnType<typeof setTimeout> | null = null;
     const handleVisibilityChange = () => {
       const currentSession = sessionRef.current;
       const currentSource = currentSession.source;
@@ -1022,21 +1056,21 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
           (currentSource.metadata?.mode === 'live' || currentSource.metadata?.mode === 'catchup')
         ) {
           backgroundPlaybackIntentSourceRef.current = currentSource.url;
+          backgroundPlaybackFailureReportedRef.current = false;
+          adapterRef.current?.setDocumentHidden(true);
         }
         return;
       }
 
       const backgroundSourceUrl = backgroundPlaybackIntentSourceRef.current;
       backgroundPlaybackIntentSourceRef.current = null;
+      backgroundPlaybackFailureReportedRef.current = false;
       const adapter = adapterRef.current;
-      const mediaElement = videoRef.current;
+      adapter?.setDocumentHidden(false);
       if (
         !adapter ||
-        !mediaElement ||
         !shouldRecoverPlaybackAfterForeground(currentSession, {
           backgroundSourceUrl,
-          mediaPaused: mediaElement.paused,
-          adapterState: adapter.getState(),
         })
       ) {
         return;
@@ -1051,24 +1085,23 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
       )
         ? source.metadata as Record<string, unknown>
         : {};
-      const resumePositionMs = sourceMetadata.mode === 'catchup'
-        ? resolveRuntimeCatchUpTimelinePositionMs(source, adapter.getCurrentTime())
-        : 0;
-
       foregroundPlaybackRecoverySourceRef.current = source.url;
       pendingAutoplaySourceUrlRef.current = source.url;
       setError(null);
-      setIsPlaying(true);
-      setIsLoading(true);
-      resetLoadingProgress(sourceMetadata.mode === 'catchup' ? 'segment' : 'requesting');
-      commands.setSource({
-        ...source,
-        metadata: {
-          ...sourceMetadata,
-          loadKey: Date.now(),
-        },
-      }, resumePositionMs);
       commands.play();
+      adapter.play();
+      if (foregroundResumeRetryTimer !== null) {
+        clearTimeout(foregroundResumeRetryTimer);
+      }
+      foregroundResumeRetryTimer = setTimeout(() => {
+        foregroundResumeRetryTimer = null;
+        if (
+          document.visibilityState === 'visible' &&
+          foregroundPlaybackRecoverySourceRef.current === source.url
+        ) {
+          adapterRef.current?.play();
+        }
+      }, 750);
       emitWebObservabilityEvent({
         name: 'playback.retry',
         severity: 'warn',
@@ -1077,8 +1110,8 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
           channelId: source.channelId ?? null,
           streamId: sourceMetadata.streamId ?? null,
           playbackMode: sourceMetadata.mode ?? null,
-          status: 'foreground_resume_reload',
-          errorCode: 'BACKGROUND_PLAYBACK_INTERRUPTED',
+          status: 'foreground_resume_in_place',
+          errorCode: 'BACKGROUND_PLAYBACK_RESUME',
         },
       });
     };
@@ -1088,11 +1121,12 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('pageshow', handleVisibilityChange);
+      if (foregroundResumeRetryTimer !== null) {
+        clearTimeout(foregroundResumeRetryTimer);
+      }
     };
   }, [
     commands,
-    resetLoadingProgress,
-    resolveRuntimeCatchUpTimelinePositionMs,
     setError,
   ]);
 
@@ -1572,9 +1606,15 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
     play: () => adapterRef.current?.play(),
     pause: () => {
       manualPauseRequestedRef.current = true;
+      backgroundPlaybackIntentSourceRef.current = null;
+      foregroundPlaybackRecoverySourceRef.current = null;
       adapterRef.current?.pause();
     },
-    stop: () => adapterRef.current?.stop(),
+    stop: () => {
+      backgroundPlaybackIntentSourceRef.current = null;
+      foregroundPlaybackRecoverySourceRef.current = null;
+      adapterRef.current?.stop();
+    },
     seek: (time: number) => {
       const targetPositionMs = Math.floor(Math.max(0, time) * 1000);
       const source = sessionRef.current.source;
@@ -2388,6 +2428,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
       }
 
       if (state === 'playing') {
+        foregroundPlaybackRecoverySourceRef.current = null;
         clearLiveNoFrameWatchdog();
         const playingMediaElement = videoRef.current;
         const isCatchUpPlaying = currentSession.source?.metadata?.mode === 'catchup';
@@ -2634,6 +2675,9 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
       }
 
       if (state === 'idle') {
+        if (deferPlaybackFailureWhileBackgrounded('BACKGROUND_PLAYBACK_IDLE')) {
+          return;
+        }
         const shouldKeepPendingAutoplay = shouldKeepPendingAutoplayOnIdle(
           currentSession,
           pendingAutoplaySourceUrlRef.current
@@ -2659,6 +2703,13 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
         mediaElement.readyState >= 2 &&
         mediaElement.videoWidth > 0
       );
+
+      if (deferPlaybackFailureWhileBackgrounded(
+        playbackError.code,
+        playbackError.message,
+      )) {
+        return;
+      }
 
       // Catch-up shadow step-aside: the MP2->AAC shadow endpoint answers 409 when
       // the channel is already browser-playable (AAC/MP3), telling us to use the
@@ -3132,6 +3183,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
     clearCatchUpSeekWatchdog,
     clearLoadingProgress,
     commands,
+    deferPlaybackFailureWhileBackgrounded,
     getCatchUpRuntimeTimelineAnchor,
     mapPlaybackError,
     rememberCatchUpRuntimeTimelineAnchor,

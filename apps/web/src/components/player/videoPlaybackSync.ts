@@ -1,5 +1,5 @@
 import type { SessionSource, SessionState } from '@lumen/session-core';
-import type { PlaybackError, PlaybackState } from '@lumen/types';
+import type { PlaybackError } from '@lumen/types';
 
 export type PlaybackFailureTelemetryDisposition = 'deferred' | 'rendering-continues' | 'terminal';
 
@@ -45,24 +45,35 @@ export const shouldPreservePlaybackIntentDuringBackgroundPause = (
 );
 
 export const shouldRecoverPlaybackAfterForeground = (
-  session: Pick<SessionState, 'source' | 'playback'>,
+  session: Pick<SessionState, 'source'>,
   recovery: {
     backgroundSourceUrl: string | null;
-    mediaPaused: boolean;
-    adapterState: PlaybackState;
   },
 ): boolean => {
   const source = session.source;
-  if (
-    !source ||
-    source.url !== recovery.backgroundSourceUrl ||
-    !sessionWantsPlayback(session) ||
-    (source.metadata?.mode !== 'live' && source.metadata?.mode !== 'catchup')
-  ) {
-    return false;
-  }
+  return Boolean(
+    source &&
+    source.url === recovery.backgroundSourceUrl &&
+    (source.metadata?.mode === 'live' || source.metadata?.mode === 'catchup')
+  );
+};
 
-  return recovery.mediaPaused || recovery.adapterState !== 'playing';
+export const shouldDeferPlaybackFailureWhileBackgrounded = (
+  session: Pick<SessionState, 'source'>,
+  failure: {
+    isDocumentHidden: boolean;
+    backgroundSourceUrl: string | null;
+    manualPauseRequested: boolean;
+  },
+): boolean => {
+  const source = session.source;
+  return Boolean(
+    failure.isDocumentHidden &&
+    !failure.manualPauseRequested &&
+    source &&
+    source.url === failure.backgroundSourceUrl &&
+    (source.metadata?.mode === 'live' || source.metadata?.mode === 'catchup')
+  );
 };
 
 const isLiveSourceMode = (session: SessionState): boolean => {
@@ -173,7 +184,7 @@ export const shouldResolveProviderBlockingErrorAfterPlaybackError = (
     return true;
   }
 
-  return !media.hasRenderableFrame;
+  return playbackError.fatal && !media.hasRenderableFrame;
 };
 
 export const shouldClearPendingAutoplayOnPlaybackError = (

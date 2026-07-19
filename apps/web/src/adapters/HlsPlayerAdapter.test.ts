@@ -1396,6 +1396,77 @@ describe('HlsPlayerAdapter', () => {
     expect(hls?.destroy).not.toHaveBeenCalled();
   });
 
+  it('defers fatal media teardown while hidden and recovers the same HLS instance on foreground', async () => {
+    const video = createMockVideoElement();
+    const adapter = new HlsPlayerAdapter(video);
+    const source = {
+      url: 'https://example.com/live.m3u8',
+      type: 'hls' as const,
+      title: 'Live',
+      metadata: { mode: 'live' },
+    };
+    const errors: Array<{ code: string; fatal: boolean }> = [];
+    adapter.onError((error) => errors.push({ code: error.code, fatal: error.fatal }));
+
+    const loadPromise = adapter.load(source);
+    const hls = hlsMockState.instances.at(-1);
+    hls?.emit(hlsMockState.MockHls.Events.MANIFEST_LOADED, { url: source.url });
+    hls?.emit(hlsMockState.MockHls.Events.MANIFEST_PARSED);
+    await loadPromise;
+
+    adapter.setDocumentHidden(true);
+    for (let attempt = 0; attempt < 6; attempt += 1) {
+      hls?.emit(hlsMockState.MockHls.Events.ERROR, {
+        fatal: true,
+        type: hlsMockState.MockHls.ErrorTypes.MEDIA_ERROR,
+        details: 'bufferAppendError',
+      });
+    }
+
+    expect(hls?.recoverMediaError).not.toHaveBeenCalled();
+    expect(hls?.destroy).not.toHaveBeenCalled();
+    expect(errors).toEqual(Array.from({ length: 6 }, () => ({
+      code: 'MEDIA_ERROR',
+      fatal: false,
+    })));
+
+    adapter.setDocumentHidden(false);
+    expect(hls?.recoverMediaError).toHaveBeenCalledTimes(1);
+    expect(hls?.destroy).not.toHaveBeenCalled();
+  });
+
+  it('defers retryable fatal network recovery while hidden and resumes loading on foreground', async () => {
+    const video = createMockVideoElement();
+    const adapter = new HlsPlayerAdapter(video);
+    const source = {
+      url: 'https://example.com/live.m3u8',
+      type: 'hls' as const,
+      title: 'Live',
+      metadata: { mode: 'live' },
+    };
+
+    const loadPromise = adapter.load(source);
+    const hls = hlsMockState.instances.at(-1);
+    hls?.emit(hlsMockState.MockHls.Events.MANIFEST_LOADED, { url: source.url });
+    hls?.emit(hlsMockState.MockHls.Events.MANIFEST_PARSED);
+    await loadPromise;
+
+    adapter.setDocumentHidden(true);
+    hls?.emit(hlsMockState.MockHls.Events.ERROR, {
+      fatal: true,
+      type: hlsMockState.MockHls.ErrorTypes.NETWORK_ERROR,
+      details: 'fragLoadError',
+      networkDetails: { status: 503 },
+    });
+
+    expect(hls?.startLoad).not.toHaveBeenCalled();
+    expect(hls?.destroy).not.toHaveBeenCalled();
+
+    adapter.setDocumentHidden(false);
+    expect(hls?.startLoad).toHaveBeenCalledTimes(1);
+    expect(hls?.destroy).not.toHaveBeenCalled();
+  });
+
   it('keeps recovering consecutive catch-up media errors before surfacing the failure', async () => {
     const video = createMockVideoElement();
     const adapter = new HlsPlayerAdapter(video);

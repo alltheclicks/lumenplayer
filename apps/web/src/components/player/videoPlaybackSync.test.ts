@@ -6,6 +6,7 @@ import {
   sessionWantsPlayback,
   shouldPreservePlaybackIntentDuringBackgroundPause,
   shouldRecoverPlaybackAfterForeground,
+  shouldDeferPlaybackFailureWhileBackgrounded,
   shouldKeepPendingAutoplayOnIdle,
   shouldResolveProviderBlockingErrorAfterPlaybackError,
   shouldRetryPendingAutoplayAfterPausedEvent,
@@ -164,23 +165,44 @@ describe('videoPlaybackSync', () => {
 
     expect(shouldRecoverPlaybackAfterForeground(liveSession, {
       backgroundSourceUrl: liveSession.source?.url ?? null,
-      mediaPaused: true,
-      adapterState: 'paused',
     })).toBe(true);
     expect(shouldRecoverPlaybackAfterForeground(catchUpSession, {
       backgroundSourceUrl: catchUpSession.source?.url ?? null,
-      mediaPaused: false,
-      adapterState: 'buffering',
     })).toBe(true);
-    expect(shouldRecoverPlaybackAfterForeground(liveSession, {
-      backgroundSourceUrl: liveSession.source?.url ?? null,
-      mediaPaused: false,
-      adapterState: 'playing',
-    })).toBe(false);
+    expect(shouldRecoverPlaybackAfterForeground(
+      buildSession({ playback: 'paused', source: liveSession.source }),
+      { backgroundSourceUrl: liveSession.source?.url ?? null },
+    )).toBe(true);
     expect(shouldRecoverPlaybackAfterForeground(liveSession, {
       backgroundSourceUrl: 'https://example.com/other.m3u8',
-      mediaPaused: true,
-      adapterState: 'paused',
+    })).toBe(false);
+  });
+
+  it('defers failures only for the live or catch-up source whose intent was captured while hidden', () => {
+    const session = buildSession({
+      playback: 'paused',
+      source: {
+        url: 'https://example.com/live.m3u8',
+        type: 'hls',
+        title: 'Live',
+        metadata: { mode: 'live' },
+      },
+    });
+
+    expect(shouldDeferPlaybackFailureWhileBackgrounded(session, {
+      isDocumentHidden: true,
+      backgroundSourceUrl: session.source?.url ?? null,
+      manualPauseRequested: false,
+    })).toBe(true);
+    expect(shouldDeferPlaybackFailureWhileBackgrounded(session, {
+      isDocumentHidden: false,
+      backgroundSourceUrl: session.source?.url ?? null,
+      manualPauseRequested: false,
+    })).toBe(false);
+    expect(shouldDeferPlaybackFailureWhileBackgrounded(session, {
+      isDocumentHidden: true,
+      backgroundSourceUrl: session.source?.url ?? null,
+      manualPauseRequested: true,
     })).toBe(false);
   });
 
@@ -300,7 +322,7 @@ describe('videoPlaybackSync', () => {
       fatal: false,
     }, {
       hasRenderableFrame: false,
-    })).toBe(true);
+    })).toBe(false);
     expect(shouldResolveProviderBlockingErrorAfterPlaybackError(liveSession, {
       fatal: true,
     }, {
