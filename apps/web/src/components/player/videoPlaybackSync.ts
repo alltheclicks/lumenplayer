@@ -35,10 +35,15 @@ export const shouldPreservePlaybackIntentDuringBackgroundPause = (
   pause: {
     isDocumentHidden: boolean;
     isForegroundRecoveryPending: boolean;
+    isBackgroundPlaybackIntent?: boolean;
     manualPauseRequested: boolean;
   },
 ): boolean => (
-  (pause.isDocumentHidden || pause.isForegroundRecoveryPending) &&
+  (
+    pause.isDocumentHidden ||
+    pause.isForegroundRecoveryPending ||
+    pause.isBackgroundPlaybackIntent === true
+  ) &&
   !pause.manualPauseRequested &&
   Boolean(session.source) &&
   sessionWantsPlayback(session)

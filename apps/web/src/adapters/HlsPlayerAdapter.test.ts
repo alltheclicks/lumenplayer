@@ -59,8 +59,12 @@ const hlsMockState = vi.hoisted(() => {
     });
 
     readonly loadSource = vi.fn();
-    readonly attachMedia = vi.fn();
-    readonly detachMedia = vi.fn();
+    readonly attachMedia = vi.fn((media: HTMLMediaElement) => {
+      this.media = media;
+    });
+    readonly detachMedia = vi.fn(() => {
+      this.media = null;
+    });
     readonly stopLoad = vi.fn();
     readonly startLoad = vi.fn();
     readonly recoverMediaError = vi.fn();
@@ -70,6 +74,7 @@ const hlsMockState = vi.hoisted(() => {
     readonly config: unknown;
     audioTrack = -1;
     subtitleTrack = -1;
+    media: HTMLMediaElement | null = null;
 
     private readonly handlers = new Map<string, Array<(...args: unknown[]) => void>>();
 
@@ -1465,6 +1470,119 @@ describe('HlsPlayerAdapter', () => {
     adapter.setDocumentHidden(false);
     expect(hls?.startLoad).toHaveBeenCalledTimes(1);
     expect(hls?.destroy).not.toHaveBeenCalled();
+  });
+
+  it('resumes a still-usable background HLS pipeline without reloading the source', async () => {
+    const video = createMockVideoElement();
+    const mutableVideo = video as unknown as {
+      readyState: number;
+      videoWidth: number;
+    };
+    const adapter = new HlsPlayerAdapter(video);
+    const source = {
+      url: 'https://example.com/live.m3u8',
+      type: 'hls' as const,
+      title: 'Live',
+      metadata: { mode: 'live' },
+    };
+
+    const loadPromise = adapter.load(source);
+    const hls = hlsMockState.instances.at(-1);
+    hls?.emit(hlsMockState.MockHls.Events.MANIFEST_LOADED, { url: source.url });
+    hls?.emit(hlsMockState.MockHls.Events.MANIFEST_PARSED);
+    await loadPromise;
+    mutableVideo.readyState = 2;
+    mutableVideo.videoWidth = 1920;
+
+    adapter.setDocumentHidden(true);
+    hls?.emit(hlsMockState.MockHls.Events.ERROR, {
+      fatal: true,
+      type: hlsMockState.MockHls.ErrorTypes.NETWORK_ERROR,
+      details: 'fragLoadError',
+      networkDetails: { status: 503 },
+    });
+
+    const result = await adapter.resumeAfterBackground(source);
+
+    expect(result).toBe('pipeline-recovered');
+    expect(hls?.startLoad).toHaveBeenCalledTimes(1);
+    expect(hls?.destroy).not.toHaveBeenCalled();
+    expect(video.play).toHaveBeenCalledTimes(1);
+  });
+
+  it('rebuilds a detached background HLS pipeline once for duplicate foreground events', async () => {
+    const video = createMockVideoElement();
+    const adapter = new HlsPlayerAdapter(video);
+    const source = {
+      url: 'https://example.com/live.m3u8',
+      type: 'hls' as const,
+      title: 'Live',
+      metadata: { mode: 'live' },
+    };
+
+    const initialLoadPromise = adapter.load(source);
+    const initialHls = hlsMockState.instances.at(-1);
+    initialHls?.emit(hlsMockState.MockHls.Events.MANIFEST_LOADED, { url: source.url });
+    initialHls?.emit(hlsMockState.MockHls.Events.MANIFEST_PARSED);
+    await initialLoadPromise;
+
+    adapter.setDocumentHidden(true);
+    const firstResume = adapter.resumeAfterBackground(source);
+    const duplicateResume = adapter.resumeAfterBackground(source);
+    expect(duplicateResume).toBe(firstResume);
+
+    await vi.waitFor(() => {
+      expect(hlsMockState.instances.at(-1)).not.toBe(initialHls);
+    });
+    const rebuiltHls = hlsMockState.instances.at(-1);
+    rebuiltHls?.emit(hlsMockState.MockHls.Events.MANIFEST_LOADED, { url: source.url });
+    rebuiltHls?.emit(hlsMockState.MockHls.Events.MANIFEST_PARSED);
+
+    await expect(firstResume).resolves.toBe('pipeline-rebuilt');
+    expect(initialHls?.destroy).toHaveBeenCalledTimes(1);
+    expect(rebuiltHls?.loadSource).toHaveBeenCalledWith(source.url);
+    expect(video.play).toHaveBeenCalledTimes(1);
+  });
+
+  it('rebuilds detached catch-up at the supplied persisted position', async () => {
+    const video = createMockVideoElement();
+    const adapter = new HlsPlayerAdapter(video);
+    const source = {
+      url: 'https://example.com/archive.m3u8',
+      type: 'hls' as const,
+      title: 'Archive',
+      metadata: {
+        mode: 'catchup',
+        catchUpHlsStartPositionSeconds: 3,
+      },
+    };
+
+    const initialLoadPromise = adapter.load(source);
+    const initialHls = hlsMockState.instances.at(-1);
+    initialHls?.emit(hlsMockState.MockHls.Events.MANIFEST_LOADED, { url: source.url });
+    initialHls?.emit(hlsMockState.MockHls.Events.MANIFEST_PARSED);
+    await initialLoadPromise;
+
+    adapter.setDocumentHidden(true);
+    const resumedSource = {
+      ...source,
+      metadata: {
+        ...source.metadata,
+        catchUpHlsStartPositionSeconds: 147,
+      },
+    };
+    const resumePromise = adapter.resumeAfterBackground(resumedSource);
+    await vi.waitFor(() => {
+      expect(hlsMockState.instances.at(-1)).not.toBe(initialHls);
+    });
+    const rebuiltHls = hlsMockState.instances.at(-1);
+    rebuiltHls?.emit(hlsMockState.MockHls.Events.MANIFEST_LOADED, { url: source.url });
+    rebuiltHls?.emit(hlsMockState.MockHls.Events.MANIFEST_PARSED);
+
+    await expect(resumePromise).resolves.toBe('pipeline-rebuilt');
+    expect(rebuiltHls?.config).toEqual(expect.objectContaining({
+      startPosition: 147,
+    }));
   });
 
   it('keeps recovering consecutive catch-up media errors before surfacing the failure', async () => {

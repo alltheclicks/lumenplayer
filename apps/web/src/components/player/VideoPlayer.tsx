@@ -706,7 +706,10 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
   ): boolean => {
     const currentSession = sessionRef.current;
     if (!shouldDeferPlaybackFailureWhileBackgrounded(currentSession, {
-      isDocumentHidden: document.visibilityState === 'hidden',
+      isDocumentHidden: (
+        document.visibilityState === 'hidden' ||
+        backgroundPlaybackIntentSourceRef.current === currentSession.source?.url
+      ),
       backgroundSourceUrl: backgroundPlaybackIntentSourceRef.current,
       manualPauseRequested: manualPauseRequestedRef.current,
     })) {
@@ -1045,35 +1048,35 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
   }, [session]);
 
   useEffect(() => {
-    let foregroundResumeRetryTimer: ReturnType<typeof setTimeout> | null = null;
-    const handleVisibilityChange = () => {
+    const markPlaybackBackgrounded = () => {
       const currentSession = sessionRef.current;
       const currentSource = currentSession.source;
+      if (
+        currentSource &&
+        sessionWantsPlayback(currentSession) &&
+        (currentSource.metadata?.mode === 'live' || currentSource.metadata?.mode === 'catchup')
+      ) {
+        backgroundPlaybackIntentSourceRef.current = currentSource.url;
+        backgroundPlaybackFailureReportedRef.current = false;
+        adapterRef.current?.setDocumentHidden(true);
+      }
+    };
 
+    const resumePlaybackInForeground = () => {
       if (document.visibilityState === 'hidden') {
-        if (
-          currentSource &&
-          sessionWantsPlayback(currentSession) &&
-          (currentSource.metadata?.mode === 'live' || currentSource.metadata?.mode === 'catchup')
-        ) {
-          backgroundPlaybackIntentSourceRef.current = currentSource.url;
-          backgroundPlaybackFailureReportedRef.current = false;
-          adapterRef.current?.setDocumentHidden(true);
-        }
         return;
       }
 
+      const currentSession = sessionRef.current;
       const backgroundSourceUrl = backgroundPlaybackIntentSourceRef.current;
-      backgroundPlaybackIntentSourceRef.current = null;
-      backgroundPlaybackFailureReportedRef.current = false;
       const adapter = adapterRef.current;
-      adapter?.setDocumentHidden(false);
       if (
         !adapter ||
         !shouldRecoverPlaybackAfterForeground(currentSession, {
           backgroundSourceUrl,
         })
       ) {
+        adapter?.setDocumentHidden(false);
         return;
       }
 
@@ -1081,53 +1084,103 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
       if (!source) {
         return;
       }
+      backgroundPlaybackIntentSourceRef.current = null;
+      backgroundPlaybackFailureReportedRef.current = false;
       const sourceMetadata = (
         typeof source.metadata === 'object' && source.metadata !== null
       )
         ? source.metadata as Record<string, unknown>
         : {};
+      const isCatchUpSource = sourceMetadata.mode === 'catchup';
+      const catchUpStartPositionSeconds = isCatchUpSource
+        ? resolveRuntimeCatchUpMediaSeekTimeSeconds(
+          source,
+          currentSession.positionMs,
+          resolveCatchUpMinimumHlsStartPositionSeconds(source),
+        )
+        : 0;
+      const sourceForAdapter = {
+        url: source.url,
+        type: source.type,
+        metadata: {
+          ...sourceMetadata,
+          ...(isCatchUpSource && catchUpStartPositionSeconds > 0
+            ? { catchUpHlsStartPositionSeconds: catchUpStartPositionSeconds }
+            : {}),
+          ...(isCatchUpSource && usesMediaKingCatchUpManifestGuard(source)
+            ? { catchUpHlsStartupMode: 'progressive' }
+            : {}),
+        },
+      };
       foregroundPlaybackRecoverySourceRef.current = source.url;
       pendingAutoplaySourceUrlRef.current = source.url;
       setError(null);
       commands.play();
-      adapter.play();
-      if (foregroundResumeRetryTimer !== null) {
-        clearTimeout(foregroundResumeRetryTimer);
-      }
-      foregroundResumeRetryTimer = setTimeout(() => {
-        foregroundResumeRetryTimer = null;
-        if (
-          document.visibilityState === 'visible' &&
-          foregroundPlaybackRecoverySourceRef.current === source.url
-        ) {
-          adapterRef.current?.play();
+      void adapter.resumeAfterBackground(sourceForAdapter).then((result) => {
+        if (sessionRef.current.source?.url !== source.url) {
+          return;
         }
-      }, 750);
-      emitWebObservabilityEvent({
-        name: 'playback.retry',
-        severity: 'warn',
-        metadata: {
-          renderer: currentSession.renderer,
-          channelId: source.channelId ?? null,
-          streamId: sourceMetadata.streamId ?? null,
-          playbackMode: sourceMetadata.mode ?? null,
-          status: 'foreground_resume_in_place',
-          errorCode: 'BACKGROUND_PLAYBACK_RESUME',
-        },
+        emitWebObservabilityEvent({
+          name: 'playback.retry',
+          severity: 'warn',
+          metadata: {
+            renderer: sessionRef.current.renderer,
+            channelId: source.channelId ?? null,
+            streamId: sourceMetadata.streamId ?? null,
+            playbackMode: sourceMetadata.mode ?? null,
+            status: result.replace(/-/g, '_'),
+            errorCode: 'BACKGROUND_PLAYBACK_RESUME',
+          },
+        });
+      }).catch((recoveryError: unknown) => {
+        if (sessionRef.current.source?.url !== source.url) {
+          return;
+        }
+        foregroundPlaybackRecoverySourceRef.current = null;
+        emitWebObservabilityEvent({
+          name: 'playback.error',
+          severity: 'error',
+          metadata: {
+            renderer: sessionRef.current.renderer,
+            channelId: source.channelId ?? null,
+            streamId: sourceMetadata.streamId ?? null,
+            playbackMode: sourceMetadata.mode ?? null,
+            status: 'foreground_pipeline_rebuild_failed',
+            errorCode: 'BACKGROUND_PLAYBACK_RESUME_FAILED',
+            message: recoveryError instanceof Error ? recoveryError.message : String(recoveryError),
+          },
+        });
       });
     };
 
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        markPlaybackBackgrounded();
+        return;
+      }
+      resumePlaybackInForeground();
+    };
+
     document.addEventListener('visibilitychange', handleVisibilityChange);
-    window.addEventListener('pageshow', handleVisibilityChange);
+    document.addEventListener('freeze', markPlaybackBackgrounded);
+    document.addEventListener('resume', resumePlaybackInForeground);
+    window.addEventListener('blur', markPlaybackBackgrounded);
+    window.addEventListener('focus', resumePlaybackInForeground);
+    window.addEventListener('pagehide', markPlaybackBackgrounded);
+    window.addEventListener('pageshow', resumePlaybackInForeground);
+    handleVisibilityChange();
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('pageshow', handleVisibilityChange);
-      if (foregroundResumeRetryTimer !== null) {
-        clearTimeout(foregroundResumeRetryTimer);
-      }
+      document.removeEventListener('freeze', markPlaybackBackgrounded);
+      document.removeEventListener('resume', resumePlaybackInForeground);
+      window.removeEventListener('blur', markPlaybackBackgrounded);
+      window.removeEventListener('focus', resumePlaybackInForeground);
+      window.removeEventListener('pagehide', markPlaybackBackgrounded);
+      window.removeEventListener('pageshow', resumePlaybackInForeground);
     };
   }, [
     commands,
+    resolveRuntimeCatchUpMediaSeekTimeSeconds,
     setError,
   ]);
 
@@ -2269,6 +2322,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
       },
     });
     adapterRef.current = adapter;
+    adapter.setDocumentHidden(document.visibilityState === 'hidden');
 
     const unsubscribeState = adapter.onStateChange((state) => {
       const currentSession = sessionRef.current;
@@ -2538,6 +2592,9 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
           isDocumentHidden: document.visibilityState === 'hidden',
           isForegroundRecoveryPending: (
             foregroundPlaybackRecoverySourceRef.current === currentSession.source?.url
+          ),
+          isBackgroundPlaybackIntent: (
+            backgroundPlaybackIntentSourceRef.current === currentSession.source?.url
           ),
           manualPauseRequested,
         })) {

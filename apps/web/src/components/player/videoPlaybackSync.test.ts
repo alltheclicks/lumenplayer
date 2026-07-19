@@ -142,6 +142,12 @@ describe('videoPlaybackSync', () => {
       isForegroundRecoveryPending: true,
       manualPauseRequested: false,
     })).toBe(true);
+    expect(shouldPreservePlaybackIntentDuringBackgroundPause(liveSession, {
+      isDocumentHidden: false,
+      isForegroundRecoveryPending: false,
+      isBackgroundPlaybackIntent: true,
+      manualPauseRequested: false,
+    })).toBe(true);
   });
 
   it('recovers an interrupted live or catch-up source once it returns to the foreground', () => {

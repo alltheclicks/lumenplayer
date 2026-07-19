@@ -135,6 +135,11 @@ type PlaybackMetadataCarrier = MediaSource & {
 type CatchUpHlsStartupMode = 'progressive' | 'complete';
 type HlsSourceMode = 'live' | 'catchup' | 'other';
 
+export type BackgroundPlaybackResumeResult =
+  | 'pipeline-already-usable'
+  | 'pipeline-recovered'
+  | 'pipeline-rebuilt';
+
 type HlsLoaderResponse = { data?: unknown; [key: string]: unknown };
 type HlsLoaderCallbacks = {
   onSuccess: (
@@ -544,6 +549,8 @@ export class HlsPlayerAdapter implements PlayerAdapter {
   private documentHidden = false;
   private backgroundMediaRecoveryPending = false;
   private backgroundNetworkRecoveryPending = false;
+  private backgroundResumePromise: Promise<BackgroundPlaybackResumeResult> | null = null;
+  private backgroundResumeSourceUrl: string | null = null;
   private elementDecodeRecoveryAttempts = 0;
   private lastElementDecodeRecoveryAt = 0;
   private decodeRecoveryResumeAtSeconds: number | null = null;
@@ -693,13 +700,61 @@ export class HlsPlayerAdapter implements PlayerAdapter {
       return;
     }
 
+    this.recoverDeferredBackgroundFailures();
+  }
+
+  resumeAfterBackground(source: MediaSource): Promise<BackgroundPlaybackResumeResult> {
+    if (
+      this.backgroundResumePromise &&
+      this.backgroundResumeSourceUrl === source.url
+    ) {
+      return this.backgroundResumePromise;
+    }
+
+    const resumePromise = this.resumeMediaPipelineAfterBackground(source);
+    this.backgroundResumePromise = resumePromise;
+    this.backgroundResumeSourceUrl = source.url;
+    const clearResumePromise = () => {
+      if (this.backgroundResumePromise === resumePromise) {
+        this.backgroundResumePromise = null;
+        this.backgroundResumeSourceUrl = null;
+      }
+    };
+    void resumePromise.then(clearResumePromise, clearResumePromise);
+    return resumePromise;
+  }
+
+  private async resumeMediaPipelineAfterBackground(
+    source: MediaSource,
+  ): Promise<BackgroundPlaybackResumeResult> {
+    this.documentHidden = false;
+
+    // Chromium may suspend or discard the MediaSource backing a background
+    // video while leaving both our Hls instance and the logical session alive.
+    // In that state video.play() rejects with "no supported sources". Rebuild
+    // only the media pipeline from the same source; the channel/session/UI stay
+    // untouched.
+    if (this.isMediaPipelineDetached()) {
+      this.backgroundMediaRecoveryPending = false;
+      this.backgroundNetworkRecoveryPending = false;
+      await this.load(source);
+      this.play();
+      return 'pipeline-rebuilt';
+    }
+
+    const recovered = this.recoverDeferredBackgroundFailures();
+    this.play();
+    return recovered ? 'pipeline-recovered' : 'pipeline-already-usable';
+  }
+
+  private recoverDeferredBackgroundFailures(): boolean {
     const hls = this.hls;
     const recoverMedia = this.backgroundMediaRecoveryPending;
     const recoverNetwork = this.backgroundNetworkRecoveryPending;
     this.backgroundMediaRecoveryPending = false;
     this.backgroundNetworkRecoveryPending = false;
     if (!hls || (!recoverMedia && !recoverNetwork)) {
-      return;
+      return false;
     }
 
     this.updateState('buffering');
@@ -709,6 +764,26 @@ export class HlsPlayerAdapter implements PlayerAdapter {
     if (recoverNetwork) {
       hls.startLoad();
     }
+    return true;
+  }
+
+  private isMediaPipelineDetached(): boolean {
+    const hasMediaData = (
+      this.video.readyState > 0 ||
+      this.video.videoWidth > 0 ||
+      this.video.buffered.length > 0
+    );
+
+    if (this.hls) {
+      const attachedMedia = this.hls.media;
+      return attachedMedia !== this.video || !hasMediaData;
+    }
+
+    if (this.nativeHlsLoaded) {
+      return !hasMediaData;
+    }
+
+    return !this.hasPlayableSource();
   }
 
   pause(): void {
