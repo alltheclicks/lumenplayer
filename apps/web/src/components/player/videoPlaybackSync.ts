@@ -30,6 +30,8 @@ export const sessionWantsPlayback = (session: Pick<SessionState, 'playback'>): b
   session.playback === 'playing' || session.playback === 'buffering'
 );
 
+export const BACKGROUND_PLAYBACK_RELOAD_AFTER_MS = 30_000;
+
 export const shouldPreservePlaybackIntentDuringBackgroundPause = (
   session: Pick<SessionState, 'source' | 'playback'>,
   pause: {
@@ -45,9 +47,10 @@ export const shouldPreservePlaybackIntentDuringBackgroundPause = (
 );
 
 export const shouldRecoverPlaybackAfterForeground = (
-  session: Pick<SessionState, 'source' | 'playback'>,
+  session: Pick<SessionState, 'source'>,
   recovery: {
     backgroundSourceUrl: string | null;
+    backgroundedDurationMs: number;
     mediaPaused: boolean;
     adapterState: PlaybackState;
   },
@@ -56,13 +59,34 @@ export const shouldRecoverPlaybackAfterForeground = (
   if (
     !source ||
     source.url !== recovery.backgroundSourceUrl ||
-    !sessionWantsPlayback(session) ||
     (source.metadata?.mode !== 'live' && source.metadata?.mode !== 'catchup')
   ) {
     return false;
   }
 
-  return recovery.mediaPaused || recovery.adapterState !== 'playing';
+  return (
+    recovery.backgroundedDurationMs >= BACKGROUND_PLAYBACK_RELOAD_AFTER_MS ||
+    recovery.mediaPaused ||
+    recovery.adapterState !== 'playing'
+  );
+};
+
+export const shouldDeferPlaybackFailureWhileBackgrounded = (
+  session: Pick<SessionState, 'source'>,
+  failure: {
+    isDocumentHidden: boolean;
+    backgroundSourceUrl: string | null;
+    manualPauseRequested: boolean;
+  },
+): boolean => {
+  const source = session.source;
+  return Boolean(
+    failure.isDocumentHidden &&
+    !failure.manualPauseRequested &&
+    source &&
+    source.url === failure.backgroundSourceUrl &&
+    (source.metadata?.mode === 'live' || source.metadata?.mode === 'catchup')
+  );
 };
 
 const isLiveSourceMode = (session: SessionState): boolean => {
