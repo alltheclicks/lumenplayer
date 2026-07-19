@@ -1,5 +1,5 @@
 import type { SessionSource, SessionState } from '@lumen/session-core';
-import type { PlaybackError } from '@lumen/types';
+import type { PlaybackError, PlaybackState } from '@lumen/types';
 
 export type PlaybackFailureTelemetryDisposition = 'deferred' | 'rendering-continues' | 'terminal';
 
@@ -29,6 +29,41 @@ export const resolvePlaybackFailureTelemetry = (
 export const sessionWantsPlayback = (session: Pick<SessionState, 'playback'>): boolean => (
   session.playback === 'playing' || session.playback === 'buffering'
 );
+
+export const shouldPreservePlaybackIntentDuringBackgroundPause = (
+  session: Pick<SessionState, 'source' | 'playback'>,
+  pause: {
+    isDocumentHidden: boolean;
+    isForegroundRecoveryPending: boolean;
+    manualPauseRequested: boolean;
+  },
+): boolean => (
+  (pause.isDocumentHidden || pause.isForegroundRecoveryPending) &&
+  !pause.manualPauseRequested &&
+  Boolean(session.source) &&
+  sessionWantsPlayback(session)
+);
+
+export const shouldRecoverPlaybackAfterForeground = (
+  session: Pick<SessionState, 'source' | 'playback'>,
+  recovery: {
+    backgroundSourceUrl: string | null;
+    mediaPaused: boolean;
+    adapterState: PlaybackState;
+  },
+): boolean => {
+  const source = session.source;
+  if (
+    !source ||
+    source.url !== recovery.backgroundSourceUrl ||
+    !sessionWantsPlayback(session) ||
+    (source.metadata?.mode !== 'live' && source.metadata?.mode !== 'catchup')
+  ) {
+    return false;
+  }
+
+  return recovery.mediaPaused || recovery.adapterState !== 'playing';
+};
 
 const isLiveSourceMode = (session: SessionState): boolean => {
   if (!session.source) {

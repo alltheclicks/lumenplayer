@@ -4,6 +4,8 @@ import type { PlaybackError } from '@lumen/types';
 import {
   shouldClearPendingAutoplayOnPlaybackError,
   sessionWantsPlayback,
+  shouldPreservePlaybackIntentDuringBackgroundPause,
+  shouldRecoverPlaybackAfterForeground,
   shouldKeepPendingAutoplayOnIdle,
   shouldResolveProviderBlockingErrorAfterPlaybackError,
   shouldRetryPendingAutoplayAfterPausedEvent,
@@ -91,6 +93,95 @@ describe('videoPlaybackSync', () => {
     expect(sessionWantsPlayback(buildSession({ playback: 'playing' }))).toBe(true);
     expect(sessionWantsPlayback(buildSession({ playback: 'buffering' }))).toBe(true);
     expect(sessionWantsPlayback(buildSession({ playback: 'paused' }))).toBe(false);
+  });
+
+  it('preserves live and catch-up playback intent for browser-generated background pauses', () => {
+    const liveSession = buildSession({
+      playback: 'playing',
+      source: {
+        url: 'https://example.com/live.m3u8',
+        type: 'hls',
+        title: 'Live',
+        metadata: { mode: 'live' },
+      },
+    });
+    const catchUpSession = buildSession({
+      playback: 'buffering',
+      source: {
+        url: 'https://example.com/archive.m3u8',
+        type: 'hls',
+        title: 'Archive',
+        metadata: { mode: 'catchup' },
+      },
+    });
+
+    expect(shouldPreservePlaybackIntentDuringBackgroundPause(liveSession, {
+      isDocumentHidden: true,
+      isForegroundRecoveryPending: false,
+      manualPauseRequested: false,
+    })).toBe(true);
+    expect(shouldPreservePlaybackIntentDuringBackgroundPause(catchUpSession, {
+      isDocumentHidden: true,
+      isForegroundRecoveryPending: false,
+      manualPauseRequested: false,
+    })).toBe(true);
+    expect(shouldPreservePlaybackIntentDuringBackgroundPause(liveSession, {
+      isDocumentHidden: true,
+      isForegroundRecoveryPending: false,
+      manualPauseRequested: true,
+    })).toBe(false);
+    expect(shouldPreservePlaybackIntentDuringBackgroundPause(liveSession, {
+      isDocumentHidden: false,
+      isForegroundRecoveryPending: false,
+      manualPauseRequested: false,
+    })).toBe(false);
+    expect(shouldPreservePlaybackIntentDuringBackgroundPause(liveSession, {
+      isDocumentHidden: false,
+      isForegroundRecoveryPending: true,
+      manualPauseRequested: false,
+    })).toBe(true);
+  });
+
+  it('recovers an interrupted live or catch-up source once it returns to the foreground', () => {
+    const liveSession = buildSession({
+      playback: 'playing',
+      source: {
+        url: 'https://example.com/live.m3u8',
+        type: 'hls',
+        title: 'Live',
+        metadata: { mode: 'live' },
+      },
+    });
+    const catchUpSession = buildSession({
+      playback: 'playing',
+      source: {
+        url: 'https://example.com/archive.m3u8',
+        type: 'hls',
+        title: 'Archive',
+        metadata: { mode: 'catchup' },
+      },
+    });
+
+    expect(shouldRecoverPlaybackAfterForeground(liveSession, {
+      backgroundSourceUrl: liveSession.source?.url ?? null,
+      mediaPaused: true,
+      adapterState: 'paused',
+    })).toBe(true);
+    expect(shouldRecoverPlaybackAfterForeground(catchUpSession, {
+      backgroundSourceUrl: catchUpSession.source?.url ?? null,
+      mediaPaused: false,
+      adapterState: 'buffering',
+    })).toBe(true);
+    expect(shouldRecoverPlaybackAfterForeground(liveSession, {
+      backgroundSourceUrl: liveSession.source?.url ?? null,
+      mediaPaused: false,
+      adapterState: 'playing',
+    })).toBe(false);
+    expect(shouldRecoverPlaybackAfterForeground(liveSession, {
+      backgroundSourceUrl: 'https://example.com/other.m3u8',
+      mediaPaused: true,
+      adapterState: 'paused',
+    })).toBe(false);
   });
 
   it('holds pause sync while initial autoplay startup is still pending', () => {

@@ -24,6 +24,8 @@ import {
   shouldKeepPendingAutoplayOnIdle,
   shouldClearPendingAutoplayOnPlaybackError,
   sessionWantsPlayback,
+  shouldPreservePlaybackIntentDuringBackgroundPause,
+  shouldRecoverPlaybackAfterForeground,
   shouldResolveProviderBlockingErrorAfterPlaybackError,
   shouldHoldPauseSyncOnSourceStartup,
   shouldRetryPendingAutoplayAfterPausedEvent,
@@ -654,6 +656,8 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
   const airPlayConnectionListenersRef = useRef(new Set<(isConnected: boolean) => void>());
   const lastStartedSourceRef = useRef<string | null>(null);
   const manualPauseRequestedRef = useRef(false);
+  const backgroundPlaybackIntentSourceRef = useRef<string | null>(null);
+  const foregroundPlaybackRecoverySourceRef = useRef<string | null>(null);
   const liveUnexpectedPauseRecoverySourceRef = useRef<string | null>(null);
   const liveUnexpectedPauseRecoveryAttemptsRef = useRef(0);
   const pendingAutoplaySourceUrlRef = useRef<string | null>(null);
@@ -1005,6 +1009,92 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
   useEffect(() => {
     sessionRef.current = session;
   }, [session]);
+
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      const currentSession = sessionRef.current;
+      const currentSource = currentSession.source;
+
+      if (document.visibilityState === 'hidden') {
+        if (
+          currentSource &&
+          sessionWantsPlayback(currentSession) &&
+          (currentSource.metadata?.mode === 'live' || currentSource.metadata?.mode === 'catchup')
+        ) {
+          backgroundPlaybackIntentSourceRef.current = currentSource.url;
+        }
+        return;
+      }
+
+      const backgroundSourceUrl = backgroundPlaybackIntentSourceRef.current;
+      backgroundPlaybackIntentSourceRef.current = null;
+      const adapter = adapterRef.current;
+      const mediaElement = videoRef.current;
+      if (
+        !adapter ||
+        !mediaElement ||
+        !shouldRecoverPlaybackAfterForeground(currentSession, {
+          backgroundSourceUrl,
+          mediaPaused: mediaElement.paused,
+          adapterState: adapter.getState(),
+        })
+      ) {
+        return;
+      }
+
+      const source = currentSession.source;
+      if (!source) {
+        return;
+      }
+      const sourceMetadata = (
+        typeof source.metadata === 'object' && source.metadata !== null
+      )
+        ? source.metadata as Record<string, unknown>
+        : {};
+      const resumePositionMs = sourceMetadata.mode === 'catchup'
+        ? resolveRuntimeCatchUpTimelinePositionMs(source, adapter.getCurrentTime())
+        : 0;
+
+      foregroundPlaybackRecoverySourceRef.current = source.url;
+      pendingAutoplaySourceUrlRef.current = source.url;
+      setError(null);
+      setIsPlaying(true);
+      setIsLoading(true);
+      resetLoadingProgress(sourceMetadata.mode === 'catchup' ? 'segment' : 'requesting');
+      commands.setSource({
+        ...source,
+        metadata: {
+          ...sourceMetadata,
+          loadKey: Date.now(),
+        },
+      }, resumePositionMs);
+      commands.play();
+      emitWebObservabilityEvent({
+        name: 'playback.retry',
+        severity: 'warn',
+        metadata: {
+          renderer: currentSession.renderer,
+          channelId: source.channelId ?? null,
+          streamId: sourceMetadata.streamId ?? null,
+          playbackMode: sourceMetadata.mode ?? null,
+          status: 'foreground_resume_reload',
+          errorCode: 'BACKGROUND_PLAYBACK_INTERRUPTED',
+        },
+      });
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('pageshow', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('pageshow', handleVisibilityChange);
+    };
+  }, [
+    commands,
+    resetLoadingProgress,
+    resolveRuntimeCatchUpTimelinePositionMs,
+    setError,
+  ]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -2402,6 +2492,16 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
       if (state === 'paused') {
         const manualPauseRequested = manualPauseRequestedRef.current;
         manualPauseRequestedRef.current = false;
+        if (shouldPreservePlaybackIntentDuringBackgroundPause(currentSession, {
+          isDocumentHidden: document.visibilityState === 'hidden',
+          isForegroundRecoveryPending: (
+            foregroundPlaybackRecoverySourceRef.current === currentSession.source?.url
+          ),
+          manualPauseRequested,
+        })) {
+          backgroundPlaybackIntentSourceRef.current = currentSession.source?.url ?? null;
+          return;
+        }
         const sourceMetadata = (
           typeof currentSession.source?.metadata === 'object' &&
           currentSession.source.metadata !== null
@@ -3216,6 +3316,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
 
     let cancelled = false;
     adapter.stop();
+    foregroundPlaybackRecoverySourceRef.current = null;
     setError(null);
     setIsLoading(true);
     resetLoadingProgress('requesting');
