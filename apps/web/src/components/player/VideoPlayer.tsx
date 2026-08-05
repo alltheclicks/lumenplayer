@@ -4,7 +4,10 @@ import { AlertCircle, Loader2, Radio, WifiOff, ShieldAlert, X } from 'lucide-rea
 import type { SessionSource } from '@lumen/session-core';
 import { Button } from '@/components/ui/button';
 import { useSessionContext } from '@/context/session-context';
-import { HlsPlayerAdapter } from '@/adapters/HlsPlayerAdapter';
+import {
+  BackgroundPlaybackResumeError,
+  HlsPlayerAdapter,
+} from '@/adapters/HlsPlayerAdapter';
 import type { PlaybackError } from '@lumen/types';
 import type { AudioTrackOption } from '@lumen/types';
 import type { SubtitleTrackOption } from '@lumen/types';
@@ -1137,6 +1140,28 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
           return;
         }
         foregroundPlaybackRecoverySourceRef.current = null;
+        const recoveryFailure = recoveryError instanceof BackgroundPlaybackResumeError
+          ? recoveryError.code
+          : null;
+        const recoveryTelemetry = recoveryFailure === 'source-reload-failed'
+          ? {
+              status: 'foreground_source_reload_failed',
+              errorCode: 'BACKGROUND_PLAYBACK_SOURCE_RELOAD_FAILED',
+            }
+          : recoveryFailure === 'playback-start-failed'
+            ? {
+                status: 'foreground_playback_start_failed',
+                errorCode: 'BACKGROUND_PLAYBACK_START_FAILED',
+              }
+            : recoveryFailure === 'rebuild-no-frame'
+              ? {
+                  status: 'foreground_rebuild_no_frame',
+                  errorCode: 'BACKGROUND_PLAYBACK_REBUILD_NO_FRAME',
+                }
+              : {
+                  status: 'foreground_pipeline_rebuild_failed',
+                  errorCode: 'BACKGROUND_PLAYBACK_RESUME_FAILED',
+                };
         emitWebObservabilityEvent({
           name: 'playback.error',
           severity: 'error',
@@ -1145,8 +1170,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
             channelId: source.channelId ?? null,
             streamId: sourceMetadata.streamId ?? null,
             playbackMode: sourceMetadata.mode ?? null,
-            status: 'foreground_pipeline_rebuild_failed',
-            errorCode: 'BACKGROUND_PLAYBACK_RESUME_FAILED',
+            ...recoveryTelemetry,
             message: recoveryError instanceof Error ? recoveryError.message : String(recoveryError),
           },
         });

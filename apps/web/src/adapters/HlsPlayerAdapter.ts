@@ -24,6 +24,7 @@ import {
 } from './mpegTsPtsRebase';
 
 const HLS_MIME_TYPE = 'application/vnd.apple.mpegurl';
+const MEDIA_READY_STATE_HAVE_CURRENT_DATA = 2;
 const HLS_BUFFERING_RECOVERY_DELAY_MS = 4_000;
 const HLS_BUFFERING_PROGRESS_TOLERANCE_SECONDS = 0.25;
 const HLS_BUFFERING_MAX_RECOVERY_ATTEMPTS = 2;
@@ -42,6 +43,12 @@ const HLS_ELEMENT_DECODE_RECOVERY_COOLDOWN_MS = 5_000;
 // The observed async death (element emptied after the resume snapshot looked
 // healthy) lands well inside this window.
 const BACKGROUND_RESUME_LIVENESS_TIMEOUT_MS = 2_500;
+// A rebuilt pipeline needs stronger proof than a resumed one: the manifest
+// being parsed only proves that the playlist loaded, not that the browser can
+// decode and render the stream. Catch-up gets the longer window because its
+// first archive segment is measurably slower than live startup in production.
+const BACKGROUND_REBUILD_LIVE_FRAME_TIMEOUT_MS = 8_000;
+const BACKGROUND_REBUILD_CATCHUP_FRAME_TIMEOUT_MS = 12_000;
 // recoverMediaError() detaches/re-attaches MediaSource; the session layer's
 // startup logic can react to the re-attach by pulling the playhead back to
 // the catch-up start. Enforce the pre-error position for this long after a
@@ -144,6 +151,27 @@ export type BackgroundPlaybackResumeResult =
   | 'pipeline-already-usable'
   | 'pipeline-recovered'
   | 'pipeline-rebuilt';
+
+export type BackgroundPlaybackResumeFailureCode =
+  | 'source-reload-failed'
+  | 'playback-start-failed'
+  | 'rebuild-no-frame';
+
+export class BackgroundPlaybackResumeError extends Error {
+  readonly code: BackgroundPlaybackResumeFailureCode;
+  readonly cause: unknown;
+
+  constructor(
+    code: BackgroundPlaybackResumeFailureCode,
+    message: string,
+    cause?: unknown,
+  ) {
+    super(message);
+    this.name = 'BackgroundPlaybackResumeError';
+    this.code = code;
+    this.cause = cause;
+  }
+}
 
 type HlsLoaderResponse = { data?: unknown; [key: string]: unknown };
 type HlsLoaderCallbacks = {
@@ -774,9 +802,95 @@ export class HlsPlayerAdapter implements PlayerAdapter {
   ): Promise<BackgroundPlaybackResumeResult> {
     this.backgroundMediaRecoveryPending = false;
     this.backgroundNetworkRecoveryPending = false;
-    await this.load(source);
-    this.play();
+    try {
+      await this.load(source);
+    } catch (error) {
+      throw new BackgroundPlaybackResumeError(
+        'source-reload-failed',
+        error instanceof Error ? error.message : 'Unable to reload playback source.',
+        error,
+      );
+    }
+
+    try {
+      HlsPlayerAdapter.stopCompetingPlayback(this);
+      if (!this.hasPlayableSource()) {
+        throw new Error('Playback source is not attached after reload.');
+      }
+      await this.video.play();
+    } catch (error) {
+      throw new BackgroundPlaybackResumeError(
+        'playback-start-failed',
+        error instanceof Error ? error.message : 'Unable to restart playback.',
+        error,
+      );
+    }
+
+    const renderedFrame = await this.verifyRebuiltPipelineRenderedFrame(source);
+    if (!renderedFrame) {
+      throw new BackgroundPlaybackResumeError(
+        'rebuild-no-frame',
+        'Playback pipeline reloaded but did not render a video frame.',
+      );
+    }
     return 'pipeline-rebuilt';
+  }
+
+  private verifyRebuiltPipelineRenderedFrame(source: MediaSource): Promise<boolean> {
+    const video = this.video;
+    const sourceMode = HlsPlayerAdapter.resolveHlsSourceMode(
+      (source as PlaybackMetadataCarrier).metadata?.mode,
+    );
+    const timeoutMs = sourceMode === 'catchup'
+      ? BACKGROUND_REBUILD_CATCHUP_FRAME_TIMEOUT_MS
+      : BACKGROUND_REBUILD_LIVE_FRAME_TIMEOUT_MS;
+    const initialTime = Number.isFinite(video.currentTime) ? video.currentTime : 0;
+
+    return new Promise((resolve) => {
+      let timer: ReturnType<typeof setTimeout> | null = null;
+      const progressEvents = ['timeupdate', 'playing', 'canplay', 'loadeddata'];
+      const deadEvents = ['emptied', 'error'];
+      const hasRenderedFrame = () => (
+        !video.error &&
+        (
+          video.currentTime > initialTime + 0.01 ||
+          (
+            video.readyState >= MEDIA_READY_STATE_HAVE_CURRENT_DATA &&
+            video.videoWidth > 0
+          )
+        )
+      );
+      const cleanup = () => {
+        if (timer !== null) {
+          clearTimeout(timer);
+          timer = null;
+        }
+        progressEvents.forEach((name) => video.removeEventListener(name, onProgress));
+        deadEvents.forEach((name) => video.removeEventListener(name, onDead));
+      };
+      const finish = (rendered: boolean) => {
+        cleanup();
+        resolve(rendered);
+      };
+      const onProgress = () => {
+        if (hasRenderedFrame()) {
+          finish(true);
+        }
+      };
+      const onDead = () => finish(false);
+
+      if (hasRenderedFrame()) {
+        resolve(true);
+        return;
+      }
+      if (video.error) {
+        resolve(false);
+        return;
+      }
+      progressEvents.forEach((name) => video.addEventListener(name, onProgress));
+      deadEvents.forEach((name) => video.addEventListener(name, onDead));
+      timer = setTimeout(() => finish(hasRenderedFrame()), timeoutMs);
+    });
   }
 
   // Resolves true when the resumed element proves it is alive (playback

@@ -260,6 +260,15 @@ describe('HlsPlayerAdapter', () => {
     return video as unknown as HTMLVideoElement;
   };
 
+  const markVideoRenderable = (video: HTMLVideoElement) => {
+    const mutableVideo = video as unknown as {
+      readyState: number;
+      videoWidth: number;
+    };
+    mutableVideo.readyState = 2;
+    mutableVideo.videoWidth = 1280;
+  };
+
   it('avoids extra media-element flush when switching sources through load()', async () => {
     const video = createMockVideoElement();
     const loadSpy = vi.spyOn(video, 'load');
@@ -1537,6 +1546,7 @@ describe('HlsPlayerAdapter', () => {
     const rebuiltHls = hlsMockState.instances.at(-1);
     rebuiltHls?.emit(hlsMockState.MockHls.Events.MANIFEST_LOADED, { url: source.url });
     rebuiltHls?.emit(hlsMockState.MockHls.Events.MANIFEST_PARSED);
+    markVideoRenderable(video);
 
     await expect(firstResume).resolves.toBe('pipeline-rebuilt');
     expect(initialHls?.destroy).toHaveBeenCalledTimes(1);
@@ -1578,6 +1588,7 @@ describe('HlsPlayerAdapter', () => {
     const rebuiltHls = hlsMockState.instances.at(-1);
     rebuiltHls?.emit(hlsMockState.MockHls.Events.MANIFEST_LOADED, { url: source.url });
     rebuiltHls?.emit(hlsMockState.MockHls.Events.MANIFEST_PARSED);
+    markVideoRenderable(video);
 
     await expect(resumePromise).resolves.toBe('pipeline-rebuilt');
     expect(rebuiltHls?.config).toEqual(expect.objectContaining({
@@ -1616,6 +1627,7 @@ describe('HlsPlayerAdapter', () => {
     const rebuiltHls = hlsMockState.instances.at(-1);
     rebuiltHls?.emit(hlsMockState.MockHls.Events.MANIFEST_LOADED, { url: source.url });
     rebuiltHls?.emit(hlsMockState.MockHls.Events.MANIFEST_PARSED);
+    markVideoRenderable(video);
 
     await expect(resumePromise).resolves.toBe('pipeline-rebuilt');
     expect(rebuiltHls?.loadSource).toHaveBeenCalledWith(source.url);
@@ -1659,9 +1671,106 @@ describe('HlsPlayerAdapter', () => {
     const rebuiltHls = hlsMockState.instances.at(-1);
     rebuiltHls?.emit(hlsMockState.MockHls.Events.MANIFEST_LOADED, { url: source.url });
     rebuiltHls?.emit(hlsMockState.MockHls.Events.MANIFEST_PARSED);
+    markVideoRenderable(video);
 
     await expect(resumePromise).resolves.toBe('pipeline-rebuilt');
     expect(initialHls?.destroy).toHaveBeenCalledTimes(1);
+  });
+
+  it('classifies a provider/source failure during foreground rebuild separately', async () => {
+    const video = createMockVideoElement();
+    const adapter = new HlsPlayerAdapter(video);
+    const source = {
+      url: 'https://example.com/live.m3u8',
+      type: 'hls' as const,
+      title: 'Live',
+      metadata: { mode: 'live' },
+    };
+
+    const initialLoadPromise = adapter.load(source);
+    const initialHls = hlsMockState.instances.at(-1);
+    initialHls?.emit(hlsMockState.MockHls.Events.MANIFEST_LOADED, { url: source.url });
+    initialHls?.emit(hlsMockState.MockHls.Events.MANIFEST_PARSED);
+    await initialLoadPromise;
+    adapter.stop();
+
+    const resumePromise = adapter.resumeAfterBackground(source);
+    const rebuiltHls = hlsMockState.instances.at(-1);
+    rebuiltHls?.emit(hlsMockState.MockHls.Events.ERROR, {
+      fatal: true,
+      type: hlsMockState.MockHls.ErrorTypes.NETWORK_ERROR,
+      details: 'manifestLoadError',
+      networkDetails: { status: 403 },
+    });
+
+    await expect(resumePromise).rejects.toMatchObject({
+      name: 'BackgroundPlaybackResumeError',
+      code: 'source-reload-failed',
+    });
+  });
+
+  it('classifies a browser playback-start rejection separately after a successful reload', async () => {
+    const video = createMockVideoElement();
+    const adapter = new HlsPlayerAdapter(video);
+    const source = {
+      url: 'https://example.com/live.m3u8',
+      type: 'hls' as const,
+      title: 'Live',
+      metadata: { mode: 'live' },
+    };
+
+    const initialLoadPromise = adapter.load(source);
+    const initialHls = hlsMockState.instances.at(-1);
+    initialHls?.emit(hlsMockState.MockHls.Events.MANIFEST_LOADED, { url: source.url });
+    initialHls?.emit(hlsMockState.MockHls.Events.MANIFEST_PARSED);
+    await initialLoadPromise;
+    adapter.stop();
+    vi.mocked(video.play).mockRejectedValueOnce(new Error('NotAllowedError'));
+
+    const resumePromise = adapter.resumeAfterBackground(source);
+    const rebuiltHls = hlsMockState.instances.at(-1);
+    rebuiltHls?.emit(hlsMockState.MockHls.Events.MANIFEST_LOADED, { url: source.url });
+    rebuiltHls?.emit(hlsMockState.MockHls.Events.MANIFEST_PARSED);
+
+    await expect(resumePromise).rejects.toMatchObject({
+      name: 'BackgroundPlaybackResumeError',
+      code: 'playback-start-failed',
+    });
+  });
+
+  it('does not report a rebuilt pipeline as healthy until a frame is renderable', async () => {
+    const video = createMockVideoElement();
+    const adapter = new HlsPlayerAdapter(video);
+    const source = {
+      url: 'https://example.com/live.m3u8',
+      type: 'hls' as const,
+      title: 'Live',
+      metadata: { mode: 'live' },
+    };
+
+    const initialLoadPromise = adapter.load(source);
+    const initialHls = hlsMockState.instances.at(-1);
+    initialHls?.emit(hlsMockState.MockHls.Events.MANIFEST_LOADED, { url: source.url });
+    initialHls?.emit(hlsMockState.MockHls.Events.MANIFEST_PARSED);
+    await initialLoadPromise;
+    adapter.stop();
+
+    vi.useFakeTimers();
+    try {
+      const resumePromise = adapter.resumeAfterBackground(source);
+      const rejection = expect(resumePromise).rejects.toMatchObject({
+        name: 'BackgroundPlaybackResumeError',
+        code: 'rebuild-no-frame',
+      });
+      const rebuiltHls = hlsMockState.instances.at(-1);
+      rebuiltHls?.emit(hlsMockState.MockHls.Events.MANIFEST_LOADED, { url: source.url });
+      rebuiltHls?.emit(hlsMockState.MockHls.Events.MANIFEST_PARSED);
+      await Promise.resolve();
+      await vi.advanceTimersByTimeAsync(8_000);
+      await rejection;
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('keeps a genuinely healthy resumed pipeline without reloading once playback progresses', async () => {
