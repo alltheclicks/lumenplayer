@@ -97,6 +97,7 @@ export interface VideoPlayerProps {
   onCanPlay?: () => void;
   onSourceBlockingPrimaryAction?: (source: SessionSource) => void;
   onReportPlaybackProblem?: (source: SessionSource, error: PlayerError) => void;
+  onBackgroundRecoverySourceReloadFailed?: (source: SessionSource) => void;
   className?: string;
 }
 
@@ -626,6 +627,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
   onCanPlay,
   onSourceBlockingPrimaryAction,
   onReportPlaybackProblem,
+  onBackgroundRecoverySourceReloadFailed,
   className = '',
 }, ref) => {
   const { session, commands } = useSessionContext();
@@ -1174,6 +1176,9 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
             message: recoveryError instanceof Error ? recoveryError.message : String(recoveryError),
           },
         });
+        if (recoveryFailure === 'source-reload-failed') {
+          onBackgroundRecoverySourceReloadFailed?.(source);
+        }
       });
     };
 
@@ -1204,6 +1209,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
     };
   }, [
     commands,
+    onBackgroundRecoverySourceReloadFailed,
     resolveRuntimeCatchUpMediaSeekTimeSeconds,
     setError,
   ]);

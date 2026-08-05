@@ -2487,6 +2487,7 @@ const Player = () => {
                 onEnded={handleCatchUpEnded}
                 onSourceBlockingPrimaryAction={switchBlockedSourceToLive}
                 onReportPlaybackProblem={reportPlaybackProblem}
+                onBackgroundRecoverySourceReloadFailed={retryCurrentPlayback}
               />
             )}
 
