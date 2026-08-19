@@ -514,20 +514,19 @@ const PlayerControls = ({
         return;
       }
 
-      setShowControls(prev => {
-        const nextShowControls = !prev;
-        if (
-          idleTimer &&
-          shouldUseControlsIdleTimer
-        ) {
-          if (nextShowControls) {
-            idleTimer.reset();
-          } else {
-            idleTimer.clear();
-          }
+      if (showControls) {
+        if (idleTimer && shouldUseControlsIdleTimer) {
+          idleTimer.hideNow();
+        } else {
+          setShowControls(false);
         }
-        return nextShowControls;
-      });
+        return;
+      }
+
+      setShowControls(true);
+      if (idleTimer && shouldUseControlsIdleTimer) {
+        idleTimer.reset();
+      }
     }
   }, [
     shouldUseControlsIdleTimer,
@@ -1423,7 +1422,7 @@ const PlayerControls = ({
   return (
     <div
       className="absolute inset-0 z-10"
-      onMouseMove={handleMouseMove}
+      onPointerMove={handleMouseMove}
       onClick={handleClick}
     >
       {audioTrackPanel}
