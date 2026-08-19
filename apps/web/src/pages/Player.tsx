@@ -1702,7 +1702,9 @@ const Player = () => {
     });
   };
 
-  const currentProgram = currentChannelWithEPG ? getCurrentProgram(currentChannelWithEPG as any) : undefined;
+  const currentProgram = currentChannelWithEPG
+    ? getCurrentProgram(currentChannelWithEPG)
+    : undefined;
   const currentCatchUpProgram = useMemo(() => {
     if (!currentChannelWithEPG || !isCatchUpSessionSourceMetadata(sessionSourceMetadata)) {
       return null;

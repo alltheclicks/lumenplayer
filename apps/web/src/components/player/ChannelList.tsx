@@ -101,7 +101,7 @@ const ChannelList = ({
             const channel = channels[virtualRow.index];
             const isActive = currentChannelId === channel.id;
             const favorite = isFavorite(channel.id);
-            const currentProgram = getCurrentProgram(channel as any);
+            const currentProgram = getCurrentProgram(channel);
 
             return (
               <div

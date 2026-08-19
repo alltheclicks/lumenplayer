@@ -1,6 +1,8 @@
 import type { Channel, Program } from "@lumen/types";
 
-export const getCurrentProgram = (channel: Channel): Program | undefined => {
+type ChannelSchedule = Pick<Channel, "epg">;
+
+export const getCurrentProgram = (channel: ChannelSchedule): Program | undefined => {
   const now = new Date();
   return channel.epg.find((p) => p.startTime <= now && p.endTime > now);
 };

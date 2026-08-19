@@ -13,7 +13,8 @@ export function usePWA() {
 
   useEffect(() => {
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
-    const isIOSStandalone = (window.navigator as any).standalone === true;
+    const iosNavigator: Navigator & { readonly standalone?: boolean } = window.navigator;
+    const isIOSStandalone = iosNavigator.standalone === true;
     setIsInstalled(isStandalone || isIOSStandalone);
 
     const handleBeforeInstallPrompt = (e: Event) => {
