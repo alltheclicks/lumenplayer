@@ -16,6 +16,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
+import { formatCatchUpDateLabel } from './catchUpProgramList';
 
 interface CatchUpProgramPanelProps {
   className: string;
@@ -32,21 +33,6 @@ interface CatchUpProgramPanelProps {
   onSelectProgram: (program: Program) => void;
   onToggleDay: (dateKey: string) => void;
 }
-
-const formatFullDate = (date: Date): string => {
-  const today = new Date();
-  const yesterday = new Date(today);
-  yesterday.setDate(yesterday.getDate() - 1);
-
-  if (date.toDateString() === today.toDateString()) return 'Danas';
-  if (date.toDateString() === yesterday.toDateString()) return 'Juče';
-
-  return date.toLocaleDateString('sr-Latn-RS', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-  });
-};
 
 export const CatchUpProgramPanel = ({
   className,
@@ -113,7 +99,7 @@ export const CatchUpProgramPanel = ({
                       <div className="flex items-center gap-2">
                         <Calendar className="h-4 w-4 text-muted-foreground" />
                         <span className="text-sm font-medium">
-                          {formatFullDate(new Date(dateKey))}
+                          {formatCatchUpDateLabel(new Date(dateKey))}
                         </span>
                       </div>
                       <div className="flex items-center gap-2">

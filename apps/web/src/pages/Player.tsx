@@ -102,6 +102,10 @@ import {
   findNextCatchUpProgram,
 } from '@/components/player/catchupProgramNavigation';
 import {
+  formatCatchUpDateLabel,
+  groupArchivedCatchUpProgramsByDate,
+} from '@/components/player/catchUpProgramList';
+import {
   buildCatchUpPrefetchKey,
   CATCH_UP_PREFETCH_LOOKAHEAD_MS,
   isCatchUpPrefetchFresh,
@@ -200,38 +204,6 @@ const LIVE_STARTUP_RETRY_DELAY_MS = 3_000;
 const withStartupRetryHash = (url: string): string => {
   const [baseUrl] = url.split('#', 1);
   return `${baseUrl}#__lumenStartupRetry=${Date.now()}`;
-};
-
-const groupCatchUpProgramsByDate = (programs: PlayerChannel['epg']) => {
-  const grouped = new Map<string, PlayerChannel['epg']>();
-  const now = new Date();
-
-  programs
-    .filter((program) => program.endTime < now && program.hasCatchUp)
-    .forEach((program) => {
-      const dateKey = program.startTime.toDateString();
-      if (!grouped.has(dateKey)) {
-        grouped.set(dateKey, []);
-      }
-      grouped.get(dateKey)?.push(program);
-    });
-
-  grouped.forEach((items, key) => {
-    grouped.set(key, items.sort((a, b) => b.startTime.getTime() - a.startTime.getTime()));
-  });
-
-  return grouped;
-};
-
-const formatCatchUpDateLabel = (date: Date): string => {
-  const today = new Date();
-  const yesterday = new Date(today);
-  yesterday.setDate(yesterday.getDate() - 1);
-
-  if (date.toDateString() === today.toDateString()) return 'Danas';
-  if (date.toDateString() === yesterday.toDateString()) return 'Juče';
-
-  return date.toLocaleDateString('sr-Latn-RS', { weekday: 'long', day: 'numeric', month: 'long' });
 };
 
 const normalizeCatchUpVariantBaseName = (channelName: string): string => (
@@ -1743,7 +1715,7 @@ const Player = () => {
     [currentChannelWithEPG]
   );
   const catchUpProgramsByDate = useMemo(
-    () => groupCatchUpProgramsByDate(currentChannelWithEPG?.epg ?? []),
+    () => groupArchivedCatchUpProgramsByDate(currentChannelWithEPG?.epg ?? []),
     [currentChannelWithEPG?.epg]
   );
   const catchUpProgramDays = useMemo(

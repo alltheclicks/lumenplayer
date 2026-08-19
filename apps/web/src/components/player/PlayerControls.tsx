@@ -49,6 +49,7 @@ import {
   isCatchUpSessionSourceMetadata,
   parseSessionSourceMetadata,
 } from './sessionSources';
+import { groupArchivedCatchUpProgramsByDate } from './catchUpProgramList';
 
 interface PlayerControlsProps {
   channel: PlayerChannel;
@@ -92,27 +93,6 @@ const CATCH_UP_REASON_REFRESH_MS = 60_000;
 const CATCH_UP_INITIAL_POSITION_GUARD_SECONDS = 15;
 const CATCH_UP_MEDIA_DURATION_TOLERANCE_SECONDS = 5;
 const CATCH_UP_WINDOWED_SEEK_THRESHOLD_SECONDS = 45;
-const groupProgramsByDate = (programs: Program[]): Map<string, Program[]> => {
-  const grouped = new Map<string, Program[]>();
-  const now = new Date();
-
-  programs
-    .filter(p => p.endTime < now && p.hasCatchUp)
-    .forEach(program => {
-      const dateKey = program.startTime.toDateString();
-      if (!grouped.has(dateKey)) {
-        grouped.set(dateKey, []);
-      }
-      grouped.get(dateKey)!.push(program);
-    });
-
-  grouped.forEach((progs, key) => {
-    grouped.set(key, progs.sort((a, b) => b.startTime.getTime() - a.startTime.getTime()));
-  });
-
-  return grouped;
-};
-
 const PlayerControls = ({
   channel,
   catchUpFallbackStreamIds = [],
@@ -199,7 +179,7 @@ const PlayerControls = ({
     ? (effectiveCatchUpPosition / catchUpDuration) * 100
     : 0;
 
-  const catchUpByDate = groupProgramsByDate(channel.epg);
+  const catchUpByDate = groupArchivedCatchUpProgramsByDate(channel.epg);
   const sortedDates = Array.from(catchUpByDate.keys()).sort((a, b) =>
     new Date(b).getTime() - new Date(a).getTime()
   );
