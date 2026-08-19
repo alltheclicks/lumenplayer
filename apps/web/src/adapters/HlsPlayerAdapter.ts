@@ -2417,5 +2417,3 @@ export class HlsPlayerAdapter implements PlayerAdapter {
     }, HLS_NETWORK_ERROR_RECOVERY_DELAY_MS);
   }
 }
-
-export default HlsPlayerAdapter;

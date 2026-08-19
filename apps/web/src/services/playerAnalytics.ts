@@ -412,8 +412,6 @@ class PlayerAnalyticsClient {
   private recentEvents: PlayerAnalyticsEvent[] = [];
   private replayEvents: RrwebEvent[] = [];
   private stopReplay: (() => void) | null = null;
-  private flushTimer: number | null = null;
-  private heartbeatTimer: number | null = null;
   private searchTimer: number | null = null;
   private activeFlushPromise: Promise<boolean> | null = null;
   private lastStructuredCrash: { fingerprint: string; occurredAtMs: number } | null = null;
@@ -502,8 +500,8 @@ class PlayerAnalyticsClient {
       document.addEventListener(eventName, (event) => this.captureMediaEvent(eventName, event), true);
     }
 
-    this.flushTimer = window.setInterval(() => this.flush('active'), FLUSH_INTERVAL_MS);
-    this.heartbeatTimer = window.setInterval(() => {
+    window.setInterval(() => this.flush('active'), FLUSH_INTERVAL_MS);
+    window.setInterval(() => {
       this.tickMetrics();
       this.track('session.heartbeat', 'info', this.collectPlaybackSnapshot());
       this.flush('active');

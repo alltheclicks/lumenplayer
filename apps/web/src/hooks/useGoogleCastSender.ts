@@ -630,5 +630,3 @@ export const useGoogleCastSender = ({
     [deviceName, error, isAvailable, isConnected, isConnecting, sourceUnsupportedReason, startCasting, stopCasting, toggleCasting]
   );
 };
-
-export default useGoogleCastSender;

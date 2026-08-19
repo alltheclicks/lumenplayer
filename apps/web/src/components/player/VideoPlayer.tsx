@@ -48,7 +48,6 @@ import {
   shouldShowCatchUpManifestNoFrameUnavailable,
   shouldUseCatchUpStartupWatchdog,
   resolveCatchUpMediaOffsetSeconds,
-  resolveCatchUpMediaSeekTimeSeconds,
   resolveCatchUpMediaSeekTimeSecondsForSource,
   resolveCatchUpPendingStartupSeek,
   resolveCatchUpSeekNoFrameDecision,

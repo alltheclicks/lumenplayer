@@ -42,5 +42,3 @@ export const SessionProvider = ({ children }: SessionProviderProps) => {
     <SessionContext.Provider value={value}>{children}</SessionContext.Provider>
   );
 };
-
-export default SessionProvider;

@@ -39,5 +39,3 @@ export const useSessionCommands = (store: SessionStore): SessionCommands => {
     [store]
   );
 };
-
-export default useSessionCommands;

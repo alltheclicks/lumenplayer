@@ -1,4 +1,4 @@
-import { spawn, spawnSync, type ChildProcess } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { rmSync } from "node:fs";
 import { access, mkdir, readFile, rm, stat } from "node:fs/promises";
@@ -117,7 +117,7 @@ type SpawnCatchUpRemuxProcess = (
 
 type BinaryChecker = (binary: string) => boolean;
 
-interface PendingPreparationTask<TValue> {
+interface PendingPreparationTask {
   serverKey: string;
   perServerConcurrency: number;
   run: () => void;
@@ -583,7 +583,7 @@ export const createCatchUpRemuxController = (options: {
   const sessionIdByRequestKey = new Map<string, string>();
   const inFlightPreparations = new Map<string, Promise<CatchUpRemuxSessionRecord>>();
   const activeByServer = new Map<string, number>();
-  const pendingTasks: Array<PendingPreparationTask<CatchUpRemuxSessionRecord>> = [];
+  const pendingTasks: PendingPreparationTask[] = [];
   let activeGlobalCount = 0;
   let binaryAvailability: { ok: boolean; message: string | null } | null = null;
 
@@ -734,7 +734,7 @@ export const createCatchUpRemuxController = (options: {
         return;
       }
 
-      const pendingTask: PendingPreparationTask<CatchUpRemuxSessionRecord> = {
+      const pendingTask: PendingPreparationTask = {
         serverKey,
         perServerConcurrency,
         run: start,

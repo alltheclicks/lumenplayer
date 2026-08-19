@@ -274,7 +274,6 @@ const resolveProviderSafeStartPositionSeconds = ({
   sourceCandidates,
   gateway,
   durationSeconds,
-  streamId,
 }: {
   sourceCandidates: {
     redirectUrls: string[];
@@ -283,7 +282,6 @@ const resolveProviderSafeStartPositionSeconds = ({
   };
   gateway?: CatchUpGatewayPlaybackMetadata | null;
   durationSeconds: number;
-  streamId: number;
 }): number => {
   const urls = [
     ...(gateway?.playbackUrl ? [gateway.playbackUrl] : []),
@@ -537,7 +535,6 @@ export const resolveCatchUpPlaybackSource = async ({
         sourceCandidates,
         gateway: shadowGateway,
         durationSeconds: resolvedDurationSeconds,
-        streamId: channel.streamId,
       });
       const stableStartupMetadata = buildProviderSafeStartMetadata(
         metadata,
@@ -580,7 +577,6 @@ export const resolveCatchUpPlaybackSource = async ({
     sourceCandidates,
     gateway,
     durationSeconds: resolvedDurationSeconds,
-    streamId: channel.streamId,
   });
   const stableStartupMetadata = buildProviderSafeStartMetadata(
     metadata,

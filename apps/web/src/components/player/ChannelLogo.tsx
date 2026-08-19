@@ -45,5 +45,3 @@ export const ChannelLogo = ({ logo, name, size = 'md', className = '' }: Channel
 
   return <span className={`${sizeClasses[size]} ${className}`}>{logo || '📺'}</span>;
 };
-
-export default ChannelLogo;

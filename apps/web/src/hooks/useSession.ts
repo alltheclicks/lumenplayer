@@ -10,5 +10,3 @@ export const useSession = (store: SessionStore): SessionState => {
 
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 };
-
-export default useSession;

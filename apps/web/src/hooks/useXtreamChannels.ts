@@ -131,5 +131,3 @@ export const useXtreamChannels = (): UseXtreamChannelsResult => {
     refetch,
   };
 };
-
-export default useXtreamChannels;

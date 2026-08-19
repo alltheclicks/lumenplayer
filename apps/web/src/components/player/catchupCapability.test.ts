@@ -3,7 +3,6 @@ import {
   CatchUpWebCapabilityError,
   assertCatchUpWebPlayable,
   getCatchUpWebCapabilityNotice,
-  isCatchUpWebCapabilityError,
   resolveCatchUpWebCapability,
 } from './catchupCapability';
 
