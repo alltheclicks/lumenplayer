@@ -323,7 +323,8 @@ export const useGoogleCastSender = ({
 
         castContext = getCastContext();
         const chromeCast = window.chrome?.cast;
-        if (!castContext || !chromeCast) {
+        const castFramework = window.cast?.framework;
+        if (!castContext || !chromeCast || !castFramework) {
           return;
         }
 
@@ -356,7 +357,7 @@ export const useGoogleCastSender = ({
             },
           });
 
-          if (event.sessionState === window.cast?.framework?.SessionState.SESSION_START_FAILED) {
+          if (event.sessionState === castFramework.SessionState.SESSION_START_FAILED) {
             setError('Failed to start Cast session.');
           } else {
             setError(null);
@@ -373,11 +374,11 @@ export const useGoogleCastSender = ({
             lastSyncedCastPositionMsRef.current = null;
           }
 
-          setIsConnecting(event.sessionState === window.cast?.framework?.SessionState.SESSION_STARTING);
+          setIsConnecting(event.sessionState === castFramework.SessionState.SESSION_STARTING);
         };
 
         castContext.addEventListener(
-          window.cast.framework.CastContextEventType.SESSION_STATE_CHANGED,
+          castFramework.CastContextEventType.SESSION_STATE_CHANGED,
           handleSessionChange
         );
 
@@ -390,7 +391,7 @@ export const useGoogleCastSender = ({
 
         return () => {
           castContext?.removeEventListener(
-            window.cast?.framework?.CastContextEventType.SESSION_STATE_CHANGED ?? '',
+            castFramework.CastContextEventType.SESSION_STATE_CHANGED,
             handleSessionChange
           );
         };
@@ -467,14 +468,12 @@ export const useGoogleCastSender = ({
 
     syncInProgressRef.current = true;
     const wantsPlaying = session.playback === 'playing' || session.playback === 'buffering';
+    const source = session.source;
 
     void (async () => {
       try {
         let mediaSession = castSession.getMediaSession();
-        const targetUrl = session.source?.url ?? null;
-        if (!targetUrl) {
-          return;
-        }
+        const targetUrl = source.url;
 
         if (
           !mediaSession ||
@@ -483,12 +482,12 @@ export const useGoogleCastSender = ({
         ) {
           const mediaInfo = new chromeMedia.MediaInfo(
             targetUrl,
-            getSourceContentType(session.source.type)
+            getSourceContentType(source.type)
           );
 
-          if (session.source.title) {
+          if (source.title) {
             const metadata = new chromeMedia.GenericMediaMetadata();
-            metadata.title = session.source.title;
+            metadata.title = source.title;
             mediaInfo.metadata = metadata;
           }
 

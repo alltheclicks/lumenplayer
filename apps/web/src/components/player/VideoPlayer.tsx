@@ -301,12 +301,12 @@ const extractSourceTargetHost = (url: string): string | null => {
 };
 
 const isMediaKingCatchUpHost = (host: string | null): boolean => (
-  Boolean(host) && (
+  host !== null && (
     host === '79.137.99.121' ||
     host === 'mediaking.fi' ||
-    host?.endsWith('.mediaking.fi') ||
+    host.endsWith('.mediaking.fi') ||
     host === 'castcdn.net' ||
-    host?.endsWith('.castcdn.net')
+    host.endsWith('.castcdn.net')
   )
 );
 

@@ -1,7 +1,7 @@
 {
   "extends": "@lumen/tsconfig/react.json",
   "compilerOptions": {
-    "strict": false,
+    "strict": true,
     "useDefineForClassFields": true,
     "moduleDetection": "force",
     "allowImportingTsExtensions": true,

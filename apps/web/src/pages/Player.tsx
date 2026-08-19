@@ -1967,7 +1967,8 @@ const Player = () => {
       return;
     }
 
-    const sourceUrl = session.source.url;
+    const source = session.source;
+    const sourceUrl = source.url;
     const sourceBaseUrl = sourceUrl.split('#', 1)[0] ?? sourceUrl;
     if (liveStartupRetryAttemptedSourceRef.current !== sourceBaseUrl) {
       liveStartupRetryAttemptedSourceRef.current = null;
@@ -1990,7 +1991,7 @@ const Player = () => {
         name: 'playback.retry',
         severity: 'warn',
         metadata: {
-          channelId: session.source?.channelId ?? null,
+          channelId: source.channelId ?? null,
           streamId: sessionSourceMetadata.streamId ?? null,
           status: 'startup_retry',
           errorCode: 'LIVE_STARTUP_STALL',
@@ -1998,7 +1999,7 @@ const Player = () => {
         },
       });
       commands.setSource({
-        ...session.source,
+        ...source,
         url: withStartupRetryHash(sourceBaseUrl),
       }, 0);
       commands.play();

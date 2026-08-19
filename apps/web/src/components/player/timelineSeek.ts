@@ -26,6 +26,7 @@ export const resolveTimelineSeekPositionSeconds = ({
   );
 
   if (
+    typeof clientX !== 'number' ||
     !Number.isFinite(clientX) ||
     !Number.isFinite(timelineLeft) ||
     !Number.isFinite(timelineWidth) ||
