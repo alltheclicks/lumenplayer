@@ -7,6 +7,7 @@
     "build": "turbo build",
     "typecheck": "turbo typecheck",
     "lint": "turbo lint",
+    "lint:dead-code": "pnpm dlx knip@6.32.2 --no-progress --include files,dependencies",
     "test:unit": "vitest run --config vitest.unit.config.ts",
     "test:unit:watch": "vitest --config vitest.unit.config.ts",
     "security:audit:prod": "pnpm audit --prod --audit-level=moderate",

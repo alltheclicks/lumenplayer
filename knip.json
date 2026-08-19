@@ -1,0 +1,17 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "workspaces": {
+    ".": {
+      "entry": [
+        "scripts/design-sync/build-bundle.mjs",
+        "scripts/design-sync/snapshot-screens.mjs"
+      ]
+    },
+    "apps/push-api": {
+      "entry": ["src/server.ts"]
+    },
+    "apps/web": {
+      "entry": ["public/sw-push-handlers.js"]
+    }
+  }
+}
