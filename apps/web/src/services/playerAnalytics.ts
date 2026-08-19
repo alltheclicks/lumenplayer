@@ -114,6 +114,21 @@ export const resolveAnalyticsFlushTransport = (
   sendBeaconAvailable: boolean,
 ): 'beacon' | 'fetch' => (unload && sendBeaconAvailable ? 'beacon' : 'fetch');
 
+export type AnalyticsResponseDisposition =
+  | 'accepted'
+  | 'invalidate-binding'
+  | 'retry-later'
+  | 'drop-batch';
+
+export const resolveAnalyticsResponseDisposition = (
+  status: number,
+): AnalyticsResponseDisposition => {
+  if (status >= 200 && status < 300) return 'accepted';
+  if (status === 401 || status === 403) return 'invalidate-binding';
+  if (status === 408 || status === 425 || status === 429 || status >= 500) return 'retry-later';
+  return 'drop-batch';
+};
+
 export const boundOfflineAnalyticsBatches = <T>(existing: T[], next: T): T[] => (
   [...existing.slice(-MAX_OFFLINE_BATCHES + 1), next]
 );
@@ -256,6 +271,12 @@ export const mediaElementErrorDetails = (
     message: error?.message?.trim() || defaultMessages[code] || 'Unknown media element error',
   };
 };
+
+export const shouldIgnoreMediaElementError = (
+  error: Pick<MediaError, 'code' | 'message'> | null,
+): boolean => Boolean(
+  error?.code === 4 && /empty src attribute/i.test(error.message ?? '')
+);
 
 interface AnalyticsChannelContext {
   id?: string;
@@ -543,6 +564,24 @@ class PlayerAnalyticsClient {
       sessionStorage.removeItem(METRICS_STORAGE_KEY);
     } catch {
       // Session state is already disabled in memory.
+    }
+  }
+
+  private invalidateConfiguration(): void {
+    this.configuration = null;
+    this.events = [];
+    this.crashes = [];
+    this.feedback = [];
+    this.recentEvents = [];
+    this.stopReplay?.();
+    this.stopReplay = null;
+    this.replayEvents = [];
+    try {
+      sessionStorage.removeItem(STORAGE_KEY);
+      sessionStorage.removeItem(METRICS_STORAGE_KEY);
+      localStorage.removeItem(OFFLINE_KEY);
+    } catch {
+      // The rejected binding is already disabled in memory.
     }
   }
 
@@ -967,8 +1006,14 @@ class PlayerAnalyticsClient {
       keepalive: true,
     })
       .then((response) => {
-        if (!response.ok) this.storeOfflineBatch(batch);
-        return response.ok;
+        const disposition = resolveAnalyticsResponseDisposition(response.status);
+        if (disposition === 'accepted') return true;
+        if (disposition === 'invalidate-binding') {
+          this.invalidateConfiguration();
+          return false;
+        }
+        if (disposition === 'retry-later') this.storeOfflineBatch(batch);
+        return false;
       })
       .catch(() => {
         this.storeOfflineBatch(batch);
@@ -1020,7 +1065,12 @@ class PlayerAnalyticsClient {
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify(batch),
         });
-        if (!response.ok) this.storeOfflineBatch(batch as QueuedBatch);
+        const disposition = resolveAnalyticsResponseDisposition(response.status);
+        if (disposition === 'invalidate-binding') {
+          this.invalidateConfiguration();
+          return;
+        }
+        if (disposition === 'retry-later') this.storeOfflineBatch(batch as QueuedBatch);
       } catch {
         this.storeOfflineBatch(batch as QueuedBatch);
       }
@@ -1166,6 +1216,9 @@ class PlayerAnalyticsClient {
     this.tickMetrics(now);
     const wasPlaybackActive = this.playbackActive;
     const mediaError = eventName === 'error' ? mediaElementErrorDetails(media.error) : null;
+    if (eventName === 'error' && shouldIgnoreMediaElementError(media.error)) {
+      return;
+    }
     if (mediaError) {
       const fingerprint = [
         mediaError.errorCode,

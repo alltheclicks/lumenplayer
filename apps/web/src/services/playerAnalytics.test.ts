@@ -14,7 +14,9 @@ import {
   resolveMediaAnalyticsEventName,
   resolveRebufferDurationMs,
   resolveAnalyticsEventChannel,
+  resolveAnalyticsResponseDisposition,
   shouldCountAnalyticsError,
+  shouldIgnoreMediaElementError,
   shouldStartRebufferMeasurement,
 } from './playerAnalytics';
 import { sanitizeTelemetryRecord } from './privacyRedaction';
@@ -84,6 +86,15 @@ describe('player analytics client safety helpers', () => {
     const bounded = Array.from({ length: 20 }, (_, index) => index)
       .reduce<number[]>((queue, entry) => boundOfflineAnalyticsBatches(queue, entry), []);
     expect(bounded).toEqual([10, 11, 12, 13, 14, 15, 16, 17, 18, 19]);
+  });
+
+  it('invalidates rejected analytics bindings instead of retrying them forever', () => {
+    expect(resolveAnalyticsResponseDisposition(202)).toBe('accepted');
+    expect(resolveAnalyticsResponseDisposition(401)).toBe('invalidate-binding');
+    expect(resolveAnalyticsResponseDisposition(403)).toBe('invalidate-binding');
+    expect(resolveAnalyticsResponseDisposition(429)).toBe('retry-later');
+    expect(resolveAnalyticsResponseDisposition(503)).toBe('retry-later');
+    expect(resolveAnalyticsResponseDisposition(400)).toBe('drop-batch');
   });
 
   it('normalizes database millisecond fields to finite integers', () => {
@@ -163,6 +174,21 @@ describe('player analytics client safety helpers', () => {
     expect(resolveMediaAnalyticsEventName('playing')).toBe('playback.playing');
     expect(shouldCountAnalyticsError('playback.media_error', 'warn', {
       terminal: false,
+    })).toBe(false);
+  });
+
+  it('drops transient empty-src media errors but keeps real unsupported-source failures', () => {
+    expect(shouldIgnoreMediaElementError({
+      code: 4,
+      message: 'MEDIA_ELEMENT_ERROR: Empty src attribute',
+    })).toBe(true);
+    expect(shouldIgnoreMediaElementError({
+      code: 4,
+      message: 'The media source or format is unsupported',
+    })).toBe(false);
+    expect(shouldIgnoreMediaElementError({
+      code: 3,
+      message: 'The media stream could not be decoded',
     })).toBe(false);
   });
 });
