@@ -8,6 +8,8 @@ const debugProxyLogEnabled = process.env.LUMEN_DEBUG_PROXY_LOG === "1";
 const XTREAM_DEV_PROXY_BASE_PATH = "/xui-api";
 const CATCHUP_GATEWAY_PROXY_PATH = "/catchup-gateway";
 const XTREAM_HLS_ROOT_PROXY_PATH = "/hlsr";
+const SSO_EXCHANGE_PROXY_PATH = "/sso/exchange";
+const PLAYER_ANALYTICS_PROXY_PATH = "/player-analytics";
 const LOCAL_PROXY_FALLBACK_TARGET = "http://localhost";
 const LOCAL_DEV_NO_STORE_HEADERS = {
   "Cache-Control": "no-store, max-age=0",
@@ -90,10 +92,23 @@ export default defineConfig(({ mode }) => {
   const brandName = (env.VITE_BRAND_NAME ?? "").trim() || "Lumen Player";
   const brandShort = brandName.replace(/\s+player$/i, "");
   const xtreamServerTarget = env.VITE_XTREAM_SERVER?.trim().replace(/\/+$/, "");
+  const xtreamProxyOrigin = env.VITE_XTREAM_PROXY_ORIGIN?.trim().replace(/\/+$/, "");
   const xuiProxyTarget = env.VITE_XUI_PROXY_ORIGIN?.trim().replace(/\/+$/, "");
   const catchUpGatewayTarget = env.VITE_CATCHUP_GATEWAY_ORIGIN?.trim().replace(/\/+$/, "") ||
     xuiProxyTarget;
+  // In production nginx routes /sso/exchange to the local Fastify proxy; in
+  // dev the Vite server mirrors that so the SSO landing page works end-to-end.
+  const ssoExchangeTarget = env.VITE_SSO_EXCHANGE_ORIGIN?.trim().replace(/\/+$/, "") ||
+    xuiProxyTarget ||
+    "http://127.0.0.1:8788";
   const allowedHosts = parseAllowedHosts(env.LUMEN_VITE_ALLOWED_HOSTS);
+
+  if (mode === "production" && brandName.toLowerCase() === "exyu.tv" && !xtreamProxyOrigin) {
+    throw new Error(
+      "EXYU production builds require VITE_XTREAM_PROXY_ORIGIN so browser control requests cannot bypass /xui-api.",
+    );
+  }
+
   const proxyConfig = {
     ...(xuiProxyTarget
       ? {
@@ -144,6 +159,18 @@ export default defineConfig(({ mode }) => {
           },
         }
       : {}),
+    [SSO_EXCHANGE_PROXY_PATH]: {
+      target: ssoExchangeTarget,
+      changeOrigin: true,
+      secure: false,
+      configure: createProxyLogger("sso-exchange"),
+    },
+    [PLAYER_ANALYTICS_PROXY_PATH]: {
+      target: ssoExchangeTarget,
+      changeOrigin: true,
+      secure: false,
+      configure: createProxyLogger("player-analytics"),
+    },
   };
 
   return {

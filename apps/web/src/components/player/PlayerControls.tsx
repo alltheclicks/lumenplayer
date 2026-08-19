@@ -514,20 +514,19 @@ const PlayerControls = ({
         return;
       }
 
-      setShowControls(prev => {
-        const nextShowControls = !prev;
-        if (
-          idleTimer &&
-          shouldUseControlsIdleTimer
-        ) {
-          if (nextShowControls) {
-            idleTimer.reset();
-          } else {
-            idleTimer.clear();
-          }
+      if (showControls) {
+        if (idleTimer && shouldUseControlsIdleTimer) {
+          idleTimer.hideNow();
+        } else {
+          setShowControls(false);
         }
-        return nextShowControls;
-      });
+        return;
+      }
+
+      setShowControls(true);
+      if (idleTimer && shouldUseControlsIdleTimer) {
+        idleTimer.reset();
+      }
     }
   }, [
     shouldUseControlsIdleTimer,
@@ -676,8 +675,12 @@ const PlayerControls = ({
         severity: 'info',
         metadata: {
           channelId: channel.id,
+          channelName: channel.name,
+          channelCategory: channel.categoryName,
           streamId: channel.streamId,
           programId: program.id,
+          contentKind: 'catchup',
+          playbackMode: 'catchup',
           start: startTimestamp,
           duration,
           attempt: 1,
@@ -710,9 +713,14 @@ const PlayerControls = ({
         severity: 'error',
         metadata: {
           channelId: channel.id,
+          channelName: channel.name,
+          channelCategory: channel.categoryName,
           streamId: channel.streamId,
           programId: program.id,
           status: 'catchup_resolve_failed',
+          terminal: true,
+          contentKind: 'catchup',
+          playbackMode: 'catchup',
           errorCode: error instanceof Error ? error.message : 'unknown_error',
         },
       });
@@ -1414,7 +1422,7 @@ const PlayerControls = ({
   return (
     <div
       className="absolute inset-0 z-10"
-      onMouseMove={handleMouseMove}
+      onPointerMove={handleMouseMove}
       onClick={handleClick}
     >
       {audioTrackPanel}

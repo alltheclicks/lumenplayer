@@ -73,7 +73,20 @@ export class FetchHttpClient implements HttpClient {
 
   private async fetchWithRetry(url: string): Promise<Response> {
     for (let attempt = 0; attempt <= this.maxRetries; attempt += 1) {
-      const response = await this.fetchWithTimeout(url);
+      let response: Response;
+      try {
+        response = await this.fetchWithTimeout(url);
+      } catch (error) {
+        // Browser-level network failures (for example `Failed to fetch`) do
+        // not have an HTTP status. They are usually transient and previously
+        // bypassed the retry policy entirely.
+        if (attempt >= this.maxRetries) throw error;
+        await this.sleep(Math.min(
+          this.baseRetryDelayMs * (2 ** attempt),
+          this.maxRetryDelayMs,
+        ));
+        continue;
+      }
       if (response.ok) {
         return response;
       }

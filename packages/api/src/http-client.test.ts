@@ -73,6 +73,43 @@ describe("FetchHttpClient", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  it("retries browser network failures before surfacing them", async () => {
+    const fetchMock = vi.fn()
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const sleeps: number[] = [];
+    const client = new FetchHttpClient({
+      baseRetryDelayMs: 25,
+      sleep: async (ms) => {
+        sleeps.push(ms);
+      },
+    });
+
+    await expect(client.get<{ ok: boolean }>("https://example.test/player_api.php"))
+      .resolves.toEqual({ ok: true });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(sleeps).toEqual([25]);
+  });
+
+  it("preserves the final network error after the bounded retry budget", async () => {
+    const fetchMock = vi.fn().mockRejectedValue(new TypeError("Failed to fetch"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const client = new FetchHttpClient({
+      maxRetries: 1,
+      sleep: async () => {},
+    });
+
+    await expect(client.get("https://example.test/player_api.php"))
+      .rejects.toThrow("Failed to fetch");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
   it("aborts a hung request after the configured timeout (M1.2-c)", async () => {
     // Simulate a socket that never resolves until it is aborted via signal.
     const fetchMock = vi.fn((_url: string, init?: { signal?: AbortSignal }) => (

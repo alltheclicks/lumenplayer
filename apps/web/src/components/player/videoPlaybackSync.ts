@@ -1,8 +1,97 @@
 import type { SessionSource, SessionState } from '@lumen/session-core';
 import type { PlaybackError } from '@lumen/types';
 
+export type PlaybackFailureTelemetryDisposition = 'deferred' | 'rendering-continues' | 'terminal';
+
+export interface PlaybackFailureTelemetry {
+  name: 'playback.retry' | 'playback.warning' | 'playback.error';
+  severity: 'warn' | 'error';
+  terminal: boolean;
+}
+
+export const resolvePlaybackFailureTelemetry = (
+  disposition: PlaybackFailureTelemetryDisposition,
+  fatal: boolean,
+): PlaybackFailureTelemetry => {
+  if (disposition === 'deferred') {
+    return { name: 'playback.retry', severity: 'warn', terminal: false };
+  }
+  if (disposition === 'rendering-continues') {
+    return { name: 'playback.warning', severity: 'warn', terminal: false };
+  }
+  return {
+    name: 'playback.error',
+    severity: fatal ? 'error' : 'warn',
+    terminal: true,
+  };
+};
+
 export const sessionWantsPlayback = (session: Pick<SessionState, 'playback'>): boolean => (
   session.playback === 'playing' || session.playback === 'buffering'
+);
+
+export const shouldPreservePlaybackIntentDuringBackgroundPause = (
+  session: Pick<SessionState, 'source' | 'playback'>,
+  pause: {
+    isDocumentHidden: boolean;
+    isForegroundRecoveryPending: boolean;
+    isBackgroundPlaybackIntent?: boolean;
+    manualPauseRequested: boolean;
+  },
+): boolean => (
+  (
+    pause.isDocumentHidden ||
+    pause.isForegroundRecoveryPending ||
+    pause.isBackgroundPlaybackIntent === true
+  ) &&
+  !pause.manualPauseRequested &&
+  Boolean(session.source) &&
+  sessionWantsPlayback(session)
+);
+
+export const shouldRecoverPlaybackAfterForeground = (
+  session: Pick<SessionState, 'source'>,
+  recovery: {
+    backgroundSourceUrl: string | null;
+  },
+): boolean => {
+  const source = session.source;
+  return Boolean(
+    source &&
+    source.url === recovery.backgroundSourceUrl &&
+    (source.metadata?.mode === 'live' || source.metadata?.mode === 'catchup')
+  );
+};
+
+export const shouldDeferPlaybackFailureWhileBackgrounded = (
+  session: Pick<SessionState, 'source'>,
+  failure: {
+    isDocumentHidden: boolean;
+    backgroundSourceUrl: string | null;
+    manualPauseRequested: boolean;
+  },
+): boolean => {
+  const source = session.source;
+  return Boolean(
+    failure.isDocumentHidden &&
+    !failure.manualPauseRequested &&
+    source &&
+    source.url === failure.backgroundSourceUrl &&
+    (source.metadata?.mode === 'live' || source.metadata?.mode === 'catchup')
+  );
+};
+
+export const shouldResumeForegroundRecoveryOnIdle = (
+  session: Pick<SessionState, 'source' | 'playback'>,
+  foregroundRecoverySourceUrl: string | null,
+): boolean => Boolean(
+  session.source &&
+  session.source.url === foregroundRecoverySourceUrl &&
+  sessionWantsPlayback(session) &&
+  (
+    session.source.metadata?.mode === 'live' ||
+    session.source.metadata?.mode === 'catchup'
+  )
 );
 
 const isLiveSourceMode = (session: SessionState): boolean => {
@@ -113,7 +202,7 @@ export const shouldResolveProviderBlockingErrorAfterPlaybackError = (
     return true;
   }
 
-  return !media.hasRenderableFrame;
+  return playbackError.fatal && !media.hasRenderableFrame;
 };
 
 export const shouldClearPendingAutoplayOnPlaybackError = (

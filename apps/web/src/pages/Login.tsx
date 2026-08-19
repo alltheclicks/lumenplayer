@@ -10,12 +10,12 @@ import { useToast } from '@/hooks/use-toast';
 import {
   XTREAM_SERVER_URL,
   isServerConfigured,
-  getServerDisplayName,
   resolveXtreamCanonicalServer,
 } from '@/config/xtream';
 import { loadXtreamCredentials, saveXtreamCredentials } from '@/services/xtreamCredentials';
 import { xtreamCodesService } from '@/services/xtreamService';
-import { AlertCircle, Eye, EyeOff, Loader2, Server, Tv } from 'lucide-react';
+import { isXtreamAccountActive } from '@lumen/api';
+import { AlertCircle, Eye, EyeOff, Loader2, Tv } from 'lucide-react';
 
 const Login = () => {
   const navigate = useNavigate();
@@ -86,7 +86,7 @@ const Login = () => {
       xtreamCodesService.setCredentials(credentials);
       const response = await xtreamCodesService.authenticate();
 
-      if (response.user_info?.auth === 1) {
+      if (isXtreamAccountActive(response.user_info)) {
         const canonicalServer = resolveXtreamCanonicalServer(
           credentials.server,
           response.server_info,
@@ -104,7 +104,9 @@ const Login = () => {
         toast({
           variant: 'destructive',
           title: 'Neuspešna prijava',
-          description: 'Pogrešno korisničko ime ili lozinka.',
+          description: response.user_info?.auth === 1
+            ? 'TV pretplata nije aktivna. Obnovite je preko EXYU.tv naloga.'
+            : 'Pogrešno korisničko ime ili lozinka.',
         });
       }
     } catch (err) {
@@ -148,16 +150,7 @@ const Login = () => {
               </Alert>
             )}
 
-            {serverConfigured && (
-              <div className="mb-4 flex items-center gap-2 rounded-lg bg-secondary/50 p-2">
-                <Server className="h-4 w-4 text-muted-foreground" />
-                <span className="text-xs text-muted-foreground">
-                  Server: {getServerDisplayName()}
-                </span>
-              </div>
-            )}
-
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-4 rr-block" data-rr-block>
               <div className="space-y-2">
                 <Label htmlFor="username">Korisničko ime</Label>
                 <Input

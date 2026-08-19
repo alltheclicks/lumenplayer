@@ -26,15 +26,18 @@ export class XtreamCodesService {
   private credentials: XtreamCredentials | null = null;
   private http: HttpClient;
   private readonly resolveCredentials: (credentials: XtreamCredentials) => XtreamCredentials;
+  private readonly resolveApiCredentials: (credentials: XtreamCredentials) => XtreamCredentials;
 
   constructor(
     http: HttpClient,
     options: {
       resolveCredentials?: (credentials: XtreamCredentials) => XtreamCredentials;
+      resolveApiCredentials?: (credentials: XtreamCredentials) => XtreamCredentials;
     } = {},
   ) {
     this.http = http;
     this.resolveCredentials = options.resolveCredentials ?? ((credentials) => credentials);
+    this.resolveApiCredentials = options.resolveApiCredentials ?? ((credentials) => credentials);
   }
 
   setCredentials(credentials: XtreamCredentials | null): void {
@@ -57,9 +60,10 @@ export class XtreamCodesService {
       throw new Error("Credentials not set");
     }
 
-    const url = new URL(`${this.credentials.server}/player_api.php`);
-    url.searchParams.set("username", this.credentials.username);
-    url.searchParams.set("password", this.credentials.password);
+    const apiCredentials = this.resolveApiCredentials(this.credentials);
+    const url = new URL(`${apiCredentials.server}/player_api.php`);
+    url.searchParams.set("username", apiCredentials.username);
+    url.searchParams.set("password", apiCredentials.password);
 
     if (action) {
       url.searchParams.set("action", action);
@@ -77,29 +81,21 @@ export class XtreamCodesService {
   }
 
   async getLiveCategories(): Promise<XtreamCategory[]> {
-    return this.http.get<XtreamCategory[]>(
-      this.buildUrl("get_live_categories"),
-    );
+    return this.getArrayResponse<XtreamCategory>("get_live_categories");
   }
 
   async getLiveStreams(categoryId?: string): Promise<XtreamLiveStream[]> {
     const params = categoryId ? { category_id: categoryId } : {};
-    return this.http.get<XtreamLiveStream[]>(
-      this.buildUrl("get_live_streams", params),
-    );
+    return this.getArrayResponse<XtreamLiveStream>("get_live_streams", params);
   }
 
   async getVODCategories(): Promise<XtreamCategory[]> {
-    return this.http.get<XtreamCategory[]>(
-      this.buildUrl("get_vod_categories"),
-    );
+    return this.getArrayResponse<XtreamCategory>("get_vod_categories");
   }
 
   async getVODStreams(categoryId?: string): Promise<XtreamVOD[]> {
     const params = categoryId ? { category_id: categoryId } : {};
-    return this.http.get<XtreamVOD[]>(
-      this.buildUrl("get_vod_streams", params),
-    );
+    return this.getArrayResponse<XtreamVOD>("get_vod_streams", params);
   }
 
   async getAllVODStreams(): Promise<XtreamVOD[]> {
@@ -164,16 +160,12 @@ export class XtreamCodesService {
   }
 
   async getSeriesCategories(): Promise<XtreamCategory[]> {
-    return this.http.get<XtreamCategory[]>(
-      this.buildUrl("get_series_categories"),
-    );
+    return this.getArrayResponse<XtreamCategory>("get_series_categories");
   }
 
   async getSeries(categoryId?: string): Promise<XtreamSeries[]> {
     const params = categoryId ? { category_id: categoryId } : {};
-    return this.http.get<XtreamSeries[]>(
-      this.buildUrl("get_series", params),
-    );
+    return this.getArrayResponse<XtreamSeries>("get_series", params);
   }
 
   async getSeriesInfo(seriesId: string | number): Promise<XtreamSeriesInfo> {
@@ -218,10 +210,22 @@ export class XtreamCodesService {
     if (!this.credentials) {
       throw new Error("Credentials not set");
     }
-    const url = new URL(`${this.credentials.server}/xmltv.php`);
-    url.searchParams.set("username", this.credentials.username);
-    url.searchParams.set("password", this.credentials.password);
+    const apiCredentials = this.resolveApiCredentials(this.credentials);
+    const url = new URL(`${apiCredentials.server}/xmltv.php`);
+    url.searchParams.set("username", apiCredentials.username);
+    url.searchParams.set("password", apiCredentials.password);
     return this.http.getText(url.toString());
+  }
+
+  private async getArrayResponse<T>(
+    action: string,
+    params: Record<string, string> = {},
+  ): Promise<T[]> {
+    const payload = await this.http.get<unknown>(this.buildUrl(action, params));
+    if (!Array.isArray(payload)) {
+      throw new Error(`Unexpected Xtream API response for ${action}`);
+    }
+    return payload as T[];
   }
 
   getLiveStreamUrl(streamId: number, extension = "m3u8"): string {

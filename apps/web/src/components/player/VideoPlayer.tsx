@@ -4,7 +4,10 @@ import { AlertCircle, Loader2, Radio, WifiOff, ShieldAlert, X } from 'lucide-rea
 import type { SessionSource } from '@lumen/session-core';
 import { Button } from '@/components/ui/button';
 import { useSessionContext } from '@/context/session-context';
-import { HlsPlayerAdapter } from '@/adapters/HlsPlayerAdapter';
+import {
+  BackgroundPlaybackResumeError,
+  HlsPlayerAdapter,
+} from '@/adapters/HlsPlayerAdapter';
 import type { PlaybackError } from '@lumen/types';
 import type { AudioTrackOption } from '@lumen/types';
 import type { SubtitleTrackOption } from '@lumen/types';
@@ -24,6 +27,10 @@ import {
   shouldKeepPendingAutoplayOnIdle,
   shouldClearPendingAutoplayOnPlaybackError,
   sessionWantsPlayback,
+  shouldPreservePlaybackIntentDuringBackgroundPause,
+  shouldRecoverPlaybackAfterForeground,
+  shouldDeferPlaybackFailureWhileBackgrounded,
+  shouldResumeForegroundRecoveryOnIdle,
   shouldResolveProviderBlockingErrorAfterPlaybackError,
   shouldHoldPauseSyncOnSourceStartup,
   shouldRetryPendingAutoplayAfterPausedEvent,
@@ -49,6 +56,7 @@ import {
   resolveCatchUpFallbackPlaybackPosition,
   resolveCatchUpTimelinePositionMsForSource,
   resolveCatchUpTimelineSeekTargetMsForSource,
+  resolvePlaybackFailureTelemetry,
   resolveLiveUnexpectedStopDecision,
   shouldAttemptCatchUpErrorFallback,
   shouldResumeRenderableLiveAfterUnexpectedStop,
@@ -89,6 +97,7 @@ export interface VideoPlayerProps {
   onCanPlay?: () => void;
   onSourceBlockingPrimaryAction?: (source: SessionSource) => void;
   onReportPlaybackProblem?: (source: SessionSource, error: PlayerError) => void;
+  onBackgroundRecoverySourceReloadFailed?: (source: SessionSource) => void;
   className?: string;
 }
 
@@ -618,6 +627,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
   onCanPlay,
   onSourceBlockingPrimaryAction,
   onReportPlaybackProblem,
+  onBackgroundRecoverySourceReloadFailed,
   className = '',
 }, ref) => {
   const { session, commands } = useSessionContext();
@@ -653,6 +663,9 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
   const airPlayConnectionListenersRef = useRef(new Set<(isConnected: boolean) => void>());
   const lastStartedSourceRef = useRef<string | null>(null);
   const manualPauseRequestedRef = useRef(false);
+  const backgroundPlaybackIntentSourceRef = useRef<string | null>(null);
+  const backgroundPlaybackFailureReportedRef = useRef(false);
+  const foregroundPlaybackRecoverySourceRef = useRef<string | null>(null);
   const liveUnexpectedPauseRecoverySourceRef = useRef<string | null>(null);
   const liveUnexpectedPauseRecoveryAttemptsRef = useRef(0);
   const pendingAutoplaySourceUrlRef = useRef<string | null>(null);
@@ -690,6 +703,40 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
     setErrorState((currentErrorState) => (
       currentErrorState ?? buildPlayerErrorState(nextError, sessionRef.current.source)
     ));
+  }, []);
+
+  const deferPlaybackFailureWhileBackgrounded = useCallback((
+    errorCode: string,
+    message?: string,
+  ): boolean => {
+    const currentSession = sessionRef.current;
+    if (!shouldDeferPlaybackFailureWhileBackgrounded(currentSession, {
+      isDocumentHidden: (
+        document.visibilityState === 'hidden' ||
+        backgroundPlaybackIntentSourceRef.current === currentSession.source?.url
+      ),
+      backgroundSourceUrl: backgroundPlaybackIntentSourceRef.current,
+      manualPauseRequested: manualPauseRequestedRef.current,
+    })) {
+      return false;
+    }
+
+    if (!backgroundPlaybackFailureReportedRef.current) {
+      backgroundPlaybackFailureReportedRef.current = true;
+      emitWebObservabilityEvent({
+        name: 'playback.retry',
+        severity: 'warn',
+        metadata: {
+          renderer: currentSession.renderer,
+          channelId: currentSession.source?.channelId ?? null,
+          playbackMode: currentSession.source?.metadata?.mode ?? null,
+          status: 'background_failure_deferred',
+          errorCode,
+          message: message ?? null,
+        },
+      });
+    }
+    return true;
   }, []);
 
   const recordCatchUpRuntimeCompatibility = useCallback((
@@ -1004,6 +1051,168 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
   useEffect(() => {
     sessionRef.current = session;
   }, [session]);
+
+  useEffect(() => {
+    const markPlaybackBackgrounded = () => {
+      const currentSession = sessionRef.current;
+      const currentSource = currentSession.source;
+      if (
+        currentSource &&
+        sessionWantsPlayback(currentSession) &&
+        (currentSource.metadata?.mode === 'live' || currentSource.metadata?.mode === 'catchup')
+      ) {
+        backgroundPlaybackIntentSourceRef.current = currentSource.url;
+        backgroundPlaybackFailureReportedRef.current = false;
+        adapterRef.current?.setDocumentHidden(true);
+      }
+    };
+
+    const resumePlaybackInForeground = () => {
+      if (document.visibilityState === 'hidden') {
+        return;
+      }
+
+      const currentSession = sessionRef.current;
+      const backgroundSourceUrl = backgroundPlaybackIntentSourceRef.current;
+      const adapter = adapterRef.current;
+      if (
+        !adapter ||
+        !shouldRecoverPlaybackAfterForeground(currentSession, {
+          backgroundSourceUrl,
+        })
+      ) {
+        adapter?.setDocumentHidden(false);
+        return;
+      }
+
+      const source = currentSession.source;
+      if (!source) {
+        return;
+      }
+      backgroundPlaybackIntentSourceRef.current = null;
+      backgroundPlaybackFailureReportedRef.current = false;
+      const sourceMetadata = (
+        typeof source.metadata === 'object' && source.metadata !== null
+      )
+        ? source.metadata as Record<string, unknown>
+        : {};
+      const isCatchUpSource = sourceMetadata.mode === 'catchup';
+      const catchUpStartPositionSeconds = isCatchUpSource
+        ? resolveRuntimeCatchUpMediaSeekTimeSeconds(
+          source,
+          currentSession.positionMs,
+          resolveCatchUpMinimumHlsStartPositionSeconds(source),
+        )
+        : 0;
+      const sourceForAdapter = {
+        url: source.url,
+        type: source.type,
+        metadata: {
+          ...sourceMetadata,
+          ...(isCatchUpSource && catchUpStartPositionSeconds > 0
+            ? { catchUpHlsStartPositionSeconds: catchUpStartPositionSeconds }
+            : {}),
+          ...(isCatchUpSource && usesMediaKingCatchUpManifestGuard(source)
+            ? { catchUpHlsStartupMode: 'progressive' }
+            : {}),
+        },
+      };
+      foregroundPlaybackRecoverySourceRef.current = source.url;
+      pendingAutoplaySourceUrlRef.current = source.url;
+      setError(null);
+      commands.play();
+      void adapter.resumeAfterBackground(sourceForAdapter).then((result) => {
+        if (sessionRef.current.source?.url !== source.url) {
+          return;
+        }
+        emitWebObservabilityEvent({
+          name: 'playback.retry',
+          severity: 'warn',
+          metadata: {
+            renderer: sessionRef.current.renderer,
+            channelId: source.channelId ?? null,
+            streamId: sourceMetadata.streamId ?? null,
+            playbackMode: sourceMetadata.mode ?? null,
+            status: result.replace(/-/g, '_'),
+            errorCode: 'BACKGROUND_PLAYBACK_RESUME',
+          },
+        });
+      }).catch((recoveryError: unknown) => {
+        if (sessionRef.current.source?.url !== source.url) {
+          return;
+        }
+        foregroundPlaybackRecoverySourceRef.current = null;
+        const recoveryFailure = recoveryError instanceof BackgroundPlaybackResumeError
+          ? recoveryError.code
+          : null;
+        const recoveryTelemetry = recoveryFailure === 'source-reload-failed'
+          ? {
+              status: 'foreground_source_reload_failed',
+              errorCode: 'BACKGROUND_PLAYBACK_SOURCE_RELOAD_FAILED',
+            }
+          : recoveryFailure === 'playback-start-failed'
+            ? {
+                status: 'foreground_playback_start_failed',
+                errorCode: 'BACKGROUND_PLAYBACK_START_FAILED',
+              }
+            : recoveryFailure === 'rebuild-no-frame'
+              ? {
+                  status: 'foreground_rebuild_no_frame',
+                  errorCode: 'BACKGROUND_PLAYBACK_REBUILD_NO_FRAME',
+                }
+              : {
+                  status: 'foreground_pipeline_rebuild_failed',
+                  errorCode: 'BACKGROUND_PLAYBACK_RESUME_FAILED',
+                };
+        emitWebObservabilityEvent({
+          name: 'playback.error',
+          severity: 'error',
+          metadata: {
+            renderer: sessionRef.current.renderer,
+            channelId: source.channelId ?? null,
+            streamId: sourceMetadata.streamId ?? null,
+            playbackMode: sourceMetadata.mode ?? null,
+            ...recoveryTelemetry,
+            message: recoveryError instanceof Error ? recoveryError.message : String(recoveryError),
+          },
+        });
+        if (recoveryFailure === 'source-reload-failed') {
+          onBackgroundRecoverySourceReloadFailed?.(source);
+        }
+      });
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        markPlaybackBackgrounded();
+        return;
+      }
+      resumePlaybackInForeground();
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    document.addEventListener('freeze', markPlaybackBackgrounded);
+    document.addEventListener('resume', resumePlaybackInForeground);
+    window.addEventListener('blur', markPlaybackBackgrounded);
+    window.addEventListener('focus', resumePlaybackInForeground);
+    window.addEventListener('pagehide', markPlaybackBackgrounded);
+    window.addEventListener('pageshow', resumePlaybackInForeground);
+    handleVisibilityChange();
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      document.removeEventListener('freeze', markPlaybackBackgrounded);
+      document.removeEventListener('resume', resumePlaybackInForeground);
+      window.removeEventListener('blur', markPlaybackBackgrounded);
+      window.removeEventListener('focus', resumePlaybackInForeground);
+      window.removeEventListener('pagehide', markPlaybackBackgrounded);
+      window.removeEventListener('pageshow', resumePlaybackInForeground);
+    };
+  }, [
+    commands,
+    onBackgroundRecoverySourceReloadFailed,
+    resolveRuntimeCatchUpMediaSeekTimeSeconds,
+    setError,
+  ]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -1481,9 +1690,15 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
     play: () => adapterRef.current?.play(),
     pause: () => {
       manualPauseRequestedRef.current = true;
+      backgroundPlaybackIntentSourceRef.current = null;
+      foregroundPlaybackRecoverySourceRef.current = null;
       adapterRef.current?.pause();
     },
-    stop: () => adapterRef.current?.stop(),
+    stop: () => {
+      backgroundPlaybackIntentSourceRef.current = null;
+      foregroundPlaybackRecoverySourceRef.current = null;
+      adapterRef.current?.stop();
+    },
     seek: (time: number) => {
       const targetPositionMs = Math.floor(Math.max(0, time) * 1000);
       const source = sessionRef.current.source;
@@ -2137,6 +2352,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
       },
     });
     adapterRef.current = adapter;
+    adapter.setDocumentHidden(document.visibilityState === 'hidden');
 
     const unsubscribeState = adapter.onStateChange((state) => {
       const currentSession = sessionRef.current;
@@ -2276,6 +2492,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
               channelId: recoverySession.source.channelId ?? null,
               code: errorCode,
               fatal: false,
+              terminal: true,
               status: `unexpected_${reason}_blocked`,
             },
           });
@@ -2296,6 +2513,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
       }
 
       if (state === 'playing') {
+        foregroundPlaybackRecoverySourceRef.current = null;
         clearLiveNoFrameWatchdog();
         const playingMediaElement = videoRef.current;
         const isCatchUpPlaying = currentSession.source?.metadata?.mode === 'catchup';
@@ -2400,6 +2618,19 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
       if (state === 'paused') {
         const manualPauseRequested = manualPauseRequestedRef.current;
         manualPauseRequestedRef.current = false;
+        if (shouldPreservePlaybackIntentDuringBackgroundPause(currentSession, {
+          isDocumentHidden: document.visibilityState === 'hidden',
+          isForegroundRecoveryPending: (
+            foregroundPlaybackRecoverySourceRef.current === currentSession.source?.url
+          ),
+          isBackgroundPlaybackIntent: (
+            backgroundPlaybackIntentSourceRef.current === currentSession.source?.url
+          ),
+          manualPauseRequested,
+        })) {
+          backgroundPlaybackIntentSourceRef.current = currentSession.source?.url ?? null;
+          return;
+        }
         const sourceMetadata = (
           typeof currentSession.source?.metadata === 'object' &&
           currentSession.source.metadata !== null
@@ -2532,6 +2763,16 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
       }
 
       if (state === 'idle') {
+        if (deferPlaybackFailureWhileBackgrounded('BACKGROUND_PLAYBACK_IDLE')) {
+          return;
+        }
+        if (shouldResumeForegroundRecoveryOnIdle(
+          currentSession,
+          foregroundPlaybackRecoverySourceRef.current,
+        )) {
+          adapter.play();
+          return;
+        }
         const shouldKeepPendingAutoplay = shouldKeepPendingAutoplayOnIdle(
           currentSession,
           pendingAutoplaySourceUrlRef.current
@@ -2557,6 +2798,13 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
         mediaElement.readyState >= 2 &&
         mediaElement.videoWidth > 0
       );
+
+      if (deferPlaybackFailureWhileBackgrounded(
+        playbackError.code,
+        playbackError.message,
+      )) {
+        return;
+      }
 
       // Catch-up shadow step-aside: the MP2->AAC shadow endpoint answers 409 when
       // the channel is already browser-playable (AAC/MP3), telling us to use the
@@ -2674,12 +2922,14 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
         setError(null);
         setIsLoading(true);
         updateLoadingProgressPhase('segment');
+        const failureTelemetry = resolvePlaybackFailureTelemetry('deferred', playbackError.fatal);
         emitWebObservabilityEvent({
-          name: 'playback.error',
-          severity: playbackError.fatal ? 'error' : 'warn',
+          name: failureTelemetry.name,
+          severity: failureTelemetry.severity,
           metadata: {
             code: playbackError.code,
             fatal: playbackError.fatal,
+            terminal: failureTelemetry.terminal,
             message: playbackError.message,
             renderer: sessionRef.current.renderer,
             status: 'live_startup_deferred',
@@ -2697,12 +2947,14 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
         setError(null);
         setIsLoading(true);
         updateLoadingProgressPhase('segment');
+        const failureTelemetry = resolvePlaybackFailureTelemetry('deferred', playbackError.fatal);
         emitWebObservabilityEvent({
-          name: 'playback.error',
-          severity: playbackError.fatal ? 'error' : 'warn',
+          name: failureTelemetry.name,
+          severity: failureTelemetry.severity,
           metadata: {
             code: playbackError.code,
             fatal: playbackError.fatal,
+            terminal: failureTelemetry.terminal,
             message: playbackError.message,
             renderer: sessionRef.current.renderer,
             ...buildCatchUpEventMetadata(sessionRef.current.source, {
@@ -2821,6 +3073,15 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
         playbackError,
         { hasRenderableFrame },
       );
+      const terminalPlaybackFailure = Boolean(
+        providerIssueError ||
+        catchUpRuntimeUnavailableError ||
+        shouldShowPlaybackError
+      );
+      const failureTelemetry = resolvePlaybackFailureTelemetry(
+        terminalPlaybackFailure ? 'terminal' : 'rendering-continues',
+        playbackError.fatal,
+      );
       if (!providerIssueError &&
         shouldAttemptRuntimeFallback &&
         switchToCatchUpFallbackIfAvailable(playbackError.code)) {
@@ -2874,15 +3135,16 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
         clearLoadingProgress();
       }
       emitWebObservabilityEvent({
-        name: 'playback.error',
-        severity: playbackError.fatal ? 'error' : 'warn',
+        name: failureTelemetry.name,
+        severity: failureTelemetry.severity,
         metadata: {
           code: playbackError.code,
           fatal: playbackError.fatal,
+          terminal: failureTelemetry.terminal,
           message: playbackError.message,
           renderer: sessionRef.current.renderer,
           ...buildCatchUpEventMetadata(sessionRef.current.source, {
-            status: 'error',
+            status: terminalPlaybackFailure ? 'error' : 'rendering_continues',
             errorCode: playbackError.code,
           }),
         },
@@ -3016,6 +3278,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
     clearCatchUpSeekWatchdog,
     clearLoadingProgress,
     commands,
+    deferPlaybackFailureWhileBackgrounded,
     getCatchUpRuntimeTimelineAnchor,
     mapPlaybackError,
     rememberCatchUpRuntimeTimelineAnchor,
@@ -3200,6 +3463,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
 
     let cancelled = false;
     adapter.stop();
+    foregroundPlaybackRecoverySourceRef.current = null;
     setError(null);
     setIsLoading(true);
     resetLoadingProgress('requesting');
@@ -3347,6 +3611,18 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
         type: sourceType,
         metadata: sourceMetadata,
       };
+      const analyticsLoadStartedAtMs = Date.now();
+      if (sourceType === 'hls') {
+        emitWebObservabilityEvent({
+          name: 'playback.manifest_started',
+          metadata: {
+            renderer: sessionRef.current.renderer,
+            channelId: currentSource?.channelId ?? null,
+            streamId: currentSourceMetadata?.streamId ?? null,
+            playbackMode: currentSourceMetadata?.mode ?? null,
+          },
+        });
+      }
 
       void adapter.load(sourceForAdapter).then(() => {
         if (cancelled) {
@@ -3364,6 +3640,18 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
           parseNumericMetadataValue(loadedMetadata?.catchUpSeekNoFrameRetryCount) ?? 0,
         );
         const loadedMediaElement = videoRef.current;
+        if (sourceType === 'hls') {
+          emitWebObservabilityEvent({
+            name: 'playback.manifest_succeeded',
+            metadata: {
+              renderer: loadedSession.renderer,
+              channelId: loadedSession.source?.channelId ?? null,
+              streamId: loadedMetadata?.streamId ?? null,
+              playbackMode: loadedMetadata?.mode ?? null,
+              durationMs: Date.now() - analyticsLoadStartedAtMs,
+            },
+          });
+        }
         const loadedHasRenderableFrame = Boolean(
           loadedMediaElement &&
           loadedMediaElement.readyState >= 2 &&
@@ -3494,6 +3782,20 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
           return;
         }
 
+        if (sourceType === 'hls') {
+          emitWebObservabilityEvent({
+            name: 'playback.manifest_failed',
+            severity: 'error',
+            metadata: {
+              renderer: sessionRef.current.renderer,
+              channelId: sessionRef.current.source?.channelId ?? null,
+              errorCode: 'LOAD_FAILED',
+              message,
+              durationMs: Date.now() - analyticsLoadStartedAtMs,
+            },
+          });
+        }
+
         const currentSession = sessionRef.current;
         const mediaElement = videoRef.current;
         const hasRenderableFrame = hasRenderableMediaFrame(mediaElement);
@@ -3510,12 +3812,14 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
           setError(null);
           setIsLoading(true);
           updateLoadingProgressPhase('requesting');
+          const failureTelemetry = resolvePlaybackFailureTelemetry('deferred', true);
           emitWebObservabilityEvent({
-            name: 'playback.error',
-            severity: 'error',
+            name: failureTelemetry.name,
+            severity: failureTelemetry.severity,
             metadata: {
               code: 'LOAD_FAILED',
               fatal: true,
+              terminal: failureTelemetry.terminal,
               message,
               renderer: currentSession.renderer,
               status: 'live_startup_deferred',
@@ -3541,12 +3845,14 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
           setError(null);
           setIsLoading(true);
           updateLoadingProgressPhase('segment');
+          const failureTelemetry = resolvePlaybackFailureTelemetry('deferred', true);
           emitWebObservabilityEvent({
-            name: 'playback.error',
-            severity: 'error',
+            name: failureTelemetry.name,
+            severity: failureTelemetry.severity,
             metadata: {
               code: 'LOAD_FAILED',
               fatal: true,
+              terminal: failureTelemetry.terminal,
               message,
               renderer: currentSession.renderer,
               ...buildCatchUpEventMetadata(currentSession.source, {
@@ -3581,6 +3887,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
           metadata: {
             code: 'LOAD_FAILED',
             fatal: true,
+            terminal: true,
             message,
             renderer: sessionRef.current.renderer,
             ...buildCatchUpEventMetadata(sessionRef.current.source, {

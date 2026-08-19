@@ -1,3 +1,6 @@
+import { sanitizeTelemetryRecord } from './privacyRedaction';
+import { emitPlayerAnalyticsEvent } from './playerAnalytics';
+
 export type ObservabilitySeverity = 'info' | 'warn' | 'error';
 
 export interface ObservabilityEvent {
@@ -155,12 +158,14 @@ export const createWebObservability = (
     const severity = event.severity ?? 'info';
     const nowMs = event.timestampMs ?? Date.now();
 
-    const payload: Record<string, unknown> = {
+    const payload = sanitizeTelemetryRecord({
       event: event.name,
       severity,
       timestamp: new Date(nowMs).toISOString(),
       ...(event.metadata ?? {}),
-    };
+    });
+
+    emitPlayerAnalyticsEvent(event.name, severity, event.metadata ?? {}, nowMs);
 
     if (severity === 'error') {
       sink.error(DEFAULT_PREFIX, payload);

@@ -1,0 +1,239 @@
+import { useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Helmet } from 'react-helmet-async';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import {
+  XTREAM_SERVER_URL,
+  isServerConfigured,
+  resolveXtreamCanonicalServer,
+} from '@/config/xtream';
+import {
+  clearXtreamCredentials,
+  loadXtreamCredentials,
+  saveXtreamCredentials,
+} from '@/services/xtreamCredentials';
+import { xtreamCodesService } from '@/services/xtreamService';
+import { isXtreamAccountActive } from '@lumen/api';
+import { AlertCircle, Loader2, Tv } from 'lucide-react';
+import {
+  configurePlayerAnalytics,
+  emitPlayerAnalyticsEvent,
+  type PlayerAnalyticsConfiguration,
+} from '@/services/playerAnalytics';
+import { saveManagedAccessMode, type ManagedAccessMode } from '@/services/managedAccessMode';
+import { useSessionContext } from '@/context/session-context';
+
+const EXYU_PLAYER_PAGE_URL = 'https://exyu.tv/player';
+
+type SsoStatus = 'exchanging' | 'unconfigured' | 'error';
+type SsoStage = 'token_exchange' | 'xtream_authentication' | 'credential_storage';
+
+/**
+ * Landing route for the exyu.tv -> player SSO hand-off. exyu.tv redirects a
+ * signed-in subscriber to `/sso#token=<t>`; the token is stripped from the URL
+ * immediately, exchanged for Xtream credentials at `/sso/exchange`, validated
+ * against the Xtream server, and stored like a normal login.
+ */
+const SsoLanding = () => {
+  const navigate = useNavigate();
+  const { commands } = useSessionContext();
+  const [status, setStatus] = useState<SsoStatus>('exchanging');
+  const [failureStage, setFailureStage] = useState<SsoStage | null>(null);
+  const [failureCode, setFailureCode] = useState<string | null>(null);
+  const startedRef = useRef(false);
+
+  useEffect(() => {
+    // Tokens are single-use: guard against the StrictMode double-effect.
+    if (startedRef.current) {
+      return;
+    }
+    startedRef.current = true;
+
+    const hash = window.location.hash;
+    const token = new URLSearchParams(hash.startsWith('#') ? hash.slice(1) : hash).get('token');
+    window.history.replaceState(null, '', '/sso');
+
+    const fallbackToExistingSession = async (): Promise<boolean> => {
+      const existing = await loadXtreamCredentials();
+      if (existing) {
+        navigate('/player', { replace: true });
+        return true;
+      }
+      return false;
+    };
+
+    const run = async () => {
+      if (!token) {
+        if (!(await fallbackToExistingSession())) {
+          navigate('/login', { replace: true });
+        }
+        return;
+      }
+
+      if (!isServerConfigured()) {
+        setStatus('unconfigured');
+        return;
+      }
+
+      let ssoStage: SsoStage = 'token_exchange';
+      try {
+        const response = await fetch('/sso/exchange', {
+          method: 'POST',
+          cache: 'no-store',
+          credentials: 'same-origin',
+          referrerPolicy: 'no-referrer',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ token }),
+        });
+        if (!response.ok) {
+          throw new Error(`sso_exchange_failed_${response.status}`);
+        }
+
+        const data = (await response.json()) as {
+          username?: unknown;
+          password?: unknown;
+          accessMode?: unknown;
+          analytics?: unknown;
+        };
+        if (typeof data.username !== 'string' || typeof data.password !== 'string') {
+          throw new Error('sso_exchange_invalid_response');
+        }
+        let accessMode: ManagedAccessMode = 'full';
+        if (data.accessMode !== undefined) {
+          if (data.accessMode !== 'full' && data.accessMode !== 'info_only') {
+            throw new Error('sso_exchange_invalid_response');
+          }
+          accessMode = data.accessMode;
+        }
+        if (data.analytics && typeof data.analytics === 'object') {
+          configurePlayerAnalytics(data.analytics as PlayerAnalyticsConfiguration);
+        }
+
+        const credentials = {
+          server: XTREAM_SERVER_URL,
+          username: data.username,
+          password: data.password,
+        };
+
+        xtreamCodesService.setCredentials(credentials);
+        ssoStage = 'xtream_authentication';
+        const authResponse = await xtreamCodesService.authenticate();
+        if (!isXtreamAccountActive(authResponse.user_info)) {
+          throw new Error(
+            authResponse.user_info?.auth === 1
+              ? 'sso_xtream_subscription_inactive'
+              : 'sso_xtream_auth_failed',
+          );
+        }
+
+        const canonicalServer = resolveXtreamCanonicalServer(
+          credentials.server,
+          authResponse.server_info,
+        );
+        const canonicalCredentials = canonicalServer === credentials.server
+          ? credentials
+          : { ...credentials, server: canonicalServer };
+        ssoStage = 'credential_storage';
+        // Never restore a previously cached full-catalog/VOD source after an
+        // account has moved into the one-channel Info mode (or vice versa).
+        commands.stop();
+        await saveXtreamCredentials(canonicalCredentials);
+        saveManagedAccessMode(accessMode);
+        emitPlayerAnalyticsEvent('sso.landing_succeeded', 'info', {
+          ssoStage: 'completed',
+        });
+        navigate('/player', { replace: true });
+      } catch (err) {
+        const errorCode = err instanceof Error ? err.message : 'unknown_sso_error';
+        emitPlayerAnalyticsEvent('sso.landing_failed', 'error', {
+          errorCode,
+          ssoStage,
+        });
+        console.error('SSO sign-in error:', errorCode);
+        const subscriptionInactive = errorCode === 'sso_xtream_subscription_inactive';
+        if (subscriptionInactive) {
+          await clearXtreamCredentials();
+        }
+        if (subscriptionInactive || !(await fallbackToExistingSession())) {
+          setFailureStage(ssoStage);
+          setFailureCode(errorCode);
+          setStatus('error');
+        }
+      }
+    };
+
+    void run();
+  }, [commands, navigate]);
+
+  return (
+    <>
+      <Helmet>
+        <meta name="robots" content="noindex, nofollow" />
+        <meta name="googlebot" content="noindex, nofollow" />
+      </Helmet>
+
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <Card className="w-full max-w-md border-border/60 bg-card/95">
+          <CardHeader className="text-center">
+            <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <Tv className="w-8 h-8 text-primary" />
+            </div>
+            <CardTitle className="text-2xl">
+              {status === 'error' ? 'Prijava nije uspela' : 'Prijava u toku'}
+            </CardTitle>
+            <CardDescription>
+              {status === 'error'
+                ? failureCode === 'sso_xtream_subscription_inactive'
+                  ? 'TV pretplata nije aktivna. Obnovite je preko EXYU.tv naloga.'
+                  : failureStage === 'token_exchange'
+                  ? 'Link za prijavu je istekao ili nije važeći.'
+                  : failureStage === 'credential_storage'
+                    ? 'Pregledač nije uspeo da sačuva prijavu. Pokušajte ponovo.'
+                    : 'IPTV server trenutno nije dostupan. Pokušajte ponovo za nekoliko trenutaka.'
+                : 'Povezujemo vaš EXYU nalog sa plejerom...'}
+            </CardDescription>
+          </CardHeader>
+
+          <CardContent>
+            {status === 'exchanging' && (
+              <div className="flex items-center justify-center gap-2 py-4 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Samo trenutak...
+              </div>
+            )}
+
+            {status === 'unconfigured' && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  IPTV server nije konfigurisan. Administrator treba da podesi{' '}
+                  <code className="rounded bg-secondary px-1 text-xs">VITE_XTREAM_SERVER</code> u
+                  environment varijablama.
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {status === 'error' && (
+              <div className="space-y-3">
+                <Button className="w-full" asChild>
+                  <a href={EXYU_PLAYER_PAGE_URL}>Nazad na EXYU.tv</a>
+                </Button>
+                <Button
+                  variant="secondary"
+                  className="w-full"
+                  onClick={() => navigate('/login', { replace: true })}
+                >
+                  Prijava korisničkim imenom i lozinkom
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    </>
+  );
+};
+
+export default SsoLanding;

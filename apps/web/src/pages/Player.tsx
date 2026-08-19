@@ -71,6 +71,8 @@ import {
 import { xtreamCodesService } from '@/services/xtreamService';
 import { addWatchHistoryEntry, loadLastWatchedChannelId } from '@/services/watchHistory';
 import { emitWebObservabilityEvent } from '@/services/observability';
+import { endPlayerAnalyticsSession } from '@/services/playerAnalytics';
+import { clearManagedAccessMode, isInfoOnlyAccess } from '@/services/managedAccessMode';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -125,6 +127,11 @@ import {
   parseSessionSourceMetadata,
 } from '@/components/player/sessionSources';
 import { normalizeRestoredSessionSource } from '@/pages/restoreSessionSource';
+import {
+  isPlayerFullscreenActive,
+  togglePlayerFullscreen,
+  type WebKitFullscreenVideo,
+} from '@/pages/playerFullscreen';
 
 const brandWordmark = getBrandWordmark();
 
@@ -410,6 +417,7 @@ const PlayerSurfaceState = ({
 
 const Player = () => {
   const navigate = useNavigate();
+  const infoOnlyAccess = isInfoOnlyAccess();
   const switchToLiveMode = useSwitchToLiveMode();
   const playerRef = useRef<VideoPlayerHandle>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -610,8 +618,12 @@ const Player = () => {
         severity: 'info',
         metadata: {
           channelId: channel.id,
+          channelName: channel.name,
+          channelCategory: channel.categoryName,
           streamId: channel.streamId,
           source: channel.source,
+          contentKind: 'live',
+          playbackMode: 'live',
         },
       });
 
@@ -1036,27 +1048,48 @@ const Player = () => {
   });
 
   // Toggle fullscreen
-  const toggleFullscreen = useCallback(() => {
-    if (!containerRef.current) return;
+  const toggleFullscreen = useCallback(async () => {
+    const container = containerRef.current;
+    if (!container) return;
 
-    if (!document.fullscreenElement) {
-      containerRef.current.requestFullscreen();
-      setIsFullscreen(true);
-    } else {
-      document.exitFullscreen();
-      setIsFullscreen(false);
+    const result = await togglePlayerFullscreen(container);
+    setIsFullscreen(result.active);
+    if (!result.ok) {
+      emitWebObservabilityEvent({
+        name: 'playback.fullscreen_failed',
+        severity: result.method === 'unsupported' ? 'warn' : 'error',
+        metadata: {
+          errorCode: result.method === 'unsupported'
+            ? 'FULLSCREEN_UNSUPPORTED'
+            : 'FULLSCREEN_REQUEST_FAILED',
+          fullscreenMethod: result.method,
+          errorName: result.errorName,
+        },
+      });
     }
   }, []);
 
   // Handle fullscreen change
   useEffect(() => {
+    const container = containerRef.current;
+    const video = container?.querySelector('video') as WebKitFullscreenVideo | null;
     const handleFullscreenChange = () => {
-      setIsFullscreen(!!document.fullscreenElement);
+      setIsFullscreen(container ? isPlayerFullscreenActive(container) : false);
     };
+    const handleNativeFullscreenEnter = () => setIsFullscreen(true);
+    const handleNativeFullscreenExit = () => setIsFullscreen(false);
 
     document.addEventListener('fullscreenchange', handleFullscreenChange);
-    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
-  }, []);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+    video?.addEventListener('webkitbeginfullscreen', handleNativeFullscreenEnter);
+    video?.addEventListener('webkitendfullscreen', handleNativeFullscreenExit);
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+      video?.removeEventListener('webkitbeginfullscreen', handleNativeFullscreenEnter);
+      video?.removeEventListener('webkitendfullscreen', handleNativeFullscreenExit);
+    };
+  }, [isPlaybackBootstrapReady, session.source]);
 
   // Navigate channels
   const goToNextChannel = useCallback(() => {
@@ -1159,8 +1192,12 @@ const Player = () => {
         severity: 'info',
         metadata: {
           channelId: currentChannelWithEPG.id,
+          channelName: currentChannelWithEPG.name,
+          channelCategory: currentChannelWithEPG.categoryName,
           streamId: currentChannelWithEPG.streamId,
           programId: program.id,
+          contentKind: 'catchup',
+          playbackMode: 'catchup',
           start: startTimestamp,
           duration,
           attempt: 1,
@@ -1187,9 +1224,14 @@ const Player = () => {
         severity: 'error',
         metadata: {
           channelId: currentChannelWithEPG.id,
+          channelName: currentChannelWithEPG.name,
+          channelCategory: currentChannelWithEPG.categoryName,
           streamId: currentChannelWithEPG.streamId,
           programId: program.id,
           status: 'catchup_resolve_failed',
+          terminal: true,
+          contentKind: 'catchup',
+          playbackMode: 'catchup',
           errorCode: error instanceof Error ? error.message : 'unknown_error',
         },
       });
@@ -1655,6 +1697,8 @@ const Player = () => {
 
   // Handle logout
   const handleLogout = () => {
+    endPlayerAnalyticsSession();
+    clearManagedAccessMode();
     void clearXtreamCredentials().finally(() => {
       navigate('/login');
     });
@@ -2164,7 +2208,7 @@ const Player = () => {
                 </div>
               </ScrollArea>
 
-              <div className="p-2 border-t border-border/50">
+              {!infoOnlyAccess && <div className="p-2 border-t border-border/50">
                 <div className="mb-1 px-2">
                   <span className="text-[9px] uppercase tracking-wider text-muted-foreground/60 font-semibold">
                     VOD
@@ -2188,9 +2232,9 @@ const Player = () => {
                     <span className="text-xs font-semibold">Serije</span>
                   </button>
                 </div>
-              </div>
+              </div>}
 
-              {xtreamUserInfo && (
+              {!infoOnlyAccess && xtreamUserInfo && (
                 <div className="p-2 border-t border-border">
                   <div className="bg-secondary/50 rounded-xl p-2 space-y-1.5">
                     <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
@@ -2330,7 +2374,7 @@ const Player = () => {
               </p>
             </div>
 
-            <div className="space-y-2 p-4">
+            {!infoOnlyAccess && <div className="space-y-2 p-4">
               <div>
                 <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
                   Browse
@@ -2340,7 +2384,7 @@ const Player = () => {
               <Button className="w-full justify-start" onClick={() => navigate(onDemandBackPath)}>
                 {onDemandBackLabel}
               </Button>
-            </div>
+            </div>}
           </aside>
         )}
 
@@ -2443,6 +2487,7 @@ const Player = () => {
                 onEnded={handleCatchUpEnded}
                 onSourceBlockingPrimaryAction={switchBlockedSourceToLive}
                 onReportPlaybackProblem={reportPlaybackProblem}
+                onBackgroundRecoverySourceReloadFailed={retryCurrentPlayback}
               />
             )}
 
@@ -3006,7 +3051,7 @@ const Player = () => {
           {!isOnDemandSource ? (
             <div className="flex min-h-0 w-full min-w-0 max-w-full flex-1 flex-col overflow-hidden border-t border-border bg-card lg:hidden">
               <div className="sticky top-0 z-10 w-full min-w-0 max-w-full overflow-hidden bg-card border-b border-border">
-                <div className="p-2">
+                {!infoOnlyAccess && <div className="p-2">
                   <div className="grid grid-cols-3 gap-1.5">
                     <Button
                       variant="outline"
@@ -3033,7 +3078,7 @@ const Player = () => {
                       <span className="min-w-0 truncate">Serije</span>
                     </Button>
                   </div>
-                </div>
+                </div>}
 
                 <div className="flex gap-1.5 border-t border-border p-2">
                   <label className="sr-only" htmlFor="mobile-channel-category">
@@ -3095,7 +3140,7 @@ const Player = () => {
                 onToggleFavorite={toggleFavorite}
               />
             </div>
-          ) : (
+          ) : !infoOnlyAccess ? (
             <div className="lg:hidden border-t border-border p-4">
               <p className="mb-3 text-sm font-medium text-foreground">{onDemandTitle}</p>
               <div className="space-y-2">
@@ -3119,7 +3164,7 @@ const Player = () => {
                 </Button>
               </div>
             </div>
-          )}
+          ) : null}
         </main>
       </div>
 

@@ -163,9 +163,22 @@ describe('V1 design parity evidence artifact', () => {
     expect(partialArtifact.reviewIntake.requiredScreenIds).toContain('player');
     expect(partialArtifact.reviewIntake.finalRules.join('\n')).toContain('not final owner approval');
 
-    const finalResult = runValidator([artifactPath, '--require-final'], repoRoot);
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-0373-design-parity-'));
+    const strictArtifact = structuredClone(partialArtifact);
+    for (const screen of strictArtifact.screens) {
+      screen.desktop.referenceRef = writeEvidenceFile(tmpDir, `${screen.id}-desktop-reference.png`);
+      screen.desktop.lumenRef = writeEvidenceFile(tmpDir, `${screen.id}-desktop-lumen.png`);
+      screen.mobile.referenceRef = writeEvidenceFile(tmpDir, `${screen.id}-mobile-reference.png`);
+      screen.mobile.lumenRef = writeEvidenceFile(tmpDir, `${screen.id}-mobile-lumen.png`);
+    }
+    const strictArtifactPath = path.join(tmpDir, 'partial-with-rendered-evidence.json');
+    fs.writeFileSync(strictArtifactPath, `${JSON.stringify(strictArtifact, null, 2)}\n`);
+
+    const finalResult = runValidator([strictArtifactPath, '--require-final'], repoRoot);
     expect(finalResult.status).toBe(2);
     expect(finalResult.stderr).toContain('parityReview.status cannot be pending with --require-final');
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
   it('fails validation when review intake omits the owner-approval guardrail', () => {

@@ -9,6 +9,7 @@
     "lint": "turbo lint",
     "test:unit": "vitest run --config vitest.unit.config.ts",
     "test:unit:watch": "vitest --config vitest.unit.config.ts",
+    "security:audit:prod": "pnpm audit --prod --audit-level=moderate",
     "perf:ttfc": "vitest run scripts/perf/time-to-first-channel.test.ts",
     "perf:rss": "vitest run scripts/perf/memory-cap.test.ts",
     "perf:staging-capacity": "node scripts/perf/run-staging-capacity-smoke.mjs",
@@ -82,5 +83,20 @@
     "typescript-eslint": "^8.3.0",
     "typescript": "^5.7.0",
     "vitest": "^4.0.18"
+  },
+  "pnpm": {
+    "overrides": {
+      "ajv@>=8.0.0 <8.18.0": "8.20.0",
+      "bn.js@>=4.0.0 <4.12.3": "4.12.5",
+      "fast-uri@<3.1.5": "3.1.5",
+      "find-my-way@<9.7.0": "9.7.0",
+      "nanoid@<3.3.18": "3.3.18",
+      "postcss@<8.5.25": "8.5.25"
+    },
+    "auditConfig": {
+      "ignoreGhsas": [
+        "GHSA-qwww-vcr4-c8h2"
+      ]
+    }
   }
 }

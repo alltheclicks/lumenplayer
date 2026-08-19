@@ -18,6 +18,56 @@ const createVod = (streamId: number, categoryId: string): XtreamVOD => ({
   direct_source: "",
 });
 
+describe("XtreamCodesService control/media routing", () => {
+  it("proxies API requests while keeping media URLs on the provider CDN", async () => {
+    const requestedUrls: string[] = [];
+    const httpClient: HttpClient = {
+      get: async <T>(url: string): Promise<T> => {
+        requestedUrls.push(url);
+        return { user_info: { auth: 1 } } as T;
+      },
+      getText: async () => "",
+    };
+    const service = new XtreamCodesService(httpClient, {
+      resolveApiCredentials: (credentials) => ({
+        ...credentials,
+        server: `https://player.example/xui-api/${encodeURIComponent(credentials.server)}`,
+      }),
+    });
+    service.setCredentials({
+      server: "https://provider.example",
+      username: "viewer",
+      password: "secret",
+    });
+
+    await service.authenticate();
+
+    expect(requestedUrls[0]).toContain(
+      "https://player.example/xui-api/https%3A%2F%2Fprovider.example/player_api.php",
+    );
+    expect(service.getLiveStreamUrl(42)).toBe(
+      "https://provider.example/live/viewer/secret/42.m3u8",
+    );
+  });
+
+  it("rejects non-array catalog responses with a descriptive error", async () => {
+    const httpClient: HttpClient = {
+      get: async <T>(): Promise<T> => ({ error: "invalid_session" }) as T,
+      getText: async () => "",
+    };
+    const service = new XtreamCodesService(httpClient);
+    service.setCredentials({
+      server: "https://provider.example",
+      username: "viewer",
+      password: "secret",
+    });
+
+    await expect(service.getLiveCategories()).rejects.toThrow(
+      "Unexpected Xtream API response for get_live_categories",
+    );
+  });
+});
+
 describe("XtreamCodesService.getAllVODStreams", () => {
   it("merges per-category streams without duplicates", async () => {
     const categories: XtreamCategory[] = [

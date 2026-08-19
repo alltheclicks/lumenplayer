@@ -1,6 +1,7 @@
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from "fastify";
 import { once } from "node:events";
 import { Writable } from "node:stream";
+import { gzipSync, gunzipSync } from "node:zlib";
 import { createCatchUpGateway } from "./catchup-gateway.js";
 import {
   createCatchUpRemuxController,
@@ -11,6 +12,28 @@ import {
   type CatchUpGatewayResolveRequest,
 } from "./catchup-gateway-contracts.js";
 import { createDefaultServerPolicy } from "./server-registry.js";
+import { redactSensitiveText, sanitizeLogRecord } from "./privacy-redaction.js";
+import {
+  SSO_TOKEN_MAX_LENGTH,
+  createIpRateLimiter,
+  createSsoReplayCache,
+  decryptSsoToken,
+  parseSsoSecret,
+} from "./sso.js";
+import {
+  PLAYER_ANALYTICS_COOKIE_NAME,
+  PLAYER_ANALYTICS_MAX_BATCH_BYTES,
+  PLAYER_ANALYTICS_MAX_REPLAY_BYTES,
+  PLAYER_ANALYTICS_MAX_REPLAY_UNCOMPRESSED_BYTES,
+  analyticsDestinationsMatchEnvironment,
+  bindPlayerAnalyticsBatch,
+  isPlayerAnalyticsUuid,
+  mintPlayerAnalyticsBinding,
+  parsePlayerAnalyticsBinding,
+  readCookie,
+  sanitizePlayerAnalyticsValue,
+  serializePlayerAnalyticsCookie,
+} from "./player-analytics.js";
 
 const XTREAM_PROXY_BASE_PATH = "/xui-api";
 const XTREAM_HLS_ROOT_PATH = "/hlsr/";
@@ -618,7 +641,7 @@ const createRequestLoggerPayload = (
   upstreamUrl: URL,
   durationMs: number,
   payload: Record<string, unknown>,
-): Record<string, unknown> => ({
+): Record<string, unknown> => sanitizeLogRecord({
   event: "xtream_proxy_request",
   method: request.method,
   path: request.url,
@@ -626,6 +649,36 @@ const createRequestLoggerPayload = (
   durationMs,
   ...payload,
 });
+
+const applyPrivateResponseHeaders = (reply: FastifyReply): void => {
+  reply.header("cache-control", "no-store");
+  reply.header("pragma", "no-cache");
+  reply.header("expires", "0");
+  reply.header("referrer-policy", "no-referrer");
+  reply.header("x-content-type-options", "nosniff");
+};
+
+const resolveClientKey = (request: FastifyRequest): string => {
+  const cfConnectingIp = request.headers["cf-connecting-ip"];
+  const forwardedFor = request.headers["x-forwarded-for"];
+  const forwardedClient = (Array.isArray(forwardedFor) ? forwardedFor[0] : forwardedFor)
+    ?.split(",")[0]
+    ?.trim();
+
+  return (typeof cfConnectingIp === "string" && cfConnectingIp.trim())
+    || forwardedClient
+    || request.ip;
+};
+
+const isAllowedBrowserOrigin = (
+  request: FastifyRequest,
+  allowedCorsOrigins: string[],
+): boolean => {
+  const requestOrigin = request.headers.origin?.trim().toLowerCase();
+  return allowedCorsOrigins.length === 0
+    || !requestOrigin
+    || allowedCorsOrigins.includes(requestOrigin);
+};
 
 const isCatchUpRequestUrl = (upstreamUrl: URL): boolean => {
   const pathname = upstreamUrl.pathname.toLowerCase();
@@ -713,24 +766,60 @@ export const createProxyServer = (options: ProxyServerOptions = {}): FastifyInst
     options.allowedCorsOrigins ??
     parseAllowedCorsOrigins(env.XTREAM_PROXY_ALLOWED_CORS_ORIGINS)
   );
+  const ssoSecret = parseSsoSecret(env.PLAYER_SSO_SECRET);
+  const ssoRateLimitPerMinute = parseNonNegativeInteger(env.LUMEN_SSO_RATE_LIMIT_PER_MINUTE, 10);
+  const analyticsIngestSecret = env.PLAYER_ANALYTICS_INGEST_SECRET?.trim() ?? "";
+  const analyticsIngestUrl = env.PLAYER_ANALYTICS_INGEST_URL?.trim();
+  const analyticsReplayUrl = env.PLAYER_ANALYTICS_REPLAY_URL?.trim();
+  const analyticsForwardingEnabled = Boolean(
+    ssoSecret &&
+    analyticsIngestSecret.length >= 32 &&
+    analyticsIngestUrl &&
+    analyticsReplayUrl
+  );
+  const analyticsRateLimitPerMinute = parseNonNegativeInteger(
+    env.LUMEN_PLAYER_ANALYTICS_RATE_LIMIT_PER_MINUTE,
+    240,
+  );
+  const analyticsReplayRateLimitPerMinute = parseNonNegativeInteger(
+    env.LUMEN_PLAYER_REPLAY_RATE_LIMIT_PER_MINUTE,
+    20,
+  );
+  const observeBodyLimitBytes = Math.min(
+    65_536,
+    Math.max(1_024, parseNonNegativeInteger(env.LUMEN_OBSERVE_BODY_LIMIT_BYTES, 16_384)),
+  );
+  const observeMaxEventsPerRequest = Math.min(
+    50,
+    Math.max(1, parseNonNegativeInteger(env.LUMEN_OBSERVE_MAX_EVENTS_PER_REQUEST, 10)),
+  );
+  const observeRateLimitPerMinute = parseNonNegativeInteger(env.LUMEN_OBSERVE_RATE_LIMIT_PER_MINUTE, 120);
   const fetchImpl = options.fetchImpl ?? fetch;
 
   const app = Fastify({
     logger: options.logger ?? true,
+    // Request URLs may contain provider query/path credentials. Operational
+    // events are logged explicitly below after privacy redaction instead.
+    disableRequestLogging: true,
   });
+  app.addContentTypeParser(
+    ["application/gzip", "application/octet-stream"],
+    { parseAs: "buffer", bodyLimit: PLAYER_ANALYTICS_MAX_REPLAY_BYTES },
+    (_request, body, done) => done(null, body),
+  );
   const remuxController = options.remuxController ?? createCatchUpRemuxController({
     logger: {
-      info: (event, payload) => app.log.info({ event, ...payload }),
-      warn: (event, payload) => app.log.warn({ event, ...payload }),
-      error: (event, payload) => app.log.error({ event, ...payload }),
+      info: (event, payload) => app.log.info(sanitizeLogRecord({ event, ...payload })),
+      warn: (event, payload) => app.log.warn(sanitizeLogRecord({ event, ...payload })),
+      error: (event, payload) => app.log.error(sanitizeLogRecord({ event, ...payload })),
     },
     env,
   });
   const catchUpGateway = createCatchUpGateway({
     logger: {
-      info: (event, payload) => app.log.info({ event, ...payload }),
-      warn: (event, payload) => app.log.warn({ event, ...payload }),
-      error: (event, payload) => app.log.error({ event, ...payload }),
+      info: (event, payload) => app.log.info(sanitizeLogRecord({ event, ...payload })),
+      warn: (event, payload) => app.log.warn(sanitizeLogRecord({ event, ...payload })),
+      error: (event, payload) => app.log.error(sanitizeLogRecord({ event, ...payload })),
     },
     remuxController,
     env,
@@ -806,7 +895,7 @@ export const createProxyServer = (options: ProxyServerOptions = {}): FastifyInst
     if (isCatchUpRequestUrl(upstreamUrl) && isRemuxPlaybackHint(upstreamUrl)) {
       request.log.warn({
         event: "catchup.remux_disabled",
-        upstreamUrl: upstreamUrl.toString(),
+        upstreamUrl: redactSensitiveText(upstreamUrl.toString()),
       });
       sendRemuxDisabledError(reply);
       return;
@@ -833,8 +922,8 @@ export const createProxyServer = (options: ProxyServerOptions = {}): FastifyInst
       } catch (error) {
         request.log.warn({
           event: "catchup.remux_manifest_failed",
-          upstreamUrl: upstreamUrl.toString(),
-          message: toErrorMessage(error, "Catch-up remux manifest is unavailable."),
+          upstreamUrl: redactSensitiveText(upstreamUrl.toString()),
+          message: redactSensitiveText(toErrorMessage(error, "Catch-up remux manifest is unavailable.")),
         });
         sendRemuxError(reply, 502, toErrorMessage(error, "Catch-up remux manifest is unavailable."));
       }
@@ -986,19 +1075,429 @@ export const createProxyServer = (options: ProxyServerOptions = {}): FastifyInst
   // playback/cast events here when VITE_OBSERVABILITY_BEACON_URL is set, so
   // production playback problems (catch-up startup stalls, repeated segments,
   // 403/429 bursts) land in the proxy log where we can read them live.
-  app.options("/observe", async (_request, reply) => {
+  const observeRateLimiter = createIpRateLimiter({ limitPerWindow: observeRateLimitPerMinute });
+
+  app.options("/observe", async (request, reply) => {
     applyCorsHeaders(reply, "OPTIONS,POST");
+    applyPrivateResponseHeaders(reply);
+    if (!isAllowedBrowserOrigin(request, allowedCorsOrigins)) {
+      reply.code(403).send();
+      return;
+    }
     reply.code(204).send();
   });
 
-  app.post("/observe", async (request, reply) => {
+  app.post("/observe", { bodyLimit: observeBodyLimitBytes }, async (request, reply) => {
     applyCorsHeaders(reply, "OPTIONS,POST");
+    applyPrivateResponseHeaders(reply);
+    if (!isAllowedBrowserOrigin(request, allowedCorsOrigins)) {
+      reply.code(403).send({ error: "forbidden_origin" });
+      return;
+    }
+    if (!observeRateLimiter.consume(resolveClientKey(request), Date.now())) {
+      reply.code(429).send({ error: "rate_limited" });
+      return;
+    }
+
     const body = request.body as Record<string, unknown> | null | undefined;
     const events = Array.isArray(body?.events) ? body!.events : body ? [body] : [];
-    for (const event of events.slice(0, 50)) {
-      app.log.info({ event: "client_observe", client: event });
+    for (const event of events.slice(0, observeMaxEventsPerRequest)) {
+      if (typeof event !== "object" || event === null || Array.isArray(event)) {
+        continue;
+      }
+      const sanitizedEvent = sanitizeLogRecord(event as Record<string, unknown>);
+      if (typeof sanitizedEvent.event !== "string" || sanitizedEvent.event.length > 128) {
+        continue;
+      }
+      app.log.info({ event: "client_observe", client: sanitizedEvent });
     }
     reply.code(204).send();
+  });
+
+  // Player SSO token exchange (exyu.tv -> player.exyu.tv). The SPA lands on
+  // /sso#token=<t> and POSTs the token here; we decrypt it with the shared
+  // PLAYER_SSO_SECRET and hand back the Xtream credentials. Inert (404) unless
+  // the secret is configured, so non-EXYU deployments are unaffected.
+  const ssoReplayCache = createSsoReplayCache();
+  const ssoRateLimiter = createIpRateLimiter({ limitPerWindow: ssoRateLimitPerMinute });
+
+  app.options("/sso/exchange", async (_request, reply) => {
+    applyCorsHeaders(reply, "OPTIONS,POST");
+    applyPrivateResponseHeaders(reply);
+    reply.code(204).send();
+  });
+
+  app.post("/sso/exchange", { bodyLimit: 4096 }, async (request, reply) => {
+    applyCorsHeaders(reply, "OPTIONS,POST");
+    applyPrivateResponseHeaders(reply);
+    reply.type("application/json; charset=utf-8");
+
+    const rejectExchange = (statusCode: number, errorCode: string): void => {
+      request.log.warn({ event: "sso_exchange", outcome: "rejected", errorCode });
+      reply.code(statusCode).send({ error: errorCode });
+    };
+
+    if (!ssoSecret) {
+      rejectExchange(404, "sso_disabled");
+      return;
+    }
+
+    // Browser cross-site calls are rejected outright when an origin allowlist
+    // is configured; requests without an Origin header (curl, server-to-server)
+    // still have to present a valid token, which is the real gate.
+    if (!isAllowedBrowserOrigin(request, allowedCorsOrigins)) {
+      rejectExchange(403, "forbidden_origin");
+      return;
+    }
+
+    // The proxy binds to loopback behind nginx, so request.ip is always
+    // 127.0.0.1; the forwarding headers nginx/Cloudflare set carry the real
+    // client address for per-client rate limiting.
+    if (!ssoRateLimiter.consume(resolveClientKey(request), Date.now())) {
+      rejectExchange(429, "rate_limited");
+      return;
+    }
+
+    const body = request.body as Record<string, unknown> | null | undefined;
+    const token = body?.token;
+    if (typeof token !== "string" || token.length === 0 || token.length > SSO_TOKEN_MAX_LENGTH) {
+      rejectExchange(400, "invalid_request");
+      return;
+    }
+
+    const result = decryptSsoToken(token, ssoSecret, Math.floor(Date.now() / 1000));
+    if (!result.ok) {
+      rejectExchange(result.error === "malformed" ? 400 : 401, result.error);
+      return;
+    }
+
+    const { payload } = result;
+    if (!ssoReplayCache.checkAndRemember(payload.jti, payload.expiresAtSeconds, Math.floor(Date.now() / 1000))) {
+      rejectExchange(401, "replayed");
+      return;
+    }
+
+    // Never log the token or the credentials it carries.
+    request.log.info({ event: "sso_exchange", outcome: "ok" });
+    const analytics = payload.analytics && analyticsForwardingEnabled && analyticsDestinationsMatchEnvironment(
+      payload.analytics,
+      analyticsIngestUrl,
+      analyticsReplayUrl,
+    )
+      ? payload.analytics
+      : null;
+    if (analytics && ssoSecret) {
+      const binding = mintPlayerAnalyticsBinding(
+        ssoSecret,
+        analytics,
+        Math.floor(Date.now() / 1000),
+      );
+      reply.header("set-cookie", serializePlayerAnalyticsCookie(binding, true));
+    }
+    reply.code(200).send({
+      username: payload.username,
+      password: payload.password,
+      accessMode: payload.accessMode,
+      ...(analytics ? {
+        analytics: {
+          subject: analytics.subject,
+          sessionId: analytics.sessionId,
+          ingestUrl: "/player-analytics/ingest",
+          replayUrl: "/player-analytics/replay",
+        },
+      } : {}),
+    });
+  });
+
+  const analyticsRateLimiter = createIpRateLimiter({ limitPerWindow: analyticsRateLimitPerMinute });
+  const analyticsReplayRateLimiter = createIpRateLimiter({
+    limitPerWindow: analyticsReplayRateLimitPerMinute,
+  });
+
+  const resolveAnalyticsBinding = (request: FastifyRequest) => {
+    if (!ssoSecret) return null;
+    return parsePlayerAnalyticsBinding(
+      readCookie(request.headers.cookie, PLAYER_ANALYTICS_COOKIE_NAME),
+      ssoSecret,
+      Math.floor(Date.now() / 1000),
+    );
+  };
+
+  const forwardPlayerAnalytics = async (
+    destination: string,
+    body: BodyInit,
+    headers: Record<string, string>,
+  ): Promise<Response> => {
+    let lastError: unknown;
+    for (let attempt = 1; attempt <= 2; attempt += 1) {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5_000);
+      try {
+        const response = await fetchImpl(destination, {
+          method: "POST",
+          body,
+          headers: {
+            authorization: `Bearer ${analyticsIngestSecret}`,
+            ...headers,
+          },
+          signal: controller.signal,
+        });
+        if (response.status < 500 || attempt === 2) {
+          await response.body?.cancel();
+          return response;
+        }
+        await response.body?.cancel();
+        lastError = new Error(`upstream_${response.status}`);
+      } catch (error) {
+        lastError = error;
+        if (attempt === 2) throw error;
+      } finally {
+        clearTimeout(timeout);
+      }
+    }
+    throw lastError instanceof Error ? lastError : new Error("analytics_forward_failed");
+  };
+
+  let analyticsInFlight = 0;
+  let analyticsReplayInFlight = 0;
+
+  app.get("/player-analytics/config", async (request, reply) => {
+    applyCorsHeaders(reply, "GET,OPTIONS");
+    applyPrivateResponseHeaders(reply);
+    if (!analyticsForwardingEnabled || !analyticsIngestUrl || !analyticsReplayUrl) {
+      reply.code(404).send({ error: "analytics_disabled" });
+      return;
+    }
+    if (!isAllowedBrowserOrigin(request, allowedCorsOrigins)) {
+      reply.code(403).send({ error: "forbidden_origin" });
+      return;
+    }
+    if (!analyticsRateLimiter.consume(resolveClientKey(request), Date.now())) {
+      reply.code(429).send({ error: "rate_limited" });
+      return;
+    }
+    const binding = resolveAnalyticsBinding(request);
+    if (!binding) {
+      reply.code(401).send({ error: "analytics_session_required" });
+      return;
+    }
+    reply.code(200).send({
+      subject: binding.subject,
+      sessionId: binding.sessionId,
+      ingestUrl: "/player-analytics/ingest",
+      replayUrl: "/player-analytics/replay",
+    });
+  });
+
+  app.options("/player-analytics/ingest", async (request, reply) => {
+    applyCorsHeaders(reply, "OPTIONS,POST");
+    applyPrivateResponseHeaders(reply);
+    if (!isAllowedBrowserOrigin(request, allowedCorsOrigins)) {
+      reply.code(403).send();
+      return;
+    }
+    reply.code(204).send();
+  });
+
+  app.post("/player-analytics/ingest", { bodyLimit: PLAYER_ANALYTICS_MAX_BATCH_BYTES }, async (request, reply) => {
+    applyCorsHeaders(reply, "OPTIONS,POST");
+    applyPrivateResponseHeaders(reply);
+    if (!analyticsForwardingEnabled || !analyticsIngestUrl) {
+      reply.code(404).send({ error: "analytics_disabled" });
+      return;
+    }
+    if (!isAllowedBrowserOrigin(request, allowedCorsOrigins)) {
+      reply.code(403).send({ error: "forbidden_origin" });
+      return;
+    }
+    if (!analyticsRateLimiter.consume(resolveClientKey(request), Date.now())) {
+      reply.code(429).send({ error: "rate_limited" });
+      return;
+    }
+    if (analyticsInFlight >= 32) {
+      reply.code(503).send({ error: "analytics_busy" });
+      return;
+    }
+    const binding = resolveAnalyticsBinding(request);
+    if (!binding) {
+      reply.code(401).send({ error: "analytics_session_required" });
+      return;
+    }
+    const batch = bindPlayerAnalyticsBatch(request.body, binding);
+    if (!batch) {
+      reply.code(400).send({ error: "invalid_batch" });
+      return;
+    }
+    const serialized = JSON.stringify(batch);
+    if (Buffer.byteLength(serialized, "utf8") > PLAYER_ANALYTICS_MAX_BATCH_BYTES) {
+      reply.code(413).send({ error: "payload_too_large" });
+      return;
+    }
+    const events = Array.isArray(batch.events) ? batch.events.length : 0;
+    const crashes = Array.isArray(batch.crashes) ? batch.crashes.length : 0;
+    const feedback = Array.isArray(batch.feedback) ? batch.feedback.length : 0;
+    const startedAt = performance.now();
+    analyticsInFlight += 1;
+    try {
+      const upstream = await forwardPlayerAnalytics(analyticsIngestUrl, serialized, {
+        "content-type": "application/json",
+      });
+      const latencyMs = Math.round(performance.now() - startedAt);
+      request.log.info({
+        event: "player_analytics_forward",
+        sessionId: binding.sessionId,
+        events,
+        crashes,
+        feedback,
+        outcome: upstream.ok ? "ok" : "rejected",
+        statusCode: upstream.status,
+        latencyMs,
+      });
+      if (!upstream.ok) {
+        reply.code(upstream.status >= 400 && upstream.status < 500 ? upstream.status : 502)
+          .send({ error: "analytics_upstream_rejected" });
+        return;
+      }
+      reply.code(202).send({ ok: true });
+    } catch (error) {
+      request.log.warn({
+        event: "player_analytics_forward",
+        sessionId: binding.sessionId,
+        events,
+        crashes,
+        feedback,
+        outcome: "failed",
+        latencyMs: Math.round(performance.now() - startedAt),
+        errorClass: error instanceof Error ? error.name : "UnknownError",
+      });
+      reply.code(502).send({ error: "analytics_unavailable" });
+    } finally {
+      analyticsInFlight -= 1;
+    }
+  });
+
+  app.options("/player-analytics/replay", async (request, reply) => {
+    applyCorsHeaders(reply, "OPTIONS,POST");
+    applyPrivateResponseHeaders(reply);
+    if (!isAllowedBrowserOrigin(request, allowedCorsOrigins)) {
+      reply.code(403).send();
+      return;
+    }
+    reply.code(204).send();
+  });
+
+  app.post("/player-analytics/replay", { bodyLimit: PLAYER_ANALYTICS_MAX_REPLAY_BYTES }, async (request, reply) => {
+    applyCorsHeaders(reply, "OPTIONS,POST");
+    applyPrivateResponseHeaders(reply);
+    if (!analyticsForwardingEnabled || !analyticsReplayUrl) {
+      reply.code(404).send({ error: "analytics_disabled" });
+      return;
+    }
+    if (!isAllowedBrowserOrigin(request, allowedCorsOrigins)) {
+      reply.code(403).send({ error: "forbidden_origin" });
+      return;
+    }
+    if (!analyticsReplayRateLimiter.consume(resolveClientKey(request), Date.now())) {
+      reply.code(429).send({ error: "rate_limited" });
+      return;
+    }
+    if (analyticsReplayInFlight >= 4) {
+      reply.code(503).send({ error: "replay_busy" });
+      return;
+    }
+    const binding = resolveAnalyticsBinding(request);
+    if (!binding) {
+      reply.code(401).send({ error: "analytics_session_required" });
+      return;
+    }
+    const replayId = request.headers["x-player-replay-id"];
+    const trigger = request.headers["x-player-replay-trigger"];
+    if (
+      !isPlayerAnalyticsUuid(replayId) ||
+      typeof trigger !== "string" ||
+      !new Set(["crash", "feedback", "diagnostic", "sample"]).has(trigger)
+    ) {
+      reply.code(400).send({ error: "invalid_replay_metadata" });
+      return;
+    }
+    const raw = Buffer.isBuffer(request.body) ? request.body : Buffer.from([]);
+    if (raw.length === 0 || raw.length > PLAYER_ANALYTICS_MAX_REPLAY_BYTES) {
+      reply.code(413).send({ error: "payload_too_large" });
+      return;
+    }
+    let replayEvents: unknown;
+    try {
+      const decoded = request.headers["content-encoding"] === "gzip"
+        ? gunzipSync(raw, { maxOutputLength: PLAYER_ANALYTICS_MAX_REPLAY_UNCOMPRESSED_BYTES })
+        : raw;
+      if (decoded.length > PLAYER_ANALYTICS_MAX_REPLAY_UNCOMPRESSED_BYTES) {
+        throw new Error("replay_too_large");
+      }
+      replayEvents = JSON.parse(decoded.toString("utf8"));
+    } catch {
+      reply.code(400).send({ error: "invalid_replay" });
+      return;
+    }
+    if (!Array.isArray(replayEvents)) {
+      reply.code(400).send({ error: "invalid_replay" });
+      return;
+    }
+    const sanitized = sanitizePlayerAnalyticsValue(replayEvents);
+    const compressed = gzipSync(Buffer.from(JSON.stringify(sanitized), "utf8"), { level: 6 });
+    if (compressed.length > PLAYER_ANALYTICS_MAX_REPLAY_BYTES) {
+      reply.code(413).send({ error: "replay_too_large" });
+      return;
+    }
+    const startedAt = performance.now();
+    analyticsReplayInFlight += 1;
+    try {
+      const upstream = await forwardPlayerAnalytics(analyticsReplayUrl, compressed, {
+        "content-type": "application/gzip",
+        "content-encoding": "gzip",
+        "x-player-replay-id": replayId,
+        "x-player-session-id": binding.sessionId,
+        "x-player-analytics-subject": binding.subject,
+        "x-player-replay-trigger": trigger,
+        "x-player-redaction-version": "1",
+        "x-player-replay-event-count": String(replayEvents.length),
+        ...(typeof request.headers["x-player-replay-started-at"] === "string"
+          ? { "x-player-replay-started-at": request.headers["x-player-replay-started-at"] }
+          : {}),
+        ...(typeof request.headers["x-player-replay-ended-at"] === "string"
+          ? { "x-player-replay-ended-at": request.headers["x-player-replay-ended-at"] }
+          : {}),
+      });
+      request.log.info({
+        event: "player_replay_forward",
+        sessionId: binding.sessionId,
+        replayId,
+        eventCount: replayEvents.length,
+        byteSize: compressed.length,
+        outcome: upstream.ok ? "ok" : "rejected",
+        statusCode: upstream.status,
+        latencyMs: Math.round(performance.now() - startedAt),
+      });
+      if (!upstream.ok) {
+        reply.code(upstream.status >= 400 && upstream.status < 500 ? upstream.status : 502)
+          .send({ error: "replay_upstream_rejected" });
+        return;
+      }
+      reply.code(202).send({ ok: true, replayId });
+    } catch (error) {
+      request.log.warn({
+        event: "player_replay_forward",
+        sessionId: binding.sessionId,
+        replayId,
+        eventCount: replayEvents.length,
+        byteSize: compressed.length,
+        outcome: "failed",
+        latencyMs: Math.round(performance.now() - startedAt),
+        errorClass: error instanceof Error ? error.name : "UnknownError",
+      });
+      reply.code(502).send({ error: "replay_unavailable" });
+    } finally {
+      analyticsReplayInFlight -= 1;
+    }
   });
 
   app.options("/catchup-gateway/resolve", async (_request, reply) => {

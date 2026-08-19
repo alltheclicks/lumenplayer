@@ -31,13 +31,19 @@ export class IdleTimer {
     this.clear();
 
     this.timeout = setTimeout(() => {
-      this.inGrace = true;
-      this.onIdle();
-
-      this.graceTimeout = setTimeout(() => {
-        this.inGrace = false;
-      }, this.graceMs);
+      this.enterIdleGracePeriod();
     }, this.timeoutMs);
+  }
+
+  /**
+   * Hides controls immediately while keeping the same grace period as an
+   * automatic timeout. This prevents the click/pointer event that hid the
+   * controls from immediately revealing them again in Safari.
+   */
+  hideNow(): void {
+    if (this.inGrace) return;
+
+    this.enterIdleGracePeriod();
   }
 
   clear(): void {
@@ -58,5 +64,20 @@ export class IdleTimer {
 
   isInGracePeriod(): boolean {
     return this.inGrace;
+  }
+
+  private enterIdleGracePeriod(): void {
+    this.clear();
+    if (this.graceTimeout) {
+      clearTimeout(this.graceTimeout);
+    }
+
+    this.inGrace = true;
+    this.onIdle();
+
+    this.graceTimeout = setTimeout(() => {
+      this.inGrace = false;
+      this.graceTimeout = null;
+    }, this.graceMs);
   }
 }
