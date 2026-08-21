@@ -156,8 +156,120 @@ describe("createProxyServer", () => {
       headers: { origin: "https://evil.example" },
       payload: { event: "playback.retry" },
     });
+    const missingOrigin = await app.inject({
+      method: "POST",
+      url: "/observe",
+      payload: { event: "playback.retry" },
+    });
     expect(rejected.statusCode).toBe(403);
     expect(rejected.json()).toEqual({ error: "forbidden_origin" });
+    expect(missingOrigin.statusCode).toBe(403);
+    expect(missingOrigin.headers["access-control-allow-origin"]).toBeUndefined();
+
+    await app.close();
+  });
+
+  it("rejects malformed and oversized observability batches before logging", async () => {
+    const app = createProxyServer({
+      allowedHosts: ["*"],
+      logger: false,
+      sweepIntervalMs: 0,
+    });
+    const infoSpy = vi.spyOn(app.log, "info");
+
+    const missingEvent = await app.inject({
+      method: "POST",
+      url: "/observe",
+      payload: { severity: "error", password: "must-not-be-logged" },
+    });
+    const oversizedBatch = await app.inject({
+      method: "POST",
+      url: "/observe",
+      payload: {
+        events: Array.from({ length: 11 }, (_, index) => ({
+          event: `playback.event-${index}`,
+        })),
+      },
+    });
+    const deeplyNested = await app.inject({
+      method: "POST",
+      url: "/observe",
+      payload: {
+        event: "playback.started",
+        metadata: {
+          one: { two: { three: { four: { five: { six: { seven: "too-deep" } } } } } },
+        },
+      },
+    });
+
+    expect(missingEvent.statusCode).toBe(400);
+    expect(missingEvent.json()).toMatchObject({ error: "invalid_observe_request" });
+    expect(oversizedBatch.statusCode).toBe(400);
+    expect(deeplyNested.statusCode).toBe(400);
+    expect(infoSpy).not.toHaveBeenCalled();
+
+    await app.close();
+  });
+
+  it("rate-limits observability by event count and resets after the fixed window", async () => {
+    let nowMs = Date.UTC(2026, 7, 21, 12, 0, 0);
+    const app = createProxyServer({
+      allowedHosts: ["*"],
+      logger: false,
+      sweepIntervalMs: 0,
+      observeRateLimitPerMinute: 2,
+      observeNow: () => nowMs,
+    });
+
+    const accepted = await app.inject({
+      method: "POST",
+      url: "/observe",
+      payload: {
+        events: [
+          { event: "playback.started" },
+          { event: "playback.progress" },
+        ],
+      },
+    });
+    const limited = await app.inject({
+      method: "POST",
+      url: "/observe",
+      payload: { event: "playback.stopped" },
+    });
+    nowMs += 60_001;
+    const reset = await app.inject({
+      method: "POST",
+      url: "/observe",
+      payload: { event: "playback.stopped" },
+    });
+
+    expect(accepted.statusCode).toBe(204);
+    expect(limited.statusCode).toBe(429);
+    expect(limited.headers["retry-after"]).toBe("60");
+    expect(reset.statusCode).toBe(204);
+
+    await app.close();
+  });
+
+  it("uses Fastify's trusted-proxy address for observability rate limits", async () => {
+    const app = createProxyServer({
+      allowedHosts: ["*"],
+      logger: false,
+      sweepIntervalMs: 0,
+      observeRateLimitPerMinute: 1,
+      trustProxyHops: 1,
+    });
+
+    const send = (clientIp: string) => app.inject({
+      method: "POST",
+      url: "/observe",
+      headers: { "x-forwarded-for": clientIp },
+      payload: { event: "playback.started" },
+    });
+
+    expect((await send("203.0.113.10")).statusCode).toBe(204);
+    expect((await send("203.0.113.11")).statusCode).toBe(204);
+    expect((await send("203.0.113.10")).statusCode).toBe(429);
 
     await app.close();
   });
