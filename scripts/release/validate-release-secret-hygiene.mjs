@@ -33,6 +33,7 @@ const isAllowedRedaction = (value) => {
     normalized === '<token>' ||
     normalized === '<username>' ||
     normalized === '<password>' ||
+    normalized === '[REDACTED]' ||
     normalized === 'redacted' ||
     normalized === 'REDACTED' ||
     /^\*+$/.test(normalized) ||
@@ -120,6 +121,7 @@ const querySecretPattern = /[?&](username|user|password|pass|token|api_key|apike
 const jsonSecretPattern = /"(username|password|token|secret|apiKey|api_key|apikey)"\s*:\s*"([^"]+)"/gi;
 const envSecretPattern = /\b([A-Z0-9_]*(?:USERNAME|PASSWORD|TOKEN|SECRET|API_KEY|APIKEY)[A-Z0-9_]*)\s*=\s*([^\s"'`]+)/g;
 const basicAuthUrlPattern = /\bhttps?:\/\/[^/\s:@]+:[^@\s/]+@/i;
+const inlineLoginPairPattern = /\blogin\s+`([^`\r\n]+)`\s*\/\s*`([^`\r\n]+)`/gi;
 
 for (const filePath of scanFiles) {
   const absolutePath = path.resolve(repoRoot, filePath);
@@ -143,6 +145,14 @@ for (const filePath of scanFiles) {
     const value = match[2];
     if (value.trim() !== '' && !isAllowedRedaction(value)) {
       findings.push(`${filePath}: env assignment ${match[1]} contains a non-redacted value`);
+    }
+  }
+
+  for (const match of content.matchAll(inlineLoginPairPattern)) {
+    const username = match[1];
+    const password = match[2];
+    if (!isAllowedRedaction(username) || !isAllowedRedaction(password)) {
+      findings.push(`${filePath}: inline login pair contains non-redacted credentials`);
     }
   }
 

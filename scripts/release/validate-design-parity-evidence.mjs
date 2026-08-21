@@ -253,6 +253,10 @@ if (typeof artifact.signoff.notes !== 'string') {
 }
 
 if (requireFinal) {
+  // Check semantic completion before touching rendered files. Partial artifacts
+  // intentionally point at ignored local capture output; a clean checkout must
+  // still report the real open owner-review blocker, while finalized artifacts
+  // continue to require every referenced evidence file below.
   for (const screen of artifact.screens) {
     if (screen.desktop.status === 'pending') {
       fail(`screen ${screen.id} desktop.status cannot be pending with --require-final.`);
@@ -262,14 +266,20 @@ if (requireFinal) {
       fail(`screen ${screen.id} mobile.status cannot be pending with --require-final.`);
     }
 
+    if (screen.parityReview.status === 'pending') {
+      fail(`screen ${screen.id} parityReview.status cannot be pending with --require-final.`);
+    }
+  }
+
+  if (artifact.signoff.status === 'pending') {
+    fail('signoff.status cannot be pending with --require-final.');
+  }
+
+  for (const screen of artifact.screens) {
     validateEvidenceFileExists(screen.desktop.referenceRef, `screen ${screen.id} desktop.referenceRef`);
     validateEvidenceFileExists(screen.desktop.lumenRef, `screen ${screen.id} desktop.lumenRef`);
     validateEvidenceFileExists(screen.mobile.referenceRef, `screen ${screen.id} mobile.referenceRef`);
     validateEvidenceFileExists(screen.mobile.lumenRef, `screen ${screen.id} mobile.lumenRef`);
-
-    if (screen.parityReview.status === 'pending') {
-      fail(`screen ${screen.id} parityReview.status cannot be pending with --require-final.`);
-    }
 
     if (screen.parityReview.status === 'pass') {
       if (screen.parityReview.reviewedBy.trim() === '') {
@@ -280,10 +290,6 @@ if (requireFinal) {
         fail(`screen ${screen.id} parityReview.reviewedAt must be set when parityReview.status=pass.`);
       }
     }
-  }
-
-  if (artifact.signoff.status === 'pending') {
-    fail('signoff.status cannot be pending with --require-final.');
   }
 
   if (artifact.signoff.approvedBy.trim() === '') {

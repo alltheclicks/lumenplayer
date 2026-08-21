@@ -158,6 +158,8 @@ const validatePrQualityGateWorkflow = () => {
   const content = fs.readFileSync(workflowPath, 'utf8');
   const requiredSnippets = [
     'release-gates',
+    'pnpm test:unit',
+    'pnpm security:audit:prod',
     'pnpm release:qaf035:validate',
     'pnpm release:qaf035:test',
     'pnpm release:guardrails:test',
@@ -183,6 +185,16 @@ const validatePrQualityGateWorkflow = () => {
 
 const validatePackageScripts = () => {
   const packageJson = readJson(files.packageJson);
+  const productUnitTest = packageJson.scripts?.['test:unit'];
+  if (productUnitTest !== 'vitest run --config vitest.unit.config.ts') {
+    fail('package.json scripts.test:unit must run the product unit-test profile.');
+  }
+
+  const productionAudit = packageJson.scripts?.['security:audit:prod'];
+  if (productionAudit !== 'pnpm audit --prod --audit-level=moderate') {
+    fail('package.json scripts.security:audit:prod must audit production dependencies at moderate severity.');
+  }
+
   const proxyNoMediaValidator = packageJson.scripts?.['release:proxy-no-media:validate'];
   if (typeof proxyNoMediaValidator !== 'string') {
     fail('package.json must define scripts.release:proxy-no-media:validate.');

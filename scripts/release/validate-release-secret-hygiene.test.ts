@@ -54,6 +54,37 @@ describe('release secret hygiene scan', () => {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
+  it('allows an explicitly redacted inline login pair', () => {
+    const repoRoot = process.cwd();
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-secret-hygiene-'));
+    const filePath = writeFixture(
+      tmpDir,
+      'redacted-login.md',
+      'QA login `[REDACTED]`/`[REDACTED]` is intentionally unavailable.\n',
+    );
+
+    const result = runValidator([filePath], repoRoot);
+    expect(result.status).toBe(0);
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('fails on a concrete inline login pair in documentation', () => {
+    const repoRoot = process.cwd();
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-secret-hygiene-'));
+    const filePath = writeFixture(
+      tmpDir,
+      'leaky-login.md',
+      'QA login `demo-user`/`demo-password` must not be committed.\n',
+    );
+
+    const result = runValidator([filePath], repoRoot);
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain('inline login pair contains non-redacted credentials');
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
   it('fails on non-redacted credential query parameters', () => {
     const repoRoot = process.cwd();
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-secret-hygiene-'));
