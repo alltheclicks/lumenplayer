@@ -1,6 +1,8 @@
 import { defineConfig, devices } from '@playwright/test';
 
 const baseURL = process.env.E2E_BASE_URL ?? 'http://localhost:8080';
+const storageState = process.env.E2E_STORAGE_STATE
+  ?? 'output/playwright/qa-user-sim/storage-state.json';
 
 export default defineConfig({
   testDir: '.',
@@ -13,7 +15,7 @@ export default defineConfig({
   reporter: [['line']],
   use: {
     baseURL,
-    storageState: 'output/playwright/qa-user-sim/storage-state.json',
+    storageState,
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
