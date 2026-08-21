@@ -121,7 +121,9 @@ check proxy "Proxy /health" 200 \
 #    disabled or wiped by a bad deploy, the proxy answers 404 (sso_disabled) —
 #    which is exactly the silent failure this check exists to catch.
 check sso "SSO ulaz sa exyu.tv" 400 \
-  -X POST -H 'Content-Type: application/json' \
+  -X POST \
+  -H 'Origin: https://player.exyu.tv' \
+  -H 'Content-Type: application/json' \
   -d '{"token":"lps1.monitor-probe"}' \
   "https://player.exyu.tv/sso/exchange" || failures=$((failures + 1))
 
@@ -134,6 +136,7 @@ check gateway "Xtream gateway (gw.castcdn.net)" 200 \
 #    endpoint must return 401. A 404 means forwarding was disabled (usually by
 #    a missing ingest secret/URL), while 502 means the proxy path is unhealthy.
 check analytics "Player Analytics forwarding" 401 \
+  -H 'Origin: https://player.exyu.tv' \
   "https://player.exyu.tv/player-analytics/config" || failures=$((failures + 1))
 
 # 6. Crash-loop early warning: the 28-29 Jul outage burned 47k restarts before
