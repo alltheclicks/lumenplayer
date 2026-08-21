@@ -18,7 +18,9 @@ import {
 } from './mpegTsAudioStrip';
 import {
   createCatchUpRebaseSession,
+  recordCatchUpRebaseProcessing,
   rebaseCatchUpSegment,
+  type CatchUpRebaseBoundary,
   type CatchUpRebaseSession,
   type CatchUpRebaseSessionStats,
 } from './mpegTsPtsRebase';
@@ -57,6 +59,8 @@ const HLS_DECODE_RECOVERY_RESUME_WINDOW_MS = 12_000;
 const HLS_DECODE_RECOVERY_RESUME_TOLERANCE_SECONDS = 3;
 const HLS_CATCHUP_MAX_BUFFER_LENGTH_SECONDS = 90;
 const HLS_CATCHUP_MAX_BUFFER_SIZE_MB = 180;
+const HLS_CATCHUP_REBASE_MAX_BUFFER_SIZE_MB = 96;
+const HLS_CATCHUP_REBASE_MAX_SEGMENT_BYTES = 64 * 1024 * 1024;
 const HLS_LIVE_MAX_BUFFER_LENGTH_SECONDS = 30;
 const HLS_LIVE_MAX_BUFFER_SIZE_MB = 60;
 // Back-buffer retention: catch-up keeps a wide window so the user can scrub back,
@@ -125,13 +129,23 @@ interface CatchUpRebaseFallbackEvent {
   sourceUrl: string;
 }
 
+interface CatchUpStallEvent {
+  trigger: 'waiting' | 'buffer-stalled';
+  currentTimeSeconds: number;
+  nearestBoundaryMediaTimeSeconds: number | null;
+  distanceToBoundaryMs: number | null;
+  videoHoleMs: number | null;
+}
+
 interface HlsPlayerAdapterOptions {
   preferNativeHls?: boolean;
   onManifestResolved?: (event: ManifestResolvedEvent) => void;
   onUnsupportedAudioCodec?: (event: UnsupportedAudioCodecEvent) => void;
   onUnsupportedVideoCodec?: (event: UnsupportedVideoCodecEvent) => void;
   onCatchUpRebaseFallback?: (event: CatchUpRebaseFallbackEvent) => void;
+  onCatchUpRebaseBoundary?: (boundary: CatchUpRebaseBoundary) => void;
   onCatchUpRebaseSummary?: (stats: CatchUpRebaseSessionStats) => void;
+  onCatchUpStall?: (event: CatchUpStallEvent) => void;
 }
 
 type PlaybackMetadataCarrier = MediaSource & {
@@ -414,7 +428,10 @@ const createMpegAudioStrippingFragmentLoader = (
 const createCatchUpRebaseFragmentLoader = (
   BaseLoader: HlsLoaderConstructor,
   session: CatchUpRebaseSession,
-  hooks: { onFatal: (reason: string) => void },
+  hooks: {
+    onFatal: (reason: string) => void;
+    onBoundary: (boundary: CatchUpRebaseBoundary) => void;
+  },
 ): HlsLoaderConstructor => class {
   private readonly loader: HlsLoaderInstance;
   context: unknown = null;
@@ -437,8 +454,20 @@ const createCatchUpRebaseFragmentLoader = (
           return;
         }
 
+        if (payload.byteLength > HLS_CATCHUP_REBASE_MAX_SEGMENT_BYTES) {
+          hooks.onFatal('segment-too-large');
+          return;
+        }
+
+        const processingStartedAt = performance.now();
         const outcome = rebaseCatchUpSegment(session, fragmentSn, payload);
+        recordCatchUpRebaseProcessing(
+          session,
+          payload.byteLength,
+          performance.now() - processingStartedAt,
+        );
         if (outcome.status === 'rebased') {
+          outcome.updatedBoundaries.forEach(hooks.onBoundary);
           callbacks.onSuccess(
             { ...response, data: outcome.data },
             stats,
@@ -600,7 +629,9 @@ export class HlsPlayerAdapter implements PlayerAdapter {
   private readonly onUnsupportedAudioCodec?: (event: UnsupportedAudioCodecEvent) => void;
   private readonly onUnsupportedVideoCodec?: (event: UnsupportedVideoCodecEvent) => void;
   private readonly onCatchUpRebaseFallback?: (event: CatchUpRebaseFallbackEvent) => void;
+  private readonly onCatchUpRebaseBoundary?: (boundary: CatchUpRebaseBoundary) => void;
   private readonly onCatchUpRebaseSummary?: (stats: CatchUpRebaseSessionStats) => void;
+  private readonly onCatchUpStall?: (event: CatchUpStallEvent) => void;
   private catchUpRebaseSession: CatchUpRebaseSession | null = null;
 
   constructor(video: HTMLVideoElement, options: HlsPlayerAdapterOptions = {}) {
@@ -610,7 +641,9 @@ export class HlsPlayerAdapter implements PlayerAdapter {
     this.onUnsupportedAudioCodec = options.onUnsupportedAudioCodec;
     this.onUnsupportedVideoCodec = options.onUnsupportedVideoCodec;
     this.onCatchUpRebaseFallback = options.onCatchUpRebaseFallback;
+    this.onCatchUpRebaseBoundary = options.onCatchUpRebaseBoundary;
     this.onCatchUpRebaseSummary = options.onCatchUpRebaseSummary;
+    this.onCatchUpStall = options.onCatchUpStall;
     this.removeVideoListeners = this.attachVideoListeners();
     HlsPlayerAdapter.activeAdapters.add(this);
   }
@@ -719,8 +752,15 @@ export class HlsPlayerAdapter implements PlayerAdapter {
       const message = error instanceof Error && error.message
         ? `Unable to start playback: ${error.name}: ${error.message}`
         : 'Unable to start playback.';
+      // NotAllowedError means the browser refuses autoplay until the user
+      // interacts with the page. Unlike the other play() rejections it is a
+      // standing condition, not a transient one: retrying without a user
+      // gesture always fails again. Report it under its own code so the
+      // recovery layer can stop retrying and ask for a tap instead of
+      // spinning on play()/pause() forever.
+      const isAutoplayBlocked = error instanceof Error && error.name === 'NotAllowedError';
       this.emitError({
-        code: 'PLAYBACK_START_FAILED',
+        code: isAutoplayBlocked ? 'PLAYBACK_AUTOPLAY_BLOCKED' : 'PLAYBACK_START_FAILED',
         message,
         fatal: false,
       });
@@ -1213,7 +1253,12 @@ export class HlsPlayerAdapter implements PlayerAdapter {
       });
     }
 
-    if (!useMpegAudioVideoOnlyFallback && this.preferNativeHls && this.video.canPlayType(HLS_MIME_TYPE)) {
+    if (
+      !useMpegAudioVideoOnlyFallback &&
+      !catchUpClientRebase &&
+      this.preferNativeHls &&
+      this.video.canPlayType(HLS_MIME_TYPE)
+    ) {
       this.assertCurrentLoad(loadGeneration);
       this.loadNativeHlsSource(url);
       return;
@@ -1286,7 +1331,10 @@ export class HlsPlayerAdapter implements PlayerAdapter {
         ? createCatchUpRebaseFragmentLoader(
           Hls.DefaultConfig.loader as unknown as HlsLoaderConstructor,
           catchUpRebaseSession,
-          { onFatal: onCatchUpRebaseFatal },
+          {
+            onFatal: onCatchUpRebaseFatal,
+            onBoundary: (boundary) => this.onCatchUpRebaseBoundary?.(boundary),
+          },
         )
         : null;
       const DiscontinuityStrippingPlaylistLoader = catchUpRebaseSession
@@ -1350,11 +1398,18 @@ export class HlsPlayerAdapter implements PlayerAdapter {
           : HLS_LIVE_MAX_BUFFER_LENGTH_SECONDS,
         maxMaxBufferLength: 600,
         maxBufferSize: (
-          isCatchUpSource
+          catchUpRebaseSession
+            ? HLS_CATCHUP_REBASE_MAX_BUFFER_SIZE_MB
+            : isCatchUpSource
             ? HLS_CATCHUP_MAX_BUFFER_SIZE_MB
             : HLS_LIVE_MAX_BUFFER_SIZE_MB
         ) * 1000 * 1000,
-        maxBufferHole: 0.5,
+        // The rebase path joins independently cut minute files. Let hls.js
+        // bridge their measured sub-2s GOP holes and hold the last valid video
+        // frame across the missing tail. Legacy catch-up/live/VOD retain their
+        // previous buffering behaviour.
+        maxBufferHole: catchUpRebaseSession ? 2 : 0.5,
+        ...(catchUpRebaseSession ? { stretchShortVideoTrack: true } : {}),
         startLevel: -1,
         // M1.1-d: structured load policies with exponential backoff and an
         // explicit bail on auth failures so we never retry 401/403 into a ban.
@@ -1483,6 +1538,10 @@ export class HlsPlayerAdapter implements PlayerAdapter {
           const onHlsError = (_event: string, data: ErrorData) => {
             if (!this.isCurrentLoad(loadGeneration) || this.hls !== hls) {
               return;
+            }
+
+            if (data.details === 'bufferStalledError') {
+              this.emitCatchUpStall('buffer-stalled');
             }
 
             if (data.fatal && this.documentHidden) {
@@ -1761,6 +1820,20 @@ export class HlsPlayerAdapter implements PlayerAdapter {
       return;
     }
 
+    if (catchUpClientRebase) {
+      this.onCatchUpRebaseFallback?.({
+        reason: 'hls-js-unsupported',
+        sourceUrl: url,
+      });
+      const error: PlaybackError = {
+        code: 'CATCHUP_REBASE_NOT_SUPPORTED',
+        message: 'Client catch-up normalization requires Media Source Extensions.',
+        fatal: true,
+      };
+      this.emitError(error);
+      throw new Error(error.message);
+    }
+
     if (!useMpegAudioVideoOnlyFallback && this.video.canPlayType(HLS_MIME_TYPE)) {
       this.assertCurrentLoad(loadGeneration);
       this.loadNativeHlsSource(url);
@@ -1867,6 +1940,7 @@ export class HlsPlayerAdapter implements PlayerAdapter {
     };
     const handleWaiting = () => {
       this.updateState('buffering');
+      this.emitCatchUpStall('waiting');
       this.scheduleBufferingRecovery();
     };
     const handleEnded = () => {
@@ -2023,8 +2097,38 @@ export class HlsPlayerAdapter implements PlayerAdapter {
     const session = this.catchUpRebaseSession;
     this.catchUpRebaseSession = null;
     if (session && session.stats.segments > 0) {
-      this.onCatchUpRebaseSummary?.({ ...session.stats });
+      this.onCatchUpRebaseSummary?.({
+        ...session.stats,
+        boundaries: [...session.stats.boundaries],
+      });
     }
+  }
+
+  private emitCatchUpStall(trigger: CatchUpStallEvent['trigger']): void {
+    const session = this.catchUpRebaseSession;
+    if (!session) {
+      return;
+    }
+
+    const currentTimeSeconds = this.video.currentTime || 0;
+    const nearestBoundary = session.stats.boundaries.reduce<CatchUpRebaseBoundary | null>(
+      (nearest, boundary) => (
+        !nearest || Math.abs(boundary.predictedMediaTimeSeconds - currentTimeSeconds)
+          < Math.abs(nearest.predictedMediaTimeSeconds - currentTimeSeconds)
+          ? boundary
+          : nearest
+      ),
+      null,
+    );
+    this.onCatchUpStall?.({
+      trigger,
+      currentTimeSeconds,
+      nearestBoundaryMediaTimeSeconds: nearestBoundary?.predictedMediaTimeSeconds ?? null,
+      distanceToBoundaryMs: nearestBoundary
+        ? Math.round((currentTimeSeconds - nearestBoundary.predictedMediaTimeSeconds) * 1000)
+        : null,
+      videoHoleMs: nearestBoundary?.videoHoleMs ?? null,
+    });
   }
 
   private resetPlaybackState(flushMediaElement: boolean): void {

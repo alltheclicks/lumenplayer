@@ -1,5 +1,6 @@
 import type { SessionSource } from '@lumen/session-core';
 import type { PlayerChannel, Program } from '@lumen/types';
+import Hls from 'hls.js';
 import type {
   CatchUpTransportAttempt,
   CatchUpTransportPlan,
@@ -33,6 +34,8 @@ export interface CatchUpPlaybackSourceResult {
 const CATCHUP_SHADOW_VALIDATION_ENABLED = import.meta.env.VITE_CATCHUP_SHADOW_VALIDATION === '1';
 const CATCHUP_CLIENT_REBASE_ENABLED = import.meta.env.VITE_CATCHUP_CLIENT_REBASE === '1';
 const MEDIAKING_CATCHUP_SAFE_START_POSITION_SECONDS = 75;
+
+export const isCatchUpClientRebaseRuntimeSupported = (): boolean => Hls.isSupported();
 
 const MEDIAKING_CATCHUP_HOSTS = [
   'mediaking.fi',
@@ -228,6 +231,53 @@ const buildShadowOnlyResult = ({
       allAttempts,
     },
     gateway,
+  };
+};
+
+const appendShadowFallbackToClientRebaseResult = ({
+  result,
+  gateway,
+}: {
+  result: CatchUpPlaybackSourceResult;
+  gateway: CatchUpGatewayPlaybackMetadata;
+}): CatchUpPlaybackSourceResult => {
+  const currentAttempts = result.transportPlan.allAttempts;
+  const initialAttempt = currentAttempts[0];
+  if (!initialAttempt || initialAttempt.url === gateway.playbackUrl) {
+    return result;
+  }
+
+  const shadowAttempt: CatchUpTransportAttempt = {
+    ...initialAttempt,
+    url: gateway.playbackUrl,
+    strategy: 'shadow-validation',
+  };
+  const attemptLimit = Math.max(2, currentAttempts.length);
+  const allAttempts = [
+    initialAttempt,
+    shadowAttempt,
+    ...currentAttempts.slice(1).filter((attempt) => attempt.url !== shadowAttempt.url),
+  ].slice(0, attemptLimit);
+  const fallbackAttempts = allAttempts.slice(1);
+  const fallbackUrls = fallbackAttempts.map((attempt) => attempt.url);
+
+  return {
+    ...result,
+    source: {
+      ...result.source,
+      metadata: {
+        ...(result.source.metadata ?? {}),
+        catchUpClientRebaseRequested: true,
+        catchUpAttemptPlan: allAttempts,
+        catchUpFallbackUrl: fallbackUrls[0] ?? '',
+        catchUpFallbackUrls: fallbackUrls,
+      },
+    },
+    transportPlan: {
+      initialAttempt,
+      fallbackAttempts,
+      allAttempts,
+    },
   };
 };
 
@@ -447,6 +497,7 @@ export const resolveCatchUpPlaybackSource = async ({
   gatewayOptions,
   shadowValidation = CATCHUP_SHADOW_VALIDATION_ENABLED,
   clientRebase = CATCHUP_CLIENT_REBASE_ENABLED,
+  clientRebaseSupported = isCatchUpClientRebaseRuntimeSupported(),
 }: {
   channel: Pick<PlayerChannel, 'id' | 'name' | 'streamId' | 'source' | 'catchUpDays' | 'hasCatchUp'>;
   program: Pick<Program, 'id' | 'title' | 'startTime' | 'endTime'>;
@@ -459,6 +510,7 @@ export const resolveCatchUpPlaybackSource = async ({
   gatewayOptions?: CatchUpGatewayClientOptions;
   shadowValidation?: boolean;
   clientRebase?: boolean;
+  clientRebaseSupported?: boolean;
 }): Promise<CatchUpPlaybackSourceResult> => {
   const startTimestamp = Math.floor(program.startTime.getTime() / 1000);
   const fullDurationSeconds = Math.max(
@@ -511,71 +563,83 @@ export const resolveCatchUpPlaybackSource = async ({
     ),
   };
 
-  // Client-side PTS rebase stitches the legacy TS segments into one
-  // continuous timeline in the browser (mpegTsPtsRebase.ts) — no server
-  // involvement. When active it takes precedence over the server shadow
-  // attempt (starts instantly, no cold remux build); a previous runtime
-  // failure for this channel disables it for a while (compat cache) and
-  // restores today's shadow → gateway → transport-plan behavior unchanged.
+  // Client-side PTS rebase stitches the legacy TS segments into one continuous
+  // timeline on the viewer device (mpegTsPtsRebase.ts). A lightweight provider
+  // seed request may prepare a shadow URL as fallback, but no media bytes pass
+  // through Lumen and the shadow build is not touched unless fallback is used.
+  // A previous runtime failure disables rebase temporarily (compat cache).
   const clientRebaseActive = clientRebase
+    && clientRebaseSupported
+    // The rewriter preserves codecs; it cannot make known MP2/MP3/AC3 archive
+    // audio browser-compatible. Let the existing shadow resolver lead for
+    // those matrix entries instead of discovering the same fact after a large
+    // segment has already been downloaded on the user's device.
+    && capability.reasonCode !== 'unsupported-audio-codec'
     && readCatchUpClientRebaseFailure(channel.streamId) === null;
 
-  if (shadowValidation && !clientRebaseActive) {
-    const shadowGateway = await resolveShadowValidationPlayback({
+  const shadowGateway = shadowValidation
+    ? await resolveShadowValidationPlayback({
       channelId: channel.id,
       programId: program.id,
       sourceCandidates,
       fetchImpl: gatewayOptions?.fetchImpl,
-    }).catch(() => null);
+    }).catch(() => null)
+    : null;
+
+  if (shadowGateway && !clientRebaseActive) {
     // Graceful fallback: if the shadow (MP2->AAC remux) endpoint can't be
     // resolved for this program, fall through to the original timeshift.php
     // gateway path below instead of throwing. The legacy path still plays
     // (with the minute-boundary overlap) — far better than killing catch-up
     // entirely. Shadow stays best-effort, per-program.
-    if (shadowGateway) {
-      const providerSafeStartPositionSeconds = resolveProviderSafeStartPositionSeconds({
-        sourceCandidates,
-        gateway: shadowGateway,
-        durationSeconds: resolvedDurationSeconds,
-        streamId: channel.streamId,
-      });
-      const stableStartupMetadata = buildProviderSafeStartMetadata(
-        metadata,
-        shadowGateway,
-        providerSafeStartPositionSeconds,
-      );
-      const resolvedSource = buildCatchUpSessionSourceFromMetadata({
-        channel,
-        metadata: stableStartupMetadata,
-        channelTitle,
-        urlBuilder,
-        preferredPositionSeconds: timelineInitialPositionSeconds,
-        initialPositionGuardSeconds: 0,
-      });
-      const result = {
-        source: resolvedSource.source,
-        transportPlan: resolvedSource.transportPlan,
-        initialPositionSeconds: timelineInitialPositionSeconds,
-        fullDurationSeconds,
-        gateway: shadowGateway,
-      };
+    const providerSafeStartPositionSeconds = resolveProviderSafeStartPositionSeconds({
+      sourceCandidates,
+      gateway: shadowGateway,
+      durationSeconds: resolvedDurationSeconds,
+      streamId: channel.streamId,
+    });
+    const stableStartupMetadata = buildProviderSafeStartMetadata(
+      metadata,
+      shadowGateway,
+      providerSafeStartPositionSeconds,
+    );
+    const resolvedSource = buildCatchUpSessionSourceFromMetadata({
+      channel,
+      metadata: stableStartupMetadata,
+      channelTitle,
+      urlBuilder,
+      preferredPositionSeconds: timelineInitialPositionSeconds,
+      initialPositionGuardSeconds: 0,
+    });
+    const result = {
+      source: resolvedSource.source,
+      transportPlan: resolvedSource.transportPlan,
+      initialPositionSeconds: timelineInitialPositionSeconds,
+      fullDurationSeconds,
+      gateway: shadowGateway,
+    };
 
-      return buildShadowOnlyResult({
-        result: attachCatchUpWebProviderIssue(result, capability),
-        gateway: shadowGateway,
-      });
-    }
+    return buildShadowOnlyResult({
+      result: attachCatchUpWebProviderIssue(result, capability),
+      gateway: shadowGateway,
+    });
   }
 
-  const gateway = await resolveCatchUpGatewayPlayback({
-    channel,
-    program,
-    streamId: channel.streamId,
-    startTimestamp: minuteAlignedStartTimestamp,
-    durationSeconds: resolvedDurationSeconds,
-    sourceCandidates,
-    gatewayOptions,
-  });
+  // Client rebase is deliberately device-direct: do not even resolve the
+  // same-origin catch-up gateway, whose proxy-normalized response would route
+  // large archive segments through the Lumen VPS. Legacy/shadow fallback keeps
+  // the existing gateway behavior when rebase is unavailable.
+  const gateway = clientRebaseActive
+    ? null
+    : await resolveCatchUpGatewayPlayback({
+      channel,
+      program,
+      streamId: channel.streamId,
+      startTimestamp: minuteAlignedStartTimestamp,
+      durationSeconds: resolvedDurationSeconds,
+      sourceCandidates,
+      gatewayOptions,
+    });
   const providerSafeStartPositionSeconds = resolveProviderSafeStartPositionSeconds({
     sourceCandidates,
     gateway,
@@ -606,5 +670,9 @@ export const resolveCatchUpPlaybackSource = async ({
     gateway,
   };
 
-  return attachCatchUpWebProviderIssue(result, capability);
+  const resultWithShadowFallback = clientRebaseActive && shadowGateway
+    ? appendShadowFallbackToClientRebaseResult({ result, gateway: shadowGateway })
+    : result;
+
+  return attachCatchUpWebProviderIssue(resultWithShadowFallback, capability);
 };

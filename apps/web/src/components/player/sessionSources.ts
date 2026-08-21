@@ -37,6 +37,7 @@ export interface CatchUpSessionSourceMetadata {
   catchUpPendingTimelineSeekMs?: number;
   catchUpPendingMediaSeekSeconds?: number;
   catchUpClientRebase?: boolean;
+  catchUpClientRebaseRequested?: boolean;
   catchUpWebProviderIssue?: {
     reasonCode: string;
     channelName: string;
@@ -88,6 +89,7 @@ type SessionSourceMetadataShape = {
   catchUpPendingTimelineSeekMs?: number;
   catchUpPendingMediaSeekSeconds?: number;
   catchUpClientRebase?: boolean;
+  catchUpClientRebaseRequested?: boolean;
   catchUpWebProviderIssue?: CatchUpSessionSourceMetadata['catchUpWebProviderIssue'];
 };
 
@@ -364,6 +366,7 @@ export const parseSessionSourceMetadata = (
       catchUpPendingTimelineSeekMs: parseNumericValue(metadata.catchUpPendingTimelineSeekMs),
       catchUpPendingMediaSeekSeconds: parseNumericValue(metadata.catchUpPendingMediaSeekSeconds),
       catchUpClientRebase: metadata.catchUpClientRebase === true ? true : undefined,
+      catchUpClientRebaseRequested: metadata.catchUpClientRebaseRequested === true ? true : undefined,
       catchUpWebProviderIssue: parseCatchUpWebProviderIssueMetadata(metadata),
     };
   }

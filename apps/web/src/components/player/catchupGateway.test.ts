@@ -144,6 +144,37 @@ describe('resolveCatchUpGatewayPlayback', () => {
     );
   });
 
+  it('honors an explicit gateway disable even for an auto-gateway host', async () => {
+    const fetchImpl = vi.fn();
+
+    const result = await resolveCatchUpGatewayPlayback({
+      channel: {
+        id: 'channel-1',
+        hasCatchUp: true,
+        catchUpDays: 7,
+      },
+      program: {
+        id: 'program-1',
+      },
+      streamId: 112,
+      startTimestamp: 1_772_000_000,
+      durationSeconds: 1800,
+      sourceCandidates: {
+        redirectUrls: ['http://edge6.castcdn.net:8080/timeshift_hls/user/pass/1800/2026-03-08:08-30/112.m3u8'],
+        queryUrls: [],
+        legacyUrls: [],
+      },
+      gatewayOptions: {
+        enabled: false,
+        origin: 'http://localhost:8788',
+        fetchImpl: fetchImpl as typeof fetch,
+      },
+    });
+
+    expect(result).toBeNull();
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
   it('rejects proxy-remuxed playback responses for the web beta path', async () => {
     const fetchImpl = vi.fn().mockResolvedValue({
       ok: true,

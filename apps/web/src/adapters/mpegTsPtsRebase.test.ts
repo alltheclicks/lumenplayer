@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   createCatchUpRebaseSession,
+  recordCatchUpRebaseProcessing,
   rebaseCatchUpSegment,
 } from './mpegTsPtsRebase';
 
@@ -245,6 +246,14 @@ describe('mpegTsPtsRebase', () => {
     expect(secondOutcome.record.assignment).toBe('chained');
     expect(secondOutcome.record.rebasedChainStartPts).toBe(expectedEnd);
     expect(secondOutcome.record.boundaryDeltaPts).toBe(0);
+    expect(secondOutcome.updatedBoundaries).toEqual([{
+      afterSegmentIndex: 0,
+      beforeSegmentIndex: 1,
+      predictedMediaTimeSeconds: 2,
+      videoHoleMs: 1920,
+      boundaryDeltaMs: 0,
+    }]);
+    expect(session.stats.boundaries).toEqual(secondOutcome.updatedBoundaries);
 
     // A/V skew inside each file is preserved: video first PTS − audio first PTS.
     const skew = secondsToPts(3.5) - secondsToPts(1.4);
@@ -342,6 +351,27 @@ describe('mpegTsPtsRebase', () => {
     // Index 1 chains from index 0 but is far too short to reach index 2.
     const outcome = rebaseCatchUpSegment(session, 1, buildSegment());
     expect(outcome).toMatchObject({ status: 'failed', reason: 'joint-delta-exceeded' });
+  });
+
+  it('publishes both newly known boundaries when an out-of-order gap is filled', () => {
+    const session = createCatchUpRebaseSession();
+    rebaseOrThrow(session, 0, buildSegment());
+    rebaseOrThrow(session, 2, buildSegment());
+
+    // A full-length middle fixture reaches the grid-anchored segment 2, so the
+    // insertion establishes boundaries 0->1 and 1->2 in one pass.
+    const fullMinuteAudio = Array.from(
+      { length: 120 },
+      (_, index) => secondsToPts(1.4 + index * 0.5),
+    );
+    const outcome = rebaseOrThrow(session, 1, buildSegment({
+      audioPtsList: fullMinuteAudio,
+    }));
+
+    expect(outcome.updatedBoundaries.map((boundary) => (
+      [boundary.afterSegmentIndex, boundary.beforeSegmentIndex]
+    ))).toEqual([[0, 1], [1, 2]]);
+    expect(session.stats.boundaries).toHaveLength(2);
   });
 
   it('chains on video when the file has no audio track', () => {
@@ -459,5 +489,20 @@ describe('mpegTsPtsRebase', () => {
     const rebased = new Uint8Array(outcome.data);
     expect(rebased.length).toBe(aligned.length);
     expect(rebased[0]).toBe(0x47);
+  });
+
+  it('tracks device-side processing cost and flags long main-thread segments', () => {
+    const session = createCatchUpRebaseSession();
+
+    recordCatchUpRebaseProcessing(session, 42_000_000, 18.25);
+    recordCatchUpRebaseProcessing(session, 45_000_000, 63.5);
+
+    expect(session.stats).toMatchObject({
+      processedBytes: 87_000_000,
+      totalProcessingMs: 81.75,
+      maxProcessingMs: 63.5,
+      maxSegmentBytes: 45_000_000,
+      slowSegments: 1,
+    });
   });
 });
