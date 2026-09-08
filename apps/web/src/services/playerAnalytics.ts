@@ -1,3 +1,4 @@
+import { resolveSelectedPlaybackContext, type PlaybackContentContext } from './playbackAnalyticsContext';
 import { sanitizeTelemetryRecord, redactSensitiveText } from './privacyRedaction';
 import {
   isPlayerFeedbackSuggestionFresh,
@@ -404,6 +405,7 @@ class PlayerAnalyticsClient {
   private lastActivityAtMs = Date.now();
   private playbackActive = false;
   private currentRenderer = 'local-web';
+  private currentContent: PlaybackContentContext = {};
   private currentChannel: { id?: string; name?: string; category?: string } = {};
   private pendingChannelSwitchAtMs: number | null = null;
   private events: PlayerAnalyticsEvent[] = [];
@@ -617,6 +619,7 @@ class PlayerAnalyticsClient {
     this.playbackActive = false;
     this.currentRenderer = 'local-web';
     this.currentChannel = {};
+    this.currentContent = {};
     this.pendingChannelSwitchAtMs = null;
     this.events = [];
     this.crashes = [];
@@ -660,6 +663,14 @@ class PlayerAnalyticsClient {
           ...(stringValue(channel.category) ? { category: stringValue(channel.category) } : {}),
         };
       }
+      if (parsed.currentContent && typeof parsed.currentContent === 'object') {
+        const content = parsed.currentContent as Record<string, unknown>;
+        this.currentContent = resolveSelectedPlaybackContext({
+          contentKind: content.kind, contentId: content.id, contentTitle: content.title,
+          episodeId: content.episodeId, seasonNumber: content.seasonNumber, episodeNumber: content.episodeNumber,
+        }).content;
+        if (['vod', 'series', 'series-episode'].includes(this.currentContent.kind ?? '')) this.currentChannel = {};
+      }
       return true;
     } catch {
       return false;
@@ -685,6 +696,7 @@ class PlayerAnalyticsClient {
         firstFrameMs: this.firstFrameMs,
         currentRenderer: this.currentRenderer,
         currentChannel: this.currentChannel,
+        currentContent: this.currentContent,
       }));
     } catch {
       // Metrics persistence is best-effort.
@@ -702,7 +714,7 @@ class PlayerAnalyticsClient {
     if (name === 'playback.source-selected') {
       this.latestFeedbackSuggestion = null;
     } else {
-      const suggestion = resolvePlayerFeedbackSuggestion(name, safe, timestampMs);
+      const suggestion = resolvePlayerFeedbackSuggestion(name, { contentKind: this.currentContent.kind, ...safe }, timestampMs);
       if (suggestion) this.latestFeedbackSuggestion = suggestion;
     }
     if (!this.configuration) return;
@@ -720,14 +732,13 @@ class PlayerAnalyticsClient {
     );
     const channelName = stringValue(safe.channelName) ?? stringValue(safe.title);
     const channelCategory = stringValue(safe.channelCategory) ?? stringValue(safe.category);
-    if (channelId || channelName || channelCategory) {
-      this.currentChannel = {
-        id: channelId ?? this.currentChannel.id,
-        name: channelName ?? this.currentChannel.name,
-        category: channelCategory ?? this.currentChannel.category,
-      };
+    if (name === 'playback.source-selected') {
+      const selected = resolveSelectedPlaybackContext(safe);
+      this.currentChannel = selected.channel;
+      this.currentContent = selected.content;
     }
-    const eventChannel = resolveAnalyticsEventChannel({
+    const onDemand = ['vod', 'series', 'series-episode'].includes(this.currentContent.kind ?? '');
+    const eventChannel = onDemand ? {} : resolveAnalyticsEventChannel({
       id: channelId,
       name: channelName,
       category: channelCategory,
@@ -764,7 +775,7 @@ class PlayerAnalyticsClient {
         : {}),
       ...(analyticsInteger(safe.durationMs) !== undefined ? { durationMs: analyticsInteger(safe.durationMs) } : {}),
       ...(analyticsInteger(safe.positionMs) !== undefined ? { positionMs: analyticsInteger(safe.positionMs) } : {}),
-      properties: safe,
+      properties: { ...safe, content: this.currentContent },
     };
     this.events.push(event);
     this.recentEvents.push(event);
@@ -1300,13 +1311,14 @@ class PlayerAnalyticsClient {
 
   private collectPlaybackSnapshot(): Record<string, unknown> {
     const media = typeof document !== 'undefined' ? document.querySelector('video') : null;
-    if (!media) return { renderer: this.currentRenderer, channel: this.currentChannel };
+    if (!media) return { renderer: this.currentRenderer, channel: this.currentChannel, content: this.currentContent };
     const quality = typeof media.getVideoPlaybackQuality === 'function'
       ? media.getVideoPlaybackQuality()
       : null;
     return sanitizeTelemetryRecord({
       renderer: this.currentRenderer,
       channel: this.currentChannel,
+      content: this.currentContent,
       positionMs: media.currentTime * 1_000,
       durationMs: Number.isFinite(media.duration) ? media.duration * 1_000 : undefined,
       paused: media.paused,

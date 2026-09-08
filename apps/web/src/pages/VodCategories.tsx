@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
+import { BRAND_NAME } from '@/config/brand';
 import { Helmet } from 'react-helmet-async';
 import { ChevronLeft, Clock3, Film, Home, Loader2, Play, Search, Star, Tv } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -22,33 +23,6 @@ const POSTER_GRADIENTS = [
 const getFallbackGradient = (seed: string): string => {
   const total = seed.split('').reduce((sum, char) => sum + char.charCodeAt(0), 0);
   return POSTER_GRADIENTS[total % POSTER_GRADIENTS.length];
-};
-
-const resolveReleaseYear = (value?: string): string => {
-  if (!value) {
-    return 'VOD';
-  }
-
-  const trimmed = value.trim();
-  if (trimmed.length === 0) {
-    return 'VOD';
-  }
-
-  if (/^\d{10,13}$/.test(trimmed)) {
-    const raw = Number(trimmed);
-    const timestamp = trimmed.length > 10 ? raw : raw * 1000;
-    const date = new Date(timestamp);
-    if (!Number.isNaN(date.getTime())) {
-      return String(date.getUTCFullYear());
-    }
-  }
-
-  const parsed = new Date(trimmed);
-  if (!Number.isNaN(parsed.getTime())) {
-    return String(parsed.getUTCFullYear());
-  }
-
-  return trimmed.slice(0, 4);
 };
 
 const formatDuration = (minutes?: number): string | null => {
@@ -133,7 +107,7 @@ const VodCategories = () => {
   return (
     <>
       <Helmet>
-        <title>Filmovi - IPTV Player</title>
+        <title>{`Filmovi - ${BRAND_NAME}`}</title>
       </Helmet>
 
       <div className="min-h-screen bg-background pb-24 md:pb-8">
@@ -189,7 +163,7 @@ const VodCategories = () => {
                 </Button>
               </Link>
               <Link to="/">
-                <Button variant="ghost" size="icon" className="h-9 w-9">
+                <Button variant="ghost" size="icon" className="h-9 w-9" aria-label="Početna">
                   <Home className="h-4 w-4" />
                 </Button>
               </Link>
@@ -294,7 +268,7 @@ const VodCategories = () => {
                               </div>
                             )}
                             <span className="absolute left-1.5 top-1.5 rounded-md bg-black/55 px-1.5 py-0.5 text-[10px] font-semibold text-white md:left-2 md:top-2 md:rounded-lg md:px-2 md:py-1 md:text-[11px]">
-                              {resolveReleaseYear(item.added)}
+                              {item.releaseYear ?? 'Film'}
                             </span>
                             {item.rating && (
                               <span className="absolute right-1.5 top-1.5 inline-flex items-center gap-1 rounded-md bg-black/55 px-1.5 py-0.5 text-[10px] font-semibold text-white md:right-2 md:top-2 md:rounded-lg md:px-2 md:py-1 md:text-[11px]">

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
+import { BRAND_NAME } from '@/config/brand';
 import { Helmet } from 'react-helmet-async';
 import { CalendarDays, ChevronLeft, Clapperboard, Home, Loader2, Search, Star, Tv, Film } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -132,7 +133,7 @@ const SeriesCategories = () => {
   return (
     <>
       <Helmet>
-        <title>Serije - IPTV Player</title>
+        <title>{`Serije - ${BRAND_NAME}`}</title>
       </Helmet>
 
       <div className="min-h-screen bg-background pb-24 md:pb-8">
@@ -188,7 +189,7 @@ const SeriesCategories = () => {
                 </Button>
               </Link>
               <Link to="/">
-                <Button variant="ghost" size="icon" className="h-9 w-9">
+                <Button variant="ghost" size="icon" className="h-9 w-9" aria-label="Početna">
                   <Home className="h-4 w-4" />
                 </Button>
               </Link>

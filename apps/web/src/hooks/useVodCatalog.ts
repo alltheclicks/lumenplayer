@@ -1,3 +1,4 @@
+import { resolveVodReleaseYear } from '@/services/vodReleaseYear';
 import { useQuery } from '@tanstack/react-query';
 import type { XtreamVOD } from '@lumen/types';
 import { loadXtreamCredentials } from '@/services/xtreamCredentials';
@@ -16,6 +17,7 @@ export interface VodItem {
   posterGradient?: string;
   rating?: string;
   added?: string;
+  releaseYear?: string;
   durationMinutes?: number;
   genres?: string[];
 }
@@ -179,6 +181,7 @@ const mapVodItem = (vod: XtreamVOD): VodItem => ({
   poster: vod.stream_icon || '',
   rating: vod.rating || undefined,
   added: vod.added || undefined,
+  releaseYear: resolveVodReleaseYear(vod),
 });
 
 const isDemoCredentials = (server: string, username: string): boolean => (

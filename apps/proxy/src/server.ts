@@ -945,7 +945,13 @@ export const createProxyServer = (options: ProxyServerOptions = {}): FastifyInst
 
   const app = Fastify({
     logger: options.logger ?? true,
-    trustProxy: trustProxyHops > 0 ? trustProxyHops : false,
+    // Fastify 5.12+ rejects numeric-only trust. The EXYU front proxy is the
+    // local nginx; trust its loopback peer explicitly, never a direct client.
+    trustProxy: trustProxyHops > 0
+      ? (address, hop) => hop < trustProxyHops && (
+        address === '::1' || address.startsWith('127.') || address.startsWith('::ffff:127.')
+      )
+      : false,
     // Request URLs may contain provider query/path credentials. Operational
     // events are logged explicitly below after privacy redaction instead.
     disableRequestLogging: true,

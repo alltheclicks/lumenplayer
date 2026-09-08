@@ -638,6 +638,9 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
   className = '',
 }, ref) => {
   const { session, commands } = useSessionContext();
+  // Callback changes (e.g. next-episode metadata arriving) must not destroy the media adapter.
+  const onEndedRef = useRef(onEnded);
+  useEffect(() => { onEndedRef.current = onEnded; }, [onEnded]);
   const src = session.source?.url ?? '';
   const sourceLoadKey = typeof session.source?.metadata?.loadKey === 'number'
     ? `${src}:${session.source.metadata.loadKey}`
@@ -2856,7 +2859,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
         setIsPlaying(false);
         setIsLoading(false);
         clearLoadingProgress();
-        onEnded?.();
+        onEndedRef.current?.();
         return;
       }
 
@@ -3417,7 +3420,6 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
     mapPlaybackError,
     rememberCatchUpRuntimeTimelineAnchor,
     onCanPlay,
-    onEnded,
     onError,
     preferNativeHls,
     resetLoadingProgress,
@@ -3596,6 +3598,21 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
     }
 
     let cancelled = false;
+    let onDemandStartupPositionMs: number | null = null;
+    const startupVideo = videoRef.current;
+    const applyOnDemandStartupPosition = () => {
+      if (cancelled || onDemandStartupPositionMs === null || !startupVideo || startupVideo.readyState < 1) return;
+      const duration = adapter.getDuration();
+      const targetMs = Number.isFinite(duration) && duration > 0
+        ? Math.min(onDemandStartupPositionMs, Math.max(0, duration * 1000 - 1000))
+        : onDemandStartupPositionMs;
+      onDemandStartupPositionMs = null;
+      applyingSessionSeekTargetMsRef.current = targetMs;
+      isApplyingSessionSeekRef.current = true;
+      adapter.seek(targetMs / 1000);
+    };
+    startupVideo?.addEventListener('loadedmetadata', applyOnDemandStartupPosition);
+
     adapter.stop();
     foregroundPlaybackRecoverySourceRef.current = null;
     setError(null);
@@ -3724,6 +3741,16 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
         ? currentSource.metadata
         : null;
       const isCatchUpSource = currentSourceMetadata?.mode === 'catchup';
+      const isOnDemand = currentSourceMetadata?.mode === 'vod' || currentSourceMetadata?.mode === 'series-episode';
+      onDemandStartupPositionMs = isOnDemand && (sessionRef.current.positionMs ?? 0) > 0
+        ? sessionRef.current.positionMs
+        : null;
+      if (onDemandStartupPositionMs !== null) {
+        // Ignore the initial 0:00 timeupdate until metadata permits restoring the saved position.
+        isApplyingSessionSeekRef.current = true;
+        applyingSessionSeekTargetMsRef.current = onDemandStartupPositionMs;
+      }
+
       const catchUpStartPositionSeconds = isCatchUpSource
         ? resolveRuntimeCatchUpMediaSeekTimeSeconds(
           currentSource,
@@ -3768,6 +3795,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
           return;
         }
 
+        applyOnDemandStartupPosition();
         const loadedSession = sessionRef.current;
         const loadedMetadata = (
           typeof loadedSession.source?.metadata === 'object' &&
@@ -4048,6 +4076,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
 
     return () => {
       cancelled = true;
+      startupVideo?.removeEventListener('loadedmetadata', applyOnDemandStartupPosition);
       adapter.stop();
       if (startupHardRetryTimerRef.current !== null) {
         clearTimeout(startupHardRetryTimerRef.current);

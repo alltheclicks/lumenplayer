@@ -1,3 +1,6 @@
+import { formatDuration } from '@lumen/core';
+import { useOnDemandHistory } from '@/hooks/useOnDemandProgress';
+import { resumablePositionMs } from '@/services/onDemandProgress';
 import { useMemo } from 'react';
 import { BRAND_NAME } from '@/config/brand';
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
@@ -102,7 +105,7 @@ const fetchVodDetail = async (vodId: string): Promise<VodDetailData> => {
 
   return {
     title: info.name || info.o_name || vodInfo.movie_data?.name || `Movie ${vodId}`,
-    plot: info.plot || 'No description available.',
+    plot: info.plot || 'Opis nije dostupan.',
     cast: info.cast || '',
     director: info.director || '',
     genre: info.genre || '',
@@ -123,6 +126,7 @@ const VodDetail = () => {
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const { commands } = useSessionContext();
+  const history = useOnDemandHistory();
   const params = useParams<{ vodId: string }>();
   const vodId = params.vodId;
   const catalogBackPath = useMemo(() => {
@@ -149,7 +153,8 @@ const VodDetail = () => {
     staleTime: 5 * 60 * 1000,
   });
 
-  const handlePlayVod = () => {
+  const resumeMs = resumablePositionMs(history.entries[`vod:${vodId}`]);
+  const handlePlayVod = (fromStart = false) => {
     if (!data?.streamUrl) {
       navigate('/player');
       return;
@@ -178,7 +183,7 @@ const VodDetail = () => {
           backPath: onDemandBackPath,
         },
       },
-      0
+      fromStart ? 0 : resumeMs
     );
     commands.play();
     navigate('/player');
@@ -190,22 +195,22 @@ const VodDetail = () => {
     }
 
     return [
-      { icon: Clock3, label: 'Duration', value: data.duration },
-      { icon: Star, label: 'Rating', value: data.rating },
-      { icon: Film, label: 'Genre', value: data.genre },
-      { icon: UserRound, label: 'Director', value: data.director },
+      { icon: Clock3, label: 'Trajanje', value: data.duration },
+      { icon: Star, label: 'Ocena', value: data.rating },
+      { icon: Film, label: 'Žanr', value: data.genre },
+      { icon: UserRound, label: 'Režija', value: data.director },
     ].filter((item) => item.value);
   }, [data]);
 
   return (
     <>
       <Helmet>
-        <title>{data ? `${data.title} - VOD` : `VOD Detail - ${BRAND_NAME}`}</title>
+        <title>{data ? `${data.title} - ${BRAND_NAME}` : `Film - ${BRAND_NAME}`}</title>
       </Helmet>
 
       <div className="bg-background">
         <div
-          className="h-52 w-full bg-cover bg-center md:h-72"
+          className="h-28 w-full bg-cover bg-center md:h-72"
           style={{
             backgroundImage: data?.backdrop
               ? `linear-gradient(to bottom, transparent, hsl(var(--background))), url("${sanitizeCssUrl(data.backdrop)}")`
@@ -213,25 +218,25 @@ const VodDetail = () => {
           }}
         />
 
-        <div className="mx-auto -mt-20 max-w-6xl px-4 pb-8 md:px-6">
+        <div className="mx-auto -mt-12 max-w-6xl px-4 pb-8 md:px-6">
           <Button variant="ghost" className="mb-4 gap-2" onClick={() => navigate(catalogBackPath)}>
             <ArrowLeft className="h-4 w-4" />
-            Back to Catalog
+            Nazad na katalog
           </Button>
 
           {isLoading && (
-            <p className="text-muted-foreground">Loading movie details...</p>
+            <p className="text-muted-foreground">Učitavanje detalja filma...</p>
           )}
 
           {error && (
             <p className="text-destructive">
-              Failed to load VOD detail: {error.message}
+              Neuspešno učitavanje detalja filma: {error.message}
             </p>
           )}
 
           {!isLoading && !error && data && (
-            <div className="grid gap-6 md:grid-cols-[280px_1fr]">
-              <Card className="overflow-hidden border-border/70 bg-card/80">
+            <div className="grid grid-cols-[7rem_minmax(0,1fr)] gap-4 md:grid-cols-[280px_1fr] md:gap-6">
+              <Card className="col-span-2 w-24 self-start overflow-hidden border-border/70 bg-card/80 md:col-span-1 md:w-full">
                 <CardContent className="p-0">
                   <div className="aspect-[2/3] bg-muted">
                     {data.poster ? (
@@ -249,8 +254,14 @@ const VodDetail = () => {
                 </CardContent>
               </Card>
 
-              <div className="space-y-4">
-                <h1 className="text-3xl font-bold tracking-tight">{data.title}</h1>
+              <div className="col-span-2 min-w-0 space-y-4 md:col-span-1">
+                <h1 className="text-2xl font-bold tracking-tight md:text-3xl">{data.title}</h1>
+                <div className="flex flex-wrap gap-2">
+                  <Button onClick={() => handlePlayVod()} disabled={!data.streamUrl || history.isLoading}>
+                    {resumeMs > 0 ? `Nastavi od ${formatDuration(resumeMs / 1000)}` : 'Gledaj film'}
+                  </Button>
+                  {resumeMs > 0 && <Button variant="outline" onClick={() => handlePlayVod(true)}>Od početka</Button>}
+                </div>
                 <p className="text-sm leading-6 text-muted-foreground">{data.plot}</p>
 
                 <div className="grid gap-3 sm:grid-cols-2">
@@ -270,28 +281,27 @@ const VodDetail = () => {
                 {data.cast && (
                   <Card className="border-border/70 bg-card/70">
                     <CardContent className="p-4">
-                      <p className="text-xs uppercase tracking-wide text-muted-foreground">Cast</p>
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground">Uloge</p>
                       <p className="mt-1 text-sm">{data.cast}</p>
                     </CardContent>
                   </Card>
                 )}
 
                 <div className="flex flex-wrap gap-2">
-                  <Button onClick={handlePlayVod}>Play in Player</Button>
                   <Button variant="outline" onClick={() => navigate(catalogBackPath)}>
-                    Back to Catalog
+                    Nazad na katalog
                   </Button>
                   {data.tmdbId && (
                     <Button
                       variant="outline"
                       onClick={() => window.open(`https://www.themoviedb.org/movie/${data.tmdbId}`, '_blank', 'noopener,noreferrer')}
                     >
-                      Open TMDB
+                      Otvori TMDB
                     </Button>
                   )}
                   {data.releaseDate && (
                     <Button variant="secondary" disabled>
-                      Released {data.releaseDate}
+                      Premijera {data.releaseDate}
                     </Button>
                   )}
                 </div>

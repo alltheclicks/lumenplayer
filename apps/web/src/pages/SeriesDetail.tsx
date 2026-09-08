@@ -1,3 +1,7 @@
+import { fetchSeriesDetail, type SeriesEpisodeItem } from '@/services/seriesDetail';
+import { formatDuration } from '@lumen/core';
+import { useOnDemandHistory } from '@/hooks/useOnDemandProgress';
+import { resumablePositionMs } from '@/services/onDemandProgress';
 import { useEffect, useMemo, useState } from 'react';
 import { BRAND_NAME } from '@/config/brand';
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
@@ -7,80 +11,8 @@ import { ArrowLeft, Calendar, Clapperboard, Film, Star, UserRound } from 'lucide
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { useSessionContext } from '@/context/session-context';
-import { loadXtreamCredentials } from '@/services/xtreamCredentials';
-import { xtreamCodesService } from '@/services/xtreamService';
 import { useSwitchToLiveMode } from '@/pages/switchToLiveMode';
-import { resolveSeriesArtworkUrl, resolveSeriesBackdropUrl } from '@/pages/seriesArtwork';
 import { emitWebObservabilityEvent } from '@/services/observability';
-
-const DEMO_EPISODE_STREAM_URL = 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8';
-
-type OnDemandSourceType = 'hls' | 'mp4';
-
-interface SeriesEpisodeItem {
-  id: string;
-  seasonNumber: number;
-  episodeNumber: number;
-  title: string;
-  containerExtension: string;
-  streamUrl: string;
-  streamType: OnDemandSourceType;
-  duration?: string;
-  releaseDate?: string;
-  plot?: string;
-}
-
-interface SeriesSeasonGroup {
-  seasonNumber: number;
-  episodes: SeriesEpisodeItem[];
-}
-
-interface SeriesDetailData {
-  title: string;
-  plot: string;
-  cast: string;
-  director: string;
-  genre: string;
-  rating: string;
-  cover: string;
-  backdrop: string;
-  releaseDate: string;
-  tmdbId: string;
-  seasons: SeriesSeasonGroup[];
-}
-
-const parseEpisodeNumber = (value: unknown): number => {
-  if (typeof value === 'number' && Number.isFinite(value)) {
-    return value;
-  }
-
-  if (typeof value === 'string' && value.length > 0 && !Number.isNaN(Number(value))) {
-    return Number(value);
-  }
-
-  return 0;
-};
-
-const parseSeasonNumber = (seasonKey: string): number => {
-  const trimmed = seasonKey.trim();
-  if (trimmed.length === 0 || Number.isNaN(Number(trimmed))) {
-    return 0;
-  }
-
-  return Number(trimmed);
-};
-
-const sanitizeCssUrl = (url: string): string => {
-  return url.replace(/["'()\\]/g, (char) => encodeURIComponent(char));
-};
-
-const inferSourceType = (streamUrl: string, extension?: string): OnDemandSourceType => {
-  if (extension === 'm3u8' || streamUrl.includes('.m3u8')) {
-    return 'hls';
-  }
-
-  return 'mp4';
-};
 
 const parsePositiveInteger = (value: string | null): number | null => {
   if (!value || Number.isNaN(Number(value))) {
@@ -91,130 +23,10 @@ const parsePositiveInteger = (value: string | null): number | null => {
   return normalized > 0 ? normalized : null;
 };
 
-const fetchSeriesDetail = async (seriesId: string): Promise<SeriesDetailData> => {
-  const credentials = await loadXtreamCredentials();
-
-  if (!credentials ||
-      credentials.username === 'demo' ||
-      credentials.server.includes('your-server.com')) {
-    return {
-      title: `Demo Series #${seriesId}`,
-      plot: 'Demo series metadata preview. Connect Xtream credentials to load real provider data.',
-      cast: 'Demo Cast',
-      director: 'Demo Director',
-      genre: 'Drama',
-      rating: '8.1',
-      cover: '',
-      backdrop: '',
-      releaseDate: '2024-01-01',
-      tmdbId: '',
-      seasons: [
-        {
-          seasonNumber: 1,
-          episodes: [
-            {
-              id: `${seriesId}-s1e1`,
-              seasonNumber: 1,
-              episodeNumber: 1,
-              title: 'Pilot',
-              containerExtension: 'mp4',
-              streamUrl: DEMO_EPISODE_STREAM_URL,
-              streamType: 'hls',
-              duration: '45m',
-              releaseDate: '2024-01-01',
-            },
-            {
-              id: `${seriesId}-s1e2`,
-              seasonNumber: 1,
-              episodeNumber: 2,
-              title: 'Second Episode',
-              containerExtension: 'mp4',
-              streamUrl: DEMO_EPISODE_STREAM_URL,
-              streamType: 'hls',
-              duration: '44m',
-              releaseDate: '2024-01-08',
-            },
-          ],
-        },
-      ],
-    };
-  }
-
-  xtreamCodesService.setCredentials(credentials);
-  const seriesInfo = await xtreamCodesService.getSeriesInfo(seriesId);
-  const info = seriesInfo.info ?? {};
-
-  const seasons = Object.entries(seriesInfo.episodes ?? {})
-    .map(([seasonKey, episodes]) => {
-      const seasonNumber = parseSeasonNumber(seasonKey);
-      const mappedEpisodes = episodes
-        .map((episode) => {
-          const episodeInfo = (episode.info ?? {}) as Record<string, unknown>;
-          const episodeNumber = parseEpisodeNumber(episode.episode_num);
-          const title = typeof episode.title === 'string' && episode.title.length > 0
-            ? episode.title
-            : typeof episodeInfo.title === 'string' && episodeInfo.title.length > 0
-              ? episodeInfo.title
-              : `Episode ${episodeNumber > 0 ? episodeNumber : '-'}`;
-          const id = String(episode.id);
-          const rawDirectSource = episode.direct_source;
-          const directSource = typeof rawDirectSource === 'string' && rawDirectSource.trim().length > 0
-            ? rawDirectSource.trim()
-            : '';
-          const numericEpisodeId = parseEpisodeNumber(episode.id);
-          const containerExtension = typeof episode.container_extension === 'string' && episode.container_extension.length > 0
-            ? episode.container_extension
-            : 'mp4';
-          const streamUrl = directSource || (
-            numericEpisodeId > 0
-              ? xtreamCodesService.getSeriesEpisodeStreamUrl(numericEpisodeId, containerExtension)
-              : ''
-          );
-
-          return {
-            id,
-            seasonNumber,
-            episodeNumber,
-            title,
-            containerExtension,
-            streamUrl,
-            streamType: inferSourceType(streamUrl, containerExtension),
-            duration: typeof episodeInfo.duration === 'string'
-              ? episodeInfo.duration
-              : undefined,
-            releaseDate: typeof episodeInfo.releaseDate === 'string'
-              ? episodeInfo.releaseDate
-              : undefined,
-            plot: typeof episodeInfo.plot === 'string'
-              ? episodeInfo.plot
-              : undefined,
-          };
-        })
-        .sort((a, b) => a.episodeNumber - b.episodeNumber);
-
-      return {
-        seasonNumber,
-        episodes: mappedEpisodes,
-      };
-    })
-    .sort((a, b) => a.seasonNumber - b.seasonNumber);
-
-  const infoRecord = info as Record<string, unknown>;
-
-  return {
-    title: info.name ? String(info.name) : `Series ${seriesId}`,
-    plot: info.plot ? String(info.plot) : 'No description available.',
-    cast: info.cast ? String(info.cast) : '',
-    director: info.director ? String(info.director) : '',
-    genre: info.genre ? String(info.genre) : '',
-    rating: info.rating_5based ? String(info.rating_5based) : info.rating ? String(info.rating) : '',
-    cover: resolveSeriesArtworkUrl(infoRecord),
-    backdrop: resolveSeriesBackdropUrl(infoRecord),
-    releaseDate: info.releaseDate ? String(info.releaseDate) : '',
-    tmdbId: info.tmdb ? String(info.tmdb) : '',
-    seasons,
-  };
+const sanitizeCssUrl = (url: string): string => {
+  return url.replace(/["'()\\]/g, (char) => encodeURIComponent(char));
 };
+
 
 const SeriesDetail = () => {
   const navigate = useNavigate();
@@ -222,6 +34,7 @@ const SeriesDetail = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [isCoverBroken, setIsCoverBroken] = useState(false);
   const { commands } = useSessionContext();
+  const history = useOnDemandHistory();
   const switchToLiveMode = useSwitchToLiveMode();
   const params = useParams<{ seriesId: string }>();
   const seriesId = params.seriesId;
@@ -250,10 +63,10 @@ const SeriesDetail = () => {
     }
 
     return [
-      { icon: Star, label: 'Rating', value: data.rating },
-      { icon: Film, label: 'Genre', value: data.genre },
-      { icon: UserRound, label: 'Director', value: data.director },
-      { icon: Calendar, label: 'Release', value: data.releaseDate },
+      { icon: Star, label: 'Ocena', value: data.rating },
+      { icon: Film, label: 'Žanr', value: data.genre },
+      { icon: UserRound, label: 'Režija', value: data.director },
+      { icon: Calendar, label: 'Premijera', value: data.releaseDate },
     ].filter((item) => item.value);
   }, [data]);
 
@@ -267,7 +80,7 @@ const SeriesDetail = () => {
     ?? null;
   const effectiveSeason = activeSeason?.seasonNumber ?? null;
 
-  const handlePlayEpisode = (episode: SeriesEpisodeItem) => {
+  const handlePlayEpisode = (episode: SeriesEpisodeItem, fromStart = false) => {
     if (!data || !episode.streamUrl) {
       return;
     }
@@ -308,7 +121,7 @@ const SeriesDetail = () => {
           backPath,
         },
       },
-      0
+      fromStart ? 0 : resumablePositionMs(history.entries[`series:${seriesId}:${episode.id}`])
     );
     commands.play();
     navigate('/player');
@@ -317,12 +130,12 @@ const SeriesDetail = () => {
   return (
     <>
       <Helmet>
-        <title>{data ? `${data.title} - Series` : `Series Detail - ${BRAND_NAME}`}</title>
+        <title>{data ? `${data.title} - ${BRAND_NAME}` : `Serija - ${BRAND_NAME}`}</title>
       </Helmet>
 
       <div className="bg-background">
         <div
-          className="h-52 w-full bg-cover bg-center md:h-72"
+          className="h-28 w-full bg-cover bg-center md:h-72"
           style={{
             backgroundImage: data?.backdrop
               ? `linear-gradient(to bottom, transparent, hsl(var(--background))), url("${sanitizeCssUrl(data.backdrop)}")`
@@ -330,25 +143,25 @@ const SeriesDetail = () => {
           }}
         />
 
-        <div className="mx-auto -mt-20 max-w-6xl px-4 pb-8 md:px-6">
+        <div className="mx-auto -mt-12 max-w-6xl px-4 pb-8 md:px-6">
           <Button variant="ghost" className="mb-4 gap-2" onClick={() => navigate(catalogBackPath)}>
             <ArrowLeft className="h-4 w-4" />
-            Back to Catalog
+            Nazad na katalog
           </Button>
 
           {isLoading && (
-            <p className="text-muted-foreground">Loading series detail...</p>
+            <p className="text-muted-foreground">Učitavanje detalja serije...</p>
           )}
 
           {error && (
             <p className="text-destructive">
-              Failed to load series detail: {error.message}
+              Neuspešno učitavanje detalja serije: {error.message}
             </p>
           )}
 
           {!isLoading && !error && data && (
-            <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
-              <Card className="overflow-hidden border-border/70 bg-card/80">
+            <div className="grid grid-cols-[7rem_minmax(0,1fr)] gap-4 md:grid-cols-[280px_1fr] md:gap-6">
+              <Card className="col-span-2 w-24 self-start overflow-hidden border-border/70 bg-card/80 md:col-span-1 md:w-full">
                 <CardContent className="p-0">
                   <div className="aspect-[2/3] bg-muted">
                     {data.cover && !isCoverBroken ? (
@@ -370,33 +183,8 @@ const SeriesDetail = () => {
                 </CardContent>
               </Card>
 
-              <div className="space-y-4">
-                <h1 className="text-3xl font-bold tracking-tight">{data.title}</h1>
-                <p className="text-sm leading-6 text-muted-foreground">{data.plot}</p>
-
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {metadata.map((item) => (
-                    <Card key={item.label} className="border-border/70 bg-card/70">
-                      <CardContent className="flex items-center gap-3 p-4">
-                        <item.icon className="h-4 w-4 text-muted-foreground" />
-                        <div>
-                          <p className="text-xs uppercase tracking-wide text-muted-foreground">{item.label}</p>
-                          <p className="text-sm font-medium">{item.value}</p>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-
-                {data.cast && (
-                  <Card className="border-border/70 bg-card/70">
-                    <CardContent className="p-4">
-                      <p className="text-xs uppercase tracking-wide text-muted-foreground">Cast</p>
-                      <p className="mt-1 text-sm">{data.cast}</p>
-                    </CardContent>
-                  </Card>
-                )}
-
+              <div className="col-span-2 min-w-0 space-y-4 md:col-span-1">
+                <h1 className="text-2xl font-bold tracking-tight md:text-3xl">{data.title}</h1>
                 {seasonOptions.length > 0 && (
                   <Card className="border-border/70 bg-card/70">
                     <CardContent className="space-y-4 p-4">
@@ -413,13 +201,14 @@ const SeriesDetail = () => {
                               setSearchParams(nextParams, { replace: true });
                             }}
                           >
-                            Season {season.seasonNumber}
+                            Sezona {season.seasonNumber}
                           </Button>
                         ))}
                       </div>
 
                       <div className="space-y-2">
                         {activeSeason?.episodes.map((episode) => {
+                          const resumeMs = resumablePositionMs(history.entries[`series:${seriesId}:${episode.id}`]);
                           const isContextEpisode = contextEpisodeId !== null && contextEpisodeId === episode.id;
                           return (
                             <div
@@ -439,13 +228,16 @@ const SeriesDetail = () => {
                                     {episode.duration || episode.containerExtension.toUpperCase()}
                                   </p>
                                 </div>
+                                <div className="flex flex-wrap gap-2">
                                 <Button
                                   size="sm"
                                   onClick={() => handlePlayEpisode(episode)}
-                                  disabled={!episode.streamUrl}
+                                  disabled={!episode.streamUrl || history.isLoading}
                                 >
-                                  Play Episode
+                                  {resumeMs > 0 ? `Nastavi od ${formatDuration(resumeMs / 1000)}` : 'Gledaj epizodu'}
                                 </Button>
+                                {resumeMs > 0 && <Button size="sm" variant="outline" onClick={() => handlePlayEpisode(episode, true)}>Od početka</Button>}
+                                </div>
                               </div>
                               {episode.releaseDate && (
                                 <p className="mt-1 text-xs text-muted-foreground">{episode.releaseDate}</p>
@@ -461,20 +253,47 @@ const SeriesDetail = () => {
                   </Card>
                 )}
 
+                <p className="text-sm leading-6 text-muted-foreground">{data.plot}</p>
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {metadata.map((item) => (
+                    <Card key={item.label} className="border-border/70 bg-card/70">
+                      <CardContent className="flex items-center gap-3 p-4">
+                        <item.icon className="h-4 w-4 text-muted-foreground" />
+                        <div>
+                          <p className="text-xs uppercase tracking-wide text-muted-foreground">{item.label}</p>
+                          <p className="text-sm font-medium">{item.value}</p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+
+                {data.cast && (
+                  <Card className="border-border/70 bg-card/70">
+                    <CardContent className="p-4">
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground">Uloge</p>
+                      <p className="mt-1 text-sm">{data.cast}</p>
+                    </CardContent>
+                  </Card>
+                )}
+
+
+
                 <div className="flex flex-wrap gap-2">
                   <Button variant="outline" onClick={() => navigate(catalogBackPath)}>
-                    Back to Catalog
+                    Nazad na katalog
                   </Button>
                   {data.tmdbId && (
                     <Button
                       variant="outline"
                       onClick={() => window.open(`https://www.themoviedb.org/tv/${data.tmdbId}`, '_blank', 'noopener,noreferrer')}
                     >
-                      Open TMDB
+                      Otvori TMDB
                     </Button>
                   )}
                   <Button variant="secondary" onClick={() => switchToLiveMode()}>
-                    Open Player
+                    TV uživo
                   </Button>
                 </div>
               </div>

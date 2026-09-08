@@ -274,6 +274,20 @@ describe("createProxyServer", () => {
     await app.close();
   });
 
+  it("does not trust forwarded addresses from a direct non-loopback client", async () => {
+    const app = createProxyServer({
+      allowedHosts: ["*"], logger: false, sweepIntervalMs: 0,
+      observeRateLimitPerMinute: 1, trustProxyHops: 1,
+    });
+    const send = (forwardedIp: string) => app.inject({
+      method: "POST", url: "/observe", remoteAddress: "198.51.100.20",
+      headers: { "x-forwarded-for": forwardedIp }, payload: { event: "playback.started" },
+    });
+    expect((await send("203.0.113.10")).statusCode).toBe(204);
+    expect((await send("203.0.113.11")).statusCode).toBe(429);
+    await app.close();
+  });
+
   it("does not return proxy-remuxed from gateway resolve even when env tries to allow remux", async () => {
     const app = createProxyServer({
       allowedHosts: ["*"],
