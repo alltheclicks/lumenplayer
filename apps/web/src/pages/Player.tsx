@@ -474,7 +474,6 @@ const Player = () => {
   const watchedChannelIdRef = useRef<string | null>(null);
   const watchedStartedAtRef = useRef<number | null>(null);
   const lastCastErrorRef = useRef<string | null>(null);
-  const lastCastUnsupportedReasonRef = useRef<string | null>(null);
   const previousRendererRef = useRef(session.renderer);
   const lastChannelLoadErrorRef = useRef<string | null>(null);
   const previousCastConnectedRef = useRef(castSender.isConnected);
@@ -1604,22 +1603,6 @@ const Player = () => {
     });
   }, [castSender.error, toast]);
 
-  useEffect(() => {
-    if (!castSender.sourceUnsupportedReason) {
-      lastCastUnsupportedReasonRef.current = null;
-      return;
-    }
-
-    if (castSender.sourceUnsupportedReason === lastCastUnsupportedReasonRef.current) {
-      return;
-    }
-
-    lastCastUnsupportedReasonRef.current = castSender.sourceUnsupportedReason;
-    toast({
-      title: 'Google Cast nije dostupan',
-      description: castSender.sourceUnsupportedReason,
-    });
-  }, [castSender.sourceUnsupportedReason, toast]);
 
   useEffect(() => {
     if (previousCastConnectedRef.current === castSender.isConnected) {

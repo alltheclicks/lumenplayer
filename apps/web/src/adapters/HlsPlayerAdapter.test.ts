@@ -670,7 +670,11 @@ describe('HlsPlayerAdapter', () => {
     await loadPromise;
   });
 
-  it('uses a video-only fragment loader for live MPEG audio TS streams', async () => {
+  it.each([
+    { mode: 'live', catchUpClientRebase: false },
+    { mode: 'catchup', catchUpClientRebase: false },
+    { mode: 'catchup', catchUpClientRebase: true },
+  ])('uses video-only MP2 playback for $mode (rebase=$catchUpClientRebase)', async ({ mode, catchUpClientRebase }) => {
     const manifest = [
       '#EXTM3U',
       '#EXT-X-VERSION:3',
@@ -693,8 +697,9 @@ describe('HlsPlayerAdapter', () => {
       type: 'hls' as const,
       title: 'Live',
       metadata: {
-        mode: 'live',
+        mode,
         streamId: 75,
+        catchUpClientRebase,
       },
     };
 
@@ -707,7 +712,6 @@ describe('HlsPlayerAdapter', () => {
     expect(hls?.config).toMatchObject({
       enableWorker: true,
       lowLatencyMode: false,
-      maxBufferLength: 30,
     });
     expect(hls?.config).not.toHaveProperty('progressive');
     expect(hls?.config).toHaveProperty('fLoader');
@@ -715,12 +719,39 @@ describe('HlsPlayerAdapter', () => {
     expect(onUnsupportedAudioCodec).toHaveBeenCalledWith({
       unsupportedAudioCodec: 'mp2',
       sourceUrl: source.url,
-      playbackMode: 'live',
+      playbackMode: mode,
     });
 
     hls?.emit(hlsMockState.MockHls.Events.MANIFEST_LOADED, { url: source.url });
     hls?.emit(hlsMockState.MockHls.Events.MANIFEST_PARSED);
     await loadPromise;
+  });
+
+  it('does not resurrect playback stopped during foreground verification', async () => {
+    const video = createMockVideoElement();
+    const mutable = video as unknown as { readyState: number; videoWidth: number; dispatchEvent: (event: string) => void };
+    const adapter = new HlsPlayerAdapter(video);
+    const source = { url: 'https://example.com/live.m3u8', type: 'hls' as const, title: 'Live', metadata: { mode: 'live' } };
+    const initial = adapter.load(source);
+    const hls = hlsMockState.instances.at(-1);
+    hls?.emit(hlsMockState.MockHls.Events.MANIFEST_PARSED);
+    await initial;
+    mutable.readyState = 2; mutable.videoWidth = 1920;
+    const count = hlsMockState.instances.length;
+    const resume = adapter.resumeAfterBackground(source);
+    adapter.stop();
+    mutable.dispatchEvent('emptied');
+    await expect(resume).resolves.toBe('pipeline-superseded');
+    expect(hlsMockState.instances.length).toBe(count);
+  });
+
+  it('does not report cancellation as a provider failure when a foreground rebuild is stopped', async () => {
+    const video = createMockVideoElement();
+    const adapter = new HlsPlayerAdapter(video);
+    const source = { url: 'https://example.com/live.m3u8', type: 'hls' as const, title: 'Live', metadata: { mode: 'live' } };
+    const resume = adapter.resumeAfterBackground(source);
+    adapter.stop();
+    await expect(resume).resolves.toBe('pipeline-superseded');
   });
 
   it('cancels pending live MPEG preflight when playback is stopped before HLS attaches', async () => {

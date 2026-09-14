@@ -109,3 +109,5 @@ pnpm release:manual-device-qa:validate
 pnpm release:beta-ops:validate
 pnpm release:observability-baseline:validate
 ```
+
+MP2 protection also applies to catch-up sources. Show the unsupported reason on the Cast control or after an explicit Cast action; ordinary local channel selection must not produce a Cast toast. The web player continues video-only playback with its MP2 audio notice.

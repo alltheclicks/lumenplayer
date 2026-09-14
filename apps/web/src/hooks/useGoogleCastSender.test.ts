@@ -25,12 +25,12 @@ describe('useGoogleCastSender helpers', () => {
     })).toBe('ABC123');
   });
 
-  it('blocks MP2 live sources from Cast without blocking normal live sources', () => {
+  it.each(['live', 'catchup'])('blocks MP2 %s sources from Cast without blocking AAC', (mode) => {
     const mp2Source: SessionSource = {
       url: 'https://example.com/live.m3u8',
       type: 'hls',
       metadata: {
-        mode: 'live',
+        mode,
         unsupportedAudioCodec: 'mp2',
       },
     };
@@ -38,7 +38,7 @@ describe('useGoogleCastSender helpers', () => {
       url: 'https://example.com/live-aac.m3u8',
       type: 'hls',
       metadata: {
-        mode: 'live',
+        mode,
       },
     };
 

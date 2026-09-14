@@ -1,3 +1,4 @@
+import { isExtensionException, shouldCaptureStructuredFailure } from './analyticsFailureClassification';
 import { resolveSelectedPlaybackContext, type PlaybackContentContext } from './playbackAnalyticsContext';
 import { sanitizeTelemetryRecord, redactSensitiveText } from './privacyRedaction';
 import {
@@ -781,11 +782,7 @@ class PlayerAnalyticsClient {
     this.recentEvents.push(event);
     this.recentEvents = this.recentEvents.slice(-30);
     this.eventCount += 1;
-    const structuredFailure = (
-      (name === 'playback.error' && safe.terminal === true && safe.fatal === true) ||
-      (name === 'catalog.error' && severity === 'error') ||
-      name === 'sso.landing_failed'
-    );
+    const structuredFailure = shouldCaptureStructuredFailure(name, severity, safe);
     if (structuredFailure) {
       this.captureStructuredFailure(name, safe, timestampMs);
     }
@@ -882,6 +879,10 @@ class PlayerAnalyticsClient {
   private captureCrash(error: unknown, context: Record<string, unknown>): void {
     if (!this.configuration) return;
     const normalized = error instanceof Error ? error : new Error(String(error));
+    if (context.source !== 'react.error_boundary' && isExtensionException(context.filename, normalized.stack)) {
+      this.track('diagnostic.extension_error', 'warn', { errorName: normalized.name, message: normalized.message });
+      return;
+    }
     const message = redactSensitiveText(normalized.message || 'Unknown error');
     const stack = normalized.stack ? redactSensitiveText(normalized.stack) : undefined;
     const occurredAtMs = Date.now();

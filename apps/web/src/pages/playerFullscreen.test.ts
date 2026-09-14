@@ -5,10 +5,16 @@ import {
   togglePlayerFullscreen,
 } from './playerFullscreen';
 
-const createContainer = (video?: Record<string, unknown>) => ({
+const createContainer = (video?: Record<string, unknown>) => {
+  const attributes = new Map<string, string>();
+  return ({
+  hasAttribute: (name: string) => attributes.has(name),
+  setAttribute: (name: string, value: string) => attributes.set(name, value),
+  removeAttribute: (name: string) => attributes.delete(name),
   contains: (element: unknown) => element === video,
   querySelector: () => video ?? null,
 }) as unknown as HTMLElement;
+};
 
 const createDocument = (overrides: Record<string, unknown> = {}) => ({
   fullscreenElement: null,
@@ -22,6 +28,22 @@ const iphoneNavigator = {
 };
 
 describe('player fullscreen capability handling', () => {
+  it('keeps a loading iPhone video in a reversible full-window surface', async () => {
+    const enter = vi.fn();
+    const container = createContainer({ readyState: 0, webkitEnterFullscreen: enter });
+    await expect(togglePlayerFullscreen(container, createDocument(), iphoneNavigator)).resolves.toMatchObject({ ok: true, active: true, method: 'inline' });
+    expect(enter).not.toHaveBeenCalled();
+    expect(isPlayerFullscreenActive(container, createDocument())).toBe(true);
+    await expect(togglePlayerFullscreen(container, createDocument(), iphoneNavigator)).resolves.toMatchObject({ ok: true, active: false, method: 'inline' });
+    expect(isPlayerFullscreenActive(container, createDocument())).toBe(false);
+  });
+
+  it('falls back without pausing or reloading when iOS rejects native fullscreen', async () => {
+    const video = { readyState: 4, play: vi.fn(), load: vi.fn(), webkitEnterFullscreen: vi.fn(() => { throw new DOMException('not ready', 'InvalidStateError'); }) };
+    await expect(togglePlayerFullscreen(createContainer(video), createDocument(), iphoneNavigator)).resolves.toMatchObject({ ok: true, active: true, method: 'inline' });
+    expect(video.play).not.toHaveBeenCalled();
+    expect(video.load).not.toHaveBeenCalled();
+  });
   it('uses the standard fullscreen API when supported', async () => {
     const requestFullscreen = vi.fn().mockResolvedValue(undefined);
     const container = Object.assign(createContainer(), { requestFullscreen });

@@ -1,5 +1,6 @@
 import { useRef, useEffect, useState, useCallback, forwardRef, useImperativeHandle } from 'react';
 import { BRAND_SHORT } from '@/config/brand';
+import { resolveCodecNotice } from './codecNotice';
 import { AlertCircle, Loader2, Radio, WifiOff, ShieldAlert, X } from 'lucide-react';
 import type { SessionSource } from '@lumen/session-core';
 import { Button } from '@/components/ui/button';
@@ -1136,7 +1137,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
       setError(null);
       commands.play();
       void adapter.resumeAfterBackground(sourceForAdapter).then((result) => {
-        if (sessionRef.current.source?.url !== source.url) {
+        if (result === 'pipeline-superseded' || sessionRef.current.source?.url !== source.url) {
           return;
         }
         emitWebObservabilityEvent({
@@ -4415,15 +4416,9 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
     elapsedSeconds: loadingElapsedSeconds,
     bufferedAheadSeconds: loadingBufferedAheadSeconds,
   });
-  const unsupportedAudioMessage = unsupportedAudioCodec === 'mp2'
-    ? 'Zvuk nije dostupan za ovaj kanal. Kanal koristi MP2 audio, koji trenutno nije podržan u web browser playback-u. Video može raditi bez zvuka.'
-    : null;
-  const unsupportedVideoMessage = unsupportedVideoCodec === 'hevc' && !isHevcPlaybackLikelySupported()
-    ? 'Slika možda neće raditi za ovaj kanal. Kanal koristi HEVC (H.265) video, koji nije podržan u svim browserima (radi na Safari/iOS, ali ne na Chrome desktop/Android).'
-    : null;
   const unsupportedCodecMessage = isCodecNoticeDismissed
     ? null
-    : unsupportedVideoMessage ?? unsupportedAudioMessage;
+    : resolveCodecNotice(unsupportedAudioCodec, isHevcPlaybackLikelySupported() ? null : unsupportedVideoCodec);
 
   return (
     <div className={`pointer-events-none relative w-full h-full bg-black ${className}`}>
@@ -4464,7 +4459,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
         <div className="pointer-events-none absolute inset-x-3 top-3 z-20 flex justify-center">
           <div className="pointer-events-auto flex max-w-[min(560px,calc(100vw-24px))] items-start gap-2 rounded-md border border-amber-300/40 bg-black/75 px-3 py-2 text-left text-xs leading-5 text-white shadow-lg backdrop-blur-sm">
             <AlertCircle className="mt-0.5 h-4 w-4 flex-none text-amber-300" />
-            <span>{unsupportedCodecMessage}</span>
+            <span role="status">{unsupportedCodecMessage}</span>
             <button
               type="button"
               onClick={() => setIsCodecNoticeDismissed(true)}

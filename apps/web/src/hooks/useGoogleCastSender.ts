@@ -10,7 +10,7 @@ const DEV_CAST_RECEIVER_APP_ID = 'CC1AD845';
 const CAST_POSITION_SYNC_INTERVAL_MS = 2000;
 const CAST_POSITION_SYNC_THRESHOLD_MS = 1500;
 const MP2_CAST_UNSUPPORTED_MESSAGE =
-  'Google Cast nije dostupan za ovaj kanal jer koristi MP2 audio. Cast zahtev mora koristiti AAC ili drugu podržanu audio varijantu.';
+  'Ovaj sadržaj koristi MP2 audio i nije podržan preko Google Cast-a. Možete nastaviti da gledate sliku u web plejeru bez zvuka.';
 
 type CastSessionState =
   | 'NO_SESSION'
@@ -124,7 +124,7 @@ export const resolveCastSourceUnsupportedReason = (
     ? source.metadata
     : null;
 
-  if (metadata?.mode === 'live' && metadata.unsupportedAudioCodec === 'mp2') {
+  if (metadata?.unsupportedAudioCodec === 'mp2') {
     return MP2_CAST_UNSUPPORTED_MESSAGE;
   }
 

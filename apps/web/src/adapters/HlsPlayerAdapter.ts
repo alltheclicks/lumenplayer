@@ -115,13 +115,13 @@ interface ManifestResolvedEvent {
 interface UnsupportedAudioCodecEvent {
   unsupportedAudioCodec: 'mp2';
   sourceUrl: string;
-  playbackMode: 'live';
+  playbackMode: 'live' | 'catchup';
 }
 
 interface UnsupportedVideoCodecEvent {
   unsupportedVideoCodec: 'hevc';
   sourceUrl: string;
-  playbackMode: 'live';
+  playbackMode: 'live' | 'catchup';
 }
 
 interface CatchUpRebaseFallbackEvent {
@@ -164,6 +164,7 @@ type HlsSourceMode = 'live' | 'catchup' | 'other';
 export type BackgroundPlaybackResumeResult =
   | 'pipeline-already-usable'
   | 'pipeline-recovered'
+  | 'pipeline-superseded'
   | 'pipeline-rebuilt';
 
 export type BackgroundPlaybackResumeFailureCode =
@@ -266,14 +267,14 @@ const findFirstVariantUrl = (baseUrl: string, playlist: string): string | null =
   return resolvePlaylistUrl(baseUrl, variantLine);
 };
 
-const findProbeSegmentUrl = (baseUrl: string, playlist: string): string | null => {
+const findProbeSegmentUrl = (baseUrl: string, playlist: string, fromStart = false): string | null => {
   const segments = parsePlaylistLines(playlist)
     .filter((line) => !line.startsWith('#'))
     .filter((line) => !/\.m3u8(?:[?#]|$)/i.test(line))
     .map((line) => resolvePlaylistUrl(baseUrl, line))
     .filter((value): value is string => Boolean(value));
 
-  return segments.at(-1) ?? null;
+  return segments.at(fromStart ? 0 : -1) ?? null;
 };
 
 const fetchPlaylistText = async (url: string): Promise<{ url: string; text: string }> => {
@@ -306,19 +307,19 @@ interface LiveProbeManifestResult {
   lowLatencyHls: boolean;
 }
 
-const resolveLiveProbeSegmentUrl = async (manifestUrl: string): Promise<LiveProbeManifestResult> => {
+const resolveLiveProbeSegmentUrl = async (manifestUrl: string, fromStart = false): Promise<LiveProbeManifestResult> => {
   const manifest = await fetchPlaylistText(manifestUrl);
   const variantUrl = findFirstVariantUrl(manifest.url, manifest.text);
   if (!variantUrl) {
     return {
-      segmentUrl: findProbeSegmentUrl(manifest.url, manifest.text),
+      segmentUrl: findProbeSegmentUrl(manifest.url, manifest.text, fromStart),
       lowLatencyHls: isLowLatencyHlsManifest(manifest.text),
     };
   }
 
   const mediaManifest = await fetchPlaylistText(variantUrl);
   return {
-    segmentUrl: findProbeSegmentUrl(mediaManifest.url, mediaManifest.text),
+    segmentUrl: findProbeSegmentUrl(mediaManifest.url, mediaManifest.text, fromStart),
     lowLatencyHls: isLowLatencyHlsManifest(mediaManifest.text),
   };
 };
@@ -348,7 +349,7 @@ interface LiveCodecProbeResult {
   lowLatencyHls: boolean;
 }
 
-const probeLiveCodecSupport = async (manifestUrl: string): Promise<LiveCodecProbeResult> => {
+const probeLiveCodecSupport = async (manifestUrl: string, fromStart = false): Promise<LiveCodecProbeResult> => {
   const empty: LiveCodecProbeResult = {
     unsupportedMpegAudio: false,
     unsupportedHevcVideo: false,
@@ -359,7 +360,7 @@ const probeLiveCodecSupport = async (manifestUrl: string): Promise<LiveCodecProb
   }
 
   try {
-    const { segmentUrl, lowLatencyHls } = await resolveLiveProbeSegmentUrl(manifestUrl);
+    const { segmentUrl, lowLatencyHls } = await resolveLiveProbeSegmentUrl(manifestUrl, fromStart);
     if (!segmentUrl) {
       return { ...empty, lowLatencyHls };
     }
@@ -589,6 +590,7 @@ export class HlsPlayerAdapter implements PlayerAdapter {
   private readonly video: HTMLVideoElement;
   private readonly preferNativeHls: boolean;
   private hls: Hls | null = null;
+  private cancelHlsStartup: (() => void) | null = null;
   private audioTracks: AudioTrackOption[] = [];
   private selectedAudioTrackId: string | null = null;
   private subtitleTracks: SubtitleTrackOption[] = [];
@@ -709,7 +711,7 @@ export class HlsPlayerAdapter implements PlayerAdapter {
         0,
         catchUpStartupMode,
         catchUpStartPositionSeconds,
-        sourceMode === 'live' && typeof streamId === 'number' && Number.isFinite(streamId),
+        (sourceMode === 'live' || sourceMode === 'catchup') && typeof streamId === 'number' && Number.isFinite(streamId),
         catchUpClientRebase,
         loadGeneration,
       );
@@ -748,7 +750,9 @@ export class HlsPlayerAdapter implements PlayerAdapter {
     if (!this.hasPlayableSource()) {
       return;
     }
+    const playGeneration = this.loadGeneration;
     this.video.play().catch((error: unknown) => {
+      if (!this.isCurrentLoad(playGeneration)) return;
       const message = error instanceof Error && error.message
         ? `Unable to start playback: ${error.name}: ${error.message}`
         : 'Unable to start playback.';
@@ -823,15 +827,12 @@ export class HlsPlayerAdapter implements PlayerAdapter {
     // actually keeps or produces media data before trusting the diagnosis.
     const generationAtResume = this.loadGeneration;
     const alive = await this.verifyResumedPipelineAlive();
-    if (alive) {
-      return 'pipeline-already-usable';
-    }
-    if (
-      this.loadGeneration !== generationAtResume &&
-      (this.hls !== null || this.state === 'loading')
-    ) {
+    if (this.loadGeneration !== generationAtResume) {
       // Another load took over while we were verifying (e.g. a channel
       // switch) — do not clobber it with a rebuild of the old source.
+      return 'pipeline-superseded';
+    }
+    if (alive) {
       return 'pipeline-already-usable';
     }
     return this.rebuildMediaPipeline(source);
@@ -842,15 +843,20 @@ export class HlsPlayerAdapter implements PlayerAdapter {
   ): Promise<BackgroundPlaybackResumeResult> {
     this.backgroundMediaRecoveryPending = false;
     this.backgroundNetworkRecoveryPending = false;
+    const reload = this.load(source);
+    const rebuildGeneration = this.loadGeneration;
     try {
-      await this.load(source);
+      await reload;
     } catch (error) {
+      if (!this.isCurrentLoad(rebuildGeneration)) return 'pipeline-superseded';
       throw new BackgroundPlaybackResumeError(
         'source-reload-failed',
         error instanceof Error ? error.message : 'Unable to reload playback source.',
         error,
       );
     }
+
+    if (!this.isCurrentLoad(rebuildGeneration)) return 'pipeline-superseded';
 
     try {
       HlsPlayerAdapter.stopCompetingPlayback(this);
@@ -859,6 +865,7 @@ export class HlsPlayerAdapter implements PlayerAdapter {
       }
       await this.video.play();
     } catch (error) {
+      if (!this.isCurrentLoad(rebuildGeneration)) return 'pipeline-superseded';
       throw new BackgroundPlaybackResumeError(
         'playback-start-failed',
         error instanceof Error ? error.message : 'Unable to restart playback.',
@@ -866,7 +873,10 @@ export class HlsPlayerAdapter implements PlayerAdapter {
       );
     }
 
+    if (!this.isCurrentLoad(rebuildGeneration)) return 'pipeline-superseded';
+
     const renderedFrame = await this.verifyRebuiltPipelineRenderedFrame(source);
+    if (!this.isCurrentLoad(rebuildGeneration)) return 'pipeline-superseded';
     if (!renderedFrame) {
       throw new BackgroundPlaybackResumeError(
         'rebuild-no-frame',
@@ -1231,8 +1241,8 @@ export class HlsPlayerAdapter implements PlayerAdapter {
     catchUpClientRebase = false,
     loadGeneration = this.loadGeneration,
   ): Promise<void> {
-    const codecProbe = isLiveSource && probeLiveMpegAudio
-      ? await probeLiveCodecSupport(url)
+    const codecProbe = (isLiveSource || isCatchUpSource) && probeLiveMpegAudio
+      ? await probeLiveCodecSupport(url, isCatchUpSource)
       : { unsupportedMpegAudio: false, unsupportedHevcVideo: false, lowLatencyHls: false };
     const useMpegAudioVideoOnlyFallback = codecProbe.unsupportedMpegAudio;
     this.assertCurrentLoad(loadGeneration);
@@ -1241,7 +1251,7 @@ export class HlsPlayerAdapter implements PlayerAdapter {
       this.onUnsupportedAudioCodec?.({
         unsupportedAudioCodec: 'mp2',
         sourceUrl: url,
-        playbackMode: 'live',
+        playbackMode: isCatchUpSource ? 'catchup' : 'live',
       });
     }
 
@@ -1249,7 +1259,7 @@ export class HlsPlayerAdapter implements PlayerAdapter {
       this.onUnsupportedVideoCodec?.({
         unsupportedVideoCodec: 'hevc',
         sourceUrl: url,
-        playbackMode: 'live',
+        playbackMode: isCatchUpSource ? 'catchup' : 'live',
       });
     }
 
@@ -1329,7 +1339,9 @@ export class HlsPlayerAdapter implements PlayerAdapter {
       };
       const CatchUpRebaseFragmentLoader = catchUpRebaseSession
         ? createCatchUpRebaseFragmentLoader(
-          Hls.DefaultConfig.loader as unknown as HlsLoaderConstructor,
+          // Strip unsupported audio before rebasing so both transformations
+          // apply to archive segments, including the no-rebase retry path.
+          MpegAudioStrippingFragmentLoader ?? Hls.DefaultConfig.loader as unknown as HlsLoaderConstructor,
           catchUpRebaseSession,
           {
             onFatal: onCatchUpRebaseFatal,
@@ -1431,12 +1443,16 @@ export class HlsPlayerAdapter implements PlayerAdapter {
           let startupSettled = false;
 
           const resolveStartup = () => {
+            if (startupSettled) return;
             startupSettled = true;
+            if (this.cancelHlsStartup === cancelStartup) this.cancelHlsStartup = null;
             resolve();
           };
 
           const rejectStartup = (error: Error) => {
+            if (startupSettled) return;
             startupSettled = true;
+            if (this.cancelHlsStartup === cancelStartup) this.cancelHlsStartup = null;
             reject(error);
           };
 
@@ -1794,6 +1810,12 @@ export class HlsPlayerAdapter implements PlayerAdapter {
             hls.off(Hls.Events.MANIFEST_LOADED, onManifestLoaded);
           };
 
+          const cancelStartup = () => {
+            cleanupStartupListeners();
+            rejectStartup(new Error(PLAYBACK_LOAD_CANCELLED_MESSAGE));
+          };
+          this.cancelHlsStartup = cancelStartup;
+
           hls.on(Hls.Events.MANIFEST_LOADED, onManifestLoaded);
           hls.on(Hls.Events.MANIFEST_PARSED, onManifestParsed);
           hls.on(Hls.Events.ERROR, onHlsError);
@@ -2076,6 +2098,8 @@ export class HlsPlayerAdapter implements PlayerAdapter {
   }
 
   private clearHls(): void {
+    this.cancelHlsStartup?.();
+    this.cancelHlsStartup = null;
     this.resetBufferingRecovery();
     this.backgroundMediaRecoveryPending = false;
     this.backgroundNetworkRecoveryPending = false;

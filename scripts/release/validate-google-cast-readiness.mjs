@@ -72,7 +72,7 @@ requireSnippets(files.sender, sender, [
   'VITE_GOOGLE_CAST_APP_ID',
   'return env.DEV === true ? DEV_CAST_RECEIVER_APP_ID : null;',
   'resolveCastSourceUnsupportedReason',
-  "metadata?.mode === 'live' && metadata.unsupportedAudioCodec === 'mp2'",
+  "metadata?.unsupportedAudioCodec === 'mp2'",
   'Google Cast custom receiver is not configured for this environment.',
   'const mediaInfo = new chromeMedia.MediaInfo(',
   'const loadRequest = new chromeMedia.LoadRequest(mediaInfo);',
@@ -84,7 +84,8 @@ requireSnippets(files.sender, sender, [
 requireSnippets(files.senderTest, senderTest, [
   'uses the default Cast receiver only as a dev fallback',
   'prefers an explicit Google Cast app id in every environment',
-  'blocks MP2 live sources from Cast without blocking normal live sources',
+  'blocks MP2 %s sources from Cast without blocking AAC',
+  "it.each(['live', 'catchup'])",
   "VITE_GOOGLE_CAST_APP_ID: ''",
   'DEV: false',
   'unsupportedAudioCodec: \'mp2\'',

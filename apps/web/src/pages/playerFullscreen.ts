@@ -19,7 +19,7 @@ type WebKitFullscreenElement = HTMLElement & {
 export interface PlayerFullscreenResult {
   ok: boolean;
   active: boolean;
-  method: 'standard' | 'webkit-element' | 'webkit-video' | 'unsupported' | 'failed';
+  method: 'standard' | 'webkit-element' | 'webkit-video' | 'inline' | 'unsupported' | 'failed';
   errorName?: string;
 }
 
@@ -63,6 +63,7 @@ export const isPlayerFullscreenActive = (
   container: HTMLElement,
   targetDocument: Document = document,
 ): boolean => {
+  if (container.hasAttribute('data-player-fullscreen')) return true;
   const webkitDocument = targetDocument as WebKitFullscreenDocument;
   const fullscreenElement = targetDocument.fullscreenElement ?? webkitDocument.webkitFullscreenElement;
   if (fullscreenElement) {
@@ -86,6 +87,18 @@ export const togglePlayerFullscreen = async (
   const webkitDocument = targetDocument as WebKitFullscreenDocument;
   const webkitContainer = container as WebKitFullscreenElement;
   const video = findVideo(container);
+
+  // iOS can reject native fullscreen while an HLS source is attaching or
+  // recovering. Keep the picture and our controls usable in a full-window
+  // surface without replaying the media or consuming a second user gesture.
+  const enterInlineFullscreen = (): PlayerFullscreenResult => {
+    container.setAttribute('data-player-fullscreen', 'inline');
+    return { ok: true, active: true, method: 'inline' };
+  };
+  if (container.hasAttribute('data-player-fullscreen')) {
+    container.removeAttribute('data-player-fullscreen');
+    return { ok: true, active: false, method: 'inline' };
+  }
 
   if (isPlayerFullscreenActive(container, targetDocument)) {
     try {
@@ -111,11 +124,14 @@ export const togglePlayerFullscreen = async (
   // including Brave's WKWebView, so native fullscreen must be the first path.
   if (video && isIosLikeDevice(targetNavigator)) {
     try {
+      if (video.readyState === 0 || video.webkitSupportsFullscreen === false) {
+        return enterInlineFullscreen();
+      }
       if (enterNativeVideoFullscreen(video)) {
         return { ok: true, active: true, method: 'webkit-video' };
       }
-    } catch (error) {
-      return { ok: false, active: false, method: 'failed', errorName: errorName(error) };
+    } catch {
+      return enterInlineFullscreen();
     }
   }
 
@@ -146,6 +162,7 @@ export const togglePlayerFullscreen = async (
     }
   }
 
+  if (isIosLikeDevice(targetNavigator)) return enterInlineFullscreen();
   return standardError
     ? { ok: false, active: false, method: 'failed', errorName: errorName(standardError) }
     : { ok: false, active: false, method: 'unsupported' };

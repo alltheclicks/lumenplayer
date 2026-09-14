@@ -24,6 +24,7 @@ import {
 } from '@/services/playerAnalytics';
 import { saveManagedAccessMode, type ManagedAccessMode } from '@/services/managedAccessMode';
 import { useSessionContext } from '@/context/session-context';
+import { isSsoAccountRejected, ssoFailureDescription } from './ssoFailure';
 
 const EXYU_PLAYER_PAGE_URL = 'https://exyu.tv/player';
 
@@ -79,6 +80,8 @@ const SsoLanding = () => {
 
       let ssoStage: SsoStage = 'token_exchange';
       try {
+        const controller = new AbortController();
+        const timeout = window.setTimeout(() => controller.abort(), 15_000);
         const response = await fetch('/sso/exchange', {
           method: 'POST',
           cache: 'no-store',
@@ -86,7 +89,8 @@ const SsoLanding = () => {
           referrerPolicy: 'no-referrer',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ token }),
-        });
+          signal: controller.signal,
+        }).finally(() => window.clearTimeout(timeout));
         if (!response.ok) {
           throw new Error(`sso_exchange_failed_${response.status}`);
         }
@@ -152,11 +156,12 @@ const SsoLanding = () => {
           ssoStage,
         });
         console.error('SSO sign-in error:', errorCode);
-        const subscriptionInactive = errorCode === 'sso_xtream_subscription_inactive';
-        if (subscriptionInactive) {
+        const accountRejected = isSsoAccountRejected(errorCode);
+        if (accountRejected) {
+          commands.stop();
           await clearXtreamCredentials();
         }
-        if (subscriptionInactive || !(await fallbackToExistingSession())) {
+        if (accountRejected || !(await fallbackToExistingSession())) {
           setFailureStage(ssoStage);
           setFailureCode(errorCode);
           setStatus('error');
@@ -185,13 +190,7 @@ const SsoLanding = () => {
             </CardTitle>
             <CardDescription>
               {status === 'error'
-                ? failureCode === 'sso_xtream_subscription_inactive'
-                  ? 'TV pretplata nije aktivna. Obnovite je preko EXYU.tv naloga.'
-                  : failureStage === 'token_exchange'
-                  ? 'Link za prijavu je istekao ili nije važeći.'
-                  : failureStage === 'credential_storage'
-                    ? 'Pregledač nije uspeo da sačuva prijavu. Pokušajte ponovo.'
-                    : 'IPTV server trenutno nije dostupan. Pokušajte ponovo za nekoliko trenutaka.'
+                ? ssoFailureDescription(failureCode, failureStage)
                 : 'Povezujemo vaš EXYU nalog sa plejerom...'}
             </CardDescription>
           </CardHeader>
@@ -208,9 +207,7 @@ const SsoLanding = () => {
               <Alert variant="destructive">
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription>
-                  IPTV server nije konfigurisan. Administrator treba da podesi{' '}
-                  <code className="rounded bg-secondary px-1 text-xs">VITE_XTREAM_SERVER</code> u
-                  environment varijablama.
+                  Plejer trenutno nije dostupan. Pokušajte kasnije preko EXYU.tv naloga.
                 </AlertDescription>
               </Alert>
             )}
