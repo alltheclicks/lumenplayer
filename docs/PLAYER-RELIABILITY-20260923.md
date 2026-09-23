@@ -1,6 +1,16 @@
 # Lumen / EXYU — ispravke posle audita, 23. septembar 2026.
 
-**Status: aplikativne izmene implementirane i proverene lokalno; nisu push-ovane niti deploy-ovane. Dva SQL indeksa primenjena su i proverena u produkciji 23. septembra.** Ovo nije potvrda da su svi problemi iz audita rešeni.
+**Status: player i proxy push-ovani i deploy-ovani; backend analitike deploy-ovan 23. septembra, uz prethodno primenjena dva SQL indeksa.** Ovo nije potvrda da su svi problemi iz audita rešeni. Backend GitHub push čeka izbor odredišta: lokalni Next.js repo nema remote, a postojeći `alltheclicks/exyu.tv` sadrži stari Vite sajt.
+
+## Produkciona objava
+
+- Lumen grana `codex/player-reliability-20260923` push-ovana na `alltheclicks/lumenplayer`. Web i proxy release: `20260923T123151Z-918b5ad`. Javni marker, oba aktivna symlink-a, health i JS/CSS fajlovi potvrđeni.
+- EXYU release: `20260923122931`, zasnovan na stvarnom aktivnom `20260916133413` uz patch `0f5719e`. Upoređivanje sadržaja potvrdilo je promene samo dashboard route/helper/test fajlova uz nove SQL dokumente i metapodatke. Prethodni release je sačuvan. Svih osam PM2 procesa koristi novi release.
+- Backend: 12 testova, scoped lint, TypeScript i serverski production build prolaze. Turbopack je odbio postojeći shared-data symlink; isti izvor uspešno je izgrađen sa `next build --webpack`, bez izmene aplikativne konfiguracije. Proba na loopback portu 3107 je prošla, a probni proces zatim ugašen.
+- Lumen deploy ponovo je prošao 507 testova, lint, typecheck, build, proveru produkcionih zavisnosti bez poznatih ranjivosti i `release:qaf035:validate` za postojeći režim objave. Ovo nije finalni potpis svih uređaja iz QAF matrice.
+- Posle objave: dashboard HTTP 200 za 7/15 dana u 11,524/12,041 s; PHP/cURL sa Main servera HTTP 200 u 10,609/11,983 s. Odgovori potvrđuju `activeWindowSeconds: 120` i eksplicitno ograničenje na 30.000 detaljnih događaja.
+- Produkcioni Brave smoke: prijava preko SSO-a, RTS 1 sa 1920×1080 video frejmovima (`readyState: 4`), PINK FOLK 2 sa 1024×576 frejmovima i vidljivom MP2 porukom na širini 390 px. Sklapanje i ponovno otvaranje poruke rade; slika nastavlja da se reprodukuje. Analitički ingest vraća 202. Mobilna širina u desktop browseru nije fizički iPhone test.
+- VOD „Ptice koje ne polete (1997)“ proveren na 390×844: vidljiva slika bez fullscreen-a, video element 390×219,375 px, frejmovi 1920×1080, `readyState: 4`, reprodukcija napreduje bez media greške. Proba ne potvrđuje svaki VOD/series izvor dobavljača. Reprodukcija je pauzirana i privremena promena viewport-a uklonjena po završetku.
 
 ## Pripremljene promene
 
@@ -35,8 +45,8 @@ Postojeći produkcioni API prošao je svih šest provera za 7/15 dana (12:21:23�
 
 Proveren je i konfigurisan PHP/cURL poziv sa Main/panel servera za oba perioda: HTTP 200 bez cURL greške za 12,070 i 12,932 s, unutar limita od 20 s. Korišćen je panelov konfiguracioni fajl i postojeći PHP runtime sa cURL podrškom. Ova provera potvrđuje serverski put do API-ja; nije vizuelna provera panel stranice.
 
-Prilikom izdavanja prvo obezbediti backend obradu occurrences, zatim Lumen coalescing, da pregled događaja zadrži tačan broj ponavljanja. Istorijski pogrešno klasifikovani crash zapisi nisu menjani; nova klasifikacija važi za nove događaje.
+Backend obrada occurrences objavljena je pre Lumen coalescing-a, da pregled događaja zadrži tačan broj ponavljanja. Istorijski pogrešno klasifikovani crash zapisi nisu menjani; nova klasifikacija važi za nove događaje.
 
 Nisu utvrđeni ili rešeni svi specifični catch-up/VOD kvarovi dobavljača, niti uzrok 27 restartovanja EXYU worker-a zbog memorije. To ne treba zatvarati na osnovu ovog build-a. Produkcioni sw.js/registerSW.js već imaju no-store; stare otvorene sesije ne dokazuju dodatni cache kvar.
 
-Originalni prljavi checkout-i oba projekta ostali su netaknuti. Backend route/data datoteke na izabranoj bazi odgovaraju produkciji, ali celokupna Next.js grana nije potvrđena kao identična aktivnom release-u; uskladiti bazu pre deploy-a.
+Originalni prljavi checkout-i oba projekta ostali su netaknuti. Backend je objavljen kopiranjem aktivnog produkcionog release-a i dodavanjem uskog patch-a, pa nepovezane izmene sajta nisu prepisane lokalnom granom.

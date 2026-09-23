@@ -1,5 +1,13 @@
 # Handoff — Lumen Player
 
+## Session 2026-09-23 — production deployment
+
+- Owner explicitly requested push and deploy. Lumen branch `codex/player-reliability-20260923` pushed to GitHub; web and proxy release `20260923T123151Z-918b5ad` activated and verified against the public marker, health and assets. Previous targets retained for rollback.
+- EXYU analytics patch `0f5719e` deployed as release `20260923122931`, copied from live `20260916133413` with only the scoped analytics changes. All eight worker CWDs verified. Build used webpack after Turbopack rejected the existing shared-data symlink. 12 backend tests and production build pass; Lumen deploy preflight passes 507 tests, lint, typecheck, build, dependency audit and current release gates.
+- Production 7/15-day API requests return 200 in 11.524/12.041 s; configured Main PHP/cURL path returns 200 in 10.609/11.983 s and reports the new 120-second activity window. Both SQL indexes were already applied.
+- Browser smoke: SSO, RTS 1 video frames, PINK FOLK 2 video plus new MP2 notice at 390 px; notice collapse/reopen works, ingest returns 202. VOD “Ptice koje ne polete (1997)” displays and plays outside fullscreen at 390×844 (video element 390×219.375, decoded frames 1920×1080, no media error). Physical iPhone QA remains open.
+- Backend GitHub push is pending destination selection. This local Next.js repo has no remote; `alltheclicks/exyu.tv` is a separate legacy Vite codebase. User was asked asynchronously; no remote was guessed or legacy repo overwritten.
+
 ## Session 2026-09-23 — MP2 notice, recovery and analytics reliability
 
 - Local implementation on `codex/player-reliability-20260923`, based on deployed player commit `602e09d`; no application push or deployment in this session. Two database indexes were applied and verified in production after the owner signed into Supabase. Dirty original checkouts were preserved.
