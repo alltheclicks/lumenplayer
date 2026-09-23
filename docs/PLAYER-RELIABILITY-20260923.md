@@ -1,6 +1,6 @@
 # Lumen / EXYU — ispravke posle audita, 23. septembar 2026.
 
-**Status: implementirano i provereno lokalno; nije push-ovano niti deploy-ovano.** Ovo nije potvrda da su svi problemi iz audita rešeni.
+**Status: aplikativne izmene implementirane i proverene lokalno; nisu push-ovane niti deploy-ovane. Dva SQL indeksa primenjena su i proverena u produkciji 23. septembra.** Ovo nije potvrda da su svi problemi iz audita rešeni.
 
 ## Pripremljene promene
 
@@ -29,7 +29,11 @@ MP2 poruka ne vraća zvuk: web player objašnjava potvrđenu nepodržanu audio p
 
 EXYU promena je u odvojenoj radnoj kopiji `exyu-tv-nextjs-reliability-20260923`. Uvedeni su kompaktna projekcija, cursor paginacija, obrada occurrences i prozor aktivne sesije od 120 sekundi bez budućih timestamp-ova. Lokalno prolazi 12 testova, TypeScript, scoped lint i Next production build. SQL kandidati i procedura su u `scripts/sql/player-analytics-reliability-20260923.md` tog repozitorijuma.
 
-**Dashboard nije potvrđeno popravljen:** read-only produkcijski test novog upita za 15 dana vraća 57014 već na prvoj strani za 8.369 ms. Supabase CLI vraća Unauthorized, otvoren dashboard traži prijavu. Potrebno je proveriti stvarne indekse/plan, primeniti potrebne indekse i ponoviti upit i HTTP proveru. Indeksi nisu primenjeni. Broj aktivnih sesija nije broj istovremenih gledalaca.
+**Dashboard API ponovo radi u produkciji:** posle prijave vlasnika u Supabase potvrđeno je da nedostaju oba indeksa. Pojedinačno su kreirani sa `CONCURRENTLY`: `idx_player_events_time_id` i `idx_player_events_diagnostic_time_id`; oba su validna i spremna. Dijagnostički upit sada koristi indeks umesto paralelnog skeniranja i sortiranja: prva SQL strana od 1.000 redova traje 2,599 ms. REST cursor provera svih 30.000 traženih redova traje 9,495 s, bez duplikata; pre indeksa prva strana je padala sa 57014 posle 8,369 s.
+
+Postojeći produkcioni API prošao je svih šest provera za 7/15 dana (12:21:23–12:22:18 UTC), HTTP 200 za 4,045–13,459 s. Ostaje eksplicitno ograničenje na 30.000 detaljnih događaja; `dataQuality` prijavljuje skraćen skup. Svih osam worker-a ostalo je online bez promene PID-a ili broja restartovanja tokom tih provera, a svež heartbeat potvrđuje nastavak prijema događaja. To nije dokaz da je istorijski problem memorije rešen. Broj aktivnih sesija nije broj istovremenih gledalaca. Lokalni agregatni dokazi su u `output/reliability/benchmark-analytics-after-indexes.json`, `dashboard-after-indexes.jsonl` i `panel-after-indexes.jsonl`.
+
+Proveren je i konfigurisan PHP/cURL poziv sa Main/panel servera za oba perioda: HTTP 200 bez cURL greške za 12,070 i 12,932 s, unutar limita od 20 s. Korišćen je panelov konfiguracioni fajl i postojeći PHP runtime sa cURL podrškom. Ova provera potvrđuje serverski put do API-ja; nije vizuelna provera panel stranice.
 
 Prilikom izdavanja prvo obezbediti backend obradu occurrences, zatim Lumen coalescing, da pregled događaja zadrži tačan broj ponavljanja. Istorijski pogrešno klasifikovani crash zapisi nisu menjani; nova klasifikacija važi za nove događaje.
 
