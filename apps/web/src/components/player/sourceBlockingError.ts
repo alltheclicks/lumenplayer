@@ -86,6 +86,18 @@ export const resolveSessionSourceBlockingError = (
   playbackErrorCode?: string | null,
 ): SourceBlockingError | null => {
   const metadata = parseRecord(source?.metadata);
+  if (
+    playbackErrorCode === 'MEDIA_ELEMENT_4'
+    && ['vod', 'series', 'series-episode'].includes(String(metadata?.mode))
+  ) {
+    return {
+      type: 'format',
+      message: 'Ovaj video trenutno ne može da se pokrene',
+      details: 'Izvor nije dostupan ili je u formatu koji ovaj uređaj ne podržava. Probajte drugi naslov ili prijavite problem.',
+      primaryAction: 'report-problem',
+      primaryActionLabel: 'Prijavi problem',
+    };
+  }
   const catchUpUnavailable = parseRecord(metadata?.catchUpUnavailable);
   if (catchUpUnavailable) {
     const code = parseString(catchUpUnavailable.code);
@@ -114,7 +126,7 @@ export const resolveSessionSourceBlockingError = (
     return {
       type: playbackErrorCode === 'NETWORK_ERROR' ? 'network' : 'unknown',
       message: 'Live kanal trenutno nije dostupan',
-      details: `${channelName} trenutno ne može da se pokrene uživo. Stream ne stiže stabilno od provajdera ili servera. Nije do vašeg uređaja niti do ${BRAND_SHORT} playera.`,
+      details: `${channelName} trenutno ne može da se pokrene. Izvor možda nije dostupan ili nije kompatibilan sa ovim uređajem. Probajte drugi kanal ili prijavite problem.`,
       primaryAction: 'report-problem',
       primaryActionLabel: 'Prijavi problem',
     };

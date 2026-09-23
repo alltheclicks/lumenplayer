@@ -748,22 +748,20 @@ export class HlsPlayerAdapter implements PlayerAdapter {
     if (!this.hasPlayableSource()) {
       return;
     }
-    this.video.play().catch((error: unknown) => {
-      const message = error instanceof Error && error.message
-        ? `Unable to start playback: ${error.name}: ${error.message}`
-        : 'Unable to start playback.';
-      // NotAllowedError means the browser refuses autoplay until the user
-      // interacts with the page. Unlike the other play() rejections it is a
-      // standing condition, not a transient one: retrying without a user
-      // gesture always fails again. Report it under its own code so the
-      // recovery layer can stop retrying and ask for a tap instead of
-      // spinning on play()/pause() forever.
-      const isAutoplayBlocked = error instanceof Error && error.name === 'NotAllowedError';
-      this.emitError({
-        code: isAutoplayBlocked ? 'PLAYBACK_AUTOPLAY_BLOCKED' : 'PLAYBACK_START_FAILED',
-        message,
-        fatal: false,
-      });
+    this.video.play().catch((error: unknown) => this.reportPlaybackStartError(error));
+  }
+
+  private reportPlaybackStartError(error: unknown): void {
+    const message = error instanceof Error && error.message
+      ? `Unable to start playback: ${error.name}: ${error.message}`
+      : 'Unable to start playback.';
+    // NotAllowedError requires a user gesture. Retrying automatically keeps
+    // failing, so let the recovery layer stop and show the play button.
+    const isAutoplayBlocked = error instanceof Error && error.name === 'NotAllowedError';
+    this.emitError({
+      code: isAutoplayBlocked ? 'PLAYBACK_AUTOPLAY_BLOCKED' : 'PLAYBACK_START_FAILED',
+      message,
+      fatal: false,
     });
   }
 
@@ -852,6 +850,7 @@ export class HlsPlayerAdapter implements PlayerAdapter {
       );
     }
 
+    const playbackGeneration = this.loadGeneration;
     try {
       HlsPlayerAdapter.stopCompetingPlayback(this);
       if (!this.hasPlayableSource()) {
@@ -859,6 +858,9 @@ export class HlsPlayerAdapter implements PlayerAdapter {
       }
       await this.video.play();
     } catch (error) {
+      // Background rebuilds must use the same autoplay signal as ordinary
+      // play(), so the UI can stop retries and offer a user-initiated play.
+      if (this.isCurrentLoad(playbackGeneration)) this.reportPlaybackStartError(error);
       throw new BackgroundPlaybackResumeError(
         'playback-start-failed',
         error instanceof Error ? error.message : 'Unable to restart playback.',

@@ -165,6 +165,42 @@ describe('player analytics proxy forwarding', () => {
       replayUrl: '/player-analytics/replay',
     });
 
+    const browserGetHeaders = {
+      referer: 'https://player.exyu.tv/player',
+      'sec-fetch-site': 'same-origin',
+      cookie,
+    };
+    const restoredWithoutOrigin = await app.inject({
+      method: 'GET', url: '/player-analytics/config', headers: browserGetHeaders,
+    });
+    expect(restoredWithoutOrigin.statusCode).toBe(200);
+    expect(restoredWithoutOrigin.json()).toEqual(restoredConfig.json());
+
+    const missingCookie = await app.inject({
+      method: 'GET', url: '/player-analytics/config',
+      headers: { referer: browserGetHeaders.referer, 'sec-fetch-site': 'same-origin' },
+    });
+    expect(missingCookie.statusCode).toBe(401);
+
+    for (const headers of [
+      { ...browserGetHeaders, origin: 'https://evil.example' },
+      { ...browserGetHeaders, origin: 'null' },
+      { ...browserGetHeaders, referer: 'https://evil.example/player' },
+      { ...browserGetHeaders, referer: 'https://player.exyu.tv.evil.example/player' },
+      { ...browserGetHeaders, referer: 'not-a-url' },
+      { ...browserGetHeaders, 'sec-fetch-site': 'cross-site' },
+      { ...browserGetHeaders, 'sec-fetch-site': 'same-site' },
+      { cookie },
+    ]) {
+      const rejected = await app.inject({ method: 'GET', url: '/player-analytics/config', headers });
+      expect(rejected.statusCode).toBe(403);
+    }
+
+    const postWithoutOrigin = await app.inject({
+      method: 'POST', url: '/player-analytics/ingest', headers: browserGetHeaders, payload: {},
+    });
+    expect(postWithoutOrigin.statusCode).toBe(403);
+
     const unauthorized = await app.inject({
       method: 'POST',
       url: '/player-analytics/ingest',

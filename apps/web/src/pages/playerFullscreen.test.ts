@@ -81,6 +81,35 @@ describe('player fullscreen capability handling', () => {
     })).toBe(true);
   });
 
+  it('expands the player and exits again when iOS rejects native video fullscreen', async () => {
+    const enter = vi.fn(() => { throw new DOMException('No native presentation', 'InvalidStateError'); });
+    const container = createContainer({ webkitEnterFullscreen: enter });
+    const doc = createDocument();
+    expect(await togglePlayerFullscreen(container, doc, iphoneNavigator)).toEqual({
+      ok: true, active: true, method: 'expanded', errorName: 'InvalidStateError',
+    });
+    expect(isPlayerFullscreenActive(container, doc)).toBe(true);
+    expect(await togglePlayerFullscreen(container, doc, iphoneNavigator)).toEqual({
+      ok: true, active: false, method: 'expanded',
+    });
+    expect(isPlayerFullscreenActive(container, doc)).toBe(false);
+    expect(enter).toHaveBeenCalledOnce();
+  });
+
+  it('tries supported element fullscreen after native iPad video rejects', async () => {
+    const container = Object.assign(createContainer({
+      webkitEnterFullscreen: () => { throw new DOMException('Not ready', 'InvalidStateError'); },
+    }), { requestFullscreen: vi.fn().mockResolvedValue(undefined) });
+    expect(await togglePlayerFullscreen(container, createDocument(), iphoneNavigator))
+      .toMatchObject({ ok: true, active: true, method: 'standard' });
+  });
+
+  it('expands a video container when no fullscreen API exists', async () => {
+    const container = createContainer({});
+    expect(await togglePlayerFullscreen(container, createDocument()))
+      .toEqual({ ok: true, active: true, method: 'expanded' });
+  });
+
   it('reports unsupported capabilities instead of generating an unhandled exception', async () => {
     await expect(togglePlayerFullscreen(createContainer(), createDocument())).resolves.toEqual({
       ok: false,

@@ -1,5 +1,15 @@
 # Handoff — Lumen Player
 
+## Session 2026-09-23 — MP2 notice, recovery and analytics reliability
+
+- Local implementation on `codex/player-reliability-20260923`, based on deployed player commit `602e09d`; no push or deployment in this session. Dirty original checkouts were preserved.
+- MP2: readable “Trenutno bez zvuka” explanation, collapsible to a persistent “Bez zvuka” button, reset on source change. HEVC and VOD source-error copy avoids unsupported claims about universal device support or incident cause. No audio transcoding added.
+- Fullscreen: when native/element APIs fail, expand the player to the viewport with usable controls and an exit button; preserve standard/native paths. Background rebuild autoplay rejection now reaches the existing paused/manual-play UI, with a generation guard against stale errors after a channel switch.
+- Analytics: legitimate same-origin GET config restore; one trusted loopback proxy hop by default; bounded warning/retry coalescing with occurrence counts; content-kind attribution; diagnostic failures remain events with replay references instead of crashes; extension-origin exceptions separated from application exceptions.
+- Verification: 507/507 unit tests (62 files), typecheck 3/3, lint 11/11, build 3/3, diff check. Playwright checked MP2 at 320/390px, collapse/reopen/source reset; actual Player viewport fallback and both exit controls; mocked analytics transport verified VOD attribution, diagnostic/crash separation and pagehide flush ordering. No physical iPhone or live provider playback validation.
+- Separate EXYU candidate: `/Users/filip/Documents/exyu-tv-nextjs-reliability-20260923`, branch `codex/player-analytics-reliability-20260923`. Compact cursor queries, occurrence-aware counts, 120-second activity window, staged SQL index plan. 12 tests, TypeScript, scoped lint and production build pass. Live 15-day query still returns `57014`; Supabase access requires user sign-in, indexes not applied, dashboard fix unproved. Deploy backend occurrence handling before the client coalescing changes.
+- Remaining: provider-specific catch-up/VOD failures, physical iPhone QA, database indexes and live dashboard verification, root cause of EXYU PM2 memory restarts. Existing production SW cache headers are already no-store; old open tabs alone do not prove a new cache defect. Details: `docs/PLAYER-RELIABILITY-20260923.md`.
+
 ## Session 2026-07-19 (nastavak) — Background/resume mrtav MSE pipeline: uzrok dokazan uživo + fix `3bd4b47`
 
 - **Kontekst:** posle dužeg background taba video ostane sa živim adapterom, ali mrtvim MSE pipeline-om (`readyState=0`, `videoWidth=0`, `buffered=[]`, `play()` → `NotSupportedError`). Commitovi `203ec6a`→`99b4517` (release `20260719T200833Z-99b4517`) dodali su resume/rebuild putanju, ali simptom je opstao.

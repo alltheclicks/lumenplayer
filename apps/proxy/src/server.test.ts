@@ -274,6 +274,20 @@ describe("createProxyServer", () => {
     await app.close();
   });
 
+  it("separates local proxy clients by default and ignores spoofed earlier hops", async () => {
+    const app = createProxyServer({
+      allowedHosts: ["*"], logger: false, sweepIntervalMs: 0, observeRateLimitPerMinute: 1,
+    });
+    const send = (chain: string) => app.inject({
+      method: "POST", url: "/observe", remoteAddress: "127.0.0.1",
+      headers: { "x-forwarded-for": chain }, payload: { event: "playback.started" },
+    });
+    expect((await send("192.0.2.1, 203.0.113.10")).statusCode).toBe(204);
+    expect((await send("192.0.2.2, 203.0.113.11")).statusCode).toBe(204);
+    expect((await send("192.0.2.99, 203.0.113.10")).statusCode).toBe(429);
+    await app.close();
+  });
+
   it("does not trust forwarded addresses from a direct non-loopback client", async () => {
     const app = createProxyServer({
       allowedHosts: ["*"], logger: false, sweepIntervalMs: 0,

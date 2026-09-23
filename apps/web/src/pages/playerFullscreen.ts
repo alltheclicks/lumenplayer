@@ -19,7 +19,7 @@ type WebKitFullscreenElement = HTMLElement & {
 export interface PlayerFullscreenResult {
   ok: boolean;
   active: boolean;
-  method: 'standard' | 'webkit-element' | 'webkit-video' | 'unsupported' | 'failed';
+  method: 'standard' | 'webkit-element' | 'webkit-video' | 'expanded' | 'unsupported' | 'failed';
   errorName?: string;
 }
 
@@ -30,6 +30,10 @@ const errorName = (error: unknown): string => (
 const findVideo = (container: HTMLElement): WebKitFullscreenVideo | null => (
   container.querySelector('video') as WebKitFullscreenVideo | null
 );
+
+// Player.tsx renders the active container fixed to the viewport. This fallback
+// keeps MSE video and custom controls usable when iOS rejects native fullscreen.
+const expandedPlayers = new WeakSet<HTMLElement>();
 
 interface FullscreenNavigator {
   userAgent: string;
@@ -63,6 +67,7 @@ export const isPlayerFullscreenActive = (
   container: HTMLElement,
   targetDocument: Document = document,
 ): boolean => {
+  if (expandedPlayers.has(container)) return true;
   const webkitDocument = targetDocument as WebKitFullscreenDocument;
   const fullscreenElement = targetDocument.fullscreenElement ?? webkitDocument.webkitFullscreenElement;
   if (fullscreenElement) {
@@ -87,6 +92,11 @@ export const togglePlayerFullscreen = async (
   const webkitContainer = container as WebKitFullscreenElement;
   const video = findVideo(container);
 
+  if (expandedPlayers.has(container)) {
+    expandedPlayers.delete(container);
+    return { ok: true, active: false, method: 'expanded' };
+  }
+
   if (isPlayerFullscreenActive(container, targetDocument)) {
     try {
       if (targetDocument.fullscreenElement && typeof targetDocument.exitFullscreen === 'function') {
@@ -109,17 +119,19 @@ export const togglePlayerFullscreen = async (
   // method must run synchronously inside the click/touch gesture. Trying and
   // awaiting requestFullscreen() first consumes that gesture in iOS browsers,
   // including Brave's WKWebView, so native fullscreen must be the first path.
+  let standardError: unknown;
+  let nativeAttempted = false;
   if (video && isIosLikeDevice(targetNavigator)) {
+    nativeAttempted = true;
     try {
       if (enterNativeVideoFullscreen(video)) {
         return { ok: true, active: true, method: 'webkit-video' };
       }
     } catch (error) {
-      return { ok: false, active: false, method: 'failed', errorName: errorName(error) };
+      standardError = error;
     }
   }
 
-  let standardError: unknown;
   if (typeof container.requestFullscreen === 'function') {
     try {
       await container.requestFullscreen();
@@ -136,14 +148,22 @@ export const togglePlayerFullscreen = async (
     }
   }
 
-  if (video) {
+  if (video && !nativeAttempted) {
     try {
       if (enterNativeVideoFullscreen(video)) {
         return { ok: true, active: true, method: 'webkit-video' };
       }
     } catch (error) {
-      return { ok: false, active: false, method: 'failed', errorName: errorName(error) };
+      standardError = error;
     }
+  }
+
+  if (video) {
+    expandedPlayers.add(container);
+    return {
+      ok: true, active: true, method: 'expanded',
+      ...(standardError ? { errorName: errorName(standardError) } : {}),
+    };
   }
 
   return standardError

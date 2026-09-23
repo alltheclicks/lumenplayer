@@ -327,6 +327,14 @@ export const resolveMediaAnalyticsEventName = (mediaEventName: string): string =
   mediaEventName === 'error' ? 'playback.media_error' : `playback.${mediaEventName}`
 );
 
+export const isExtensionRuntimeError = (error: Error, filename?: unknown): boolean => {
+  const extensionUrl = /(?:chrome|moz|safari-web)-extension:\/\//i;
+  // A later extension caller must not hide an exception originating in our code.
+  const firstFrame = error.stack?.split('\n').slice(1).find((line) => line.trim()) ?? '';
+  return (typeof filename === 'string' && extensionUrl.test(filename))
+    || extensionUrl.test(firstFrame);
+};
+
 const parseUserAgent = (userAgent: string): Record<string, string> => {
   const browserMatch = userAgent.match(/(Edg|OPR|Chrome|CriOS|Firefox|FxiOS|Version)\/([\d.]+)/);
   const browserToken = browserMatch?.[1] ?? 'Unknown';
@@ -418,7 +426,7 @@ class PlayerAnalyticsClient {
   private heartbeatTimer: number | null = null;
   private searchTimer: number | null = null;
   private activeFlushPromise: Promise<boolean> | null = null;
-  private lastStructuredCrash: { fingerprint: string; occurredAtMs: number } | null = null;
+  private lastDiagnosticFailure: { fingerprint: string; occurredAtMs: number } | null = null;
   private lastUnhandledCrash: TelemetryOccurrence | null = null;
   private lastMediaError: TelemetryOccurrence | null = null;
   private latestFeedbackSuggestion: PlayerFeedbackSuggestion | null = null;
@@ -625,7 +633,7 @@ class PlayerAnalyticsClient {
     this.crashes = [];
     this.feedback = [];
     this.recentEvents = [];
-    this.lastStructuredCrash = null;
+    this.lastDiagnosticFailure = null;
     this.lastUnhandledCrash = null;
     this.lastMediaError = null;
     try {
@@ -768,7 +776,7 @@ class PlayerAnalyticsClient {
       ...(eventChannel.id ? { channelId: eventChannel.id } : {}),
       ...(eventChannel.name ? { channelName: eventChannel.name } : {}),
       ...(eventChannel.category ? { channelCategory: eventChannel.category } : {}),
-      ...(contentKind ? { contentKind } : {}),
+      ...(this.currentContent.kind ? { contentKind: this.currentContent.kind } : {}),
       ...(stringValue(safe.playbackMode) ? { playbackMode: stringValue(safe.playbackMode) } : {}),
       ...(stringValue(safe.errorCode) ?? stringValue(safe.code)
         ? { errorCode: stringValue(safe.errorCode) ?? stringValue(safe.code) }
@@ -787,7 +795,8 @@ class PlayerAnalyticsClient {
       name === 'sso.landing_failed'
     );
     if (structuredFailure) {
-      this.captureStructuredFailure(name, safe, timestampMs);
+      const replayId = this.captureDiagnosticFailure(name, safe, timestampMs);
+      if (replayId) event.properties.replayId = replayId;
     }
     if (shouldFlushAnalyticsQueue(this.events.length)) this.flush('active');
   }
@@ -842,11 +851,11 @@ class PlayerAnalyticsClient {
     this.captureCrash(error, { source: 'react.error_boundary', componentStack });
   }
 
-  private captureStructuredFailure(
+  private captureDiagnosticFailure(
     errorName: string,
     metadata: Record<string, unknown>,
     occurredAtMs: number,
-  ): void {
+  ): string | undefined {
     const message = redactSensitiveText(
       stringValue(metadata.message)
       ?? stringValue(metadata.errorCode)
@@ -854,36 +863,27 @@ class PlayerAnalyticsClient {
       ?? errorName,
     );
     const fingerprint = buildCrashFingerprint(errorName, message);
-    if (isDuplicateTelemetryOccurrence(this.lastStructuredCrash, fingerprint, occurredAtMs, 10_000)) {
+    if (isDuplicateTelemetryOccurrence(this.lastDiagnosticFailure, fingerprint, occurredAtMs, 10_000)) {
       return;
     }
-    this.lastStructuredCrash = { fingerprint, occurredAtMs };
+    this.lastDiagnosticFailure = { fingerprint, occurredAtMs };
     const replayId = randomId();
-    void this.uploadReplay('crash', replayId);
-    this.crashes.push({
-      id: randomId(),
-      occurredAt: new Date(occurredAtMs).toISOString(),
-      fingerprint,
-      errorName,
-      message,
-      route: window.location.pathname,
-      playerRelease: PLAYER_RELEASE,
-      lastEvents: [...this.recentEvents],
-      context: sanitizeTelemetryRecord({
-        ...metadata,
-        device: collectSafeDeviceSummary(),
-        playback: this.collectPlaybackSnapshot(),
-      }),
-      replayId,
-    });
-    this.crashCount += 1;
+    // The original event retains the failure and replay link. A rejected login
+    // or a broken stream is operational diagnostics, not a JavaScript crash.
+    void this.uploadReplay('diagnostic', replayId);
+    return replayId;
   }
 
   private captureCrash(error: unknown, context: Record<string, unknown>): void {
     if (!this.configuration) return;
     const normalized = error instanceof Error ? error : new Error(String(error));
+    if (isExtensionRuntimeError(normalized, context.filename)) {
+      this.track('runtime.external_error', 'warn', { errorName: normalized.name, source: 'browser-extension' });
+      return;
+    }
     const message = redactSensitiveText(normalized.message || 'Unknown error');
-    const stack = normalized.stack ? redactSensitiveText(normalized.stack) : undefined;
+    const unattributed = message === 'Script error.' && !context.filename;
+    const stack = !unattributed && normalized.stack ? redactSensitiveText(normalized.stack) : undefined;
     const occurredAtMs = Date.now();
     const fingerprint = buildCrashFingerprint(normalized.name, message, stack);
     if (isDuplicateTelemetryOccurrence(this.lastUnhandledCrash, fingerprint, occurredAtMs, 30_000)) {
@@ -904,6 +904,7 @@ class PlayerAnalyticsClient {
       lastEvents: [...this.recentEvents],
       context: sanitizeTelemetryRecord({
         ...context,
+        attribution: unattributed ? 'unknown' : 'application',
         device: collectSafeDeviceSummary(),
         playback: this.collectPlaybackSnapshot(),
       }),

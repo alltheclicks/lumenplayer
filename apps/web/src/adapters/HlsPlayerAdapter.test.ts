@@ -1872,6 +1872,8 @@ describe('HlsPlayerAdapter', () => {
   it('classifies a browser playback-start rejection separately after a successful reload', async () => {
     const video = createMockVideoElement();
     const adapter = new HlsPlayerAdapter(video);
+    const onError = vi.fn();
+    adapter.onError(onError);
     const source = {
       url: 'https://example.com/live.m3u8',
       type: 'hls' as const,
@@ -1885,7 +1887,7 @@ describe('HlsPlayerAdapter', () => {
     initialHls?.emit(hlsMockState.MockHls.Events.MANIFEST_PARSED);
     await initialLoadPromise;
     adapter.stop();
-    vi.mocked(video.play).mockRejectedValueOnce(new Error('NotAllowedError'));
+    vi.mocked(video.play).mockRejectedValueOnce(new DOMException('A user gesture is required', 'NotAllowedError'));
 
     const resumePromise = adapter.resumeAfterBackground(source);
     const rebuiltHls = hlsMockState.instances.at(-1);
@@ -1896,6 +1898,27 @@ describe('HlsPlayerAdapter', () => {
       name: 'BackgroundPlaybackResumeError',
       code: 'playback-start-failed',
     });
+    expect(onError).toHaveBeenCalledWith(expect.objectContaining({
+      code: 'PLAYBACK_AUTOPLAY_BLOCKED', fatal: false,
+    }));
+  });
+
+  it('does not apply a delayed background autoplay rejection to a newly selected source', async () => {
+    const video = createMockVideoElement();
+    const adapter = new HlsPlayerAdapter(video);
+    const onError = vi.fn();
+    adapter.onError(onError);
+    const source = buildSource('https://example.com/first.mp4');
+    await adapter.load(source);
+    adapter.stop();
+    let rejectPlay!: (error: Error) => void;
+    vi.mocked(video.play).mockImplementationOnce(() => new Promise((_, reject) => { rejectPlay = reject; }));
+    const resume = adapter.resumeAfterBackground(source);
+    await vi.waitFor(() => expect(rejectPlay).toBeDefined());
+    await adapter.load(buildSource('https://example.com/second.mp4'));
+    rejectPlay(new DOMException('Gesture required', 'NotAllowedError'));
+    await expect(resume).rejects.toMatchObject({ code: 'playback-start-failed' });
+    expect(onError).not.toHaveBeenCalled();
   });
 
   it('does not report a rebuilt pipeline as healthy until a frame is renderable', async () => {

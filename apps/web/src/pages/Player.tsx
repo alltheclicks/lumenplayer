@@ -1084,6 +1084,13 @@ const Player = () => {
 
     const result = await togglePlayerFullscreen(container);
     setIsFullscreen(result.active);
+    if (result.ok && result.active && result.method === 'expanded') {
+      emitWebObservabilityEvent({
+        name: 'playback.fullscreen_fallback',
+        severity: 'warn',
+        metadata: { fullscreenMethod: result.method, errorName: result.errorName },
+      });
+    }
     if (!result.ok) {
       emitWebObservabilityEvent({
         name: 'playback.fullscreen_failed',
@@ -1098,6 +1105,13 @@ const Player = () => {
       });
     }
   }, []);
+
+  useEffect(() => {
+    if (!isFullscreen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = previousOverflow; };
+  }, [isFullscreen]);
 
   // Handle fullscreen change
   useEffect(() => {
@@ -2664,9 +2678,9 @@ const Player = () => {
           {/* Player area */}
           <div
             ref={containerRef}
-            className={`relative w-full min-w-0 max-w-full shrink-0 overflow-hidden bg-black ${
+            className={`${isFullscreen ? 'fixed' : 'relative'} w-full min-w-0 max-w-full shrink-0 overflow-hidden bg-black ${
               isFullscreen
-                ? 'fixed inset-0 z-50'
+                ? 'inset-0 z-50'
                 : isOnDemandSource
                   ? 'aspect-video max-h-[70svh] lg:max-h-[calc(100svh-180px)]'
                   : `aspect-video max-h-[36svh] transition-[max-height] duration-300 ${

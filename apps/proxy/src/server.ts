@@ -794,6 +794,26 @@ const isAllowedBrowserOrigin = (
     || Boolean(requestOrigin && allowedCorsOrigins.includes(requestOrigin));
 };
 
+// Browsers omit Origin on same-origin GETs. Only the read-only configuration
+// endpoint may use Fetch Metadata plus a trusted referrer instead; POST routes
+// keep their existing Origin checks and every config read still needs a binding.
+const isAllowedAnalyticsConfigRequest = (
+  request: FastifyRequest,
+  allowedCorsOrigins: string[],
+): boolean => {
+  if (isAllowedBrowserOrigin(request, allowedCorsOrigins)) return true;
+  if (
+    request.headers.origin !== undefined
+    || request.headers['sec-fetch-site'] !== 'same-origin'
+    || typeof request.headers.referer !== 'string'
+  ) return false;
+  try {
+    return allowedCorsOrigins.includes(new URL(request.headers.referer).origin.toLowerCase());
+  } catch {
+    return false;
+  }
+};
+
 const isObserveRoute = (request: FastifyRequest): boolean => (
   request.url.split("?", 1)[0] === "/observe"
 );
@@ -938,7 +958,7 @@ export const createProxyServer = (options: ProxyServerOptions = {}): FastifyInst
     0,
     Math.floor(
       options.trustProxyHops
-      ?? parseNonNegativeInteger(env.LUMEN_TRUST_PROXY_HOPS, 0),
+      ?? parseNonNegativeInteger(env.LUMEN_TRUST_PROXY_HOPS, 1),
     ),
   );
   const fetchImpl = options.fetchImpl ?? fetch;
@@ -1478,7 +1498,7 @@ export const createProxyServer = (options: ProxyServerOptions = {}): FastifyInst
       reply.code(404).send({ error: "analytics_disabled" });
       return;
     }
-    if (!isAllowedBrowserOrigin(request, allowedCorsOrigins)) {
+    if (!isAllowedAnalyticsConfigRequest(request, allowedCorsOrigins)) {
       reply.code(403).send({ error: "forbidden_origin" });
       return;
     }

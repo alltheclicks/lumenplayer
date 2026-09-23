@@ -1,6 +1,7 @@
 import { useRef, useEffect, useState, useCallback, forwardRef, useImperativeHandle } from 'react';
 import { BRAND_SHORT } from '@/config/brand';
-import { AlertCircle, Loader2, Radio, WifiOff, ShieldAlert, X } from 'lucide-react';
+import { AlertCircle, Loader2, Radio, WifiOff, ShieldAlert } from 'lucide-react';
+import { CodecNotice } from './CodecNotice';
 import type { SessionSource } from '@lumen/session-core';
 import { Button } from '@/components/ui/button';
 import { useSessionContext } from '@/context/session-context';
@@ -663,7 +664,6 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
   const error = errorState?.error ?? null;
   const [unsupportedAudioCodec, setUnsupportedAudioCodec] = useState<UnsupportedAudioCodec | null>(null);
   const [unsupportedVideoCodec, setUnsupportedVideoCodec] = useState<UnsupportedVideoCodec | null>(null);
-  const [isCodecNoticeDismissed, setIsCodecNoticeDismissed] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isPictureInPicture, setIsPictureInPicture] = useState(false);
   const [isAirPlayAvailable, setIsAirPlayAvailable] = useState(false);
@@ -1159,6 +1159,9 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
         const recoveryFailure = recoveryError instanceof BackgroundPlaybackResumeError
           ? recoveryError.code
           : null;
+        if (recoveryFailure === 'playback-start-failed' && autoplayBlockedSourceUrlRef.current === source.url) {
+          return;
+        }
         const recoveryTelemetry = recoveryFailure === 'source-reload-failed'
           ? {
               status: 'foreground_source_reload_failed',
@@ -3542,7 +3545,6 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
     setUnsupportedVideoCodec(
       sessionRef.current.source?.metadata?.unsupportedVideoCodec === 'hevc' ? 'hevc' : null,
     );
-    setIsCodecNoticeDismissed(false);
     const sourceMetadataForReset = (
       typeof sessionRef.current.source?.metadata === 'object' &&
       sessionRef.current.source.metadata !== null
@@ -4415,15 +4417,9 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
     elapsedSeconds: loadingElapsedSeconds,
     bufferedAheadSeconds: loadingBufferedAheadSeconds,
   });
-  const unsupportedAudioMessage = unsupportedAudioCodec === 'mp2'
-    ? 'Zvuk nije dostupan za ovaj kanal. Kanal koristi MP2 audio, koji trenutno nije podržan u web browser playback-u. Video može raditi bez zvuka.'
-    : null;
-  const unsupportedVideoMessage = unsupportedVideoCodec === 'hevc' && !isHevcPlaybackLikelySupported()
-    ? 'Slika možda neće raditi za ovaj kanal. Kanal koristi HEVC (H.265) video, koji nije podržan u svim browserima (radi na Safari/iOS, ali ne na Chrome desktop/Android).'
-    : null;
-  const unsupportedCodecMessage = isCodecNoticeDismissed
-    ? null
-    : unsupportedVideoMessage ?? unsupportedAudioMessage;
+  const codecNoticeKind = unsupportedVideoCodec === 'hevc' && !isHevcPlaybackLikelySupported()
+    ? 'video'
+    : unsupportedAudioCodec === 'mp2' ? 'audio' : null;
 
   return (
     <div className={`pointer-events-none relative w-full h-full bg-black ${className}`}>
@@ -4460,21 +4456,8 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
         </div>
       )}
 
-      {unsupportedCodecMessage && !error && (
-        <div className="pointer-events-none absolute inset-x-3 top-3 z-20 flex justify-center">
-          <div className="pointer-events-auto flex max-w-[min(560px,calc(100vw-24px))] items-start gap-2 rounded-md border border-amber-300/40 bg-black/75 px-3 py-2 text-left text-xs leading-5 text-white shadow-lg backdrop-blur-sm">
-            <AlertCircle className="mt-0.5 h-4 w-4 flex-none text-amber-300" />
-            <span>{unsupportedCodecMessage}</span>
-            <button
-              type="button"
-              onClick={() => setIsCodecNoticeDismissed(true)}
-              className="-mr-1 -mt-0.5 flex h-6 w-6 flex-none items-center justify-center rounded-md text-white/70 transition-colors hover:bg-white/10 hover:text-white"
-              aria-label="Zatvori obaveštenje"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
+      {codecNoticeKind && !error && (
+        <CodecNotice key={`${session.source?.url}:${codecNoticeKind}`} kind={codecNoticeKind} />
       )}
 
       {error && (

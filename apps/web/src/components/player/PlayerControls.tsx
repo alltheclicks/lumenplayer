@@ -371,6 +371,7 @@ const PlayerControls = ({
   }, [shouldUseControlsIdleTimer, showControls]);
 
   useEffect(() => {
+    resetControlsIdleTimer();
     if (isFullscreen) {
       return;
     }
@@ -1568,7 +1569,8 @@ const PlayerControls = ({
           <Button
             variant="ghost"
             size="icon"
-            className="w-10 h-10 rounded-full bg-glass/50 backdrop-blur-[18px] backdrop-saturate-125 hover:bg-foreground/15"
+            className="w-11 h-11 rounded-full bg-glass/50 backdrop-blur-[18px] backdrop-saturate-125 hover:bg-foreground/15"
+            aria-label="Smanji ekran"
             onClick={(e) => {
               e.stopPropagation();
               onToggleFullscreen();
@@ -1997,6 +1999,7 @@ const PlayerControls = ({
                 variant="ghost"
                 size="icon"
                 className="w-8 h-8 sm:w-10 sm:h-10 text-muted-foreground hover:bg-foreground/10 hover:text-foreground"
+                aria-label={isFullscreen ? 'Smanji ekran' : 'Ceo ekran'}
                 onClick={(e) => {
                   e.stopPropagation();
                   onToggleFullscreen();
