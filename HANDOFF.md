@@ -3,7 +3,7 @@
 ## Session 2026-09-25 — Git/GitHub handoff alignment
 
 - Start with `docs/AGENT-HANDOFF-20260925.md`. The alignment PR brings the already deployed September 23 player/proxy source into main; this session changes documentation only and performs no production deployment.
-- Local unfinished source and UI work are preserved on separate archive branches. Original dirty worktrees and indexes remain untouched; raw operational logs/provider dumps stay in a private local recovery archive.
+- Local unfinished source and UI work are preserved on separate archive branches. The original workspace edits/index are retained in a named local stash plus recovery archive before moving the workspace to the aligned baseline; other dirty worktrees are preserved. Raw operational logs/provider dumps stay local.
 - The separate EXYU Next.js analytics repository still needs its own GitHub destination; do not overwrite the legacy `alltheclicks/exyu.tv` repository.
 - TV work remains analysis/planning only. Device validation and unresolved production limitations are listed in the handoff.
 

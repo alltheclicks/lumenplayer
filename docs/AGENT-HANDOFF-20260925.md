@@ -31,11 +31,11 @@ Read this document, `docs/PLAYER-RELIABILITY-20260923.md`, `docs/PLAN-MULTIPLATF
 | `codex/archive-ui-next-20260925` | Unfinished `apps/web-next`, guide and working lockfile | Prototype archive; not production and not newly validated |
 | `codex/lumen-code-cleanup` | Eight cleanup commits at `3cda98e` | Separate proposal; not deployed or merged into main |
 | `codex/exyu-marketing-fixes-20260914` | Earlier candidate at `eb7c6a1` | Compare with current production; do not treat as a newer release |
-| `codex/qaf-035-shadow-admin-validation` | Historical shadow-only work at `6e780ee` | Archive, not production |
+| `codex/archive-shadow-validation-20260925` | Sanitized copy of historical shadow-only work | Original `6e780ee` remains local because its test fixtures contain credentials |
 
-Other historical commits are retained in dedicated archive branches where necessary. Old open PRs are not a queue to merge blindly: some overlap later work or target other historical branches.
+Other historical commits are retained in dedicated archive branches listed in `docs/GIT-ARCHIVE-INVENTORY-20260925.md`. Old open PRs are not a queue to merge blindly: some overlap later work or target other historical branches.
 
-Original dirty worktrees, their staged/unstaged split, ignored environments, browser data and build outputs remain unchanged. A private local recovery bundle and patches are at `/Users/filip/Documents/Lumen Player/output/git-handoff-20260925` (not in GitHub). Raw console/browser logs and provider PHP/base64 dumps were not uploaded. Newly archived draft URL credentials/tokens are redacted. Access secrets through the owner's existing environment; never commit them.
+The original main workspace edits are preserved in archive branches, a named local Git stash and the recovery archive before switching that workspace to the aligned baseline. Other original worktrees, ignored environments, browser data and build outputs are preserved. Do not assume ignored local environment files match production. A private local recovery bundle and patches are at `/Users/filip/Documents/Lumen Player/output/git-handoff-20260925` (not in GitHub). Raw console/browser logs and provider PHP/base64 dumps were not uploaded. Newly archived draft URL credentials/tokens are redacted. Access secrets through the owner's existing environment; never commit them.
 
 ## EXYU analytics is a separate repository
 
@@ -62,3 +62,7 @@ pnpm release:qaf035:validate
 GitHub PR Quality Gate also runs release guardrails and production dependency audit. Use the alignment PR's checks as the fresh baseline. Archive branches are preservation only and carry no new runtime-validation claim.
 
 A GitHub push/merge is not a production deploy. Deployment, provider changes and database mutations require the owner's explicit authorization. Keep shared provider `timeshift.php` unchanged for Lumen experiments; use isolated endpoints. Preserve rollback releases and verify public assets, service state and actual playback when a deployment is authorized.
+
+## Alignment validation
+
+Local verification passed on September 25: 507 unit tests, lint, typecheck, build and all 24 current-mode release gates. Turbo reused matching cached lint/typecheck/build outputs; GitHub CI executes the PR checks independently. Final release/device gates remain explicitly pending. PR: https://github.com/alltheclicks/lumenplayer/pull/227 .
