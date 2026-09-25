@@ -4,6 +4,7 @@ import path from "path";
 import { VitePWA } from "vite-plugin-pwa";
 
 const pwaWorkboxMode = process.env.LUMEN_PWA_SW_MODE === "production" ? "production" : "development";
+const debugProxyLogEnabled = process.env.LUMEN_DEBUG_PROXY_LOG === "1";
 const XTREAM_DEV_PROXY_BASE_PATH = "/xui-api";
 const CATCHUP_GATEWAY_PROXY_PATH = "/catchup-gateway";
 const XTREAM_HLS_ROOT_PROXY_PATH = "/hlsr";
@@ -27,6 +28,40 @@ const resolveProxyTargetFromRequestPath = (requestPath: string): string | null =
   return null;
 };
 
+const decodeLoggedProxyPath = (requestPath: string): string => {
+  const proxyTarget = resolveProxyTargetFromRequestPath(requestPath);
+  if (!proxyTarget) {
+    return requestPath;
+  }
+
+  const match = requestPath.match(new RegExp(`^${XTREAM_DEV_PROXY_BASE_PATH}/[^/?#]+(.*)$`));
+  return `${proxyTarget}${match?.[1] ?? ""}`;
+};
+
+const createProxyLogger = (label: string) => (proxy: {
+  on: (event: string, listener: (...args: unknown[]) => void) => void;
+}): void => {
+  if (!debugProxyLogEnabled) {
+    return;
+  }
+
+  proxy.on("proxyReq", (_proxyReq, req: { method?: string; url?: string }) => {
+    console.log(`[vite-proxy:${label}:req]`, req.method ?? "GET", decodeLoggedProxyPath(req.url ?? ""));
+  });
+
+  proxy.on(
+    "proxyRes",
+    (proxyRes: { statusCode?: number }, req: { method?: string; url?: string }) => {
+      console.log(
+        `[vite-proxy:${label}:res]`,
+        proxyRes.statusCode ?? 0,
+        req.method ?? "GET",
+        decodeLoggedProxyPath(req.url ?? ""),
+      );
+    },
+  );
+};
+
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
   const xtreamServerTarget = env.VITE_XTREAM_SERVER?.trim().replace(/\/+$/, "");
@@ -40,6 +75,7 @@ export default defineConfig(({ mode }) => {
             target: xuiProxyTarget,
             changeOrigin: true,
             secure: false,
+            configure: createProxyLogger("xui-api"),
           },
         }
       : xtreamServerTarget
@@ -58,6 +94,7 @@ export default defineConfig(({ mode }) => {
                 .replace(new RegExp(`^${XTREAM_DEV_PROXY_BASE_PATH}/[^/?#]+`), "")
                 .replace(new RegExp(`^${XTREAM_DEV_PROXY_BASE_PATH}`), "")
             ),
+            configure: createProxyLogger("xui-api"),
           },
         }
       : {}),
@@ -67,6 +104,7 @@ export default defineConfig(({ mode }) => {
             target: xtreamServerTarget,
             changeOrigin: true,
             secure: false,
+            configure: createProxyLogger("hlsr"),
           },
         }
       : {}),
@@ -76,6 +114,7 @@ export default defineConfig(({ mode }) => {
             target: catchUpGatewayTarget,
             changeOrigin: true,
             secure: false,
+            configure: createProxyLogger("catchup-gateway"),
           },
         }
       : {}),

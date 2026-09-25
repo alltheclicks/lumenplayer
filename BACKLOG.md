@@ -102,13 +102,19 @@ Completion notes (2026-02-19 .. 2026-02-21):
 - On 2026-03-16 one browser-safe workaround was confirmed locally for that same provider:
   - Lumen web catch-up now plays successfully through `proxy-remuxed` gateway playback on both `RTS 1` and `PINK`, including the previously failing `~0:58`, `~1:00`, and `~2:00` points.
   - important caveat: the currently confirmed workaround is proxy-side FFmpeg transcode (`libx264` + `aac` to browser-safe fMP4/HLS), not a cheap packet-copy remux, so production CPU impact still needs a follow-up solution.
+- On 2026-04-01 the active validation branch for provider-admin `shadow` work was tightened so Lumen can test that path honestly:
+  - branch: `codex/qaf-035-shadow-admin-validation`
+  - web-side `shadow-only` mode now exists behind `VITE_CATCHUP_SHADOW_VALIDATION=1` in `apps/web/src/components/player/catchupSource.ts`
+  - in that mode, Lumen resolves `timeshift_shadow.php` from the real catch-up generator/token flow and throws `catchup_shadow_validation_unavailable` instead of silently falling back to `timeshift_hls` or local proxy remux
+  - focused validation is green locally (`catchupTransport` + `catchupSource` tests and `@lumen/web` typecheck)
+  - next manual runtime checkpoint is an in-app Lumen test proving the playback URL is really `https://edge6.castcdn.net/streaming/timeshift_shadow.php?token=...`
 - Manual intake triage (`BUG-20260219-01..06`) converted into `QAF-010..QAF-014` follow-up tasks in `docs/V2-QA-FIX-BACKLOG.md`.
 - Follow-up intake tasks (`BUG-20260220-01..03`) are now closed through `QAF-015..QAF-017`.
 - Follow-up intake tasks (`BUG-20260220-04..07`) are now closed through `QAF-018..QAF-020`.
 - Follow-up intake tasks (`BUG-20260220-08..10`) are now closed through `QAF-021..QAF-023`.
 - New intake wave (`BUG-20260221-01..08`) is now closed through `QAF-024..QAF-031`.
 - Reopened intake wave (`BUG-20260221-09..13`) now has merged follow-up fixes through `QAF-032..QAF-033`.
-- Post-batch QA gate command (`E2E_XUI_USERNAME='fica' E2E_XUI_PASSWORD='fF2024BG2025' ./run-qa-simulation.sh`) still exits `1` because Playwright run fails with `Requiring @playwright/test second time` (`output/playwright/qa-user-sim/results.json`), and generated report remains `Scenario status: unknown` with `0` executed scenarios (`output/playwright/qa-user-sim/QA-REPORT.md`).
+- Post-batch QA gate command (`E2E_XUI_USERNAME='fica' E2E_XUI_PASSWORD='test-password' ./run-qa-simulation.sh`) still exits `1` because Playwright run fails with `Requiring @playwright/test second time` (`output/playwright/qa-user-sim/results.json`), and generated report remains `Scenario status: unknown` with `0` executed scenarios (`output/playwright/qa-user-sim/QA-REPORT.md`).
 
 ---
 

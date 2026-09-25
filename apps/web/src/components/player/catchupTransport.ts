@@ -7,6 +7,9 @@ const XTREAM_CATCH_UP_STREAMING_PATHS = new Set([
   '/streaming/timeshift.php',
   '/streaming/timeshift_hls.php',
 ]);
+const SHADOW_TOKEN_HOSTS = new Set([
+  'edge6.castcdn.net',
+]);
 const GATEWAY_ONLY_LEGACY_HOSTS = new Set([
   'smart.mediaking.fi',
   'serv2.mediaking.fi',
@@ -384,17 +387,47 @@ export const rewriteCatchUpUrlTargetOrigin = (
   return parsedTarget.requestUrl.toString();
 };
 
+const rewriteTokenizedCatchUpShadowUrl = (url: string): string => {
+  const parsedTarget = parseTargetUrl(url);
+  if (!parsedTarget) {
+    return url;
+  }
+
+  const pathname = (
+    parsedTarget.encodedProxyTarget && parsedTarget.proxySuffixPath.length > 0
+      ? parsedTarget.proxySuffixPath
+      : parsedTarget.targetServerUrl.pathname
+  ).toLowerCase();
+  if (
+    pathname !== '/streaming/timeshift.php' ||
+    !parsedTarget.requestUrl.searchParams.has('token') ||
+    !SHADOW_TOKEN_HOSTS.has(parsedTarget.targetServerUrl.hostname.toLowerCase())
+  ) {
+    return url;
+  }
+
+  if (!parsedTarget.encodedProxyTarget) {
+    const nextTargetServerUrl = new URL(parsedTarget.targetServerUrl.toString());
+    nextTargetServerUrl.pathname = '/streaming/timeshift_shadow.php';
+    return nextTargetServerUrl.toString();
+  }
+
+  const encodedTarget = encodeURIComponent(normalizeServerBase(parsedTarget.targetServerUrl.toString()));
+  const nextPath = `${XTREAM_PROXY_BASE_PATH}${encodedTarget}/streaming/timeshift_shadow.php`;
+  parsedTarget.requestUrl.pathname = nextPath.startsWith('/') ? nextPath : `/${nextPath}`;
+  return parsedTarget.requestUrl.toString();
+};
+
 export const applyKnownCatchUpHostAffinity = (url: string): string => {
   if (!isCatchUpHostAffinityEligibleUrl(url)) {
-    return url;
+    return rewriteTokenizedCatchUpShadowUrl(url);
   }
 
   const preferredOrigin = resolveCatchUpHostAffinity(url);
-  if (!preferredOrigin) {
-    return url;
-  }
-
-  return rewriteCatchUpUrlTargetOrigin(url, preferredOrigin);
+  const originRewrittenUrl = preferredOrigin
+    ? rewriteCatchUpUrlTargetOrigin(url, preferredOrigin)
+    : url;
+  return rewriteTokenizedCatchUpShadowUrl(originRewrittenUrl);
 };
 
 export const isCatchUpFallbackStrategy = (
