@@ -1,5 +1,13 @@
 # Handoff — Lumen Player
 
+## Session 2026-09-25 — Git/GitHub handoff alignment
+
+- Start with `docs/AGENT-HANDOFF-20260925.md`. The alignment PR brings the already deployed September 23 player/proxy source into main; this session changes documentation only and performs no production deployment.
+- Local unfinished source and UI work are preserved on separate archive branches. Original dirty worktrees and indexes remain untouched; raw operational logs/provider dumps stay in a private local recovery archive.
+- The separate EXYU Next.js analytics repository still needs its own GitHub destination; do not overwrite the legacy `alltheclicks/exyu.tv` repository.
+- TV work remains analysis/planning only. Device validation and unresolved production limitations are listed in the handoff.
+
+
 ## Session 2026-09-23 — production deployment
 
 - Owner explicitly requested push and deploy. Lumen branch `codex/player-reliability-20260923` pushed to GitHub; web and proxy release `20260923T123151Z-918b5ad` activated and verified against the public marker, health and assets. Previous targets retained for rollback.

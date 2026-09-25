@@ -15,7 +15,7 @@ Primary strategy:
 - playback session independent from a single UI client/device
 
 Read first on every session:
-1. `HANDOFF.md`
+1. `docs/AGENT-HANDOFF-20260925.md` (current Git/production map), then `HANDOFF.md`
 2. `VISION.md`
 3. `SESSION-ARCHITECTURE.md`
 4. `BACKLOG.md`
@@ -54,7 +54,7 @@ packages/
   player-core/    # @lumen/player-core (SeekEngine, IdleTimer)
   storage/        # @lumen/storage
   input/          # @lumen/input
-  session-core/   # @lumen/session-core (planned)
+  session-core/   # @lumen/session-core (implemented; browser storage/transport coupling remains)
 ```
 
 ### Key Patterns
