@@ -78,7 +78,20 @@ export interface SegmentRebaseRecord {
   trimmedPackets: number;
   /** Packets of the file's truncated final video PES converted to null packets. */
   droppedTailPackets: number;
+  /** Rebased end of the last video sample that was not dropped as a truncated tail. */
+  rebasedPlayableVideoEndPts: number | null;
   anomalies: string[];
+}
+
+export interface CatchUpRebaseBoundary {
+  afterSegmentIndex: number;
+  beforeSegmentIndex: number;
+  /** Predicted HTMLMediaElement timeline position of this archive-file joint. */
+  predictedMediaTimeSeconds: number;
+  /** Positive gap between playable video samples across the joint. */
+  videoHoleMs: number | null;
+  /** Signed chain-track splice error (normally audio), useful for diagnosis. */
+  boundaryDeltaMs: number;
 }
 
 export interface CatchUpRebaseSessionStats {
@@ -88,6 +101,12 @@ export interface CatchUpRebaseSessionStats {
   trimmedPackets: number;
   anomalies: number;
   maxBoundaryDeltaMs: number;
+  processedBytes: number;
+  totalProcessingMs: number;
+  maxProcessingMs: number;
+  maxSegmentBytes: number;
+  slowSegments: number;
+  boundaries: CatchUpRebaseBoundary[];
 }
 
 export interface CatchUpRebaseSession {
@@ -97,7 +116,12 @@ export interface CatchUpRebaseSession {
 }
 
 export type RebaseOutcome =
-  | { status: 'rebased'; data: ArrayBuffer; record: SegmentRebaseRecord }
+  | {
+    status: 'rebased';
+    data: ArrayBuffer;
+    record: SegmentRebaseRecord;
+    updatedBoundaries: CatchUpRebaseBoundary[];
+  }
   | { status: 'failed'; reason: string };
 
 export const createCatchUpRebaseSession = (
@@ -114,8 +138,31 @@ export const createCatchUpRebaseSession = (
     trimmedPackets: 0,
     anomalies: 0,
     maxBoundaryDeltaMs: 0,
+    processedBytes: 0,
+    totalProcessingMs: 0,
+    maxProcessingMs: 0,
+    maxSegmentBytes: 0,
+    slowSegments: 0,
+    boundaries: [],
   },
 });
+
+export const recordCatchUpRebaseProcessing = (
+  session: CatchUpRebaseSession,
+  byteLength: number,
+  elapsedMs: number,
+): void => {
+  const normalizedBytes = Math.max(0, Math.floor(byteLength));
+  const normalizedElapsedMs = Math.max(0, elapsedMs);
+  const stats = session.stats;
+  stats.processedBytes += normalizedBytes;
+  stats.totalProcessingMs += normalizedElapsedMs;
+  stats.maxProcessingMs = Math.max(stats.maxProcessingMs, normalizedElapsedMs);
+  stats.maxSegmentBytes = Math.max(stats.maxSegmentBytes, normalizedBytes);
+  if (normalizedElapsedMs >= 50) {
+    stats.slowSegments += 1;
+  }
+};
 
 interface PesTimestampSite {
   /** Absolute offset of the 5-byte PTS field within the segment buffer. */
@@ -140,6 +187,8 @@ interface SegmentScan {
   audioPid: number | null;
   /** Packet offsets of the file's final video PES (see rebase note). */
   trailingVideoPesPacketOffsets: number[];
+  /** Last video PTS that remains after the truncated final PES is dropped. */
+  playableVideoLastPts: number | null;
   anomalies: string[];
 }
 
@@ -309,6 +358,7 @@ const scanSegment = (data: Uint8Array): SegmentScan | { failure: string } => {
   let currentAudioUnit: AudioPesUnit | null = null;
   let previousAudioPts: number | null = null;
   let previousVideoPts: number | null = null;
+  let playableVideoLastPts: number | null = null;
   let currentVideoPesPacketOffsets: number[] = [];
 
   for (let offset = 0; offset + TS_PACKET_SIZE <= data.length; offset += TS_PACKET_SIZE) {
@@ -386,6 +436,9 @@ const scanSegment = (data: Uint8Array): SegmentScan | { failure: string } => {
       if (isAudio) {
         previousAudioPts = pts;
       } else {
+        if (previousVideoPts !== null) {
+          playableVideoLastPts = Math.max(playableVideoLastPts ?? previousVideoPts, previousVideoPts);
+        }
         previousVideoPts = pts;
       }
       track.firstPts = Math.min(track.firstPts, pts);
@@ -414,6 +467,9 @@ const scanSegment = (data: Uint8Array): SegmentScan | { failure: string } => {
     audioUnits,
     audioPid,
     trailingVideoPesPacketOffsets: currentVideoPesPacketOffsets,
+    playableVideoLastPts: currentVideoPesPacketOffsets.length > 0
+      ? playableVideoLastPts
+      : previousVideoPts,
     anomalies,
   };
 };
@@ -494,6 +550,72 @@ const assignOffset = (
 const nullOutPacket = (data: Uint8Array, offset: number): void => {
   data[offset + 1] = (data[offset + 1] & 0xe0) | ((NULL_PACKET_PID >> 8) & 0x1f);
   data[offset + 2] = NULL_PACKET_PID & 0xff;
+};
+
+const ptsToRoundedMilliseconds = (pts: number): number => (
+  Math.round(pts / (PTS_CLOCK / 1000))
+);
+
+const buildBoundaryRecord = (
+  previous: SegmentRebaseRecord,
+  current: SegmentRebaseRecord,
+): CatchUpRebaseBoundary | null => {
+  if (current.index !== previous.index + 1) {
+    return null;
+  }
+
+  const currentVideoStartPts = current.video
+    ? current.video.firstPts + current.offsetPts
+    : null;
+  const videoHoleMs = (
+    currentVideoStartPts !== null && previous.rebasedPlayableVideoEndPts !== null
+  )
+    ? Math.max(
+      0,
+      ptsToRoundedMilliseconds(currentVideoStartPts - previous.rebasedPlayableVideoEndPts),
+    )
+    : null;
+
+  return {
+    afterSegmentIndex: previous.index,
+    beforeSegmentIndex: current.index,
+    // REBASE_BASE_PAD_PTS is deliberately outside the media timeline. Removing
+    // it maps the stitched PTS back to the HTMLMediaElement currentTime used by
+    // waiting/stall telemetry (for example ~41s, ~101s, ~161s on a short seg0).
+    predictedMediaTimeSeconds: Math.max(
+      0,
+      ptsToRoundedMilliseconds(previous.rebasedChainEndPts - REBASE_BASE_PAD_PTS) / 1000,
+    ),
+    videoHoleMs,
+    boundaryDeltaMs: ptsToRoundedMilliseconds(
+      current.rebasedChainStartPts - previous.rebasedChainEndPts,
+    ),
+  };
+};
+
+const upsertBoundaryRecord = (
+  stats: CatchUpRebaseSessionStats,
+  boundary: CatchUpRebaseBoundary,
+): boolean => {
+  const existingIndex = stats.boundaries.findIndex((candidate) => (
+    candidate.afterSegmentIndex === boundary.afterSegmentIndex
+  ));
+  if (existingIndex >= 0) {
+    const existing = stats.boundaries[existingIndex];
+    if (
+      existing.beforeSegmentIndex === boundary.beforeSegmentIndex
+      && existing.predictedMediaTimeSeconds === boundary.predictedMediaTimeSeconds
+      && existing.videoHoleMs === boundary.videoHoleMs
+      && existing.boundaryDeltaMs === boundary.boundaryDeltaMs
+    ) {
+      return false;
+    }
+    stats.boundaries[existingIndex] = boundary;
+  } else {
+    stats.boundaries.push(boundary);
+  }
+  stats.boundaries.sort((left, right) => left.afterSegmentIndex - right.afterSegmentIndex);
+  return true;
 };
 
 export const rebaseCatchUpSegment = (
@@ -607,6 +729,9 @@ export const rebaseCatchUpSegment = (
     boundaryDeltaPts,
     trimmedPackets,
     droppedTailPackets,
+    rebasedPlayableVideoEndPts: scan.video && scan.playableVideoLastPts !== null
+      ? scan.playableVideoLastPts + scan.video.frameDurationPts + offsetPts
+      : null,
     anomalies,
   };
   session.records.set(segmentIndex, record);
@@ -627,6 +752,20 @@ export const rebaseCatchUpSegment = (
     Math.round(Math.abs(boundaryDeltaPts) / (PTS_CLOCK / 1000)),
   );
 
+  const updatedBoundaries: CatchUpRebaseBoundary[] = [];
+  if (previous) {
+    const boundary = buildBoundaryRecord(previous, record);
+    if (boundary && upsertBoundaryRecord(stats, boundary)) {
+      updatedBoundaries.push(boundary);
+    }
+  }
+  if (next) {
+    const boundary = buildBoundaryRecord(record, next);
+    if (boundary && upsertBoundaryRecord(stats, boundary)) {
+      updatedBoundaries.push(boundary);
+    }
+  }
+
   const buffer = data.buffer instanceof ArrayBuffer ? data.buffer : data.slice().buffer;
-  return { status: 'rebased', data: buffer, record };
+  return { status: 'rebased', data: buffer, record, updatedBoundaries };
 };

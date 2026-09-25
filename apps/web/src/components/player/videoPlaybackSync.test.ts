@@ -3,6 +3,8 @@ import type { SessionState } from '@lumen/session-core';
 import type { PlaybackError } from '@lumen/types';
 import {
   shouldClearPendingAutoplayOnPlaybackError,
+  isAutoplayBlockedError,
+  shouldSkipPlayForBlockedAutoplay,
   sessionWantsPlayback,
   shouldKeepPendingAutoplayOnIdle,
   shouldResolveProviderBlockingErrorAfterPlaybackError,
@@ -31,6 +33,7 @@ import {
   resolveCatchUpMediaSeekTimeSeconds,
   resolveCatchUpMediaSeekTimeSecondsForSource,
   resolveCatchUpPendingStartupSeek,
+  resolveCatchUpSeekWatchdogDelayMs,
   resolveCatchUpSeekRecoveryFallbackPositionMs,
   resolveCatchUpTimelinePositionMs,
   resolveCatchUpTimelinePositionMsForSource,
@@ -217,6 +220,41 @@ describe('videoPlaybackSync', () => {
 
     expect(shouldClearPendingAutoplayOnPlaybackError(fatalError)).toBe(true);
     expect(shouldClearPendingAutoplayOnPlaybackError(nonFatalError)).toBe(false);
+  });
+
+  it('detects the autoplay-blocked error only for its own code', () => {
+    expect(isAutoplayBlockedError({ code: 'PLAYBACK_AUTOPLAY_BLOCKED' })).toBe(true);
+    expect(isAutoplayBlockedError({ code: 'PLAYBACK_START_FAILED' })).toBe(false);
+    expect(isAutoplayBlockedError({ code: 'NETWORK_ERROR' })).toBe(false);
+  });
+
+  it('clears pending autoplay when the browser blocks autoplay, despite the error being non-fatal', () => {
+    // Retrying play() cannot lift an autoplay block, so the pending-autoplay
+    // state must be dropped instead of driving another attempt.
+    const autoplayBlockedError: PlaybackError = {
+      code: 'PLAYBACK_AUTOPLAY_BLOCKED',
+      message: 'Unable to start playback: NotAllowedError: play() failed',
+      fatal: false,
+    };
+
+    expect(shouldClearPendingAutoplayOnPlaybackError(autoplayBlockedError)).toBe(true);
+  });
+
+  it('holds play() back for the source whose autoplay was blocked', () => {
+    const blockedUrl = 'https://example.com/blocked.m3u8';
+
+    // Same source, still blocked: this is the loop that must not restart.
+    expect(shouldSkipPlayForBlockedAutoplay(blockedUrl, blockedUrl)).toBe(true);
+
+    // A different source deserves its own autoplay attempt.
+    expect(shouldSkipPlayForBlockedAutoplay('https://example.com/other.m3u8', blockedUrl)).toBe(false);
+
+    // Gate lifted (user gesture or playback actually started).
+    expect(shouldSkipPlayForBlockedAutoplay(blockedUrl, null)).toBe(false);
+
+    // No source at all must never be treated as blocked.
+    expect(shouldSkipPlayForBlockedAutoplay(null, null)).toBe(false);
+    expect(shouldSkipPlayForBlockedAutoplay(undefined, blockedUrl)).toBe(false);
   });
 
   it('resumes playback after PiP exit only for live playback intent while video is paused', () => {
@@ -696,6 +734,12 @@ describe('videoPlaybackSync', () => {
       hasRenderableFrame: true,
     })).toBe(false);
     expect(shouldAttemptCatchUpErrorFallback(catchUpSession, {
+      code: 'CATCHUP_REBASE_NOT_SUPPORTED',
+      fatal: true,
+    }, {
+      hasRenderableFrame: false,
+    })).toBe(true);
+    expect(shouldAttemptCatchUpErrorFallback(catchUpSession, {
       code: 'MEDIA_ERROR',
       fatal: false,
     }, {
@@ -942,6 +986,14 @@ describe('videoPlaybackSync', () => {
     }, {
       sourceHasStarted: false,
     })).toBe(false);
+    expect(shouldDeferCatchUpStartupPlaybackError(catchUpSession, {
+      code: 'CATCHUP_REBASE_NOT_SUPPORTED',
+      fatal: true,
+    }, {
+      hasRenderableFrame: false,
+    }, {
+      sourceHasStarted: false,
+    })).toBe(false);
   });
 
   it('reports catch-up loading progress from confirmed media milestones', () => {
@@ -985,6 +1037,27 @@ describe('videoPlaybackSync', () => {
       attemptedRetries: 0,
       maxRetries: 1,
     })).toBe('retry');
+  });
+
+  it('extends the seek watchdog only for client-rebased catch-up', () => {
+    const legacyCatchUpSource = {
+      url: 'https://example.com/archive.m3u8',
+      type: 'hls' as const,
+      metadata: { mode: 'catchup' },
+    };
+    const rebasedCatchUpSource = {
+      ...legacyCatchUpSource,
+      metadata: { mode: 'catchup', catchUpClientRebase: true },
+    };
+    const liveSource = {
+      url: 'https://example.com/live.m3u8',
+      type: 'hls' as const,
+      metadata: { mode: 'live' },
+    };
+
+    expect(resolveCatchUpSeekWatchdogDelayMs(legacyCatchUpSource, 10_000, 30_000)).toBe(10_000);
+    expect(resolveCatchUpSeekWatchdogDelayMs(rebasedCatchUpSource, 10_000, 30_000)).toBe(30_000);
+    expect(resolveCatchUpSeekWatchdogDelayMs(liveSource, 10_000, 30_000)).toBe(10_000);
   });
 
   it('blocks a post-start catch-up seek after the no-frame retry budget is exhausted', () => {

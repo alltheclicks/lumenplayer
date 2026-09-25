@@ -1,0 +1,11 @@
+[Unit]
+Description=Lumen Player uptime monitor (site + proxy + SSO + upstream gateway)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/lumen-uptime-monitor.sh
+# The script exits 0 even when a target is down; it reports via Telegram rather
+# than via unit state, so a red systemd unit always means the monitor itself
+# broke.

@@ -116,10 +116,33 @@ export const shouldResolveProviderBlockingErrorAfterPlaybackError = (
   return !media.hasRenderableFrame;
 };
 
+/**
+ * The browser refused autoplay and will keep refusing until the user interacts
+ * with the page. Retrying play() cannot clear this, so every recovery path must
+ * treat it as a stop condition rather than a transient failure.
+ */
+export const isAutoplayBlockedError = (
+  playbackError: Pick<PlaybackError, 'code'>
+): boolean => playbackError.code === 'PLAYBACK_AUTOPLAY_BLOCKED';
+
 export const shouldClearPendingAutoplayOnPlaybackError = (
   playbackError: PlaybackError
 ): boolean => (
-  playbackError.fatal
+  playbackError.fatal || isAutoplayBlockedError(playbackError)
+);
+
+/**
+ * Gate for the playback-intent effect. Once the browser has refused autoplay
+ * for a source, calling play() again only produces another rejection, whose
+ * pause event re-runs the effect — an unbounded loop. Hold play() back until
+ * the source changes or a user gesture lifts the block.
+ */
+export const shouldSkipPlayForBlockedAutoplay = (
+  currentSourceUrl: string | null | undefined,
+  autoplayBlockedSourceUrl: string | null,
+): boolean => (
+  autoplayBlockedSourceUrl !== null &&
+  autoplayBlockedSourceUrl === (currentSourceUrl ?? null)
 );
 
 export const shouldUseCatchUpStartupWatchdog = (session: SessionState): boolean => (
@@ -756,6 +779,7 @@ const CATCH_UP_HLS_FALLBACK_ERROR_CODES = new Set([
   'MEDIA_ERROR',
   'HLS_ERROR',
   'LOAD_FAILED',
+  'CATCHUP_REBASE_NOT_SUPPORTED',
 ]);
 
 const CATCH_UP_STARTUP_DEFERRED_ERROR_CODES = new Set([
@@ -808,6 +832,10 @@ export const shouldDeferCatchUpStartupPlaybackError = (
     sourceHasStarted: boolean;
   },
 ): boolean => {
+  if (playbackError.code === 'CATCHUP_REBASE_NOT_SUPPORTED') {
+    return false;
+  }
+
   if (
     !session.source ||
     session.source.metadata?.mode !== 'catchup' ||
@@ -874,6 +902,17 @@ export const shouldResolveCatchUpRuntimeUnavailableAfterPlaybackError = (
 };
 
 export type CatchUpSeekNoFrameDecision = 'wait' | 'retry' | 'block';
+
+export const resolveCatchUpSeekWatchdogDelayMs = (
+  source: SessionSource | null,
+  legacyDelayMs: number,
+  rebaseDelayMs: number,
+): number => {
+  const metadata = source?.metadata as Record<string, unknown> | undefined;
+  return metadata?.mode === 'catchup' && metadata.catchUpClientRebase === true
+    ? rebaseDelayMs
+    : legacyDelayMs;
+};
 
 export const resolveCatchUpSeekNoFrameDecision = (
   session: Pick<SessionState, 'source' | 'playback' | 'positionMs'>,

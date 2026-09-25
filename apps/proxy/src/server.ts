@@ -17,6 +17,16 @@ const XTREAM_HLS_ROOT_PATH = "/hlsr/";
 const XTREAM_STREAMING_ROOT_PATH = "/streaming/";
 const XTREAM_TIMESHIFT_ROOT_PATH = "/timeshift/";
 const XTREAM_TIMESHIFT_HLS_ROOT_PATH = "/timeshift_hls/";
+const LOG_REDACTED_VALUE = "redacted";
+const OBSERVE_DEFAULT_BODY_LIMIT_BYTES = 16 * 1024;
+const OBSERVE_DEFAULT_MAX_EVENTS_PER_REQUEST = 10;
+const OBSERVE_MAX_EVENT_PROPERTIES = 32;
+const OBSERVE_MAX_NESTING_DEPTH = 6;
+const OBSERVE_MAX_ARRAY_ITEMS = 50;
+const OBSERVE_MAX_STRING_LENGTH = 4_096;
+const OBSERVE_RATE_LIMIT_WINDOW_MS = 60_000;
+const OBSERVE_DEFAULT_RATE_LIMIT_PER_MINUTE = 120;
+const OBSERVE_MAX_RATE_LIMIT_CLIENTS = 2_048;
 const MPEG_TS_PACKET_SIZE = 188;
 const MPEG_TS_SYNC_BYTE = 0x47;
 const MAX_TRANSPORT_STREAM_SYNC_SCAN_BYTES = MPEG_TS_PACKET_SIZE * 20;
@@ -51,6 +61,40 @@ const FETCH_DECODED_BODY_HEADERS = new Set([
   "content-encoding",
   "content-length",
 ]);
+const SENSITIVE_LOG_KEYS = new Set([
+  "apikey",
+  "authorization",
+  "cookie",
+  "password",
+  "refreshtoken",
+  "secret",
+  "setcookie",
+  "token",
+  "username",
+]);
+const SENSITIVE_URL_SEARCH_PARAMS = new Set([
+  "api_key",
+  "apikey",
+  "access_token",
+  "authorization",
+  "auth",
+  "password",
+  "pass",
+  "refresh_token",
+  "secret",
+  "token",
+  "username",
+  "user",
+]);
+const XTREAM_CREDENTIAL_PATH_ROOTS = new Set([
+  "live",
+  "movie",
+  "series",
+  "timeshift",
+  "timeshift_hls",
+]);
+const OBSERVE_EVENT_NAME_PATTERN = /^[a-zA-Z0-9._:-]+$/;
+const OBSERVE_SEVERITIES = new Set(["info", "warn", "error"]);
 
 export type ProxyErrorCode = "missing_target" | "blocked_host" | "upstream_timeout" | "transport_error";
 
@@ -63,12 +107,26 @@ export interface ProxyServerOptions {
   logger?: boolean;
   env?: NodeJS.ProcessEnv;
   remuxController?: CatchUpRemuxController;
+  observeBodyLimitBytes?: number;
+  observeMaxEventsPerRequest?: number;
+  observeRateLimitPerMinute?: number;
+  observeNow?: () => number;
+  /**
+   * Number of reverse-proxy hops trusted when resolving request.ip. Production
+   * uses one local Nginx hop; zero keeps direct/dev traffic untrusted.
+   */
+  trustProxyHops?: number;
   /**
    * Explicit CORS origin allowlist (e.g. the Cast receiver origin). Empty =>
    * wildcard `*` (default, unchanged). (M1.3-e)
    */
   allowedCorsOrigins?: string[];
 }
+
+type ObserveRateLimitState = {
+  count: number;
+  windowStartedAt: number;
+};
 
 type ParsedTarget = {
   baseUrl: URL;
@@ -90,6 +148,226 @@ const parseNonNegativeInteger = (value: string | undefined, fallback: number): n
     return fallback;
   }
   return parsed;
+};
+
+const parsePositiveInteger = (value: string | undefined, fallback: number): number => {
+  const parsed = Number.parseInt(value ?? "", 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return fallback;
+  }
+  return parsed;
+};
+
+const normalizeSensitiveLogKey = (value: string): string => (
+  value.toLowerCase().replace(/[^a-z0-9]/g, "")
+);
+
+const decodePathSegment = (value: string): string => {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+};
+
+const redactCredentialPathSegments = (pathname: string): string => {
+  const segments = pathname.split("/");
+  for (let index = 0; index < segments.length; index += 1) {
+    const pathRoot = decodePathSegment(segments[index] ?? "").toLowerCase();
+    if (!XTREAM_CREDENTIAL_PATH_ROOTS.has(pathRoot) || index + 2 >= segments.length) {
+      continue;
+    }
+
+    segments[index + 1] = LOG_REDACTED_VALUE;
+    segments[index + 2] = LOG_REDACTED_VALUE;
+    index += 2;
+  }
+  return segments.join("/");
+};
+
+const redactUrlInstance = (input: URL, depth = 0): URL => {
+  const url = new URL(input.toString());
+  if (url.username) {
+    url.username = LOG_REDACTED_VALUE;
+  }
+  if (url.password) {
+    url.password = LOG_REDACTED_VALUE;
+  }
+
+  for (const key of [...url.searchParams.keys()]) {
+    if (SENSITIVE_URL_SEARCH_PARAMS.has(key.toLowerCase())) {
+      url.searchParams.set(key, LOG_REDACTED_VALUE);
+    }
+  }
+
+  const pathSegments = url.pathname.split("/");
+  const proxyRootIndex = pathSegments.findIndex((segment) => decodePathSegment(segment).toLowerCase() === "xui-api");
+  const encodedTargetIndex = proxyRootIndex >= 0 ? proxyRootIndex + 1 : -1;
+  if (depth < 2 && encodedTargetIndex > 0 && encodedTargetIndex < pathSegments.length) {
+    const encodedTarget = pathSegments[encodedTargetIndex] ?? "";
+    try {
+      const target = new URL(decodeURIComponent(encodedTarget));
+      pathSegments[encodedTargetIndex] = encodeURIComponent(redactUrlInstance(target, depth + 1).toString());
+    } catch {
+      // Invalid proxy targets are handled by the request path. Keep the encoded
+      // segment intact here and still redact any credentials in the suffix.
+    }
+  }
+
+  url.pathname = redactCredentialPathSegments(pathSegments.join("/"));
+  return url;
+};
+
+const redactUrlFallback = (value: string): string => (
+  value
+    .replace(
+      /([?&](?:api_?key|access_token|authorization|auth|password|pass|refresh_token|secret|token|username|user)=)[^&#\s]*/gi,
+      `$1${LOG_REDACTED_VALUE}`,
+    )
+    .replace(
+      /\/(live|movie|series|timeshift|timeshift_hls)\/[^/?#\s]+\/[^/?#\s]+/gi,
+      `/$1/${LOG_REDACTED_VALUE}/${LOG_REDACTED_VALUE}`,
+    )
+    .replace(
+      /(https?:\/\/)[^/@\s]+:[^/@\s]+@/gi,
+      `$1${LOG_REDACTED_VALUE}:${LOG_REDACTED_VALUE}@`,
+    )
+);
+
+export const redactUrlForLogging = (value: string): string => {
+  const isAbsoluteUrl = /^[a-z][a-z0-9+.-]*:\/\//i.test(value);
+  try {
+    const parsed = new URL(value, "http://lumen-log.local");
+    const redacted = redactUrlInstance(parsed);
+    return isAbsoluteUrl
+      ? redacted.toString()
+      : `${redacted.pathname}${redacted.search}`;
+  } catch {
+    return redactUrlFallback(value);
+  }
+};
+
+const redactUrlsInText = (value: string): string => (
+  value.replace(/https?:\/\/[^\s"'<>]+/gi, (url) => redactUrlForLogging(url))
+);
+
+const redactLogValue = (value: unknown, key: string | null, depth: number): unknown => {
+  if (key && SENSITIVE_LOG_KEYS.has(normalizeSensitiveLogKey(key))) {
+    return LOG_REDACTED_VALUE;
+  }
+
+  if (typeof value === "string") {
+    const normalizedKey = key ? normalizeSensitiveLogKey(key) : "";
+    if (normalizedKey === "path" || normalizedKey.endsWith("url")) {
+      return redactUrlForLogging(value);
+    }
+    return redactUrlsInText(value);
+  }
+
+  if (depth >= OBSERVE_MAX_NESTING_DEPTH || value === null || typeof value !== "object") {
+    return value;
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((entry) => redactLogValue(entry, null, depth + 1));
+  }
+
+  return Object.fromEntries(
+    Object.entries(value).map(([entryKey, entryValue]) => [
+      entryKey,
+      redactLogValue(entryValue, entryKey, depth + 1),
+    ]),
+  );
+};
+
+export const redactLogPayload = (payload: Record<string, unknown>): Record<string, unknown> => (
+  redactLogValue(payload, null, 0) as Record<string, unknown>
+);
+
+const isPlainObject = (value: unknown): value is Record<string, unknown> => {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return false;
+  }
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+};
+
+const isBoundedObserveValue = (value: unknown, depth = 0): boolean => {
+  if (depth > OBSERVE_MAX_NESTING_DEPTH) {
+    return false;
+  }
+  if (value === null || typeof value === "boolean") {
+    return true;
+  }
+  if (typeof value === "number") {
+    return Number.isFinite(value);
+  }
+  if (typeof value === "string") {
+    return value.length <= OBSERVE_MAX_STRING_LENGTH;
+  }
+  if (Array.isArray(value)) {
+    return (
+      value.length <= OBSERVE_MAX_ARRAY_ITEMS &&
+      value.every((entry) => isBoundedObserveValue(entry, depth + 1))
+    );
+  }
+  if (!isPlainObject(value)) {
+    return false;
+  }
+
+  const entries = Object.entries(value);
+  return (
+    entries.length <= OBSERVE_MAX_EVENT_PROPERTIES &&
+    entries.every(([entryKey, entryValue]) => (
+      entryKey.length > 0 &&
+      entryKey.length <= 128 &&
+      isBoundedObserveValue(entryValue, depth + 1)
+    ))
+  );
+};
+
+const isValidObserveEvent = (value: unknown): value is Record<string, unknown> => {
+  if (!isPlainObject(value) || !isBoundedObserveValue(value)) {
+    return false;
+  }
+  if (
+    typeof value.event !== "string" ||
+    value.event.length === 0 ||
+    value.event.length > 128 ||
+    !OBSERVE_EVENT_NAME_PATTERN.test(value.event)
+  ) {
+    return false;
+  }
+  if (value.severity !== undefined && (
+    typeof value.severity !== "string" ||
+    !OBSERVE_SEVERITIES.has(value.severity)
+  )) {
+    return false;
+  }
+  return value.timestamp === undefined || (
+    typeof value.timestamp === "string" &&
+    value.timestamp.length > 0 &&
+    value.timestamp.length <= 64
+  );
+};
+
+const extractObserveEvents = (
+  body: unknown,
+  maxEventsPerRequest: number,
+): Record<string, unknown>[] | null => {
+  if (!isPlainObject(body) || !isBoundedObserveValue(body)) {
+    return null;
+  }
+
+  const events = Array.isArray(body.events) ? body.events : [body];
+  if (
+    events.length === 0 ||
+    events.length > maxEventsPerRequest ||
+    !events.every(isValidObserveEvent)
+  ) {
+    return null;
+  }
+  return events;
 };
 
 const isHttpProtocol = (protocol: string): boolean => protocol === "http:" || protocol === "https:";
@@ -144,6 +422,24 @@ export const resolveCorsAllowOrigin = (
 
   return allowedCorsOrigins[0];
 };
+
+const isCorsOriginExplicitlyAllowed = (
+  requestOrigin: string | undefined,
+  allowedCorsOrigins: string[],
+): boolean => {
+  if (allowedCorsOrigins.length === 0) {
+    return true;
+  }
+
+  const normalizedRequestOrigin = requestOrigin?.trim().toLowerCase();
+  return Boolean(
+    normalizedRequestOrigin && allowedCorsOrigins.includes(normalizedRequestOrigin),
+  );
+};
+
+const isObserveRoute = (request: FastifyRequest): boolean => (
+  request.url.split("?", 1)[0] === "/observe"
+);
 
 export const isHostAllowed = (host: string, allowedHosts: string[]): boolean => {
   const normalizedHost = host.trim().toLowerCase();
@@ -618,7 +914,7 @@ const createRequestLoggerPayload = (
   upstreamUrl: URL,
   durationMs: number,
   payload: Record<string, unknown>,
-): Record<string, unknown> => ({
+): Record<string, unknown> => redactLogPayload({
   event: "xtream_proxy_request",
   method: request.method,
   path: request.url,
@@ -712,29 +1008,128 @@ export const createProxyServer = (options: ProxyServerOptions = {}): FastifyInst
   const allowedCorsOrigins = (
     options.allowedCorsOrigins ??
     parseAllowedCorsOrigins(env.XTREAM_PROXY_ALLOWED_CORS_ORIGINS)
-  );
+  )
+    .map((origin) => origin.trim().toLowerCase())
+    .filter(Boolean);
   const fetchImpl = options.fetchImpl ?? fetch;
+  const observeBodyLimitBytes = Math.max(
+    1,
+    Math.floor(
+      options.observeBodyLimitBytes ??
+      parsePositiveInteger(
+        env.LUMEN_OBSERVE_BODY_LIMIT_BYTES,
+        OBSERVE_DEFAULT_BODY_LIMIT_BYTES,
+      ),
+    ),
+  );
+  const observeMaxEventsPerRequest = Math.max(
+    1,
+    Math.floor(
+      options.observeMaxEventsPerRequest ??
+      parsePositiveInteger(
+        env.LUMEN_OBSERVE_MAX_EVENTS_PER_REQUEST,
+        OBSERVE_DEFAULT_MAX_EVENTS_PER_REQUEST,
+      ),
+    ),
+  );
+  const observeRateLimitPerMinute = Math.max(
+    1,
+    Math.floor(
+      options.observeRateLimitPerMinute ??
+      parsePositiveInteger(
+        env.LUMEN_OBSERVE_RATE_LIMIT_PER_MINUTE,
+        OBSERVE_DEFAULT_RATE_LIMIT_PER_MINUTE,
+      ),
+    ),
+  );
+  const observeNow = options.observeNow ?? Date.now;
+  const observeRateLimitByClient = new Map<string, ObserveRateLimitState>();
+  const trustProxyHops = Math.max(
+    0,
+    Math.floor(
+      options.trustProxyHops ??
+      parseNonNegativeInteger(env.LUMEN_TRUST_PROXY_HOPS, 0),
+    ),
+  );
 
   const app = Fastify({
     logger: options.logger ?? true,
+    trustProxy: trustProxyHops > 0 ? trustProxyHops : false,
+    // Fastify's built-in request logger serializes the raw request URL. Xtream
+    // credentials can live in both path segments and query parameters, so proxy
+    // requests are logged explicitly below only after structured redaction.
+    disableRequestLogging: true,
   });
+  const createComponentLogPayload = (
+    event: string,
+    payload: Record<string, unknown>,
+  ): Record<string, unknown> => redactLogPayload({ event, ...payload });
   const remuxController = options.remuxController ?? createCatchUpRemuxController({
     logger: {
-      info: (event, payload) => app.log.info({ event, ...payload }),
-      warn: (event, payload) => app.log.warn({ event, ...payload }),
-      error: (event, payload) => app.log.error({ event, ...payload }),
+      info: (event, payload) => app.log.info(createComponentLogPayload(event, payload)),
+      warn: (event, payload) => app.log.warn(createComponentLogPayload(event, payload)),
+      error: (event, payload) => app.log.error(createComponentLogPayload(event, payload)),
     },
     env,
   });
   const catchUpGateway = createCatchUpGateway({
     logger: {
-      info: (event, payload) => app.log.info({ event, ...payload }),
-      warn: (event, payload) => app.log.warn({ event, ...payload }),
-      error: (event, payload) => app.log.error({ event, ...payload }),
+      info: (event, payload) => app.log.info(createComponentLogPayload(event, payload)),
+      warn: (event, payload) => app.log.warn(createComponentLogPayload(event, payload)),
+      error: (event, payload) => app.log.error(createComponentLogPayload(event, payload)),
     },
     remuxController,
     env,
   });
+  const consumeObserveRateLimit = (
+    clientKey: string,
+    eventCount: number,
+  ): { allowed: boolean; retryAfterSeconds: number } => {
+    const nowMs = observeNow();
+    let state = observeRateLimitByClient.get(clientKey);
+    if (state && nowMs - state.windowStartedAt >= OBSERVE_RATE_LIMIT_WINDOW_MS) {
+      observeRateLimitByClient.delete(clientKey);
+      state = undefined;
+    }
+
+    if (!state) {
+      if (observeRateLimitByClient.size >= OBSERVE_MAX_RATE_LIMIT_CLIENTS) {
+        for (const [key, candidate] of observeRateLimitByClient) {
+          if (nowMs - candidate.windowStartedAt >= OBSERVE_RATE_LIMIT_WINDOW_MS) {
+            observeRateLimitByClient.delete(key);
+          }
+        }
+      }
+      if (observeRateLimitByClient.size >= OBSERVE_MAX_RATE_LIMIT_CLIENTS) {
+        const oldestKey = observeRateLimitByClient.keys().next().value as string | undefined;
+        if (oldestKey) {
+          observeRateLimitByClient.delete(oldestKey);
+        }
+      }
+      state = {
+        count: 0,
+        windowStartedAt: nowMs,
+      };
+      observeRateLimitByClient.set(clientKey, state);
+    }
+
+    const retryAfterSeconds = Math.max(
+      1,
+      Math.ceil((state.windowStartedAt + OBSERVE_RATE_LIMIT_WINDOW_MS - nowMs) / 1_000),
+    );
+    if (state.count + eventCount > observeRateLimitPerMinute) {
+      return {
+        allowed: false,
+        retryAfterSeconds,
+      };
+    }
+
+    state.count += eventCount;
+    return {
+      allowed: true,
+      retryAfterSeconds,
+    };
+  };
   const sweepTimer = sweepIntervalMs > 0
     ? setInterval(() => {
       catchUpGateway.sweep();
@@ -758,12 +1153,45 @@ export const createProxyServer = (options: ProxyServerOptions = {}): FastifyInst
   // responses are handled directly in applyUpstreamHeadersToRawResponse.
   if (allowedCorsOrigins.length > 0) {
     app.addHook("onSend", async (request, reply, payload) => {
+      if (
+        isObserveRoute(request) &&
+        !isCorsOriginExplicitlyAllowed(request.headers.origin, allowedCorsOrigins)
+      ) {
+        reply.removeHeader("access-control-allow-origin");
+        reply.header("vary", "Origin");
+        return payload;
+      }
+
       const resolvedOrigin = resolveCorsAllowOrigin(request.headers.origin, allowedCorsOrigins);
       reply.header("access-control-allow-origin", resolvedOrigin);
       reply.header("vary", "Origin");
       return payload;
     });
   }
+
+  const rejectDisallowedObserveOrigin = (
+    request: FastifyRequest,
+    reply: FastifyReply,
+  ): boolean => {
+    if (isCorsOriginExplicitlyAllowed(request.headers.origin, allowedCorsOrigins)) {
+      return false;
+    }
+
+    reply
+      .code(403)
+      .type("application/json; charset=utf-8")
+      .send({
+        error: "observe_origin_not_allowed",
+        message: "Observability requests require an allowed Origin.",
+      });
+    return true;
+  };
+
+  app.addHook("onRequest", async (request, reply) => {
+    if (isObserveRoute(request) && rejectDisallowedObserveOrigin(request, reply)) {
+      return reply;
+    }
+  });
 
   const handleProxyRequest = async (
     request: ProxyHandlerRequest,
@@ -804,10 +1232,10 @@ export const createProxyServer = (options: ProxyServerOptions = {}): FastifyInst
     const requestMethod = request.method.toUpperCase();
 
     if (isCatchUpRequestUrl(upstreamUrl) && isRemuxPlaybackHint(upstreamUrl)) {
-      request.log.warn({
+      request.log.warn(redactLogPayload({
         event: "catchup.remux_disabled",
         upstreamUrl: upstreamUrl.toString(),
-      });
+      }));
       sendRemuxDisabledError(reply);
       return;
     }
@@ -831,11 +1259,11 @@ export const createProxyServer = (options: ProxyServerOptions = {}): FastifyInst
         }
         reply.send(manifest.body);
       } catch (error) {
-        request.log.warn({
+        request.log.warn(redactLogPayload({
           event: "catchup.remux_manifest_failed",
           upstreamUrl: upstreamUrl.toString(),
           message: toErrorMessage(error, "Catch-up remux manifest is unavailable."),
-        });
+        }));
         sendRemuxError(reply, 502, toErrorMessage(error, "Catch-up remux manifest is unavailable."));
       }
       return;
@@ -991,15 +1419,44 @@ export const createProxyServer = (options: ProxyServerOptions = {}): FastifyInst
     reply.code(204).send();
   });
 
-  app.post("/observe", async (request, reply) => {
-    applyCorsHeaders(reply, "OPTIONS,POST");
-    const body = request.body as Record<string, unknown> | null | undefined;
-    const events = Array.isArray(body?.events) ? body!.events : body ? [body] : [];
-    for (const event of events.slice(0, 50)) {
-      app.log.info({ event: "client_observe", client: event });
-    }
-    reply.code(204).send();
-  });
+  app.post(
+    "/observe",
+    {
+      bodyLimit: observeBodyLimitBytes,
+    },
+    async (request, reply) => {
+      applyCorsHeaders(reply, "OPTIONS,POST");
+      const events = extractObserveEvents(request.body, observeMaxEventsPerRequest);
+      if (!events) {
+        reply
+          .code(400)
+          .type("application/json; charset=utf-8")
+          .send({
+            error: "invalid_observe_request",
+            message: "Observability payload must contain one bounded event or a bounded events array.",
+          });
+        return;
+      }
+
+      const rateLimit = consumeObserveRateLimit(request.ip, events.length);
+      if (!rateLimit.allowed) {
+        reply
+          .header("retry-after", String(rateLimit.retryAfterSeconds))
+          .code(429)
+          .type("application/json; charset=utf-8")
+          .send({
+            error: "observe_rate_limited",
+            message: "Observability event rate limit exceeded.",
+          });
+        return;
+      }
+
+      for (const event of events) {
+        app.log.info(redactLogPayload({ event: "client_observe", client: event }));
+      }
+      reply.code(204).send();
+    },
+  );
 
   app.options("/catchup-gateway/resolve", async (_request, reply) => {
     applyCorsHeaders(reply, "GET,HEAD,OPTIONS,POST");

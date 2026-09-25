@@ -7,6 +7,8 @@ import {
   createProxyServer,
   parseAllowedHosts,
   parseAllowedCorsOrigins,
+  redactLogPayload,
+  redactUrlForLogging,
   resolveCorsAllowOrigin,
 } from "./server.js";
 
@@ -128,7 +130,415 @@ describe("resolveCorsAllowOrigin (M1.3-e)", () => {
   });
 });
 
+describe("proxy log redaction", () => {
+  it("redacts Xtream path credentials, query secrets, and URL userinfo", () => {
+    const direct = redactUrlForLogging(
+      "https://basic-user:basic-pass@edge.example/timeshift/real-user/real-pass/1800/start/112.ts?token=secret-token&stream=112",
+    );
+
+    expect(direct).toContain("/timeshift/redacted/redacted/1800/start/112.ts");
+    expect(direct).toContain("token=redacted");
+    expect(direct).toContain("stream=112");
+    expect(direct).not.toContain("basic-user");
+    expect(direct).not.toContain("basic-pass");
+    expect(direct).not.toContain("real-user");
+    expect(direct).not.toContain("real-pass");
+    expect(direct).not.toContain("secret-token");
+  });
+
+  it("redacts both the encoded proxy target and proxied request suffix", () => {
+    const requestPath = `/xui-api/${encodeTarget(
+      "https://target-user:target-pass@login.example/base?access_token=target-token",
+    )}/live/viewer/password/112.ts?username=query-user&password=query-pass`;
+    const redacted = redactUrlForLogging(requestPath);
+    const decoded = decodeURIComponent(redacted);
+
+    expect(decoded).toContain("/live/redacted/redacted/112.ts");
+    expect(decoded).toContain("username=redacted");
+    expect(decoded).toContain("password=redacted");
+    expect(decoded).not.toContain("target-user");
+    expect(decoded).not.toContain("target-pass");
+    expect(decoded).not.toContain("target-token");
+    expect(decoded).not.toContain("query-user");
+    expect(decoded).not.toContain("query-pass");
+  });
+
+  it("redacts nested URL and credential fields in structured log payloads", () => {
+    const redacted = redactLogPayload({
+      upstreamUrl: "https://edge.example/streaming/timeshift.php?token=secret-token",
+      client: {
+        username: "real-user",
+        password: "real-pass",
+        details: "failed URL https://edge.example/live/real-user/real-pass/112.ts?token=secret-token",
+      },
+    });
+
+    expect(redacted).toMatchObject({
+      upstreamUrl: "https://edge.example/streaming/timeshift.php?token=redacted",
+      client: {
+        username: "redacted",
+        password: "redacted",
+      },
+    });
+    expect(JSON.stringify(redacted)).not.toContain("secret-token");
+    expect(JSON.stringify(redacted)).not.toContain("real-user");
+    expect(JSON.stringify(redacted)).not.toContain("real-pass");
+  });
+});
+
 describe("createProxyServer", () => {
+  it("disables Fastify raw request logging so unredacted request URLs are never serialized", async () => {
+    const app = createProxyServer({
+      allowedHosts: ["*"],
+      logger: false,
+      sweepIntervalMs: 0,
+      remuxController: createTestRemuxController(),
+    });
+
+    expect(app.initialConfig.disableRequestLogging).toBe(true);
+    await app.close();
+  });
+
+  it("accepts bounded single and batched observability events", async () => {
+    const app = createProxyServer({
+      allowedHosts: ["*"],
+      logger: false,
+      sweepIntervalMs: 0,
+      remuxController: createTestRemuxController(),
+    });
+
+    const single = await app.inject({
+      method: "POST",
+      url: "/observe",
+      payload: {
+        event: "playback.started",
+        severity: "info",
+        timestamp: "2026-07-10T09:00:00.000Z",
+        renderer: "local-web",
+      },
+    });
+    const batch = await app.inject({
+      method: "POST",
+      url: "/observe",
+      payload: {
+        events: [
+          { event: "playback.progress", severity: "info", positionMs: 1_000 },
+          { event: "playback.stopped", severity: "warn" },
+        ],
+      },
+    });
+
+    expect(single.statusCode).toBe(204);
+    expect(single.headers["access-control-allow-origin"]).toBe("*");
+    expect(batch.statusCode).toBe(204);
+    await app.close();
+  });
+
+  it("requires an explicitly allowed Origin for observability POST and preflight", async () => {
+    const app = createProxyServer({
+      allowedHosts: ["*"],
+      allowedCorsOrigins: ["HTTPS://PLAYER.EXYU.TV"],
+      logger: false,
+      sweepIntervalMs: 0,
+      remuxController: createTestRemuxController(),
+    });
+
+    const allowed = await app.inject({
+      method: "POST",
+      url: "/observe",
+      headers: { origin: "https://player.exyu.tv" },
+      payload: { event: "playback.started" },
+    });
+    const allowedPreflight = await app.inject({
+      method: "OPTIONS",
+      url: "/observe",
+      headers: { origin: "https://player.exyu.tv" },
+    });
+    const missing = await app.inject({
+      method: "POST",
+      url: "/observe",
+      payload: { event: "playback.started" },
+    });
+    const denied = await app.inject({
+      method: "POST",
+      url: "/observe",
+      headers: { origin: "https://not-allowed.example" },
+      payload: { event: "playback.started" },
+    });
+    const deniedPreflight = await app.inject({
+      method: "OPTIONS",
+      url: "/observe",
+      headers: { origin: "https://not-allowed.example" },
+    });
+
+    expect(allowed.statusCode).toBe(204);
+    expect(allowed.headers["access-control-allow-origin"]).toBe("https://player.exyu.tv");
+    expect(allowedPreflight.statusCode).toBe(204);
+    expect(allowedPreflight.headers["access-control-allow-origin"]).toBe("https://player.exyu.tv");
+    expect(missing.statusCode).toBe(403);
+    expect(missing.json()).toMatchObject({ error: "observe_origin_not_allowed" });
+    expect(missing.headers["access-control-allow-origin"]).toBeUndefined();
+    expect(denied.statusCode).toBe(403);
+    expect(denied.json()).toMatchObject({ error: "observe_origin_not_allowed" });
+    expect(denied.headers["access-control-allow-origin"]).toBeUndefined();
+    expect(deniedPreflight.statusCode).toBe(403);
+    expect(deniedPreflight.headers["access-control-allow-origin"]).toBeUndefined();
+    await app.close();
+  });
+
+  it("rejects malformed, oversized-batch, and deeply nested observability payloads", async () => {
+    const app = createProxyServer({
+      allowedHosts: ["*"],
+      logger: false,
+      sweepIntervalMs: 0,
+      remuxController: createTestRemuxController(),
+    });
+
+    const malformed = await app.inject({
+      method: "POST",
+      url: "/observe",
+      payload: { severity: "info" },
+    });
+    const oversizedBatch = await app.inject({
+      method: "POST",
+      url: "/observe",
+      payload: {
+        events: Array.from({ length: 11 }, (_, index) => ({
+          event: `playback.event-${index}`,
+        })),
+      },
+    });
+    const deeplyNested = await app.inject({
+      method: "POST",
+      url: "/observe",
+      payload: {
+        event: "playback.started",
+        metadata: {
+          level1: {
+            level2: {
+              level3: {
+                level4: {
+                  level5: {
+                    level6: {
+                      level7: "too-deep",
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    expect(malformed.statusCode).toBe(400);
+    expect(malformed.json()).toMatchObject({ error: "invalid_observe_request" });
+    expect(oversizedBatch.statusCode).toBe(400);
+    expect(deeplyNested.statusCode).toBe(400);
+    await app.close();
+  });
+
+  it("enforces the observability route body limit", async () => {
+    const app = createProxyServer({
+      allowedHosts: ["*"],
+      logger: false,
+      sweepIntervalMs: 0,
+      remuxController: createTestRemuxController(),
+    });
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/observe",
+      payload: {
+        event: "playback.error",
+        details: "x".repeat(17 * 1024),
+      },
+    });
+
+    expect(response.statusCode).toBe(413);
+    await app.close();
+  });
+
+  it("supports explicit observability body and batch limit configuration", async () => {
+    const app = createProxyServer({
+      allowedHosts: ["*"],
+      env: {
+        LUMEN_OBSERVE_BODY_LIMIT_BYTES: String(20 * 1024),
+        LUMEN_OBSERVE_MAX_EVENTS_PER_REQUEST: "11",
+      },
+      logger: false,
+      sweepIntervalMs: 0,
+      remuxController: createTestRemuxController(),
+    });
+
+    const configuredBatch = await app.inject({
+      method: "POST",
+      url: "/observe",
+      payload: {
+        events: Array.from({ length: 11 }, (_, index) => ({
+          event: `playback.event-${index}`,
+        })),
+      },
+    });
+    const configuredBody = await app.inject({
+      method: "POST",
+      url: "/observe",
+      payload: {
+        event: "playback.diagnostics",
+        details1: "x".repeat(4_096),
+        details2: "x".repeat(4_096),
+        details3: "x".repeat(4_096),
+        details4: "x".repeat(4_096),
+      },
+    });
+
+    expect(configuredBatch.statusCode).toBe(204);
+    expect(configuredBody.statusCode).toBe(204);
+    await app.close();
+  });
+
+  it("validates observability events before logging and redacts accepted credentials", async () => {
+    const app = createProxyServer({
+      allowedHosts: ["*"],
+      logger: false,
+      sweepIntervalMs: 0,
+      remuxController: createTestRemuxController(),
+    });
+    const infoSpy = vi.spyOn(app.log, "info");
+
+    const invalid = await app.inject({
+      method: "POST",
+      url: "/observe",
+      payload: {
+        severity: "error",
+        password: "must-not-be-logged",
+      },
+    });
+    expect(invalid.statusCode).toBe(400);
+    expect(infoSpy).not.toHaveBeenCalled();
+
+    const accepted = await app.inject({
+      method: "POST",
+      url: "/observe",
+      payload: {
+        event: "playback.error",
+        username: "real-user",
+        password: "real-pass",
+        upstreamUrl: "https://edge.example/live/real-user/real-pass/112.ts?token=real-token",
+      },
+    });
+
+    expect(accepted.statusCode).toBe(204);
+    expect(infoSpy).toHaveBeenCalledTimes(1);
+    const serializedLog = JSON.stringify(infoSpy.mock.calls[0]?.[0]);
+    expect(serializedLog).not.toContain("real-user");
+    expect(serializedLog).not.toContain("real-pass");
+    expect(serializedLog).not.toContain("real-token");
+    expect(serializedLog).toContain("redacted");
+    await app.close();
+  });
+
+  it("uses the conservative default observability rate limit", async () => {
+    const app = createProxyServer({
+      allowedHosts: ["*"],
+      logger: false,
+      sweepIntervalMs: 0,
+      remuxController: createTestRemuxController(),
+    });
+
+    for (let batch = 0; batch < 12; batch += 1) {
+      const accepted = await app.inject({
+        method: "POST",
+        url: "/observe",
+        payload: {
+          events: Array.from({ length: 10 }, (_, index) => ({
+            event: `playback.event-${batch}-${index}`,
+          })),
+        },
+      });
+      expect(accepted.statusCode).toBe(204);
+    }
+
+    const limited = await app.inject({
+      method: "POST",
+      url: "/observe",
+      payload: { event: "playback.over-limit" },
+    });
+    expect(limited.statusCode).toBe(429);
+    expect(limited.json()).toMatchObject({ error: "observe_rate_limited" });
+    await app.close();
+  });
+
+  it("rate-limits observability events per client and resets after the fixed window", async () => {
+    let nowMs = Date.UTC(2026, 6, 10, 9, 0, 0);
+    const app = createProxyServer({
+      allowedHosts: ["*"],
+      logger: false,
+      sweepIntervalMs: 0,
+      observeRateLimitPerMinute: 2,
+      observeNow: () => nowMs,
+      remuxController: createTestRemuxController(),
+    });
+
+    const first = await app.inject({
+      method: "POST",
+      url: "/observe",
+      payload: {
+        events: [
+          { event: "playback.started" },
+          { event: "playback.progress" },
+        ],
+      },
+    });
+    const limited = await app.inject({
+      method: "POST",
+      url: "/observe",
+      payload: { event: "playback.stopped" },
+    });
+    nowMs += 60_001;
+    const reset = await app.inject({
+      method: "POST",
+      url: "/observe",
+      payload: { event: "playback.stopped" },
+    });
+
+    expect(first.statusCode).toBe(204);
+    expect(limited.statusCode).toBe(429);
+    expect(limited.headers["retry-after"]).toBe("60");
+    expect(limited.json()).toMatchObject({ error: "observe_rate_limited" });
+    expect(reset.statusCode).toBe(204);
+    await app.close();
+  });
+
+  it("rate-limits observability per real client behind the trusted local proxy", async () => {
+    const app = createProxyServer({
+      allowedHosts: ["*"],
+      logger: false,
+      sweepIntervalMs: 0,
+      observeRateLimitPerMinute: 1,
+      trustProxyHops: 1,
+      remuxController: createTestRemuxController(),
+    });
+
+    const send = (clientIp: string) => app.inject({
+      method: "POST",
+      url: "/observe",
+      headers: {
+        "x-forwarded-for": clientIp,
+      },
+      payload: { event: "playback.started" },
+    });
+
+    const firstClient = await send("203.0.113.10");
+    const secondClient = await send("203.0.113.11");
+    const firstClientAgain = await send("203.0.113.10");
+
+    expect(firstClient.statusCode).toBe(204);
+    expect(secondClient.statusCode).toBe(204);
+    expect(firstClientAgain.statusCode).toBe(429);
+    await app.close();
+  });
+
   it("does not return proxy-remuxed from gateway resolve even when env tries to allow remux", async () => {
     const app = createProxyServer({
       allowedHosts: ["*"],

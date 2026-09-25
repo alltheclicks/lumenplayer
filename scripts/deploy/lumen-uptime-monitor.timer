@@ -1,0 +1,14 @@
+[Unit]
+Description=Run the Lumen Player uptime monitor every 2 minutes
+
+[Timer]
+# Fire every 2 minutes on a wall-clock schedule. OnCalendar keeps the timer
+# armed even when the unit is enabled long after boot (OnBootSec would leave
+# NEXT empty until the next reboot).
+OnCalendar=*:0/2
+Persistent=true
+AccuracySec=15s
+Unit=lumen-uptime-monitor.service
+
+[Install]
+WantedBy=timers.target

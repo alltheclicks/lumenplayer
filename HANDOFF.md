@@ -1,5 +1,15 @@
 # Handoff — Lumen Player
 
+## Session 2026-07-10 — player.exyu.tv live: CF + HTTPS + EXYU.tv beta brend (main = `c2cd8cb`)
+
+- **Domen:** `player.exyu.tv` → A record na VPS 151.241.151.105, **Cloudflare proxied** (zona exyu.tv je već bila na CF; record kreiran preko API-ja — token u `PrimeHost/.env.local`, ima DNS edit ali NE i Zone Settings). Kroz CF ide samo app shell; **video + player_api idu direktno na gw/edge** (svi hostovi imaju validan TLS, live 302 vodi na `https://edgeN.castcdn.net`, gw CORS reflektuje novi origin — sve provereno). CF ToS-kompatibilno (CF ne proksuje video).
+- **Origin TLS:** Let's Encrypt cert (certbot webroot + auto-renew deploy hook), novi vhost `player-exyu` (zajednički snippet `snippets/player-app.conf`; :80 redirect na https preko `X-Forwarded-Proto` — bez petlje pod Flexible; :443 ssl+http2), `conf.d/cloudflare-realip.conf` za prave IP-jeve u logovima. IP pristup i dalje radi (stari default_server vhost).
+- **SSL mode — REŠENO 11.7.:** vlasnik proširio token (Config Rules + Zone Settings Edit) → Configuration Rule `player.exyu.tv → SSL Full (strict)` postavljen preko API-ja; CF→origin sada HTTPS (dokazano `X-Lumen-Origin: https` markerom na `/health`). Zona globalno OSTAJE Flexible — zonski flip bi slomio glavni exyu.tv sajt (origin bez validnog certa).
+- **Brend (commit `c9430ab` + `c2cd8cb`):** `VITE_BRAND_NAME` build-time brend — `<title>`, PWA manifest name/short_name, sidebar/header wordmark (`getBrandWordmark`: "EXYU" + akcentovano ".tv"), Helmet naslovi svih stranica, error copy ("…niti do {BRAND_SHORT} playera"); default bez env-a ostaje "Lumen Player" (testovi netaknuti, 380/380 ✅). `offline.html`/`receiver.html` brend-neutralni. Prod `.env.production` ima `VITE_BRAND_NAME=EXYU.tv`.
+- **Otključano ovim deploy-em:** PWA service worker se registruje (provereno: 1 registration na prod domenu) i **beacon ON** (`https://player.exyu.tv/observe` — junski proxy podržava, POST → 204).
+- **12.7. — kozmetika (Sol, `8f9198d` = main, DEPLOYED + verifikovano):** sve PWA ikonice/favicon/splash zamenjeni EXYU grafikom (imena+dimenzije po brief-u `docs/BRIEF-EXYU-COSMETICS-AGENT.md`), `theme_color #3B77F7` = `--primary` token (index.html + manifest), `HAS_CUSTOM_BRAND` + `BrandMark` u Player.tsx (custom build → logo img, default → Play pločica). 380/380 ✅, prod headless verifikovan (title, manifest, wordmark, logo ×2, SW). Napomena: ikonice u `public/` nisu env-gated — povratak na Lumen = env red + revert `8f9198d`; maskable=regular ali safe (padding u grafici).
+- **Next:** (1) C0-a/b/c stutter peglanje; (2) beta pilot runbook + regrutacija; (3) proxy redeploy odluka (jun verzija radi); (4) Cast prod App ID.
+
 ## Session 2026-07-07 — /design-pull: 2026 redizajn + motion sistem primenjeni u kod
 
 - **Izvor:** claude.ai/design projekat "Lumen Player Design System" (vlasnik odobrio ceo redizajn). Sve remote izmene arhivirane u scratchpad `remote-design/` (uklj. `__lp_modernize`/`__lp_screen` blokove) pre primene.

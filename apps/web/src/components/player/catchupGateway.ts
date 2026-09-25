@@ -58,7 +58,9 @@ export interface CatchUpGatewayClientOptions {
 
 const DEFAULT_GATEWAY_PLATFORM = import.meta.env.VITE_CATCHUP_GATEWAY_PLATFORM?.trim() || 'web';
 const GATEWAY_RESOLVE_PATH = '/catchup-gateway/resolve';
-const CATCHUP_GATEWAY_ENABLED = import.meta.env.VITE_CATCHUP_GATEWAY_ENABLED === '1';
+const CATCHUP_GATEWAY_SETTING = import.meta.env.VITE_CATCHUP_GATEWAY_ENABLED?.trim();
+const CATCHUP_GATEWAY_ENABLED = CATCHUP_GATEWAY_SETTING === '1';
+const CATCHUP_GATEWAY_EXPLICITLY_DISABLED = CATCHUP_GATEWAY_SETTING === '0';
 const CATCHUP_GATEWAY_DEBUG_OVERRIDE = import.meta.env.VITE_CATCHUP_GATEWAY_DEBUG_OVERRIDE === '1';
 const AUTO_GATEWAY_SERVER_HOSTS = new Set([
   'smart.mediaking.fi',
@@ -155,6 +157,16 @@ export const shouldUseCatchUpGateway = ({
   programId: string;
   serverOrigin: string | null;
 }): boolean => {
+  // Tri-state policy: unset preserves the legacy host auto-detection, `1`
+  // enables the gateway, and `0` is a hard production off switch. An explicit
+  // per-call false must also win over auto-detection.
+  if (
+    gatewayOptions?.enabled === false ||
+    (gatewayOptions?.enabled === undefined && CATCHUP_GATEWAY_EXPLICITLY_DISABLED)
+  ) {
+    return false;
+  }
+
   const gatewayOrigin = resolveGatewayOrigin(gatewayOptions?.origin);
   const enabled = gatewayOptions?.enabled ?? CATCHUP_GATEWAY_ENABLED;
   const debugOverride = gatewayOptions?.debugOverride ?? CATCHUP_GATEWAY_DEBUG_OVERRIDE;
