@@ -1,7 +1,17 @@
-import { describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { HttpClient } from "./http-client";
 import type { XtreamCategory, XtreamEPGItem, XtreamVOD } from "@lumen/types";
 import { XtreamCodesService } from "./xtream-codes-service";
+
+// The catch-up fixtures below explicitly compare Belgrade wall time with UTC.
+// Pin the test process timezone so CI and developer machines test the same case.
+beforeAll(() => {
+  vi.stubEnv("TZ", "Europe/Belgrade");
+});
+
+afterAll(() => {
+  vi.unstubAllEnvs();
+});
 
 const createVod = (streamId: number, categoryId: string): XtreamVOD => ({
   num: streamId,

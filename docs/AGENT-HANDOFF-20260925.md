@@ -17,7 +17,7 @@ Read this document, `docs/PLAYER-RELIABILITY-20260923.md`, `docs/PLAN-MULTIPLATF
 
 - Public player: https://player.exyu.tv ; marker `/lumen-release.txt` is `20260923T123151Z-918b5ad`.
 - Player VPS: `root@151.241.151.105`. Web `/var/www/lumen-current` and proxy `/opt/lumen/proxy` both resolve to that release. Proxy service is `lumen-proxy`.
-- Git source: `918b5ad`; `f87bfe2` adds only deployment documentation. The alignment branch adds handoff documentation only. No application code change or deployment is part of alignment.
+- Git source: `918b5ad`; `f87bfe2` adds only deployment documentation. The alignment branch adds handoff documentation and fixes the timezone fixture in `xtream-codes-service.test.ts`. Runtime application code is unchanged; no deployment is part of alignment.
 - All 21 web files match the saved release build. All 13 deployed proxy dist files match; six local test files are intentionally excluded from deployment. Public JS/CSS, service worker and manifest match; Cloudflare injects its script into the public HTML.
 - The production reliability branch was 10 commits ahead of old `main@b51ed13`; the alignment PR brings these existing deployed changes into main with CI verification.
 - Physical iPhone/device QA, provider-specific catch-up/VOD failures, MP2 audio support and EXYU worker memory root cause are still open. Prior 507-test and browser evidence is documented in the September 23 report; it does not prove these outstanding items.
@@ -65,4 +65,4 @@ A GitHub push/merge is not a production deploy. Deployment, provider changes and
 
 ## Alignment validation
 
-Local verification passed on September 25: 507 unit tests, lint, typecheck, build and all 24 current-mode release gates. Turbo reused matching cached lint/typecheck/build outputs; GitHub CI executes the PR checks independently. Final release/device gates remain explicitly pending. PR: https://github.com/alltheclicks/lumenplayer/pull/227 .
+Local verification passed on September 25: 507 unit tests, lint, typecheck, build and all 24 current-mode release gates. GitHub exposed two pre-existing catch-up fixture failures under UTC; the test file now explicitly uses Europe/Belgrade and restores the environment afterward. The focused 18-test suite passes from both UTC and America/New_York host environments. Turbo reused matching cached lint/typecheck/build outputs; GitHub CI executes the PR checks independently. Final release/device gates remain explicitly pending. PR: https://github.com/alltheclicks/lumenplayer/pull/227 .
