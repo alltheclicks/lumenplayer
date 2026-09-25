@@ -1,5 +1,7 @@
 export type PlayerFeedbackCategory =
   | 'channel_not_working'
+  | 'vod_not_working'
+  | 'no_video'
   | 'buffering'
   | 'no_audio'
   | 'av_sync'
@@ -67,9 +69,10 @@ export const resolvePlayerFeedbackSuggestion = (
         detectedAtMs,
       };
     }
+    const onDemand = ['vod', 'series', 'series-episode'].includes(stringValue(metadata.contentKind) ?? stringValue(metadata.playbackMode) ?? '');
     return {
-      category: 'channel_not_working',
-      title: 'Player je prepoznao da kanal nije učitan',
+      category: onDemand ? 'vod_not_working' : 'channel_not_working',
+      title: onDemand ? 'Player je prepoznao problem sa filmom ili epizodom' : 'Player je prepoznao da kanal nije učitan',
       description: 'Možeš da potvrdiš ovaj problem ili da izabereš nešto drugo.',
       detectedAtMs,
     };

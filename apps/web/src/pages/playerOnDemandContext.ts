@@ -10,9 +10,9 @@ export interface PlayerOnDemandMetadata {
 }
 
 export interface PlayerOnDemandContext {
-  title: 'VOD Playback' | 'Episode Playback';
+  title: 'Film' | 'Epizoda';
   backPath: string;
-  backLabel: 'Back to VOD' | 'Back to Series';
+  backLabel: 'Nazad na film' | 'Nazad na seriju';
 }
 
 const normalizeIdSegment = (value: string | undefined): string | null => {
@@ -68,9 +68,9 @@ export const getPlayerOnDemandContext = (
     const vodId = normalizeIdSegment(metadata.vodId);
     const fallbackBackPath = vodId ? `/vod/${vodId}` : '/vod';
     return {
-      title: 'VOD Playback',
+      title: 'Film',
       backPath: normalizeBackPath(metadata.backPath) ?? fallbackBackPath,
-      backLabel: 'Back to VOD',
+      backLabel: 'Nazad na film',
     };
   }
 
@@ -81,9 +81,9 @@ export const getPlayerOnDemandContext = (
       metadata.episodeId
     );
     return {
-      title: 'Episode Playback',
+      title: 'Epizoda',
       backPath: normalizeBackPath(metadata.backPath) ?? fallbackBackPath,
-      backLabel: 'Back to Series',
+      backLabel: 'Nazad na seriju',
     };
   }
 

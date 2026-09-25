@@ -145,6 +145,7 @@ const createThresholdStateMap = (rules: ThresholdRule[]): Map<string, ThresholdS
 
 export interface WebObservability {
   emit: (event: ObservabilityEvent) => void;
+  flush: () => void;
   getThresholdRules: () => ThresholdRule[];
 }
 
@@ -154,7 +155,7 @@ export const createWebObservability = (
 ): WebObservability => {
   const thresholdStateByRuleId = createThresholdStateMap(rules);
 
-  const emit = (event: ObservabilityEvent) => {
+  const publish = (event: ObservabilityEvent) => {
     const severity = event.severity ?? 'info';
     const nowMs = event.timestampMs ?? Date.now();
 
@@ -208,8 +209,46 @@ export const createWebObservability = (
     }
   };
 
+  const pendingDiagnostics = new Map<string, { event: ObservabilityEvent; repeats: number }>();
+  let diagnosticTimer: ReturnType<typeof setTimeout> | undefined;
+  const flush = () => {
+    if (diagnosticTimer !== undefined) clearTimeout(diagnosticTimer);
+    diagnosticTimer = undefined;
+    for (const { event, repeats } of pendingDiagnostics.values()) {
+      if (repeats > 0) publish({
+        ...event,
+        metadata: { ...event.metadata, occurrences: repeats, coalesced: true },
+      });
+    }
+    pendingDiagnostics.clear();
+  };
+  const emit = (event: ObservabilityEvent) => {
+    // Flush before source context changes so delayed diagnostics keep the
+    // channel/content attribution they had when they occurred.
+    if (event.name === 'playback.source-selected') flush();
+    if (event.name !== 'playback.warning' && event.name !== 'playback.retry') {
+      publish(event);
+      return;
+    }
+    const metadata = event.metadata ?? {};
+    const key = JSON.stringify([
+      event.name, event.severity, metadata.errorCode ?? metadata.code,
+      metadata.channelId ?? metadata.streamId, metadata.playbackMode, metadata.status,
+    ]);
+    const pending = pendingDiagnostics.get(key);
+    if (pending) {
+      pending.event = { ...event, timestampMs: event.timestampMs ?? Date.now() };
+      pending.repeats += 1;
+      return;
+    }
+    if (pendingDiagnostics.size >= 100) flush();
+    pendingDiagnostics.set(key, { event, repeats: 0 });
+    publish({ ...event, metadata: { ...metadata, occurrences: 1 } });
+    diagnosticTimer ??= setTimeout(flush, 10_000);
+  };
+
   return {
-    emit,
+    emit, flush,
     getThresholdRules: () => rules,
   };
 };
@@ -217,6 +256,15 @@ export const createWebObservability = (
 const webObservability = createWebObservability(
   resolveBeaconUrl() ? beaconSink : defaultSink,
 );
+
+if (typeof window !== 'undefined') {
+  // Flush during capture, before the analytics client's bubble listeners send
+  // their final batch on background/unload.
+  window.addEventListener('pagehide', () => webObservability.flush(), true);
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) webObservability.flush();
+  }, true);
+}
 
 export const emitWebObservabilityEvent = (event: ObservabilityEvent): void => {
   webObservability.emit(event);

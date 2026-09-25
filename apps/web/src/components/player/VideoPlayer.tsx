@@ -1,6 +1,7 @@
 import { useRef, useEffect, useState, useCallback, forwardRef, useImperativeHandle } from 'react';
 import { BRAND_SHORT } from '@/config/brand';
-import { AlertCircle, Loader2, Radio, WifiOff, ShieldAlert, X } from 'lucide-react';
+import { AlertCircle, Loader2, Radio, WifiOff, ShieldAlert } from 'lucide-react';
+import { CodecNotice } from './CodecNotice';
 import type { SessionSource } from '@lumen/session-core';
 import { Button } from '@/components/ui/button';
 import { useSessionContext } from '@/context/session-context';
@@ -26,6 +27,8 @@ import { catchUpFirstSegmentLikelyInFlight } from './catchUpSegmentInFlight';
 import {
   shouldKeepPendingAutoplayOnIdle,
   shouldClearPendingAutoplayOnPlaybackError,
+  isAutoplayBlockedError,
+  shouldSkipPlayForBlockedAutoplay,
   sessionWantsPlayback,
   shouldPreservePlaybackIntentDuringBackgroundPause,
   shouldRecoverPlaybackAfterForeground,
@@ -51,6 +54,7 @@ import {
   resolveCatchUpMediaSeekTimeSeconds,
   resolveCatchUpMediaSeekTimeSecondsForSource,
   resolveCatchUpPendingStartupSeek,
+  resolveCatchUpSeekWatchdogDelayMs,
   resolveCatchUpSeekNoFrameDecision,
   resolveCatchUpSeekRecoveryFallbackPositionMs,
   resolveCatchUpFallbackPlaybackPosition,
@@ -202,6 +206,10 @@ const CATCH_UP_MANIFEST_NO_FRAME_UNAVAILABLE_DELAY_MS = 24_000;
 const CATCH_UP_SEGMENT_IN_FLIGHT_GRACE_MS = 9_000;
 const CATCH_UP_VISIBLE_LOADING_UNAVAILABLE_MS = 60_000;
 const CATCH_UP_SEEK_WATCHDOG_DELAY_MS = 10_000;
+// Rebase downloads and rewrites the complete minute file before hls.js can
+// append it (`progressive:false`). Give a 45MB archive fragment time to finish
+// instead of firing the legacy retry while the first request is still useful.
+const CATCH_UP_REBASE_SEEK_WATCHDOG_DELAY_MS = 30_000;
 const CATCH_UP_SEEK_SETTLE_TOLERANCE_MS = 20_000;
 const CATCH_UP_SEEK_NO_FRAME_MAX_RETRIES = 1;
 const CATCH_UP_FALLBACK_POSITION_GUARD_MS = 15_000;
@@ -631,6 +639,9 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
   className = '',
 }, ref) => {
   const { session, commands } = useSessionContext();
+  // Callback changes (e.g. next-episode metadata arriving) must not destroy the media adapter.
+  const onEndedRef = useRef(onEnded);
+  useEffect(() => { onEndedRef.current = onEnded; }, [onEnded]);
   const src = session.source?.url ?? '';
   const sourceLoadKey = typeof session.source?.metadata?.loadKey === 'number'
     ? `${src}:${session.source.metadata.loadKey}`
@@ -653,7 +664,6 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
   const error = errorState?.error ?? null;
   const [unsupportedAudioCodec, setUnsupportedAudioCodec] = useState<UnsupportedAudioCodec | null>(null);
   const [unsupportedVideoCodec, setUnsupportedVideoCodec] = useState<UnsupportedVideoCodec | null>(null);
-  const [isCodecNoticeDismissed, setIsCodecNoticeDismissed] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isPictureInPicture, setIsPictureInPicture] = useState(false);
   const [isAirPlayAvailable, setIsAirPlayAvailable] = useState(false);
@@ -669,6 +679,10 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
   const liveUnexpectedPauseRecoverySourceRef = useRef<string | null>(null);
   const liveUnexpectedPauseRecoveryAttemptsRef = useRef(0);
   const pendingAutoplaySourceUrlRef = useRef<string | null>(null);
+  // Source URL whose autoplay the browser refused. play() stays gated for that
+  // source until a user gesture arrives, otherwise the playback effect and the
+  // media element's pause event retry each other indefinitely.
+  const autoplayBlockedSourceUrlRef = useRef<string | null>(null);
   const startupAutoplayRecoveryAttemptsRef = useRef(0);
   const startupAutoplayRecoveryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const startupHardRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1145,6 +1159,9 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
         const recoveryFailure = recoveryError instanceof BackgroundPlaybackResumeError
           ? recoveryError.code
           : null;
+        if (recoveryFailure === 'playback-start-failed' && autoplayBlockedSourceUrlRef.current === source.url) {
+          return;
+        }
         const recoveryTelemetry = recoveryFailure === 'source-reload-failed'
           ? {
               status: 'foreground_source_reload_failed',
@@ -1613,6 +1630,16 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
         mediaOffsetSeconds > 0 ? 0 : currentHlsStartPositionSeconds,
       )
       : undefined;
+    const clientRebaseWasRequested = (
+      metadata.catchUpClientRebaseRequested === true ||
+      metadata.catchUpClientRebase === true
+    );
+    const clientRebasePermanentlyUnavailable = reason === 'CATCHUP_REBASE_NOT_SUPPORTED';
+    const useClientRebaseForNextAttempt = (
+      clientRebaseWasRequested &&
+      !clientRebasePermanentlyUnavailable &&
+      nextAttempt.strategy !== 'shadow-validation'
+    );
     isApplyingSessionSeekRef.current = true;
     applyingSessionSeekTargetMsRef.current = nextPositionMs;
     commands.setSource(
@@ -1631,6 +1658,10 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
           catchUpFallbackUrls: nextFallbackUrls,
           catchUpFallbackIndex: Math.max(0, nextAttemptIndex - 1),
           catchUpFallbackUsed: true,
+          catchUpClientRebase: useClientRebaseForNextAttempt,
+          catchUpClientRebaseRequested: clientRebasePermanentlyUnavailable
+            ? false
+            : clientRebaseWasRequested,
           ...(metadata.mode === 'catchup'
             ? { catchUpMediaOffsetSeconds: nextMediaOffsetSeconds }
             : {}),
@@ -1687,7 +1718,13 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
   ]);
 
   useImperativeHandle(ref, () => ({
-    play: () => adapterRef.current?.play(),
+    play: () => {
+      // Reaching this handle means playback was requested from the UI, i.e.
+      // inside a user gesture — exactly what a blocked autoplay was waiting
+      // for. Lift the gate so the play() below can go through.
+      autoplayBlockedSourceUrlRef.current = null;
+      adapterRef.current?.play();
+    },
     pause: () => {
       manualPauseRequestedRef.current = true;
       backgroundPlaybackIntentSourceRef.current = null;
@@ -1838,6 +1875,11 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
       catchUpSeekWatchdogTargetMsRef.current = null;
       return;
     }
+    const watchdogDelayMs = resolveCatchUpSeekWatchdogDelayMs(
+      sessionRef.current.source,
+      CATCH_UP_SEEK_WATCHDOG_DELAY_MS,
+      CATCH_UP_REBASE_SEEK_WATCHDOG_DELAY_MS,
+    );
 
     catchUpSeekWatchdogTimerRef.current = setTimeout(() => {
       catchUpSeekWatchdogTimerRef.current = null;
@@ -2005,7 +2047,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
           }),
         },
       });
-    }, CATCH_UP_SEEK_WATCHDOG_DELAY_MS);
+    }, watchdogDelayMs);
   }, [
     clearCatchUpSeekWatchdog,
     clearCatchUpStartupWatchdog,
@@ -2133,6 +2175,31 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
           },
         });
       },
+      onCatchUpRebaseBoundary: (boundary) => {
+        const currentSession = sessionRef.current;
+        const currentSource = currentSession.source;
+        const metadata = (
+          typeof currentSource?.metadata === 'object' &&
+          currentSource.metadata !== null
+        )
+          ? currentSource.metadata as Record<string, unknown>
+          : {};
+        emitWebObservabilityEvent({
+          name: 'catchup.rebase',
+          severity: 'info',
+          metadata: {
+            status: 'boundary',
+            renderer: currentSession.renderer,
+            channelId: currentSource?.channelId ?? null,
+            streamId: metadata.streamId ?? null,
+            afterSegmentIndex: boundary.afterSegmentIndex,
+            beforeSegmentIndex: boundary.beforeSegmentIndex,
+            predictedMediaTimeSeconds: boundary.predictedMediaTimeSeconds,
+            videoHoleMs: boundary.videoHoleMs,
+            boundaryDeltaMs: boundary.boundaryDeltaMs,
+          },
+        });
+      },
       onCatchUpRebaseSummary: (stats) => {
         const currentSession = sessionRef.current;
         const currentSource = currentSession.source;
@@ -2156,6 +2223,42 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
             trimmedPackets: stats.trimmedPackets,
             anomalies: stats.anomalies,
             maxBoundaryDeltaMs: stats.maxBoundaryDeltaMs,
+            boundaryCount: stats.boundaries.length,
+            processedBytes: stats.processedBytes,
+            totalProcessingMs: Number(stats.totalProcessingMs.toFixed(2)),
+            maxProcessingMs: Number(stats.maxProcessingMs.toFixed(2)),
+            maxSegmentBytes: stats.maxSegmentBytes,
+            slowSegments: stats.slowSegments,
+          },
+        });
+      },
+      onCatchUpStall: ({
+        trigger,
+        currentTimeSeconds,
+        nearestBoundaryMediaTimeSeconds,
+        distanceToBoundaryMs,
+        videoHoleMs,
+      }) => {
+        const currentSession = sessionRef.current;
+        const currentSource = currentSession.source;
+        const metadata = (
+          typeof currentSource?.metadata === 'object' &&
+          currentSource.metadata !== null
+        )
+          ? currentSource.metadata as Record<string, unknown>
+          : {};
+        emitWebObservabilityEvent({
+          name: 'catchup.stall',
+          severity: 'warn',
+          metadata: {
+            trigger,
+            renderer: currentSession.renderer,
+            channelId: currentSource?.channelId ?? null,
+            streamId: metadata.streamId ?? null,
+            currentTimeSeconds,
+            nearestBoundaryMediaTimeSeconds,
+            distanceToBoundaryMs,
+            videoHoleMs,
           },
         });
       },
@@ -2531,6 +2634,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
         clearCatchUpManifestNoFrameWatchdog();
         startupHardRetrySourceUrlRef.current = null;
         pendingAutoplaySourceUrlRef.current = null;
+        autoplayBlockedSourceUrlRef.current = null;
         setError(null);
         setIsPlaying(true);
         setIsLoading(false);
@@ -2758,7 +2862,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
         setIsPlaying(false);
         setIsLoading(false);
         clearLoadingProgress();
-        onEnded?.();
+        onEndedRef.current?.();
         return;
       }
 
@@ -2798,6 +2902,42 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
         mediaElement.readyState >= 2 &&
         mediaElement.videoWidth > 0
       );
+
+      // The browser refused autoplay. No retry, source switch or watchdog can
+      // clear this — only a user gesture can — so stop every recovery path,
+      // gate play() for this source and park the session in `paused` so the UI
+      // shows a play button instead of a permanent spinner.
+      if (isAutoplayBlockedError(playbackError)) {
+        const blockedSourceUrl = currentSession.source?.url ?? null;
+        if (autoplayBlockedSourceUrlRef.current === blockedSourceUrl) {
+          return;
+        }
+        autoplayBlockedSourceUrlRef.current = blockedSourceUrl;
+        clearStartupAutoplayRecovery();
+        clearCatchUpStartupWatchdog();
+        clearCatchUpManifestNoFrameWatchdog();
+        clearCatchUpSeekWatchdog();
+        clearLiveNoFrameWatchdog();
+        pendingAutoplaySourceUrlRef.current = null;
+        setIsPlaying(false);
+        setIsLoading(false);
+        clearLoadingProgress();
+        if (sessionWantsPlayback(currentSession)) {
+          commands.pause();
+        }
+        emitWebObservabilityEvent({
+          name: 'playback.autoplay_blocked',
+          severity: 'warn',
+          metadata: {
+            renderer: currentSession.renderer,
+            channelId: currentSession.source?.channelId ?? null,
+            playbackMode: currentSession.source?.metadata?.mode ?? null,
+            status: 'awaiting_user_gesture',
+            errorCode: playbackError.code,
+          },
+        });
+        return;
+      }
 
       if (deferPlaybackFailureWhileBackgrounded(
         playbackError.code,
@@ -3283,7 +3423,6 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
     mapPlaybackError,
     rememberCatchUpRuntimeTimelineAnchor,
     onCanPlay,
-    onEnded,
     onError,
     preferNativeHls,
     resetLoadingProgress,
@@ -3406,7 +3545,6 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
     setUnsupportedVideoCodec(
       sessionRef.current.source?.metadata?.unsupportedVideoCodec === 'hevc' ? 'hevc' : null,
     );
-    setIsCodecNoticeDismissed(false);
     const sourceMetadataForReset = (
       typeof sessionRef.current.source?.metadata === 'object' &&
       sessionRef.current.source.metadata !== null
@@ -3462,6 +3600,21 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
     }
 
     let cancelled = false;
+    let onDemandStartupPositionMs: number | null = null;
+    const startupVideo = videoRef.current;
+    const applyOnDemandStartupPosition = () => {
+      if (cancelled || onDemandStartupPositionMs === null || !startupVideo || startupVideo.readyState < 1) return;
+      const duration = adapter.getDuration();
+      const targetMs = Number.isFinite(duration) && duration > 0
+        ? Math.min(onDemandStartupPositionMs, Math.max(0, duration * 1000 - 1000))
+        : onDemandStartupPositionMs;
+      onDemandStartupPositionMs = null;
+      applyingSessionSeekTargetMsRef.current = targetMs;
+      isApplyingSessionSeekRef.current = true;
+      adapter.seek(targetMs / 1000);
+    };
+    startupVideo?.addEventListener('loadedmetadata', applyOnDemandStartupPosition);
+
     adapter.stop();
     foregroundPlaybackRecoverySourceRef.current = null;
     setError(null);
@@ -3478,6 +3631,11 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
       liveUnexpectedPauseRecoveryAttemptsRef.current = 0;
     }
     startupHardRetrySourceUrlRef.current = null;
+    // A different source deserves a fresh autoplay attempt; reloading the same
+    // blocked one does not, since the gesture requirement still stands.
+    if (autoplayBlockedSourceUrlRef.current !== src) {
+      autoplayBlockedSourceUrlRef.current = null;
+    }
     pendingAutoplaySourceUrlRef.current = autoPlay && (
       sessionWantsPlayback(sessionRef.current) ||
       sessionRef.current.source?.metadata?.mode === 'live'
@@ -3585,6 +3743,16 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
         ? currentSource.metadata
         : null;
       const isCatchUpSource = currentSourceMetadata?.mode === 'catchup';
+      const isOnDemand = currentSourceMetadata?.mode === 'vod' || currentSourceMetadata?.mode === 'series-episode';
+      onDemandStartupPositionMs = isOnDemand && (sessionRef.current.positionMs ?? 0) > 0
+        ? sessionRef.current.positionMs
+        : null;
+      if (onDemandStartupPositionMs !== null) {
+        // Ignore the initial 0:00 timeupdate until metadata permits restoring the saved position.
+        isApplyingSessionSeekRef.current = true;
+        applyingSessionSeekTargetMsRef.current = onDemandStartupPositionMs;
+      }
+
       const catchUpStartPositionSeconds = isCatchUpSource
         ? resolveRuntimeCatchUpMediaSeekTimeSeconds(
           currentSource,
@@ -3629,6 +3797,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
           return;
         }
 
+        applyOnDemandStartupPosition();
         const loadedSession = sessionRef.current;
         const loadedMetadata = (
           typeof loadedSession.source?.metadata === 'object' &&
@@ -3909,6 +4078,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
 
     return () => {
       cancelled = true;
+      startupVideo?.removeEventListener('loadedmetadata', applyOnDemandStartupPosition);
       adapter.stop();
       if (startupHardRetryTimerRef.current !== null) {
         clearTimeout(startupHardRetryTimerRef.current);
@@ -4055,6 +4225,15 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
 
     if (playbackWantsPlaying) {
       if (adapter.getState() === 'loading') {
+        return;
+      }
+      // Autoplay was refused for this source and no user gesture has arrived
+      // yet. Calling play() again would only be rejected and bounce back here
+      // through the media element's pause event.
+      if (shouldSkipPlayForBlockedAutoplay(
+        session.source.url,
+        autoplayBlockedSourceUrlRef.current,
+      )) {
         return;
       }
       adapter.play();
@@ -4238,15 +4417,9 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
     elapsedSeconds: loadingElapsedSeconds,
     bufferedAheadSeconds: loadingBufferedAheadSeconds,
   });
-  const unsupportedAudioMessage = unsupportedAudioCodec === 'mp2'
-    ? 'Zvuk nije dostupan za ovaj kanal. Kanal koristi MP2 audio, koji trenutno nije podržan u web browser playback-u. Video može raditi bez zvuka.'
-    : null;
-  const unsupportedVideoMessage = unsupportedVideoCodec === 'hevc' && !isHevcPlaybackLikelySupported()
-    ? 'Slika možda neće raditi za ovaj kanal. Kanal koristi HEVC (H.265) video, koji nije podržan u svim browserima (radi na Safari/iOS, ali ne na Chrome desktop/Android).'
-    : null;
-  const unsupportedCodecMessage = isCodecNoticeDismissed
-    ? null
-    : unsupportedVideoMessage ?? unsupportedAudioMessage;
+  const codecNoticeKind = unsupportedVideoCodec === 'hevc' && !isHevcPlaybackLikelySupported()
+    ? 'video'
+    : unsupportedAudioCodec === 'mp2' ? 'audio' : null;
 
   return (
     <div className={`pointer-events-none relative w-full h-full bg-black ${className}`}>
@@ -4283,21 +4456,8 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
         </div>
       )}
 
-      {unsupportedCodecMessage && !error && (
-        <div className="pointer-events-none absolute inset-x-3 top-3 z-20 flex justify-center">
-          <div className="pointer-events-auto flex max-w-[min(560px,calc(100vw-24px))] items-start gap-2 rounded-md border border-amber-300/40 bg-black/75 px-3 py-2 text-left text-xs leading-5 text-white shadow-lg backdrop-blur-sm">
-            <AlertCircle className="mt-0.5 h-4 w-4 flex-none text-amber-300" />
-            <span>{unsupportedCodecMessage}</span>
-            <button
-              type="button"
-              onClick={() => setIsCodecNoticeDismissed(true)}
-              className="-mr-1 -mt-0.5 flex h-6 w-6 flex-none items-center justify-center rounded-md text-white/70 transition-colors hover:bg-white/10 hover:text-white"
-              aria-label="Zatvori obaveštenje"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
+      {codecNoticeKind && !error && (
+        <CodecNotice key={`${session.source?.url}:${codecNoticeKind}`} kind={codecNoticeKind} />
       )}
 
       {error && (

@@ -1,4 +1,4 @@
-import { mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { chromium, type FullConfig } from '@playwright/test';
 
@@ -8,6 +8,14 @@ const STORAGE_STATE_PATH = resolve(
 );
 
 async function globalSetup(config: FullConfig): Promise<void> {
+  const externalStorageState = process.env.E2E_STORAGE_STATE;
+  if (externalStorageState) {
+    if (!existsSync(externalStorageState)) {
+      throw new Error(`E2E_STORAGE_STATE does not exist: ${externalStorageState}`);
+    }
+    return;
+  }
+
   const username = process.env.E2E_XUI_USERNAME;
   const password = process.env.E2E_XUI_PASSWORD;
 

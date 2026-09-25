@@ -31,6 +31,8 @@ const hlsMockState = vi.hoisted(() => {
       SUBTITLE_TRACKS_UPDATED: 'subtitleTracksUpdated',
       SUBTITLE_TRACK_SWITCH: 'subtitleTrackSwitch',
       BUFFER_APPENDED: 'bufferAppended',
+      FRAG_LOADING: 'fragLoading',
+      FRAG_LOADED: 'fragLoaded',
     } as const;
 
     static readonly ErrorTypes = {
@@ -205,6 +207,7 @@ describe('HlsPlayerAdapter', () => {
   });
 
   afterEach(() => {
+    vi.restoreAllMocks();
     vi.unstubAllGlobals();
   });
 
@@ -383,6 +386,163 @@ describe('HlsPlayerAdapter', () => {
     catchUpHls?.emit(hlsMockState.MockHls.Events.MANIFEST_LOADED, { url: catchUpSource.url });
     catchUpHls?.emit(hlsMockState.MockHls.Events.MANIFEST_PARSED);
     await catchUpLoadPromise;
+  });
+
+  it('applies wide-hole bridging only to client-rebased catch-up sessions', async () => {
+    const video = createMockVideoElement();
+    const adapter = new HlsPlayerAdapter(video);
+    const rebaseSource = {
+      url: 'https://example.com/rebased-archive.m3u8',
+      type: 'hls' as const,
+      title: 'Rebased archive',
+      metadata: {
+        mode: 'catchup',
+        catchUpClientRebase: true,
+      },
+    };
+
+    const rebaseLoadPromise = adapter.load(rebaseSource);
+    const rebaseHls = hlsMockState.instances.at(-1);
+    const rebaseConfig = rebaseHls?.config as Record<string, unknown>;
+    expect(rebaseConfig.maxBufferHole).toBe(2);
+    expect(rebaseConfig.stretchShortVideoTrack).toBe(true);
+    expect(rebaseConfig.progressive).toBeUndefined();
+    expect(rebaseConfig.maxBufferSize).toBe(96_000_000);
+    rebaseHls?.emit(hlsMockState.MockHls.Events.MANIFEST_LOADED, { url: rebaseSource.url });
+    rebaseHls?.emit(hlsMockState.MockHls.Events.MANIFEST_PARSED);
+    await rebaseLoadPromise;
+
+    const legacySource = {
+      ...rebaseSource,
+      url: 'https://example.com/legacy-archive.m3u8',
+      metadata: { mode: 'catchup' },
+    };
+    const legacyLoadPromise = adapter.load(legacySource);
+    const legacyHls = hlsMockState.instances.at(-1);
+    const legacyConfig = legacyHls?.config as Record<string, unknown>;
+    expect(legacyConfig.maxBufferHole).toBe(0.5);
+    expect(legacyConfig.stretchShortVideoTrack).toBeUndefined();
+    expect(legacyConfig.maxBufferSize).toBe(180_000_000);
+    legacyHls?.emit(hlsMockState.MockHls.Events.MANIFEST_LOADED, { url: legacySource.url });
+    legacyHls?.emit(hlsMockState.MockHls.Events.MANIFEST_PARSED);
+    await legacyLoadPromise;
+  });
+
+  it('uses hls.js rebase even when native HLS is preferred', async () => {
+    const video = createMockVideoElement();
+    const mutableVideo = video as unknown as {
+      canPlayType: ReturnType<typeof vi.fn>;
+    };
+    mutableVideo.canPlayType.mockReturnValue('probably');
+    const adapter = new HlsPlayerAdapter(video, { preferNativeHls: true });
+    const source = {
+      url: 'https://example.com/rebased-native-capable.m3u8',
+      type: 'hls' as const,
+      metadata: {
+        mode: 'catchup',
+        catchUpClientRebase: true,
+      },
+    };
+
+    const loadPromise = adapter.load(source);
+    const hls = hlsMockState.instances.at(-1);
+    expect(hls).toBeDefined();
+    expect((hls?.config as Record<string, unknown>).fLoader).toBeDefined();
+    expect(video.src).toBe('');
+    hls?.emit(hlsMockState.MockHls.Events.MANIFEST_LOADED, { url: source.url });
+    hls?.emit(hlsMockState.MockHls.Events.MANIFEST_PARSED);
+    await loadPromise;
+  });
+
+  it('never silently sends a rebase session through native HLS when hls.js is unavailable', async () => {
+    const video = createMockVideoElement();
+    const mutableVideo = video as unknown as {
+      canPlayType: ReturnType<typeof vi.fn>;
+    };
+    mutableVideo.canPlayType.mockReturnValue('probably');
+    const onCatchUpRebaseFallback = vi.fn();
+    const adapter = new HlsPlayerAdapter(video, {
+      preferNativeHls: true,
+      onCatchUpRebaseFallback,
+    });
+    vi.spyOn(hlsMockState.MockHls, 'isSupported').mockReturnValue(false);
+
+    const source = {
+      url: 'https://example.com/native-only.m3u8',
+      type: 'hls' as const,
+      metadata: {
+        mode: 'catchup',
+        catchUpClientRebase: true,
+      },
+    };
+
+    await expect(adapter.load(source)).rejects.toThrow(
+      'Client catch-up normalization requires Media Source Extensions.',
+    );
+
+    expect(onCatchUpRebaseFallback).toHaveBeenCalledWith({
+      reason: 'hls-js-unsupported',
+      sourceUrl: 'https://example.com/native-only.m3u8',
+    });
+    expect(video.src).toBe('');
+  });
+
+  it('reports waiting and hls.js buffer stalls only for active rebase sessions', async () => {
+    const video = createMockVideoElement();
+    const onCatchUpStall = vi.fn();
+    const adapter = new HlsPlayerAdapter(video, { onCatchUpStall });
+    const source = {
+      url: 'https://example.com/rebased-archive.m3u8',
+      type: 'hls' as const,
+      title: 'Rebased archive',
+      metadata: {
+        mode: 'catchup',
+        catchUpClientRebase: true,
+      },
+    };
+
+    const loadPromise = adapter.load(source);
+    const hls = hlsMockState.instances.at(-1);
+    hls?.emit(hlsMockState.MockHls.Events.MANIFEST_LOADED, { url: source.url });
+    hls?.emit(hlsMockState.MockHls.Events.MANIFEST_PARSED);
+    await loadPromise;
+
+    video.currentTime = 41.25;
+    (video as unknown as { dispatchEvent: (event: string) => void }).dispatchEvent('waiting');
+    hls?.emit(hlsMockState.MockHls.Events.ERROR, {
+      fatal: false,
+      type: hlsMockState.MockHls.ErrorTypes.MEDIA_ERROR,
+      details: 'bufferStalledError',
+    });
+
+    expect(onCatchUpStall).toHaveBeenNthCalledWith(1, {
+      trigger: 'waiting',
+      currentTimeSeconds: 41.25,
+      nearestBoundaryMediaTimeSeconds: null,
+      distanceToBoundaryMs: null,
+      videoHoleMs: null,
+    });
+    expect(onCatchUpStall).toHaveBeenNthCalledWith(2, {
+      trigger: 'buffer-stalled',
+      currentTimeSeconds: 41.25,
+      nearestBoundaryMediaTimeSeconds: null,
+      distanceToBoundaryMs: null,
+      videoHoleMs: null,
+    });
+
+    const legacySource = {
+      ...source,
+      url: 'https://example.com/legacy-archive.m3u8',
+      metadata: { mode: 'catchup' },
+    };
+    const legacyLoadPromise = adapter.load(legacySource);
+    const legacyHls = hlsMockState.instances.at(-1);
+    legacyHls?.emit(hlsMockState.MockHls.Events.MANIFEST_LOADED, { url: legacySource.url });
+    legacyHls?.emit(hlsMockState.MockHls.Events.MANIFEST_PARSED);
+    await legacyLoadPromise;
+    (video as unknown as { dispatchEvent: (event: string) => void }).dispatchEvent('waiting');
+
+    expect(onCatchUpStall).toHaveBeenCalledTimes(2);
   });
 
   it('recovers fatal HLS media errors instead of destroying playback immediately', async () => {
@@ -1712,6 +1872,8 @@ describe('HlsPlayerAdapter', () => {
   it('classifies a browser playback-start rejection separately after a successful reload', async () => {
     const video = createMockVideoElement();
     const adapter = new HlsPlayerAdapter(video);
+    const onError = vi.fn();
+    adapter.onError(onError);
     const source = {
       url: 'https://example.com/live.m3u8',
       type: 'hls' as const,
@@ -1725,7 +1887,7 @@ describe('HlsPlayerAdapter', () => {
     initialHls?.emit(hlsMockState.MockHls.Events.MANIFEST_PARSED);
     await initialLoadPromise;
     adapter.stop();
-    vi.mocked(video.play).mockRejectedValueOnce(new Error('NotAllowedError'));
+    vi.mocked(video.play).mockRejectedValueOnce(new DOMException('A user gesture is required', 'NotAllowedError'));
 
     const resumePromise = adapter.resumeAfterBackground(source);
     const rebuiltHls = hlsMockState.instances.at(-1);
@@ -1736,6 +1898,27 @@ describe('HlsPlayerAdapter', () => {
       name: 'BackgroundPlaybackResumeError',
       code: 'playback-start-failed',
     });
+    expect(onError).toHaveBeenCalledWith(expect.objectContaining({
+      code: 'PLAYBACK_AUTOPLAY_BLOCKED', fatal: false,
+    }));
+  });
+
+  it('does not apply a delayed background autoplay rejection to a newly selected source', async () => {
+    const video = createMockVideoElement();
+    const adapter = new HlsPlayerAdapter(video);
+    const onError = vi.fn();
+    adapter.onError(onError);
+    const source = buildSource('https://example.com/first.mp4');
+    await adapter.load(source);
+    adapter.stop();
+    let rejectPlay!: (error: Error) => void;
+    vi.mocked(video.play).mockImplementationOnce(() => new Promise((_, reject) => { rejectPlay = reject; }));
+    const resume = adapter.resumeAfterBackground(source);
+    await vi.waitFor(() => expect(rejectPlay).toBeDefined());
+    await adapter.load(buildSource('https://example.com/second.mp4'));
+    rejectPlay(new DOMException('Gesture required', 'NotAllowedError'));
+    await expect(resume).rejects.toMatchObject({ code: 'playback-start-failed' });
+    expect(onError).not.toHaveBeenCalled();
   });
 
   it('does not report a rebuilt pipeline as healthy until a frame is renderable', async () => {
@@ -2050,6 +2233,48 @@ describe('HlsPlayerAdapter', () => {
     adapter.play();
 
     expect(playSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports a blocked autoplay under its own error code', async () => {
+    const video = createMockVideoElement();
+    const adapter = new HlsPlayerAdapter(video);
+    const errors: { code: string }[] = [];
+    adapter.onError((error) => errors.push(error));
+
+    const autoplayRejection = new DOMException(
+      'play() failed because the user did not interact with the document first.',
+      'NotAllowedError',
+    );
+    vi.spyOn(video, 'play').mockRejectedValue(autoplayRejection);
+
+    (video as unknown as { src: string }).src = 'https://example.com/stream-a.mp4';
+    adapter.play();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    // A distinct code lets the recovery layer stop retrying and wait for a
+    // user gesture instead of looping on play().
+    expect(errors.map((error) => error.code)).toEqual(['PLAYBACK_AUTOPLAY_BLOCKED']);
+  });
+
+  it('keeps the generic start-failed code for non-autoplay play() rejections', async () => {
+    const video = createMockVideoElement();
+    const adapter = new HlsPlayerAdapter(video);
+    const errors: { code: string }[] = [];
+    adapter.onError((error) => errors.push(error));
+
+    const abortRejection = new DOMException(
+      'The play() request was interrupted by a new load request.',
+      'AbortError',
+    );
+    vi.spyOn(video, 'play').mockRejectedValue(abortRejection);
+
+    (video as unknown as { src: string }).src = 'https://example.com/stream-a.mp4';
+    adapter.play();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(errors.map((error) => error.code)).toEqual(['PLAYBACK_START_FAILED']);
   });
 
   it('swallows a code-4 media error when no real source is attached', () => {

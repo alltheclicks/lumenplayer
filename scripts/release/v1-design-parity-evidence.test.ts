@@ -181,6 +181,29 @@ describe('V1 design parity evidence artifact', () => {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
+  it('reports pending owner review in a clean checkout before requiring ignored local captures', () => {
+    const repoRoot = process.cwd();
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-0373-design-parity-clean-'));
+    const isolatedPath = path.join(tmpDir, 'partial-without-local-captures.json');
+    const partialArtifact = JSON.parse(fs.readFileSync(
+      path.resolve(repoRoot, 'artifacts/release/design/qaf035-design-parity-20260603.json'),
+      'utf8',
+    )) as DesignParityEvidence;
+
+    for (const screen of partialArtifact.screens) {
+      screen.desktop.lumenRef = path.join(tmpDir, `missing-${screen.id}-desktop.png`);
+      screen.mobile.lumenRef = path.join(tmpDir, `missing-${screen.id}-mobile.png`);
+    }
+    fs.writeFileSync(isolatedPath, `${JSON.stringify(partialArtifact, null, 2)}\n`);
+
+    const result = runValidator([isolatedPath, '--require-final'], repoRoot);
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain('parityReview.status cannot be pending with --require-final');
+    expect(result.stderr).not.toContain('lumenRef must reference an existing file');
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
   it('fails validation when review intake omits the owner-approval guardrail', () => {
     const repoRoot = process.cwd();
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-0373-design-parity-'));

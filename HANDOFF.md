@@ -1,5 +1,33 @@
 # Handoff — Lumen Player
 
+## Session 2026-09-25 — Git/GitHub handoff alignment
+
+- Start with `docs/AGENT-HANDOFF-20260925.md`. The alignment PR brings the already deployed September 23 player/proxy source into main; this session adds handoff documentation and fixes a test-only timezone fixture; it performs no runtime application change or production deployment.
+- Local unfinished source and UI work are preserved on separate archive branches. The original workspace edits/index are retained in a named local stash plus recovery archive before moving the workspace to the aligned baseline; other dirty worktrees are preserved. Raw operational logs/provider dumps stay local.
+- The separate EXYU Next.js analytics repository still needs its own GitHub destination; do not overwrite the legacy `alltheclicks/exyu.tv` repository.
+- TV work remains analysis/planning only. Device validation and unresolved production limitations are listed in the handoff.
+
+
+## Session 2026-09-23 — production deployment
+
+- Owner explicitly requested push and deploy. Lumen branch `codex/player-reliability-20260923` pushed to GitHub; web and proxy release `20260923T123151Z-918b5ad` activated and verified against the public marker, health and assets. Previous targets retained for rollback.
+- EXYU analytics patch `0f5719e` deployed as release `20260923122931`, copied from live `20260916133413` with only the scoped analytics changes. All eight worker CWDs verified. Build used webpack after Turbopack rejected the existing shared-data symlink. 12 backend tests and production build pass; Lumen deploy preflight passes 507 tests, lint, typecheck, build, dependency audit and current release gates.
+- Production 7/15-day API requests return 200 in 11.524/12.041 s; configured Main PHP/cURL path returns 200 in 10.609/11.983 s and reports the new 120-second activity window. Both SQL indexes were already applied.
+- Browser smoke: SSO, RTS 1 video frames, PINK FOLK 2 video plus new MP2 notice at 390 px; notice collapse/reopen works, ingest returns 202. VOD “Ptice koje ne polete (1997)” displays and plays outside fullscreen at 390×844 (video element 390×219.375, decoded frames 1920×1080, no media error). Physical iPhone QA remains open.
+- Backend GitHub push is pending destination selection. This local Next.js repo has no remote; `alltheclicks/exyu.tv` is a separate legacy Vite codebase. User was asked asynchronously; no remote was guessed or legacy repo overwritten.
+
+## Session 2026-09-23 — MP2 notice, recovery and analytics reliability
+
+- Local implementation on `codex/player-reliability-20260923`, based on deployed player commit `602e09d`; no application push or deployment in this session. Two database indexes were applied and verified in production after the owner signed into Supabase. Dirty original checkouts were preserved.
+- MP2: readable “Trenutno bez zvuka” explanation, collapsible to a persistent “Bez zvuka” button, reset on source change. HEVC and VOD source-error copy avoids unsupported claims about universal device support or incident cause. No audio transcoding added.
+- Fullscreen: when native/element APIs fail, expand the player to the viewport with usable controls and an exit button; preserve standard/native paths. Background rebuild autoplay rejection now reaches the existing paused/manual-play UI, with a generation guard against stale errors after a channel switch.
+- Analytics: legitimate same-origin GET config restore; one trusted loopback proxy hop by default; bounded warning/retry coalescing with occurrence counts; content-kind attribution; diagnostic failures remain events with replay references instead of crashes; extension-origin exceptions separated from application exceptions.
+- Verification: 507/507 unit tests (62 files), typecheck 3/3, lint 11/11, build 3/3, diff check. Playwright checked MP2 at 320/390px, collapse/reopen/source reset; actual Player viewport fallback and both exit controls; mocked analytics transport verified VOD attribution, diagnostic/crash separation and pagehide flush ordering. No physical iPhone or live provider playback validation.
+- Separate EXYU candidate: `/Users/filip/Documents/exyu-tv-nextjs-reliability-20260923`, branch `codex/player-analytics-reliability-20260923`. Compact cursor queries, occurrence-aware counts and a 120-second activity window. 12 tests, TypeScript, scoped lint and production build pass. Deploy backend occurrence handling before the client coalescing changes; first reconcile the backend release base.
+- Production database: created `idx_player_events_time_id` and `idx_player_events_diagnostic_time_id` separately with `CONCURRENTLY`; verified definitions, validity and readiness. Diagnostic SQL page uses the index and executes in 2.599 ms. REST cursor check loaded 30,000 unique rows in 9.495 s. Existing overview API passed 6/6 requests for 7/15 days in 4.045–13.459 s, retaining explicit detail truncation. Fresh heartbeat received; no worker PID/restart-counter changes during the checks. Application releases remain unchanged.
+- Panel transport: configured PHP/cURL calls from the Main server passed for 7/15 days, HTTP 200 in 12.070/12.932 s under the 20-second timeout. No rendered panel UI check was performed.
+- Remaining: provider-specific catch-up/VOD failures, physical iPhone QA, root cause of EXYU PM2 memory restarts, and deployment of the local application changes. Existing production SW cache headers are already no-store; old open tabs alone do not prove a new cache defect. Details: `docs/PLAYER-RELIABILITY-20260923.md`.
+
 ## Session 2026-07-19 (nastavak) — Background/resume mrtav MSE pipeline: uzrok dokazan uživo + fix `3bd4b47`
 
 - **Kontekst:** posle dužeg background taba video ostane sa živim adapterom, ali mrtvim MSE pipeline-om (`readyState=0`, `videoWidth=0`, `buffered=[]`, `play()` → `NotSupportedError`). Commitovi `203ec6a`→`99b4517` (release `20260719T200833Z-99b4517`) dodali su resume/rebuild putanju, ali simptom je opstao.

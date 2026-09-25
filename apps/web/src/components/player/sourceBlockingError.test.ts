@@ -202,9 +202,20 @@ describe('source blocking error', () => {
     expect(error).toEqual({
       type: 'network',
       message: 'Live kanal trenutno nije dostupan',
-      details: 'RTS 1 trenutno ne može da se pokrene uživo. Stream ne stiže stabilno od provajdera ili servera. Nije do vašeg uređaja niti do Lumen playera.',
+      details: 'RTS 1 trenutno ne može da se pokrene. Izvor možda nije dostupan ili nije kompatibilan sa ovim uređajem. Probajte drugi kanal ili prijavite problem.',
       primaryAction: 'report-problem',
       primaryActionLabel: 'Prijavi problem',
     });
+  });
+
+  it('offers an actionable on-demand source error without claiming a proven codec cause', () => {
+    for (const mode of ['vod', 'series']) {
+      const source = { url: 'https://example.com/movie.mp4', type: 'mp4' as const, metadata: { mode } };
+      expect(resolveSessionSourceBlockingError(source)).toBeNull();
+      expect(resolveSessionSourceBlockingError(source, 'MEDIA_ELEMENT_4')).toMatchObject({
+        type: 'format', primaryAction: 'report-problem',
+        message: 'Ovaj video trenutno ne može da se pokrene',
+      });
+    }
   });
 });

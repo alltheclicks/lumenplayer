@@ -455,13 +455,61 @@ describe('resolveCatchUpPlaybackSource', () => {
       },
       shadowValidation: true,
       clientRebase: true,
+      clientRebaseSupported: true,
     });
 
-    // The client rebase needs no server round-trip: the shadow seed fetch is
-    // skipped and the plain transport plan leads with the rebase flag set.
+    // Media stays direct and the rebase path leads. A small provider seed
+    // request only prepares the shadow URL as an immediate fallback.
     expect(result.source.url).not.toContain('timeshift_shadow.php');
+    expect(result.source.url).not.toContain('/xui-api/');
     expect(result.transportPlan.initialAttempt.strategy).not.toBe('shadow-validation');
     expect((result.source.metadata as Record<string, unknown>).catchUpClientRebase).toBe(true);
+    expect((result.source.metadata as Record<string, unknown>).catchUpClientRebaseRequested).toBe(true);
+    expect(result.gateway).toBeNull();
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(String(fetchImpl.mock.calls[0]?.[0])).toContain('/streaming/timeshift.php');
+    expect(String(fetchImpl.mock.calls[0]?.[0])).not.toContain('/catchup-gateway/');
+    expect(result.transportPlan.fallbackAttempts[0]?.strategy).toBe('shadow-validation');
+    expect(result.transportPlan.fallbackAttempts[0]?.url).toContain('timeshift_shadow.php');
+  });
+
+  it('sends known unsupported-audio channels straight to shadow instead of client rebase', async () => {
+    clearCatchUpClientRebaseFailures();
+    const fetchImpl = vi.fn().mockResolvedValue({
+      ok: true,
+      url: 'https://edge6.castcdn.net/streaming/timeshift_shadow.php?token=mp2-token',
+    });
+
+    const result = await resolveCatchUpPlaybackSource({
+      channel: {
+        id: 'channel-mp2',
+        name: 'KANAL 5',
+        streamId: 53,
+        source: 'xtream',
+        catchUpDays: 7,
+        hasCatchUp: true,
+      },
+      program: {
+        id: 'program-1',
+        title: 'Program 1',
+        startTime: new Date('2026-03-06T10:00:00Z'),
+        endTime: new Date('2026-03-06T10:30:00Z'),
+      },
+      urlBuilder: createShadowValidationUrlBuilder(),
+      gatewayOptions: {
+        fetchImpl: fetchImpl as typeof fetch,
+      },
+      shadowValidation: true,
+      clientRebase: true,
+      clientRebaseSupported: true,
+    });
+
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(result.source.url).toBe(
+      'https://edge6.castcdn.net/streaming/timeshift_shadow.php?token=mp2-token',
+    );
+    expect(result.transportPlan.initialAttempt.strategy).toBe('shadow-validation');
+    expect((result.source.metadata as Record<string, unknown>).catchUpClientRebase).toBeUndefined();
   });
 
   it('restores the shadow path after a recorded client-rebase runtime failure', async () => {
@@ -493,6 +541,7 @@ describe('resolveCatchUpPlaybackSource', () => {
       },
       shadowValidation: true,
       clientRebase: true,
+      clientRebaseSupported: true,
     });
 
     // The compat-cache failure disables rebase for this channel, so the
@@ -500,5 +549,42 @@ describe('resolveCatchUpPlaybackSource', () => {
     expect(result.source.url).toBe('https://edge6.castcdn.net/streaming/timeshift_shadow.php?token=abc123');
     expect((result.source.metadata as Record<string, unknown>).catchUpClientRebase).toBeUndefined();
     clearCatchUpClientRebaseFailures();
+  });
+
+  it('uses provider shadow instead of pretending to rebase on native-HLS-only devices', async () => {
+    clearCatchUpClientRebaseFailures();
+    const fetchImpl = vi.fn().mockResolvedValue({
+      ok: true,
+      url: 'https://edge6.castcdn.net/streaming/timeshift_shadow.php?token=native-token',
+    });
+
+    const result = await resolveCatchUpPlaybackSource({
+      channel: {
+        id: 'channel-1',
+        name: 'Channel 1',
+        streamId: 112,
+        source: 'xtream',
+        catchUpDays: 7,
+        hasCatchUp: true,
+      },
+      program: {
+        id: 'program-1',
+        title: 'Program 1',
+        startTime: new Date('2026-03-06T10:00:00Z'),
+        endTime: new Date('2026-03-06T10:30:00Z'),
+      },
+      urlBuilder: createShadowValidationUrlBuilder(),
+      gatewayOptions: {
+        fetchImpl: fetchImpl as typeof fetch,
+      },
+      shadowValidation: true,
+      clientRebase: true,
+      clientRebaseSupported: false,
+    });
+
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(result.source.url).toContain('/streaming/timeshift_shadow.php?token=native-token');
+    expect((result.source.metadata as Record<string, unknown>).catchUpClientRebase).toBeUndefined();
+    expect(result.transportPlan.initialAttempt.strategy).toBe('shadow-validation');
   });
 });

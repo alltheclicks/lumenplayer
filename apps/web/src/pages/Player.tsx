@@ -1,3 +1,5 @@
+import { fetchSeriesDetail, type SeriesEpisodeItem } from '@/services/seriesDetail';
+import { adjacentEpisodes } from '@/services/seriesNavigation';
 import { useState, useRef, useEffect, useCallback, useMemo, type ChangeEvent, type ReactNode } from 'react';
 import { getBrandWordmark, BRAND_NAME, HAS_CUSTOM_BRAND } from '@/config/brand';
 import { useQuery } from '@tanstack/react-query';
@@ -44,8 +46,10 @@ import {
 } from 'lucide-react';
 import VideoPlayer, { type VideoPlayerHandle } from '@/components/player/VideoPlayer';
 import PlayerControls from '@/components/player/PlayerControls';
+import { OnDemandControlsSurface } from '@/components/player/OnDemandControlsSurface';
 import ChannelList from '@/components/player/ChannelList';
 import { useXtreamChannels } from '@/hooks/useXtreamChannels';
+import { useSaveOnDemandProgress } from '@/hooks/useOnDemandProgress';
 import { useFavorites } from '@/hooks/useFavorites';
 import { useSessionContext } from '@/context/session-context';
 import { useGoogleCastSender } from '@/hooks/useGoogleCastSender';
@@ -325,20 +329,20 @@ type MediaEntryLink = {
 const MEDIA_ENTRY_LINKS: MediaEntryLink[] = [
   {
     path: '/vod',
-    label: 'Movies',
-    hint: 'VOD catalog',
+    label: 'Filmovi',
+    hint: 'Katalog filmova',
     icon: Film,
   },
   {
     path: '/series',
-    label: 'Series',
-    hint: 'Browse episodes',
+    label: 'Serije',
+    hint: 'Izaberi epizodu',
     icon: Clapperboard,
   },
   {
     path: '/epg',
-    label: 'Catch-up',
-    hint: 'Program guide',
+    label: 'TV unazad',
+    hint: 'Programski vodič',
     icon: CalendarDays,
   },
 ];
@@ -498,6 +502,31 @@ const Player = () => {
   );
   const liveSourceChannelId = session.source?.channelId ?? sessionSourceMetadata.channelId ?? null;
   const isOnDemandSource = onDemandContext !== null;
+  const seriesId = sessionSourceMetadata.mode === 'series-episode' ? sessionSourceMetadata.seriesId : undefined;
+  const { data: activeSeries } = useQuery({
+    queryKey: ['series-detail', seriesId],
+    queryFn: () => fetchSeriesDetail(seriesId ?? ''),
+    enabled: Boolean(seriesId),
+    staleTime: 5 * 60 * 1000,
+  });
+  const episodeNavigation = adjacentEpisodes(activeSeries, sessionSourceMetadata.episodeId);
+  const playSeriesEpisode = useCallback((episode: SeriesEpisodeItem) => {
+    if (!activeSeries || !seriesId || !episode.streamUrl) return;
+    const backPath = new URL(sessionSourceMetadata.backPath ?? `/series/${seriesId}`, window.location.origin);
+    backPath.searchParams.set('season', String(episode.seasonNumber));
+    backPath.searchParams.set('episode', episode.id);
+    const title = `${activeSeries.title} - S${episode.seasonNumber}E${episode.episodeNumber}`;
+    emitWebObservabilityEvent({ name: 'playback.source-selected', metadata: {
+      contentKind: 'series', playbackMode: 'series-episode', contentId: seriesId, contentTitle: title,
+      episodeId: episode.id, seasonNumber: episode.seasonNumber, episodeNumber: episode.episodeNumber,
+    } });
+    commands.setSource({ url: episode.streamUrl, type: episode.streamType, title, metadata: {
+      mode: 'series-episode', seriesId, episodeId: episode.id, seasonNumber: episode.seasonNumber,
+      episodeNumber: episode.episodeNumber, backPath: `${backPath.pathname}${backPath.search}`,
+    } }, 0);
+    commands.play();
+  }, [activeSeries, seriesId, sessionSourceMetadata.backPath, commands]);
+
   const onDemandPositionMs = useMemo(() => {
     const normalizedPosition = Math.max(0, session.positionMs ?? 0);
     if (onDemandDurationMs <= 0) {
@@ -509,6 +538,7 @@ const Player = () => {
   const onDemandDurationSeconds = onDemandDurationMs > 0 ? Math.floor(onDemandDurationMs / 1000) : 0;
   const onDemandPositionSeconds = Math.max(0, Math.floor(onDemandPositionMs / 1000));
   const hasOnDemandDuration = onDemandDurationMs > 0;
+  const finishOnDemandProgress = useSaveOnDemandProgress(session.source, session.positionMs ?? 0, onDemandDurationMs, session.playback);
   const isLiveSourcePlayback = isLivePlaybackSource(sessionSourceMetadata.mode, liveSourceChannelId);
   const usesLocalRenderer = session.renderer === 'local-web' || session.renderer === 'airplay';
   const shouldAutoplayLiveOnSelect = shouldAutoplaySource('live', appSettings);
@@ -1054,6 +1084,13 @@ const Player = () => {
 
     const result = await togglePlayerFullscreen(container);
     setIsFullscreen(result.active);
+    if (result.ok && result.active && result.method === 'expanded') {
+      emitWebObservabilityEvent({
+        name: 'playback.fullscreen_fallback',
+        severity: 'warn',
+        metadata: { fullscreenMethod: result.method, errorName: result.errorName },
+      });
+    }
     if (!result.ok) {
       emitWebObservabilityEvent({
         name: 'playback.fullscreen_failed',
@@ -1068,6 +1105,13 @@ const Player = () => {
       });
     }
   }, []);
+
+  useEffect(() => {
+    if (!isFullscreen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = previousOverflow; };
+  }, [isFullscreen]);
 
   // Handle fullscreen change
   useEffect(() => {
@@ -2082,17 +2126,199 @@ const Player = () => {
     ? `${xtreamUserInfo.active_cons}/${xtreamUserInfo.max_connections}`
     : null;
   const xtreamExpLabel = xtreamUserInfo ? formatXtreamExpDate(xtreamUserInfo.exp_date) : null;
-  const onDemandTitle = onDemandContext?.title ?? 'VOD Playback';
+  const onDemandTitle = onDemandContext?.title ?? 'Film';
   const onDemandBackPath = onDemandContext?.backPath ?? '/vod';
-  const onDemandBackLabel = onDemandContext?.backLabel ?? 'Back to VOD';
+  const onDemandBackLabel = onDemandContext?.backLabel ?? 'Nazad na film';
   const pageTitle = isOnDemandSource
     ? `${session.source?.title ?? onDemandTitle} - ${BRAND_NAME}`
     : currentChannel
       ? `${currentChannel.name} - ${BRAND_NAME}`
       : BRAND_NAME;
 
+  const handlePlaybackEnded = () => {
+    if (!isOnDemandSource) { handleCatchUpEnded(); return; }
+    finishOnDemandProgress();
+    if (onDemandDurationMs > 0) commands.seek(onDemandDurationMs);
+    commands.pause();
+    if (episodeNavigation.next && appSettings.player.autoplay) playSeriesEpisode(episodeNavigation.next);
+  };
+
+  const onDemandControls = isOnDemandSource && session.source && usesLocalRenderer ? (
+    <OnDemandControlsSurface
+      fullscreen={isFullscreen}
+      playing={session.playback === 'playing'}
+      interactionOpen={isOnDemandVolumePanelOpen}
+      surfaceRef={containerRef}
+    >
+      <div className={`mx-auto max-w-screen-xl space-y-3 ${isFullscreen ? '[&_button]:h-9 [&_button]:px-2 [&_button]:text-xs' : ''}`}>
+        <div className={isFullscreen ? 'hidden' : 'flex flex-wrap items-start justify-between gap-3'}>
+          <div className="min-w-0">
+            <p className="mb-1 flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-primary">
+              <Film className="h-4 w-4" />
+              {onDemandTitle}
+            </p>
+            <h2 className="truncate text-sm font-semibold text-foreground sm:text-xl">
+              {session.source.title || 'Reprodukcija'}
+            </h2>
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+            {session.playback === 'buffering' && (
+              <span className="inline-flex items-center gap-1 rounded-md border border-primary/30 bg-primary/10 px-2 py-1 text-xs text-primary">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                Učitavanje
+              </span>
+            )}
+            <Button variant="outline" onClick={retryCurrentPlayback}>
+              <RefreshCw className="mr-2 h-4 w-4" />
+              Pokušaj ponovo
+            </Button>
+            <Button variant="outline" onClick={() => navigate(onDemandBackPath)}>
+              {onDemandBackLabel}
+            </Button>
+            <Button variant="outline" onClick={() => switchToLiveMode()}>
+              <Tv2 className="mr-2 h-4 w-4" />
+              TV uživo
+            </Button>
+          </div>
+        </div>
+
+        {seriesId && (episodeNavigation.previous || episodeNavigation.next) && (
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" variant="outline" disabled={!episodeNavigation.previous}
+              onClick={() => episodeNavigation.previous && playSeriesEpisode(episodeNavigation.previous)}>
+              Prethodna epizoda
+            </Button>
+            <Button size="sm" variant="outline" disabled={!episodeNavigation.next}
+              onClick={() => episodeNavigation.next && playSeriesEpisode(episodeNavigation.next)}>
+              Sledeća epizoda
+            </Button>
+          </div>
+        )}
+
+        <div className="space-y-1.5">
+          <input
+            type="range"
+            min="0"
+            max={Math.max(onDemandDurationSeconds, 1)}
+            value={Math.min(onDemandPositionSeconds, Math.max(onDemandDurationSeconds, 1))}
+            onChange={handleOnDemandSeekChange}
+            disabled={!hasOnDemandDuration}
+            className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-secondary/50 accent-primary disabled:cursor-not-allowed disabled:opacity-50"
+            aria-label="Pozicija reprodukcije"
+          />
+          <div className="flex items-center justify-between text-xs text-muted-foreground tabular-nums">
+            <span>{formatDuration(onDemandPositionSeconds)}</span>
+            <span>{hasOnDemandDuration ? formatDuration(onDemandDurationSeconds) : '--:--'}</span>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-1.5 sm:gap-2">
+          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+            <Button variant="secondary" onClick={togglePlayback}>
+              {session.playback === 'playing' || session.playback === 'buffering' ? (
+                <Pause className="mr-2 h-4 w-4" />
+              ) : (
+                <Play className="mr-2 h-4 w-4" />
+              )}
+              {session.playback === 'playing' || session.playback === 'buffering' ? 'Pauza' : 'Pusti'}
+            </Button>
+            <Button variant="outline" onClick={() => seekBySeconds(-15)} disabled={!hasOnDemandDuration}>
+              <SkipBack className="mr-2 h-4 w-4" />
+              -15s
+            </Button>
+            <Button variant="outline" onClick={() => seekBySeconds(15)} disabled={!hasOnDemandDuration}>
+              <SkipForward className="mr-2 h-4 w-4" />
+              +15s
+            </Button>
+            <div className="relative flex items-center rounded-lg border border-border/50 bg-background/40 p-1">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={toggleOnDemandMute}
+                title={isOnDemandMuted ? 'Uključi zvuk' : 'Isključi zvuk'}
+              >
+                {isOnDemandMuted || onDemandVolume === 0 ? (
+                  <VolumeX className="h-4 w-4" />
+                ) : (
+                  <Volume2 className="h-4 w-4" />
+                )}
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => setIsOnDemandVolumePanelOpen((isOpen) => !isOpen)}
+                aria-label="Kontrole zvuka" aria-expanded={isOnDemandVolumePanelOpen}
+              >
+                <ChevronDown className={`h-4 w-4 transition-transform ${isOnDemandVolumePanelOpen ? 'rotate-180' : ''}`} />
+              </Button>
+              {isOnDemandVolumePanelOpen && (
+                <div className="absolute bottom-full left-0 mb-2 rounded-lg border border-border/60 bg-background/90 p-2 shadow-lg backdrop-blur-sm">
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={isOnDemandMuted ? 0 : onDemandVolume}
+                    onChange={handleOnDemandVolumeChange}
+                    className="h-1 w-24 cursor-pointer appearance-none rounded-full bg-secondary/50 accent-primary"
+                    aria-label="Jačina zvuka"
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+            <Button variant={isFullscreen ? 'secondary' : 'outline'} onClick={toggleFullscreen}>
+              {isFullscreen ? (
+                <Minimize className="mr-2 h-4 w-4" />
+              ) : (
+                <Maximize className="mr-2 h-4 w-4" />
+              )}
+              {isFullscreen ? 'Smanji ekran' : 'Ceo ekran'}
+            </Button>
+            {isPictureInPictureSupported && (
+              <Button
+                variant="outline"
+                onClick={togglePictureInPicture}
+                title="Slika u slici (P / plavo dugme)"
+              >
+                <PictureInPicture2 className="mr-2 h-4 w-4" />
+                {isPictureInPicture ? 'Zatvori PiP' : 'PiP'}
+              </Button>
+            )}
+            {castSender.isAvailable && (
+              <Button
+                variant={castSender.isConnected ? 'secondary' : 'outline'}
+                onClick={() => {
+                  void castSender.toggleCasting();
+                }}
+                disabled={castSender.isConnecting || Boolean(castSender.sourceUnsupportedReason)}
+                title={castSender.sourceUnsupportedReason ?? undefined}
+              >
+                <Cast className="mr-2 h-4 w-4" />
+                {castSender.isConnected ? 'Prekini cast' : 'Povezi cast'}
+              </Button>
+            )}
+            {isAirPlaySupported && session.renderer !== 'cast' && (
+              <Button
+                variant={isAirPlayConnected ? 'secondary' : 'outline'}
+                onClick={openAirPlayPicker}
+                disabled={!isAirPlayAvailable}
+              >
+                <Airplay className="mr-2 h-4 w-4" />
+                {isAirPlayConnected ? 'AirPlay aktivan' : 'AirPlay'}
+              </Button>
+            )}
+          </div>
+        </div>
+      </div>
+    </OnDemandControlsSurface>
+  ) : null;
+
   // Loading state
-  if (isLoading) {
+  if (isLoading && !isOnDemandSource) {
     return (
       <div className="flex flex-1 items-center justify-center p-4">
         <PlayerSurfaceState
@@ -2108,7 +2334,7 @@ const Player = () => {
   }
 
   // Error state
-  if (error) {
+  if (error && channels.length === 0 && !isOnDemandSource) {
     return (
       <div className="flex flex-1 items-center justify-center p-4">
         <PlayerSurfaceState
@@ -2153,8 +2379,8 @@ const Player = () => {
                 <button
                   type="button"
                   className="w-10 h-10 rounded-xl flex items-center justify-center hover:scale-105 transition-transform"
+                  aria-label="Početna"
                   onClick={goToPlayerHome}
-                  aria-label="Player"
                 >
                   <BrandMark className="h-10 w-10" />
                 </button>
@@ -2260,6 +2486,7 @@ const Player = () => {
               <div className="p-4 border-t border-border flex flex-col items-center gap-2">
                 <button
                   type="button"
+                  aria-label="Početna"
                   onClick={goToPlayerHome}
                   className="w-10 h-10 rounded-xl flex items-center justify-center text-muted-foreground hover:bg-secondary hover:text-foreground transition-all"
                   title="Početna"
@@ -2268,9 +2495,10 @@ const Player = () => {
                 </button>
                 <button
                   type="button"
+                  aria-label="Odjava"
                   onClick={() => setShowLogoutDialog(true)}
                   className="w-10 h-10 rounded-xl flex items-center justify-center text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-all"
-                  title="Logout"
+                  title="Odjava"
                 >
                   <LogOut className="w-5 h-5" />
                 </button>
@@ -2363,21 +2591,22 @@ const Player = () => {
                   <Button
                     variant="ghost"
                     size="icon"
-                    onClick={() => setShowLogoutDialog(true)}
+                    aria-label="Odjava"
+                  onClick={() => setShowLogoutDialog(true)}
                   >
                     <LogOut className="w-4 h-4" />
                   </Button>
                 </div>
               </div>
               <p className="line-clamp-2 text-sm text-muted-foreground">
-                {session.source?.title || 'On-demand playback'}
+                {session.source?.title || 'Reprodukcija'}
               </p>
             </div>
 
             {!infoOnlyAccess && <div className="space-y-2 p-4">
               <div>
                 <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  Browse
+                  Pregledaj
                 </p>
                 <MediaEntryGrid onSelect={(path) => navigate(path)} />
               </div>
@@ -2389,7 +2618,7 @@ const Player = () => {
         )}
 
         {/* Main content */}
-        <main className="flex h-full min-h-0 w-full min-w-0 max-w-[100vw] flex-1 flex-col overflow-hidden">
+        <main className={`flex h-full min-h-0 w-full min-w-0 max-w-[100vw] flex-1 flex-col ${isOnDemandSource ? 'overflow-y-auto' : 'overflow-hidden'}`}>
           {!isOnDemandSource && (
             <header className="flex w-full min-w-0 max-w-full items-center justify-between gap-2 overflow-hidden border-b border-border bg-card px-3 py-2 lg:hidden">
               <button
@@ -2428,6 +2657,7 @@ const Player = () => {
                   variant="ghost"
                   size="icon"
                   className="h-8 w-8"
+                  aria-label="Početna"
                   onClick={goToPlayerHome}
                 >
                   <Home className="w-4 h-4" />
@@ -2436,6 +2666,7 @@ const Player = () => {
                   variant="ghost"
                   size="icon"
                   className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                  aria-label="Odjava"
                   onClick={() => setShowLogoutDialog(true)}
                 >
                   <LogOut className="w-4 h-4" />
@@ -2447,16 +2678,16 @@ const Player = () => {
           {/* Player area */}
           <div
             ref={containerRef}
-            className={`relative w-full min-w-0 max-w-full shrink-0 overflow-hidden bg-black ${
+            className={`${isFullscreen ? 'fixed' : 'relative'} w-full min-w-0 max-w-full shrink-0 overflow-hidden bg-black ${
               isFullscreen
-                ? 'fixed inset-0 z-50'
-                : `aspect-video max-h-[36svh] transition-[max-height] duration-300 ${
-                    isOnDemandSource
-                      ? 'lg:max-h-none'
-                      : isGuidePanelExpanded
+                ? 'inset-0 z-50'
+                : isOnDemandSource
+                  ? 'aspect-video max-h-[70svh] lg:max-h-[calc(100svh-180px)]'
+                  : `aspect-video max-h-[36svh] transition-[max-height] duration-300 ${
+                      isGuidePanelExpanded
                         ? 'lg:max-h-[50svh]'
                         : 'lg:max-h-[calc(100svh-320px)]'
-                  }`
+                    }`
             }`}
           >
             {numericZapBuffer && (
@@ -2484,7 +2715,7 @@ const Player = () => {
                 autoPlay={shouldAutoplayCurrentSource}
                 preferNativeHls={appSettings.player.preferNativeHls}
                 loadingOverlayMaxMs={isOnDemandSource ? ON_DEMAND_LOADING_OVERLAY_MAX_MS : undefined}
-                onEnded={handleCatchUpEnded}
+                onEnded={handlePlaybackEnded}
                 onSourceBlockingPrimaryAction={switchBlockedSourceToLive}
                 onReportPlaybackProblem={reportPlaybackProblem}
                 onBackgroundRecoverySourceReloadFailed={retryCurrentPlayback}
@@ -2561,7 +2792,7 @@ const Player = () => {
                       ) : (
                         <Play className="mr-2 h-4 w-4" />
                       )}
-                      {session.playback === 'playing' || session.playback === 'buffering' ? 'Pause' : 'Play'}
+                      {session.playback === 'playing' || session.playback === 'buffering' ? 'Pauza' : 'Pusti'}
                     </Button>
                     <Button variant="outline" onClick={castSender.stopCasting}>
                       <Cast className="mr-2 h-4 w-4" />
@@ -2601,161 +2832,7 @@ const Player = () => {
               </>
             )}
 
-            {isOnDemandSource && session.source && usesLocalRenderer && (
-              <div className="absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/90 via-black/60 to-transparent p-2.5 sm:p-6">
-                <div className="mx-auto max-w-screen-xl space-y-2 rounded-xl border border-border/60 bg-background/70 p-3 shadow-xl backdrop-blur-sm sm:space-y-3 sm:rounded-2xl sm:p-4">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="mb-1 flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-primary">
-                        <Film className="h-4 w-4" />
-                        {onDemandTitle}
-                      </p>
-                      <h2 className="truncate text-sm font-semibold text-foreground sm:text-xl">
-                        {session.source.title || 'On-demand playback'}
-                      </h2>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-                      {session.playback === 'buffering' && (
-                        <span className="inline-flex items-center gap-1 rounded-md border border-primary/30 bg-primary/10 px-2 py-1 text-xs text-primary">
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          Ucitavanje
-                        </span>
-                      )}
-                      <Button variant="outline" onClick={retryCurrentPlayback}>
-                        <RefreshCw className="mr-2 h-4 w-4" />
-                        Retry
-                      </Button>
-                      <Button variant="outline" onClick={() => navigate(onDemandBackPath)}>
-                        {onDemandBackLabel}
-                      </Button>
-                      <Button variant="outline" onClick={() => switchToLiveMode()}>
-                        <Tv2 className="mr-2 h-4 w-4" />
-                        TV Uzivo
-                      </Button>
-                    </div>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <input
-                      type="range"
-                      min="0"
-                      max={Math.max(onDemandDurationSeconds, 1)}
-                      value={Math.min(onDemandPositionSeconds, Math.max(onDemandDurationSeconds, 1))}
-                      onChange={handleOnDemandSeekChange}
-                      disabled={!hasOnDemandDuration}
-                      className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-secondary/50 accent-primary disabled:cursor-not-allowed disabled:opacity-50"
-                      aria-label="On-demand seek timeline"
-                    />
-                    <div className="flex items-center justify-between text-xs text-muted-foreground tabular-nums">
-                      <span>{formatDuration(onDemandPositionSeconds)}</span>
-                      <span>{hasOnDemandDuration ? formatDuration(onDemandDurationSeconds) : '--:--'}</span>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-wrap items-center justify-between gap-1.5 sm:gap-2">
-                    <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-                      <Button variant="secondary" onClick={togglePlayback}>
-                        {session.playback === 'playing' || session.playback === 'buffering' ? (
-                          <Pause className="mr-2 h-4 w-4" />
-                        ) : (
-                          <Play className="mr-2 h-4 w-4" />
-                        )}
-                        {session.playback === 'playing' || session.playback === 'buffering' ? 'Pause' : 'Play'}
-                      </Button>
-                      <Button variant="outline" onClick={() => seekBySeconds(-15)} disabled={!hasOnDemandDuration}>
-                        <SkipBack className="mr-2 h-4 w-4" />
-                        -15s
-                      </Button>
-                      <Button variant="outline" onClick={() => seekBySeconds(15)} disabled={!hasOnDemandDuration}>
-                        <SkipForward className="mr-2 h-4 w-4" />
-                        +15s
-                      </Button>
-                      <div className="relative flex items-center rounded-lg border border-border/50 bg-background/40 p-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                          onClick={toggleOnDemandMute}
-                          title={isOnDemandMuted ? 'Unmute' : 'Mute'}
-                        >
-                          {isOnDemandMuted || onDemandVolume === 0 ? (
-                            <VolumeX className="h-4 w-4" />
-                          ) : (
-                            <Volume2 className="h-4 w-4" />
-                          )}
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                          onClick={() => setIsOnDemandVolumePanelOpen((isOpen) => !isOpen)}
-                          title="Audio controls"
-                        >
-                          <ChevronDown className={`h-4 w-4 transition-transform ${isOnDemandVolumePanelOpen ? 'rotate-180' : ''}`} />
-                        </Button>
-                        {isOnDemandVolumePanelOpen && (
-                          <div className="absolute bottom-full left-0 mb-2 rounded-lg border border-border/60 bg-background/90 p-2 shadow-lg backdrop-blur-sm">
-                            <input
-                              type="range"
-                              min="0"
-                              max="100"
-                              value={isOnDemandMuted ? 0 : onDemandVolume}
-                              onChange={handleOnDemandVolumeChange}
-                              className="h-1 w-24 cursor-pointer appearance-none rounded-full bg-secondary/50 accent-primary"
-                              aria-label="On-demand volume"
-                            />
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-                      <Button variant={isFullscreen ? 'secondary' : 'outline'} onClick={toggleFullscreen}>
-                        {isFullscreen ? (
-                          <Minimize className="mr-2 h-4 w-4" />
-                        ) : (
-                          <Maximize className="mr-2 h-4 w-4" />
-                        )}
-                        {isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
-                      </Button>
-                      {isPictureInPictureSupported && (
-                        <Button
-                          variant="outline"
-                          onClick={togglePictureInPicture}
-                          title="Picture in Picture (P / Blue key)"
-                        >
-                          <PictureInPicture2 className="mr-2 h-4 w-4" />
-                          {isPictureInPicture ? 'Exit PiP' : 'PiP'}
-                        </Button>
-                      )}
-                      {castSender.isAvailable && (
-                        <Button
-                          variant={castSender.isConnected ? 'secondary' : 'outline'}
-                          onClick={() => {
-                            void castSender.toggleCasting();
-                          }}
-                          disabled={castSender.isConnecting || Boolean(castSender.sourceUnsupportedReason)}
-                          title={castSender.sourceUnsupportedReason ?? undefined}
-                        >
-                          <Cast className="mr-2 h-4 w-4" />
-                          {castSender.isConnected ? 'Prekini cast' : 'Povezi cast'}
-                        </Button>
-                      )}
-                      {isAirPlaySupported && session.renderer !== 'cast' && (
-                        <Button
-                          variant={isAirPlayConnected ? 'secondary' : 'outline'}
-                          onClick={openAirPlayPicker}
-                          disabled={!isAirPlayAvailable}
-                        >
-                          <Airplay className="mr-2 h-4 w-4" />
-                          {isAirPlayConnected ? 'AirPlay Active' : 'AirPlay'}
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
+            {isFullscreen && onDemandControls}
 
             {!currentChannel && !session.source && (
               <div className="absolute inset-0 z-20 flex items-center justify-center p-4">
@@ -2782,6 +2859,8 @@ const Player = () => {
               </div>
             )}
           </div>
+
+          {!isFullscreen && onDemandControls}
 
           {!isOnDemandSource && (
             <div className="hidden lg:flex flex-1 flex-col bg-card/50 border-t border-border overflow-hidden">
@@ -3146,7 +3225,7 @@ const Player = () => {
               <div className="space-y-2">
                 <div>
                   <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                    Browse
+                    Pregledaj
                   </p>
                   <MediaEntryGrid onSelect={(path) => navigate(path)} />
                 </div>
@@ -3157,10 +3236,11 @@ const Player = () => {
                   variant="ghost"
                   size="sm"
                   className="w-full"
+                  aria-label="Odjava"
                   onClick={() => setShowLogoutDialog(true)}
                 >
                   <LogOut className="w-4 h-4 mr-2" />
-                  Logout
+                  Odjava
                 </Button>
               </div>
             </div>
@@ -3168,18 +3248,18 @@ const Player = () => {
         </main>
       </div>
 
-      {/* Logout confirmation dialog */}
+      {/* Odjava confirmation dialog */}
       <AlertDialog open={showLogoutDialog} onOpenChange={setShowLogoutDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Logout</AlertDialogTitle>
+            <AlertDialogTitle>Odjava</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to logout? You will need to enter your credentials again.
+              Da li želite da se odjavite? Za nastavak gledanja biće potrebna ponovna prijava.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleLogout}>Logout</AlertDialogAction>
+            <AlertDialogCancel>Otkaži</AlertDialogCancel>
+            <AlertDialogAction onClick={handleLogout}>Odjava</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

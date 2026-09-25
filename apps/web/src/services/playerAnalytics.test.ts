@@ -9,6 +9,7 @@ import {
   shouldFlushAnalyticsQueue,
   analyticsInteger,
   isDuplicateTelemetryOccurrence,
+  isExtensionRuntimeError,
   mediaElementErrorDetails,
   normalizeClickCoordinates,
   resolveMediaAnalyticsEventName,
@@ -22,6 +23,15 @@ import {
 import { sanitizeTelemetryRecord } from './privacyRedaction';
 
 describe('player analytics client safety helpers', () => {
+  it('separates extension exceptions without hiding app failures called by an extension', () => {
+    const error = new TypeError('Cannot read property');
+    error.stack = 'TypeError: Cannot read property\n at run (chrome-extension://example/executor.js:1:2)';
+    expect(isExtensionRuntimeError(error)).toBe(true);
+    error.stack = 'TypeError: Cannot read property\n at app (https://player.exyu.tv/assets/player.js:1:2)\n at run (chrome-extension://example/executor.js:1:2)';
+    expect(isExtensionRuntimeError(error)).toBe(false);
+    expect(isExtensionRuntimeError(error, 'moz-extension://example/run.js')).toBe(true);
+    expect(isExtensionRuntimeError(new Error('Script error.'))).toBe(false);
+  });
   it('builds stable crash fingerprints while ignoring volatile numbers and URLs', () => {
     const first = buildCrashFingerprint(
       'TypeError',

@@ -371,6 +371,7 @@ const PlayerControls = ({
   }, [shouldUseControlsIdleTimer, showControls]);
 
   useEffect(() => {
+    resetControlsIdleTimer();
     if (isFullscreen) {
       return;
     }
@@ -1245,6 +1246,7 @@ const PlayerControls = ({
                     variant="ghost"
                     size="icon"
                     className="h-8 w-8 text-muted-foreground hover:bg-foreground/10 hover:text-foreground sm:h-9 sm:w-9"
+                    aria-label="Nazad 10 sekundi"
                     data-testid="catchup-seek-backward-10"
                     onPointerDown={(event) => handleSeekButtonPointerDown(event, 'backward', 10)}
                     onPointerUp={handleSeekButtonPointerUp}
@@ -1258,6 +1260,7 @@ const PlayerControls = ({
                     variant="ghost"
                     size="icon"
                     className="h-8 w-8 text-muted-foreground hover:bg-foreground/10 hover:text-foreground sm:h-9 sm:w-9"
+                    aria-label={isPlaying ? 'Pauza' : 'Pusti'}
                     data-testid="catchup-play-toggle"
                     onClick={togglePlay}
                   >
@@ -1267,6 +1270,7 @@ const PlayerControls = ({
                     variant="ghost"
                     size="icon"
                     className="h-8 w-8 text-muted-foreground hover:bg-foreground/10 hover:text-foreground sm:h-9 sm:w-9"
+                    aria-label="Napred 10 sekundi"
                     data-testid="catchup-seek-forward-10"
                     onPointerDown={(event) => handleSeekButtonPointerDown(event, 'forward', 10)}
                     onPointerUp={handleSeekButtonPointerUp}
@@ -1289,13 +1293,13 @@ const PlayerControls = ({
                 </>
               ) : (
                 <>
-                  <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:bg-foreground/10 hover:text-foreground sm:h-9 sm:w-9" onClick={onPrevChannel}>
+                  <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:bg-foreground/10 hover:text-foreground sm:h-9 sm:w-9" aria-label="Prethodni kanal" onClick={onPrevChannel}>
                     <ChevronLeft className="h-4 w-4 sm:h-5 sm:w-5" />
                   </Button>
-                  <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:bg-foreground/10 hover:text-foreground sm:h-9 sm:w-9" onClick={togglePlay}>
+                  <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:bg-foreground/10 hover:text-foreground sm:h-9 sm:w-9" aria-label={isPlaying ? 'Pauza' : 'Pusti'} onClick={togglePlay}>
                     {isPlaying ? <Pause className="h-4 w-4 sm:h-5 sm:w-5" /> : <Play className="h-4 w-4 sm:h-5 sm:w-5" />}
                   </Button>
-                  <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:bg-foreground/10 hover:text-foreground sm:h-9 sm:w-9" onClick={onNextChannel}>
+                  <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:bg-foreground/10 hover:text-foreground sm:h-9 sm:w-9" aria-label="Sledeći kanal" onClick={onNextChannel}>
                     <ChevronRight className="h-4 w-4 sm:h-5 sm:w-5" />
                   </Button>
                 </>
@@ -1312,7 +1316,7 @@ const PlayerControls = ({
 
           <div className="flex flex-wrap items-center gap-1.5 lg:justify-end">
             <div className="flex items-center gap-0.5 rounded-lg border border-glass-border/50 bg-glass/50 p-0.5 backdrop-blur-[18px] backdrop-saturate-125 shadow-[0_10px_34px_-14px_hsl(var(--overlay)),inset_0_1px_0_hsl(var(--foreground)/0.07)] sm:gap-1 sm:rounded-xl sm:p-1">
-              <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:bg-foreground/10 hover:text-foreground sm:h-9 sm:w-9" onClick={handleMuteAction}>
+              <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:bg-foreground/10 hover:text-foreground sm:h-9 sm:w-9" aria-label={isMuted || volume === 0 ? 'Uključi zvuk' : 'Isključi zvuk'} onClick={handleMuteAction}>
                 {isMuted || volume === 0 ? <VolumeX className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> : <Volume2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />}
               </Button>
               <Button
@@ -1333,13 +1337,13 @@ const PlayerControls = ({
                   value={isMuted ? 0 : volume}
                   onChange={handleVolumeChange}
                   className="h-1 w-16 cursor-pointer appearance-none rounded-full bg-secondary/50 accent-primary sm:w-24"
-                  aria-label="Volume"
+                  aria-label="Jačina zvuka"
                 />
               )}
             </div>
 
             <div className="flex items-center gap-0.5 rounded-lg border border-glass-border/50 bg-glass/50 p-0.5 backdrop-blur-[18px] backdrop-saturate-125 shadow-[0_10px_34px_-14px_hsl(var(--overlay)),inset_0_1px_0_hsl(var(--foreground)/0.07)] sm:gap-1 sm:rounded-xl sm:p-1">
-              <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:bg-foreground/10 hover:text-foreground sm:h-9 sm:w-9" onClick={onToggleFavorite}>
+              <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:bg-foreground/10 hover:text-foreground sm:h-9 sm:w-9" aria-label={isFavorite ? 'Ukloni iz omiljenih' : 'Dodaj u omiljene'} onClick={onToggleFavorite}>
                 <Heart className={`h-3.5 w-3.5 sm:h-4 sm:w-4 ${isFavorite ? 'fill-primary text-primary' : ''}`} />
               </Button>
               {channel.hasCatchUp && (
@@ -1359,6 +1363,7 @@ const PlayerControls = ({
                   variant="ghost"
                   size="icon"
                   className={`h-8 w-8 text-muted-foreground hover:bg-foreground/10 hover:text-foreground sm:h-9 sm:w-9 ${showAudioTracks ? 'text-primary' : ''}`}
+                  aria-label="Izaberi zvučni zapis"
                   onClick={() => {
                     setShowVolumeSlider(false);
                     setShowSubtitleTracks(false);
@@ -1408,7 +1413,7 @@ const PlayerControls = ({
                   <Cast className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                 </Button>
               )}
-              <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:bg-foreground/10 hover:text-foreground sm:h-9 sm:w-9" onClick={onToggleFullscreen}>
+              <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:bg-foreground/10 hover:text-foreground sm:h-9 sm:w-9" aria-label={isFullscreen ? 'Smanji ekran' : 'Ceo ekran'} onClick={onToggleFullscreen}>
                 <Maximize className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               </Button>
             </div>
@@ -1564,7 +1569,8 @@ const PlayerControls = ({
           <Button
             variant="ghost"
             size="icon"
-            className="w-10 h-10 rounded-full bg-glass/50 backdrop-blur-[18px] backdrop-saturate-125 hover:bg-foreground/15"
+            className="w-11 h-11 rounded-full bg-glass/50 backdrop-blur-[18px] backdrop-saturate-125 hover:bg-foreground/15"
+            aria-label="Smanji ekran"
             onClick={(e) => {
               e.stopPropagation();
               onToggleFullscreen();
@@ -1585,6 +1591,7 @@ const PlayerControls = ({
               variant="ghost"
               size="icon"
               className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-glass/50 backdrop-blur-[18px] backdrop-saturate-125 hover:bg-foreground/15 hover:scale-110 transition-transform flex flex-col items-center justify-center gap-0"
+              aria-label="Nazad 10 sekundi"
               data-testid="catchup-seek-backward-10"
               onPointerDown={(e) => handleSeekButtonPointerDown(e, 'backward', 10)}
               onPointerUp={handleSeekButtonPointerUp}
@@ -1600,6 +1607,7 @@ const PlayerControls = ({
               variant="ghost"
               size="icon"
               className="w-12 h-12 sm:w-20 sm:h-20 rounded-full bg-primary/90 hover:bg-primary hover:scale-110 transition-transform"
+              aria-label={isPlaying ? 'Pauza' : 'Pusti'}
               data-testid="catchup-play-toggle"
               onClick={(e) => {
                 e.stopPropagation();
@@ -1617,6 +1625,7 @@ const PlayerControls = ({
               variant="ghost"
               size="icon"
               className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-glass/50 backdrop-blur-[18px] backdrop-saturate-125 hover:bg-foreground/15 hover:scale-110 transition-transform flex flex-col items-center justify-center gap-0"
+              aria-label="Napred 10 sekundi"
               data-testid="catchup-seek-forward-10"
               onPointerDown={(e) => handleSeekButtonPointerDown(e, 'forward', 10)}
               onPointerUp={handleSeekButtonPointerUp}
@@ -1785,6 +1794,7 @@ const PlayerControls = ({
                 variant="ghost"
                 size="icon"
                 className="w-8 h-8 sm:w-10 sm:h-10 text-muted-foreground hover:bg-foreground/10 hover:text-foreground"
+                aria-label={isPlaying ? 'Pauza' : 'Pusti'}
                 data-testid="catchup-play-toggle"
                 onClick={(e) => {
                   e.stopPropagation();
@@ -1867,7 +1877,7 @@ const PlayerControls = ({
                     onChange={handleVolumeChange}
                     onClick={(e) => e.stopPropagation()}
                     className="h-1 w-16 cursor-pointer appearance-none rounded-full bg-secondary/50 accent-primary sm:w-24"
-                    aria-label="Volume"
+                    aria-label="Jačina zvuka"
                   />
                 )}
               </div>
@@ -1929,6 +1939,7 @@ const PlayerControls = ({
                   variant="ghost"
                   size="icon"
                   className={`w-8 h-8 sm:w-10 sm:h-10 text-muted-foreground hover:bg-foreground/10 hover:text-foreground ${showAudioTracks ? 'text-primary' : ''}`}
+                  aria-label="Izaberi zvučni zapis"
                   onClick={(e) => {
                     e.stopPropagation();
                     setShowVolumeSlider(false);
@@ -1988,6 +1999,7 @@ const PlayerControls = ({
                 variant="ghost"
                 size="icon"
                 className="w-8 h-8 sm:w-10 sm:h-10 text-muted-foreground hover:bg-foreground/10 hover:text-foreground"
+                aria-label={isFullscreen ? 'Smanji ekran' : 'Ceo ekran'}
                 onClick={(e) => {
                   e.stopPropagation();
                   onToggleFullscreen();

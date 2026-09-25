@@ -10,11 +10,11 @@ const EXYU_RENEW_URL = 'https://exyu.tv/ponuda';
 const EXYU_RECHECK_URL = 'https://exyu.tv/api/player-sso?source=expired_recheck';
 
 const NAV_ITEMS = [
-  { path: '/player', label: 'Live', shortLabel: 'TV', icon: Tv },
-  { path: '/vod', label: 'Movies', shortLabel: 'VOD', icon: Film },
-  { path: '/series', label: 'Series', shortLabel: 'SER', icon: Clapperboard },
-  { path: '/epg', label: 'Catch-up', shortLabel: 'EPG', icon: CalendarDays },
-  { path: '/settings', label: 'Settings', shortLabel: 'CFG', icon: Settings2 },
+  { path: '/player', label: 'TV uživo', shortLabel: 'TV', icon: Tv },
+  { path: '/vod', label: 'Filmovi', shortLabel: 'Filmovi', icon: Film },
+  { path: '/series', label: 'Serije', shortLabel: 'Serije', icon: Clapperboard },
+  { path: '/epg', label: 'TV unazad', shortLabel: 'Unazad', icon: CalendarDays },
+  { path: '/settings', label: 'Podešavanja', shortLabel: 'Opcije', icon: Settings2 },
 ] as const;
 
 const isActiveRoute = (itemPath: string, currentPath: string): boolean => {

@@ -9,25 +9,25 @@ describe('getPlayerOnDemandContext', () => {
 
   it('returns VOD context with detail back path when vodId exists', () => {
     expect(getPlayerOnDemandContext({ mode: 'vod', vodId: '42' })).toEqual({
-      title: 'VOD Playback',
+      title: 'Film',
       backPath: '/vod/42',
-      backLabel: 'Back to VOD',
+      backLabel: 'Nazad na film',
     });
   });
 
   it('falls back to catalog path when VOD id is missing', () => {
     expect(getPlayerOnDemandContext({ mode: 'vod' })).toEqual({
-      title: 'VOD Playback',
+      title: 'Film',
       backPath: '/vod',
-      backLabel: 'Back to VOD',
+      backLabel: 'Nazad na film',
     });
   });
 
   it('returns series detail back path when series id exists', () => {
     expect(getPlayerOnDemandContext({ mode: 'series-episode', seriesId: '15' })).toEqual({
-      title: 'Episode Playback',
+      title: 'Epizoda',
       backPath: '/series/15',
-      backLabel: 'Back to Series',
+      backLabel: 'Nazad na seriju',
     });
   });
 
@@ -40,17 +40,17 @@ describe('getPlayerOnDemandContext', () => {
         episodeId: '15-s2e6',
       })
     ).toEqual({
-      title: 'Episode Playback',
+      title: 'Epizoda',
       backPath: '/series/15?season=2&episode=15-s2e6',
-      backLabel: 'Back to Series',
+      backLabel: 'Nazad na seriju',
     });
   });
 
   it('falls back to series catalog path when series id is missing', () => {
     expect(getPlayerOnDemandContext({ mode: 'series-episode' })).toEqual({
-      title: 'Episode Playback',
+      title: 'Epizoda',
       backPath: '/series',
-      backLabel: 'Back to Series',
+      backLabel: 'Nazad na seriju',
     });
   });
 
@@ -62,9 +62,9 @@ describe('getPlayerOnDemandContext', () => {
         backPath: '/vod/42?ref=watching',
       })
     ).toEqual({
-      title: 'VOD Playback',
+      title: 'Film',
       backPath: '/vod/42?ref=watching',
-      backLabel: 'Back to VOD',
+      backLabel: 'Nazad na film',
     });
   });
 
@@ -76,9 +76,9 @@ describe('getPlayerOnDemandContext', () => {
         backPath: 'https://example.com/phishing',
       })
     ).toEqual({
-      title: 'Episode Playback',
+      title: 'Epizoda',
       backPath: '/series/15',
-      backLabel: 'Back to Series',
+      backLabel: 'Nazad na seriju',
     });
   });
 });

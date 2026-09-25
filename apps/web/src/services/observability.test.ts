@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { createWebObservability } from './observability';
 
 type LoggedRecord = {
@@ -7,6 +7,42 @@ type LoggedRecord = {
 };
 
 describe('web observability baseline', () => {
+  it('coalesces repeated diagnostics while preserving their occurrence count and urgent errors', () => {
+    vi.useFakeTimers();
+    try {
+      const logged: Record<string, unknown>[] = [];
+      const receive = (_prefix: string, payload: Record<string, unknown>) => { logged.push(payload); };
+      const observability = createWebObservability({ info: receive, warn: receive, error: receive });
+      for (let i = 0; i < 100; i++) observability.emit({
+        name: 'playback.warning', severity: 'warn', metadata: { code: 'MEDIA_ERROR', channelId: '1' },
+      });
+      expect(logged).toHaveLength(1);
+      observability.emit({ name: 'playback.error', severity: 'error', metadata: { terminal: true } });
+      expect(logged.at(-1)?.event).toBe('playback.error');
+      vi.advanceTimersByTime(10_000);
+      const warnings = logged.filter((event) => event.event === 'playback.warning');
+      expect(warnings).toHaveLength(2);
+      expect(warnings.reduce((sum, event) => sum + Number(event.occurrences), 0)).toBe(100);
+      expect(warnings[1]?.coalesced).toBe(true);
+    } finally { vi.useRealTimers(); }
+  });
+
+  it('flushes old diagnostics before a new source and keeps different channels separate', () => {
+    vi.useFakeTimers();
+    try {
+      const logged: Record<string, unknown>[] = [];
+      const receive = (_prefix: string, payload: Record<string, unknown>) => { logged.push(payload); };
+      const observability = createWebObservability({ info: receive, warn: receive, error: receive });
+      for (const id of ['1', '1', '2']) observability.emit({
+        name: 'playback.retry', severity: 'warn', metadata: { channelId: id, errorCode: 'NETWORK_ERROR' },
+      });
+      expect(logged).toHaveLength(2);
+      observability.emit({ name: 'playback.source-selected', metadata: { channelId: '3' } });
+      expect(logged[2]).toMatchObject({ channelId: '1', occurrences: 1, coalesced: true });
+      expect(logged[3]?.event).toBe('playback.source-selected');
+      expect(vi.getTimerCount()).toBe(0);
+    } finally { vi.useRealTimers(); }
+  });
   it('emits structured payloads for regular events', () => {
     const logged: LoggedRecord[] = [];
     const observability = createWebObservability({

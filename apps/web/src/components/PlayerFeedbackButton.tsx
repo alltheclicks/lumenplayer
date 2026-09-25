@@ -1,3 +1,4 @@
+import { useSessionContext } from '@/context/session-context';
 import { useState } from 'react';
 import { MessageSquareWarning, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -23,6 +24,8 @@ import type {
 
 const FEEDBACK_CATEGORIES = [
   ['channel_not_working', 'Kanal ne radi'],
+  ['vod_not_working', 'Film ili epizoda ne radi'],
+  ['no_video', 'Nema slike'],
   ['buffering', 'Secka ili se dugo učitava'],
   ['no_audio', 'Nema zvuka'],
   ['av_sync', 'Slika i zvuk nisu sinhronizovani'],
@@ -34,6 +37,8 @@ const FEEDBACK_CATEGORIES = [
 ] as const satisfies ReadonlyArray<readonly [PlayerFeedbackCategory, string]>;
 
 const FEEDBACK_PLACEHOLDERS: Record<PlayerFeedbackCategory, string> = {
+  vod_not_working: 'Na primer: film ili epizoda ostaje na učitavanju...',
+  no_video: 'Na primer: zvuk se čuje, ali video nije vidljiv...',
   channel_not_working: 'Na primer: kanal ostaje na učitavanju ili prikazuje grešku...',
   buffering: 'Na primer: slika zastaje na svakih nekoliko sekundi...',
   no_audio: 'Na primer: slika radi, ali se zvuk ne čuje...',
@@ -46,6 +51,9 @@ const FEEDBACK_PLACEHOLDERS: Record<PlayerFeedbackCategory, string> = {
 };
 
 const PlayerFeedbackButton = () => {
+  const { session } = useSessionContext();
+  const mode = session.source?.metadata?.mode;
+  const onDemand = mode === 'vod' || mode === 'series-episode';
   const [open, setOpen] = useState(false);
   const [category, setCategory] = useState<PlayerFeedbackCategory>(FEEDBACK_CATEGORIES[0][0]);
   const [suggestion, setSuggestion] = useState<PlayerFeedbackSuggestion | null>(null);
@@ -60,7 +68,9 @@ const PlayerFeedbackButton = () => {
       setResult(null);
       const detectedSuggestion = getPlayerFeedbackSuggestion();
       setSuggestion(detectedSuggestion);
-      if (detectedSuggestion) setCategory(detectedSuggestion.category);
+      setCategory(detectedSuggestion?.category === 'channel_not_working' && onDemand
+        ? 'vod_not_working'
+        : detectedSuggestion?.category ?? (onDemand ? 'vod_not_working' : 'channel_not_working'));
       emitPlayerAnalyticsEvent('feedback.opened', 'info', {
         interactionTarget: 'feedback.open',
         suggestedCategory: detectedSuggestion?.category,
@@ -95,7 +105,7 @@ const PlayerFeedbackButton = () => {
         size="sm"
         variant="secondary"
         className="fixed bottom-[calc(env(safe-area-inset-bottom)+4.5rem)] right-3 z-40 gap-2 rounded-full border border-border/70 bg-card/95 shadow-lg backdrop-blur-md md:bottom-5 md:right-5"
-        onClick={() => setOpen(true)}
+        onClick={() => handleOpenChange(true)}
         data-analytics-id="feedback.open"
       >
         <MessageSquareWarning className="h-4 w-4" />

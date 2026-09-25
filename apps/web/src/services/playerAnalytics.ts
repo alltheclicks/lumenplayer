@@ -1,3 +1,4 @@
+import { resolveSelectedPlaybackContext, type PlaybackContentContext } from './playbackAnalyticsContext';
 import { sanitizeTelemetryRecord, redactSensitiveText } from './privacyRedaction';
 import {
   isPlayerFeedbackSuggestionFresh,
@@ -326,6 +327,14 @@ export const resolveMediaAnalyticsEventName = (mediaEventName: string): string =
   mediaEventName === 'error' ? 'playback.media_error' : `playback.${mediaEventName}`
 );
 
+export const isExtensionRuntimeError = (error: Error, filename?: unknown): boolean => {
+  const extensionUrl = /(?:chrome|moz|safari-web)-extension:\/\//i;
+  // A later extension caller must not hide an exception originating in our code.
+  const firstFrame = error.stack?.split('\n').slice(1).find((line) => line.trim()) ?? '';
+  return (typeof filename === 'string' && extensionUrl.test(filename))
+    || extensionUrl.test(firstFrame);
+};
+
 const parseUserAgent = (userAgent: string): Record<string, string> => {
   const browserMatch = userAgent.match(/(Edg|OPR|Chrome|CriOS|Firefox|FxiOS|Version)\/([\d.]+)/);
   const browserToken = browserMatch?.[1] ?? 'Unknown';
@@ -404,6 +413,7 @@ class PlayerAnalyticsClient {
   private lastActivityAtMs = Date.now();
   private playbackActive = false;
   private currentRenderer = 'local-web';
+  private currentContent: PlaybackContentContext = {};
   private currentChannel: { id?: string; name?: string; category?: string } = {};
   private pendingChannelSwitchAtMs: number | null = null;
   private events: PlayerAnalyticsEvent[] = [];
@@ -416,7 +426,7 @@ class PlayerAnalyticsClient {
   private heartbeatTimer: number | null = null;
   private searchTimer: number | null = null;
   private activeFlushPromise: Promise<boolean> | null = null;
-  private lastStructuredCrash: { fingerprint: string; occurredAtMs: number } | null = null;
+  private lastDiagnosticFailure: { fingerprint: string; occurredAtMs: number } | null = null;
   private lastUnhandledCrash: TelemetryOccurrence | null = null;
   private lastMediaError: TelemetryOccurrence | null = null;
   private latestFeedbackSuggestion: PlayerFeedbackSuggestion | null = null;
@@ -617,12 +627,13 @@ class PlayerAnalyticsClient {
     this.playbackActive = false;
     this.currentRenderer = 'local-web';
     this.currentChannel = {};
+    this.currentContent = {};
     this.pendingChannelSwitchAtMs = null;
     this.events = [];
     this.crashes = [];
     this.feedback = [];
     this.recentEvents = [];
-    this.lastStructuredCrash = null;
+    this.lastDiagnosticFailure = null;
     this.lastUnhandledCrash = null;
     this.lastMediaError = null;
     try {
@@ -660,6 +671,14 @@ class PlayerAnalyticsClient {
           ...(stringValue(channel.category) ? { category: stringValue(channel.category) } : {}),
         };
       }
+      if (parsed.currentContent && typeof parsed.currentContent === 'object') {
+        const content = parsed.currentContent as Record<string, unknown>;
+        this.currentContent = resolveSelectedPlaybackContext({
+          contentKind: content.kind, contentId: content.id, contentTitle: content.title,
+          episodeId: content.episodeId, seasonNumber: content.seasonNumber, episodeNumber: content.episodeNumber,
+        }).content;
+        if (['vod', 'series', 'series-episode'].includes(this.currentContent.kind ?? '')) this.currentChannel = {};
+      }
       return true;
     } catch {
       return false;
@@ -685,6 +704,7 @@ class PlayerAnalyticsClient {
         firstFrameMs: this.firstFrameMs,
         currentRenderer: this.currentRenderer,
         currentChannel: this.currentChannel,
+        currentContent: this.currentContent,
       }));
     } catch {
       // Metrics persistence is best-effort.
@@ -702,7 +722,7 @@ class PlayerAnalyticsClient {
     if (name === 'playback.source-selected') {
       this.latestFeedbackSuggestion = null;
     } else {
-      const suggestion = resolvePlayerFeedbackSuggestion(name, safe, timestampMs);
+      const suggestion = resolvePlayerFeedbackSuggestion(name, { contentKind: this.currentContent.kind, ...safe }, timestampMs);
       if (suggestion) this.latestFeedbackSuggestion = suggestion;
     }
     if (!this.configuration) return;
@@ -720,14 +740,13 @@ class PlayerAnalyticsClient {
     );
     const channelName = stringValue(safe.channelName) ?? stringValue(safe.title);
     const channelCategory = stringValue(safe.channelCategory) ?? stringValue(safe.category);
-    if (channelId || channelName || channelCategory) {
-      this.currentChannel = {
-        id: channelId ?? this.currentChannel.id,
-        name: channelName ?? this.currentChannel.name,
-        category: channelCategory ?? this.currentChannel.category,
-      };
+    if (name === 'playback.source-selected') {
+      const selected = resolveSelectedPlaybackContext(safe);
+      this.currentChannel = selected.channel;
+      this.currentContent = selected.content;
     }
-    const eventChannel = resolveAnalyticsEventChannel({
+    const onDemand = ['vod', 'series', 'series-episode'].includes(this.currentContent.kind ?? '');
+    const eventChannel = onDemand ? {} : resolveAnalyticsEventChannel({
       id: channelId,
       name: channelName,
       category: channelCategory,
@@ -757,14 +776,14 @@ class PlayerAnalyticsClient {
       ...(eventChannel.id ? { channelId: eventChannel.id } : {}),
       ...(eventChannel.name ? { channelName: eventChannel.name } : {}),
       ...(eventChannel.category ? { channelCategory: eventChannel.category } : {}),
-      ...(contentKind ? { contentKind } : {}),
+      ...(this.currentContent.kind ? { contentKind: this.currentContent.kind } : {}),
       ...(stringValue(safe.playbackMode) ? { playbackMode: stringValue(safe.playbackMode) } : {}),
       ...(stringValue(safe.errorCode) ?? stringValue(safe.code)
         ? { errorCode: stringValue(safe.errorCode) ?? stringValue(safe.code) }
         : {}),
       ...(analyticsInteger(safe.durationMs) !== undefined ? { durationMs: analyticsInteger(safe.durationMs) } : {}),
       ...(analyticsInteger(safe.positionMs) !== undefined ? { positionMs: analyticsInteger(safe.positionMs) } : {}),
-      properties: safe,
+      properties: { ...safe, content: this.currentContent },
     };
     this.events.push(event);
     this.recentEvents.push(event);
@@ -776,7 +795,8 @@ class PlayerAnalyticsClient {
       name === 'sso.landing_failed'
     );
     if (structuredFailure) {
-      this.captureStructuredFailure(name, safe, timestampMs);
+      const replayId = this.captureDiagnosticFailure(name, safe, timestampMs);
+      if (replayId) event.properties.replayId = replayId;
     }
     if (shouldFlushAnalyticsQueue(this.events.length)) this.flush('active');
   }
@@ -831,11 +851,11 @@ class PlayerAnalyticsClient {
     this.captureCrash(error, { source: 'react.error_boundary', componentStack });
   }
 
-  private captureStructuredFailure(
+  private captureDiagnosticFailure(
     errorName: string,
     metadata: Record<string, unknown>,
     occurredAtMs: number,
-  ): void {
+  ): string | undefined {
     const message = redactSensitiveText(
       stringValue(metadata.message)
       ?? stringValue(metadata.errorCode)
@@ -843,36 +863,27 @@ class PlayerAnalyticsClient {
       ?? errorName,
     );
     const fingerprint = buildCrashFingerprint(errorName, message);
-    if (isDuplicateTelemetryOccurrence(this.lastStructuredCrash, fingerprint, occurredAtMs, 10_000)) {
+    if (isDuplicateTelemetryOccurrence(this.lastDiagnosticFailure, fingerprint, occurredAtMs, 10_000)) {
       return;
     }
-    this.lastStructuredCrash = { fingerprint, occurredAtMs };
+    this.lastDiagnosticFailure = { fingerprint, occurredAtMs };
     const replayId = randomId();
-    void this.uploadReplay('crash', replayId);
-    this.crashes.push({
-      id: randomId(),
-      occurredAt: new Date(occurredAtMs).toISOString(),
-      fingerprint,
-      errorName,
-      message,
-      route: window.location.pathname,
-      playerRelease: PLAYER_RELEASE,
-      lastEvents: [...this.recentEvents],
-      context: sanitizeTelemetryRecord({
-        ...metadata,
-        device: collectSafeDeviceSummary(),
-        playback: this.collectPlaybackSnapshot(),
-      }),
-      replayId,
-    });
-    this.crashCount += 1;
+    // The original event retains the failure and replay link. A rejected login
+    // or a broken stream is operational diagnostics, not a JavaScript crash.
+    void this.uploadReplay('diagnostic', replayId);
+    return replayId;
   }
 
   private captureCrash(error: unknown, context: Record<string, unknown>): void {
     if (!this.configuration) return;
     const normalized = error instanceof Error ? error : new Error(String(error));
+    if (isExtensionRuntimeError(normalized, context.filename)) {
+      this.track('runtime.external_error', 'warn', { errorName: normalized.name, source: 'browser-extension' });
+      return;
+    }
     const message = redactSensitiveText(normalized.message || 'Unknown error');
-    const stack = normalized.stack ? redactSensitiveText(normalized.stack) : undefined;
+    const unattributed = message === 'Script error.' && !context.filename;
+    const stack = !unattributed && normalized.stack ? redactSensitiveText(normalized.stack) : undefined;
     const occurredAtMs = Date.now();
     const fingerprint = buildCrashFingerprint(normalized.name, message, stack);
     if (isDuplicateTelemetryOccurrence(this.lastUnhandledCrash, fingerprint, occurredAtMs, 30_000)) {
@@ -893,6 +904,7 @@ class PlayerAnalyticsClient {
       lastEvents: [...this.recentEvents],
       context: sanitizeTelemetryRecord({
         ...context,
+        attribution: unattributed ? 'unknown' : 'application',
         device: collectSafeDeviceSummary(),
         playback: this.collectPlaybackSnapshot(),
       }),
@@ -1300,13 +1312,14 @@ class PlayerAnalyticsClient {
 
   private collectPlaybackSnapshot(): Record<string, unknown> {
     const media = typeof document !== 'undefined' ? document.querySelector('video') : null;
-    if (!media) return { renderer: this.currentRenderer, channel: this.currentChannel };
+    if (!media) return { renderer: this.currentRenderer, channel: this.currentChannel, content: this.currentContent };
     const quality = typeof media.getVideoPlaybackQuality === 'function'
       ? media.getVideoPlaybackQuality()
       : null;
     return sanitizeTelemetryRecord({
       renderer: this.currentRenderer,
       channel: this.currentChannel,
+      content: this.currentContent,
       positionMs: media.currentTime * 1_000,
       durationMs: Number.isFinite(media.duration) ? media.duration * 1_000 : undefined,
       paused: media.paused,
