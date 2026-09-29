@@ -123,7 +123,7 @@ describe('catch-up runtime compatibility', () => {
     expect(error).toEqual({
       type: 'format',
       message: 'Snimak za TV unazad nije dostupan u web playeru',
-      details: 'AMC trenutno ne može da se gleda unazad u ovom browseru. Poslednja provera trenutnog catch-up source-a nije dobila podržan audio/video format ili prvi video kadar u očekivanom roku. Live kanal može raditi normalno. Nije do vašeg uređaja niti do Lumen playera.',
+      details: 'AMC trenutno ne može da se gleda unazad u ovom browseru. Poslednja provera trenutnog catch-up source-a nije dobila podržan audio/video format ili prvi video kadar u očekivanom roku. Live kanal može raditi normalno. Nije do vašeg uređaja niti do Klaro playera.',
       primaryAction: 'switch-to-live',
       primaryActionLabel: 'Gledaj AMC uživo',
     });

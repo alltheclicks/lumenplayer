@@ -171,7 +171,7 @@ describe('source blocking error', () => {
     expect(error).toEqual({
       type: 'network',
       message: 'Snimak za TV unazad trenutno nije dostupan',
-      details: 'Provajder trenutno ne vraća ispravan arhivski snimak za ovaj termin. Live kanal može raditi normalno. Nije do vašeg uređaja niti do Lumen playera.',
+      details: 'Provajder trenutno ne vraća ispravan arhivski snimak za ovaj termin. Live kanal može raditi normalno. Nije do vašeg uređaja niti do Klaro playera.',
       primaryAction: 'switch-to-live',
       primaryActionLabel: 'Gledaj kanal uživo',
     });

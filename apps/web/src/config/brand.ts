@@ -1,12 +1,14 @@
+import { PRODUCT_NAME } from "./productIdentity";
+
 const rawBrandName = (import.meta.env.VITE_BRAND_NAME ?? "").trim();
 
 /** Whether this build opted into a customer/product-specific visual identity. */
 export const HAS_CUSTOM_BRAND = rawBrandName.length > 0;
 
 /** Full product name shown in titles and wordmarks. */
-export const BRAND_NAME = rawBrandName || "Lumen Player";
+export const BRAND_NAME = rawBrandName || PRODUCT_NAME;
 
-/** Short form used inside sentences ("... niti do Lumen playera"). */
+/** Short form used inside sentences ("... niti do Klaro playera"). */
 export const BRAND_SHORT = BRAND_NAME.replace(/\s+player$/i, "");
 
 export interface BrandWordmark {
@@ -16,7 +18,7 @@ export interface BrandWordmark {
 
 /**
  * Split the brand name into a neutral prefix and an accent-colored suffix:
- * "Lumen Player" -> "Lumen " + "Player", "EXYU.tv" -> "EXYU" + ".tv".
+ * "Klaro Player" -> "Klaro " + "Player", "EXYU.tv" -> "EXYU" + ".tv".
  */
 export const getBrandWordmark = (): BrandWordmark => {
   const lastSpace = BRAND_NAME.lastIndexOf(" ");

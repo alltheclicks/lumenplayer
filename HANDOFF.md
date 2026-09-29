@@ -1,5 +1,12 @@
 # Handoff — Lumen Player
 
+## Session 2026-09-29 — Klaro Player public rebrand (branch `feat/klaro-player-rebrand`)
+
+- **Done:** default public brand is now **Klaro Player** (`klaroplayer.com`, "One setup. Every screen.", "Add your source once. Your channels, favourites and progress follow you everywhere."). Source of truth: `apps/web/src/config/productIdentity.ts` → `brand.ts`; `vite.config.ts` uses it for `<title>`, `<meta name="description">` and PWA manifest. Push fallback title, design-sync bundle and VISION/SESSION-ARCHITECTURE/ROADMAP/CLAUDE.md updated. Full inventory + decisions: `docs/BRAND-KLARO-PLAYER.md`.
+- **Unchanged by design:** all `lumen` technical identifiers (storage keys, cookies, Cast namespace, `@lumen/*` packages, `LUMEN_*` env, deploy paths, systemd/nginx names); historical docs/artifacts; logos/icons (`brand/klaro-player/` does not exist yet — icons in `public/` are still the EXYU graphics); EXYU build (`VITE_BRAND_NAME=EXYU.tv`) title/meta/manifest verified identical to baseline.
+- **Validation:** `pnpm lint` ✅ `pnpm typecheck` ✅ `pnpm test:unit` 509/509 ✅ web build (EXYU + default) ✅ `pnpm release:qaf035:validate` OK ✅; browser smoke of default preview build (title/meta/manifest/push title = Klaro, no "Lumen" in UI).
+- **Next / risks:** owner decisions listed in `docs/BRAND-KLARO-PLAYER.md` (logo files, brand-specific icons, VAPID contact, optional storage-key migration, native bundle IDs). No push, deploy or store publishing done.
+
 ## Session 2026-09-25 — Git/GitHub handoff alignment
 
 - Start with `docs/AGENT-HANDOFF-20260925.md`. The alignment PR brings the already deployed September 23 player/proxy source into main; this session adds handoff documentation and fixes a test-only timezone fixture; it performs no runtime application change or production deployment.

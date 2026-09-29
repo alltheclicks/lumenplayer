@@ -2,6 +2,7 @@ import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import { VitePWA } from "vite-plugin-pwa";
+import { getBrandDescription, PRODUCT_NAME } from "./src/config/productIdentity";
 
 const pwaWorkboxMode = process.env.LUMEN_PWA_SW_MODE === "production" ? "production" : "development";
 const debugProxyLogEnabled = process.env.LUMEN_DEBUG_PROXY_LOG === "1";
@@ -89,8 +90,9 @@ const createProxyLogger = (label: string) => (proxy: {
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
-  const brandName = (env.VITE_BRAND_NAME ?? "").trim() || "Lumen Player";
+  const brandName = (env.VITE_BRAND_NAME ?? "").trim() || PRODUCT_NAME;
   const brandShort = brandName.replace(/\s+player$/i, "");
+  const brandDescription = getBrandDescription(brandName);
   const xtreamServerTarget = env.VITE_XTREAM_SERVER?.trim().replace(/\/+$/, "");
   const xtreamProxyOrigin = env.VITE_XTREAM_PROXY_ORIGIN?.trim().replace(/\/+$/, "");
   const xuiProxyTarget = env.VITE_XUI_PROXY_ORIGIN?.trim().replace(/\/+$/, "");
@@ -191,7 +193,12 @@ export default defineConfig(({ mode }) => {
       {
         name: "lumen-brand-html",
         transformIndexHtml: (html: string) =>
-          html.replace(/<title>[^<]*<\/title>/, `<title>${brandName}</title>`),
+          html
+            .replace(/<title>[^<]*<\/title>/, `<title>${brandName}</title>`)
+            .replace(
+              /<meta name="description" content="[^"]*" \/>/,
+              `<meta name="description" content="${brandDescription}" />`,
+            ),
       },
       react(),
       VitePWA({
@@ -210,7 +217,7 @@ export default defineConfig(({ mode }) => {
         manifest: {
           name: brandName,
           short_name: brandShort,
-          description: "Watch live TV channels",
+          description: brandDescription,
           theme_color: "#3B77F7",
           background_color: "#0a0a0a",
           display: "standalone",

@@ -1,4 +1,4 @@
-# CLAUDE.md — Lumen Player
+# CLAUDE.md — Klaro Player
 
 ## Language
 
@@ -7,7 +7,10 @@
 
 ## Project Overview
 
-Lumen Player is a session-centric IPTV platform built as a Turborepo + pnpm monorepo.
+Klaro Player (formerly Lumen Player) is a session-centric, cross-platform OTT/IPTV media player built as a Turborepo + pnpm monorepo. It ships no channels or content — users add their own source.
+
+Brand: **Klaro Player** · `klaroplayer.com` · "One setup. Every screen." — see `docs/BRAND-KLARO-PLAYER.md`.
+`lumen` remains the internal code name: do NOT rename `@lumen/*` packages, storage keys, cookies, env vars, Cast namespace, deploy paths or other technical identifiers without explicit owner approval.
 
 Primary strategy:
 - PWA-first product
@@ -70,6 +73,7 @@ packages/
 - Keep packages platform-agnostic unless explicitly renderer/platform specific
 - Prefer idempotent command handlers in session layer
 - Keep `apps/web` as controller + renderer client, not business state owner
+- Public product name/copy comes from `apps/web/src/config/productIdentity.ts` + `brand.ts` (`VITE_BRAND_NAME` overrides it for customer builds such as EXYU.tv); never hardcode brand names in components
 
 ## Key Files
 

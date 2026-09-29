@@ -1,7 +1,7 @@
 /* global self, clients, URL */
 
 const DEFAULT_NOTIFICATION = {
-  title: 'Lumen Player',
+  title: 'Klaro Player',
   body: 'Open app to continue playback.',
   url: '/player',
 };

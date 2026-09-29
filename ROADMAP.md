@@ -1,4 +1,4 @@
-# Roadmap — Lumen Player
+# Roadmap — Klaro Player
 
 > Datum: 12. februar 2026
 > Napomena: ovaj roadmap prati `SESSION-ARCHITECTURE.md` i `VISION.md`
@@ -85,7 +85,7 @@
 
 **Goal:** Web dashboard za upravljanje korisnicima, uređajima i credentials-ima.
 
-- [ ] Dashboard app scaffold (`app.lumenplayer.com`)
+- [ ] Dashboard app scaffold (`app.klaroplayer.com`)
 - [ ] User registration + auth (email)
 - [ ] Device pairing flow (kod generisanje, ABC-123 format)
 - [ ] Xtream/M3U credential management per device

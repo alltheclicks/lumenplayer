@@ -1,4 +1,4 @@
-# Session-Centric Architecture — Lumen Player
+# Session-Centric Architecture — Klaro Player
 
 > Datum: 11. februar 2026  
 > Status: Usvojeno kao strateški smer  
@@ -6,7 +6,7 @@
 
 ## 1. Cilj
 
-Lumen prelazi sa "device-centric player app" modela na **session-centric** model:
+Klaro Player (interni code name `lumen`) prelazi sa "device-centric player app" modela na **session-centric** model:
 
 - Playback je jedna centralna sesija (`sessionId`)
 - Sesija je nezavisna od UI klijenta i uređaja
@@ -85,9 +85,9 @@ Xtream ostaje nepromenjen:
 
 ## 5.1 Hosting i deployment
 
-- Primarni domen: `lumenplayer.com`
-- Web app (PWA): `app.lumenplayer.com`
-- Cast receiver: `cast.lumenplayer.com/receiver.html`
+- Primarni domen: `klaroplayer.com` (rebrend 29.9.2026; ranije planirano `lumenplayer.com`)
+- Web app (PWA): `app.klaroplayer.com` (planirano)
+- Cast receiver: `cast.klaroplayer.com/receiver.html` (planirano; registrovani Cast App ID/receiver URL se menja samo uz odobrenje vlasnika)
 - Cast receiver je minimalna HTML stranica hostovana na HTTPS, registrovana preko Google Cast Developer Console ($5 jednokratna naknada)
 
 ## 6. Stabilnost i reconnect pravila
@@ -116,7 +116,7 @@ Xtream ostaje nepromenjen:
 - Google Cast receiver + sender flow
 - `RendererAdapter` za Cast
 - Phone-as-remote UI mode
-- Cast receiver app deployed na `cast.lumenplayer.com` sa dual-video pre-buffer za brz zapping
+- Cast receiver app deployed na `cast.klaroplayer.com` sa dual-video pre-buffer za brz zapping
 
 ### Phase 0C — AirPlay secondary renderer
 - AirPlay kontrolni tok

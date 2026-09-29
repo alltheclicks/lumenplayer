@@ -125,7 +125,7 @@ function page({ title, group, sources, body, note }) {
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>${title} — Lumen Player</title>
+<title>${title} — Klaro Player</title>
 <style>${CSS_PLACEHOLDER}</style>
 </head>
 <body class="bg-background text-foreground antialiased">
@@ -186,7 +186,7 @@ const typographyHtml = page({
   sources: ["apps/web (Tailwind defaults — no brand font token yet)"],
   body: `
 <div class="space-y-4">
-  <div class="text-4xl font-bold">Lumen Player 4xl/bold</div>
+  <div class="text-4xl font-bold">Klaro Player 4xl/bold</div>
   <div class="text-2xl font-semibold leading-none tracking-tight">Card title 2xl/semibold</div>
   <div class="text-lg font-semibold">Section 18/semibold</div>
   <div class="text-base">Body 16/regular — Gledaj live TV, catch-up i video na svim uređajima.</div>

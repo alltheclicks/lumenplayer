@@ -1,10 +1,15 @@
-# Vision — Lumen Player
+# Vision — Klaro Player
 
 > Datum: 12. februar 2026
 
-## Šta je Lumen Player
+## Šta je Klaro Player
 
-Lumen Player je IPTV player platforma dizajnirana da zameni zastarele MAG/Formuler uređaje modernim, softverskim rešenjem. Koristi PWA-first pristup, session-centric arhitekturu, i Google Cast kao primarni način reprodukcije na TV-u.
+> **One setup. Every screen.**
+> Add your source once. Your channels, favourites and progress follow you everywhere.
+>
+> Domen: `klaroplayer.com`. Proizvod je rebrendiran iz „Lumen Player“ 29.9.2026; interni code name i tehnički identifikatori (`@lumen/*`, storage ključevi, env varijable) namerno ostaju `lumen` — vidi `docs/BRAND-KLARO-PLAYER.md`.
+
+Klaro Player je cross-platform softverski OTT/IPTV player za televizore, box uređaje, telefone, tablete, web i desktop. To je isključivo media player — ne uključuje kanale niti sadržaj; korisnik dodaje sopstveni izvor (Xtream nalog ili M3U playlist). Dizajniran je da zameni zastarele MAG/Formuler uređaje modernim, softverskim rešenjem. Koristi PWA-first pristup, session-centric arhitekturu, i Google Cast kao primarni način reprodukcije na TV-u.
 
 Krajnji cilj: **jedan player koji radi svuda** — od browsera na laptopu, preko telefona kao daljinskog, do dedikovanog TV app-a.
 
@@ -49,7 +54,7 @@ Krajnji cilj: **jedan player koji radi svuda** — od browsera na laptopu, preko
 - Unified channel model — Xtream i M3U kanali se prikazuju identično
 
 ### Google Cast (first-class)
-- Custom receiver app na `cast.lumenplayer.com`
+- Custom receiver app na `cast.klaroplayer.com` (planirano)
 - Dual-video trik za brz channel zapping
 - Telefon/laptop postaje daljinski
 - Session se prenosi između local ↔ cast bez gubitka stanja
@@ -81,7 +86,7 @@ Krajnji cilj: **jedan player koji radi svuda** — od browsera na laptopu, preko
 
 **Cilj:** Web dashboard za upravljanje uređajima i credentials-ima.
 
-**URL:** `app.lumenplayer.com`
+**URL:** `app.klaroplayer.com` (planirano)
 
 ### User Management
 - Registracija putem email-a
