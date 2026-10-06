@@ -48,13 +48,14 @@
   - ✅ **Urađeno 2026-10-06.** Nalaz: paketski `tsconfig`-ovi nikad nisu radili (`@lumen/tsconfig` nije bio zavisnost paketa, a `composite`/`references` su tražili build koji ne postoji). `base.json` je sada source-only (`noEmit`, bez `composite`), svaki paket ima `typecheck` i `@lumen/tsconfig` devDependency. Strict backlog je bio samo 5 grešaka, sve u `@lumen/api` (tipovi, bez promene ponašanja). `pnpm typecheck` sada pokriva 11 projekata umesto 3.
 - **0b** `base.json` → `"lib": ["ES2020"]` + mali deljeni `platform-globals.d.ts` (`URL`, `URLSearchParams`, `setTimeout`, `AbortController`, `console`, `atob`, `TextEncoder`/`TextDecoder`, `crypto.randomUUID`) — ovi postoje na svim ciljnim platformama, ali nisu u ES lib-u. DOM je eksplicitni opt-in (samo `player-hls`, privremeno `storage`).
   - ✅ **Urađeno 2026-10-06**, jednostavnije od plana: umesto ručnog `.d.ts` koristi se standardni TS `lib: ["ES2020", "WebWorker"]` — tačno prenosivi skup (tajmeri, console, fetch, URL, AbortController), bez `window`/`document`/`localStorage`/DOM tipova. Jedini preostali DOM opt-in: `storage` (web Storage adapter + `favorites.ts`) i **privremeno** `session-core` (`session-store.ts:550-571`), oba se zatvaraju u koraku 3f. Ostalih 6 paketa je već čisto.
-- **0c** ESLint za `packages/*/src`: `no-restricted-globals` (`window`, `document`, `localStorage`, `sessionStorage`, `navigator`, `BroadcastChannel`, `DOMParser`) i `no-restricted-imports` (`react-dom`, `hls.js`, `apps/*`, `@/…`), sa izuzecima za platformske pakete.
+- **0c** ✅ (2026-10-06) ESLint za `packages/*/src`: `no-restricted-globals` (`window`, `document`, `localStorage`, `sessionStorage`, `navigator`, `BroadcastChannel`, `DOMParser`) i `no-restricted-imports` (`react-dom`, `hls.js`, `apps/*`, `@/…`), sa izuzecima za platformske pakete.
 - **0d** ✅ (2026-10-06) Obrisati mrtav `packages/storage/src/credentials.ts`. Release skripte koje hardkoduju putanje (`validate-observability-baseline`, `validate-google-cast-readiness`, `validate-pwa-readiness`, `v1-security-privacy-baseline.test`, `design-sync/build-bundle`, root `release:observability:test`) — ažuriraju se u istom PR-u u kom se fajl pomera; ovde samo popisati u checklisti.
 
 ### Korak 1 — Sigurnosna mreža testova · M×2
 
-- **1a** session-core: reducer prelazi, persistence, broadcast (B2.1-a).
+- **1a** ✅ (2026-10-06) session-core: reducer prelazi, persistence, broadcast (B2.1-a). 36 testova. Zabeležena čudnost: sačuvani `sessionId` pobeđuje `options.sessionId` (web ga ne prosleđuje — odlučiti u 3f/4b da li je namerno).
 - **1b** Characterization testovi live↔catch-up toka nad modulima koji se pomeraju (B2.1-b) — fiksiraju sadašnje ponašanje, ne "ispravno".
+  - ✅ (2026-10-06) Deo 1: 58 testova za module bez ijednog testa koji idu u korak 3 (`catchupClientRebaseCompat`, `privacyRedaction`, `xmltvEpg` load/cache/matching, `appSettings`). XMLTV parsiranje ide u 3d (traži ubrizgan parser). Live↔catch-up tok koji živi u `VideoPlayer.tsx` se pokriva kao priprema za korak 5 — tamo je i rizik.
 
 ### Korak 2 — Ugovori i ubrizgani config · M×4
 
