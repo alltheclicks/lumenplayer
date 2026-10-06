@@ -6,7 +6,8 @@
 - **P4 refreshed:** `docs/P4-CORE-EXTRACTION-PLAN-20261006.md` — measured inventory (none of the July prerequisites done; VideoPlayer/HlsPlayerAdapter grew; ~35 modules missing from the July plan; proxy↔web duplicated contracts) and an ordered PR sequence (guardrails → tests → contracts/config DI → moves → session/renderer → god-component split).
 - **Validation:** none needed (no code changed). No push, deploy or store work.
 - **P4 step 0a done:** every package now typechecks standalone under `strict` (`pnpm typecheck` = 11 projects, was 3). Package tsconfigs had never resolved `@lumen/tsconfig`; base is now source-only (`noEmit`). Fixed 5 type-only errors in `@lumen/api`. Validation: typecheck 11/11, lint 11/11, test:unit 509/509, build 3/3, `release:qaf035:validate` OK.
-- **Next / risks:** P4 step 0b (ES2020-only lib + shared platform globals). Open items K-1..K-5 in the decision doc (Convex cloud vs self-host is the first one before backend work). Accounts/panel spec `docs/KLARO-NALOZI-I-PANEL.md` still lives uncommitted in another worktree and says "Postgres" — align to Convex when it lands.
+- **P4 steps 0b + 0d done:** package base lib is now `ES2020` + `WebWorker` (portable surface, no DOM); only `storage` and temporarily `session-core` opt into DOM. Dead `@lumen/storage` credentials helpers removed. Same validation set green (typecheck 11/11, lint, 509/509, build, release gates OK).
+- **Next / risks:** P4 step 0c (ESLint `no-restricted-globals`/`no-restricted-imports` for `packages/*/src`), then step 1 (session-core + live↔catch-up characterization tests). Open items K-1..K-5 in the decision doc (Convex cloud vs self-host is the first one before backend work). Accounts/panel spec `docs/KLARO-NALOZI-I-PANEL.md` still lives uncommitted in another worktree and says "Postgres" — align to Convex when it lands.
 
 ## Session 2026-09-29 — Klaro Player public rebrand (branch `feat/klaro-player-rebrand`)
 
