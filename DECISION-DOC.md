@@ -8,6 +8,8 @@
 > **Update (11. februar 2026):** Session-centric smer je usvojen kroz `SESSION-ARCHITECTURE.md`.
 > Ovaj dokument ostaje validan za monorepo/package temelje, ali fazni plan i renderer strategija se čitaju zajedno sa session dokumentom.
 
+> **Update (6. oktobar 2026):** Platforme i stack su odlučeni u `docs/DECISION-KLARO-PLATFORM-STACK-20261006.md` (React familija svuda, react-native-tvos za Android TV + Apple TV, posebne TV aplikacije, Convex backend za naloge/aktivaciju). Gde se ovaj dokument razlikuje (tabela platformi, Expo/Capacitor dilema, Cast-centric update), važi taj dokument.
+
 ---
 
 ## 1. Executive Summary

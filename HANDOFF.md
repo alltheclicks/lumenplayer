@@ -1,5 +1,12 @@
 # Handoff — Lumen Player
 
+## Session 2026-10-06 — Platform/stack decision + P4 plan refresh (branch `t3code/evaluate-svelte-convex-effect-fit`)
+
+- **Done (docs only):** owner approved `docs/DECISION-KLARO-PLATFORM-STACK-20261006.md` — React family for every client (no Svelte), one `apps/tv-web` for Tizen/webOS/VIDAA/etc., react-native-tvos for Android TV + Apple TV (closes O-4), dedicated apps per platform (closes O-7), Convex backend for accounts/devices/credits/activation with devices only via versioned HTTP `/v1`, Effect only for server-side integrations, P4 core extraction before any TV app. Pointers added to `DECISION-DOC.md` and `PLAN-MULTIPLATFORM-EXECUTION.md`.
+- **P4 refreshed:** `docs/P4-CORE-EXTRACTION-PLAN-20261006.md` — measured inventory (none of the July prerequisites done; VideoPlayer/HlsPlayerAdapter grew; ~35 modules missing from the July plan; proxy↔web duplicated contracts) and an ordered PR sequence (guardrails → tests → contracts/config DI → moves → session/renderer → god-component split).
+- **Validation:** none needed (no code changed). No push, deploy or store work.
+- **Next / risks:** start P4 step 0a (per-package typecheck, measure strict backlog). Open items K-1..K-5 in the decision doc (Convex cloud vs self-host is the first one before backend work). Accounts/panel spec `docs/KLARO-NALOZI-I-PANEL.md` still lives uncommitted in another worktree and says "Postgres" — align to Convex when it lands.
+
 ## Session 2026-09-29 — Klaro Player public rebrand (branch `feat/klaro-player-rebrand`)
 
 - **Done:** default public brand is now **Klaro Player** (`klaroplayer.com`, "One setup. Every screen.", "Add your source once. Your channels, favourites and progress follow you everywhere."). Source of truth: `apps/web/src/config/productIdentity.ts` → `brand.ts`; `vite.config.ts` uses it for `<title>`, `<meta name="description">` and PWA manifest. Push fallback title, design-sync bundle and VISION/SESSION-ARCHITECTURE/ROADMAP/CLAUDE.md updated. Full inventory + decisions: `docs/BRAND-KLARO-PLAYER.md`.

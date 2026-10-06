@@ -2,6 +2,7 @@
 
 > Datum: 2026-07-06 · Status: AKTIVAN master plan za sve buduće agente/radnike
 > Autor konteksta: multi-agent audit 2026-07-06 (35 agenata, adversarijalno verifikovano) + `docs/CODEBASE-AUDIT-2026-06-07.md`
+> **Update 2026-10-06:** stack i redosled potvrđeni u `docs/DECISION-KLARO-PLATFORM-STACK-20261006.md` (zatvara O-4 i O-7; Convex backend za naloge/aktivaciju; P4 ide pre TV aplikacija).
 > Odnos prema drugim dokumentima: `docs/RELEASE-PLAN-MVP-BETA-FINAL.md` ostaje **operativni tracker** za V1 završnicu (B2.x/F3.x taskovi i protokol rada). Ovaj dokument je **strateški krov** iznad njega i **operativni tracker za faze 4–7** (platformizacija + TV aplikacije). ROADMAP.md Phase 2 se ovim planom konkretizuje.
 
 ---
@@ -98,6 +99,8 @@ domen + TLS + certbot (PWA SW ne radi na http://IP) · CDN CORS na `gw.castcdn.n
 
 ## 4. FAZA P4 — PLATFORMIZACIJA JEZGRA (most ka TV-u)
 
+> **Osveženo 2026-10-06:** izvršni plan sa izmerenim inventarom i redosledom PR-ova je `docs/P4-CORE-EXTRACTION-PLAN-20261006.md`. Taskovi ispod ostaju kao referenca ID-jeva.
+
 **Cilj:** `apps/web` postaje UI shell + composition root; sav playback mozak u paketima. Ovo je NAJVAŽNIJA faza za nezavisnost segmenata — TV app posle nje kreće kao "UI + adapter", ne kao rewrite. Ekstrakcija je verifikovano mehanička: ~15 injectable dodirnih tačaka (`import.meta.env`, `window.localStorage`, `window.location`) u ciljnim modulima.
 
 **Redosled je bitan:** P4.1 (kontrakti) → P4.2 (paketi) → P4.3 (session/renderer) → P4.4 (guardrails mogu paralelno od starta).
@@ -173,10 +176,10 @@ domen + TLS + certbot (PWA SW ne radi na http://IP) · CDN CORS na `gw.castcdn.n
 | O-1 | Push + prod flag za rebase granu (posle C0-d retesta) | sve | push posle čistog retesta |
 | O-2 | Domen + TLS za VPS | PWA, beta | rešiti pre bete |
 | O-3 | Cast App ID ($5) + real-device test | M1.3-a, KN-7 | registrovati — bez ovoga je Cast strategija neverifikovana |
-| O-4 | RN vs native za Android TV (A6.1-a) | A6, faza 7 | react-native-tvos |
+| O-4 | RN vs native za Android TV (A6.1-a) | A6, faza 7 | ✅ **ODLUČENO 2026-10-06: react-native-tvos** (`docs/DECISION-KLARO-PLATFORM-STACK-20261006.md` D1) |
 | O-5 | Session transport scope (P4.3-c): standalone TV prvo ili odmah thin-renderer | P4.3-c | standalone prvo, contract odmah |
 | O-6 | MP2 strategija po platformi (web=shadow?, Tizen=AVPlay?, ATV=ExoPlayer svira MP2 nativno) | M1.6 nastavak | odlučiti per-platform u T5/A6 spike-ovima |
-| O-7 | Formalizacija "V2 = dedicated TV apps" u DECISION-DOC/ROADMAP (P4.4-e) | P4.4-e | potvrđeno usmeno 2026-07-06, upisati |
+| O-7 | Formalizacija "V2 = dedicated TV apps" u DECISION-DOC/ROADMAP (P4.4-e) | P4.4-e | ✅ **ODLUČENO 2026-10-06** (`docs/DECISION-KLARO-PLATFORM-STACK-20261006.md` D2) |
 
 ---
 
