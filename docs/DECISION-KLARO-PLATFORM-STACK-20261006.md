@@ -43,6 +43,8 @@ Pravila:
 5. **Putanja reprodukcije ostaje van Convexa:** proxy, catch-up, stream i analitika velikog obima ostaju na postojećoj infrastrukturi.
 6. EXYU web player ne sme zavisiti od Klaro backenda — licenciranje u `apps/web` ide iza adaptera/brand flag-a (EXYU = Xtream/SSO prijava).
 7. Convex komponente koristiti umesto ručnih rešenja gde postoje (rate limiter za kodove/vaučere, aggregate za KPI, cron, workflow/workpool, migrations, email).
+8. **Instant (real-time) ponašanje je vlasniku ključni razlog za Convex** — uparivanje, aktivacija, krediti i panel moraju da se ažuriraju uživo, bez osvežavanja. Ne zamenjivati to polling-om.
+9. **Plaćanje: najverovatnije Stripe** (zvanična komponenta `@convex-dev/stripe`: checkout, pretplate, webhook sinhronizacija). Moguć i drugi provajder kasnije — logika naplate ide iza sopstvenog interfejsa, Stripe je jedna implementacija.
 
 ### D4 — Effect za serverske integracije (od prve integracije plaćanja)
 
@@ -61,7 +63,7 @@ Pravila:
 
 | # | Pitanje | Kada |
 |---|---|---|
-| K-1 | Convex Cloud ili self-host; provera EU regiona i lokacije podataka | pre početka backend rada |
+| K-1 | Convex Cloud ili self-host (self-host postoji: Docker, SQLite/Postgres/MySQL, FSL licenca → Apache 2.0 posle 2 godine); provera EU regiona i lokacije podataka | pre početka backend rada |
 | K-2 | Auth rešenje (Convex Auth ili Better Auth komponenta) | početak backend rada |
 | K-3 | Minimalne verzije TV platformi (predlog Tizen 4.0+, webOS 4.0+, VIDAA po spike-u) | T5 spike |
 | K-4 | Apple App Store review rizik za IPTV player (proizvod bez sadržaja) | pre Apple TV faze |
