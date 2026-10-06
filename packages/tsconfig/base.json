@@ -2,6 +2,11 @@
   "$schema": "https://json.schemastore.org/tsconfig",
   "compilerOptions": {
     "target": "ES2020",
+    // Portable runtime surface shared by browsers, TV web engines and React Native:
+    // timers, console, fetch, URL, AbortController. DOM (window, document,
+    // localStorage, HTMLMediaElement…) is an explicit per-package opt-in.
+    // See docs/P4-CORE-EXTRACTION-PLAN-20261006.md step 0b.
+    "lib": ["ES2020", "WebWorker"],
     "module": "ESNext",
     "moduleResolution": "bundler",
     "strict": true,

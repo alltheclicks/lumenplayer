@@ -1,6 +1,7 @@
 {
   "extends": "@lumen/tsconfig/base.json",
   "compilerOptions": {
+    // DOM opt-in: web Storage adapter. favorites.ts must move to StorageAdapter (P4 step 3f).
     "lib": ["DOM", "ES2020"]
   },
   "include": ["src"]
