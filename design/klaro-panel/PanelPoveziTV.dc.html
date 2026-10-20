@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/klaro-player-design-system-0163f186-10a6-4b66-9271-90a3ee964bf7/foundations/tokens.css">
+<link rel="stylesheet" href="_ds/klaro-player-design-system-0163f186-10a6-4b66-9271-90a3ee964bf7/foundations/theme-tuning.css">
+<link rel="stylesheet" href="assets/klaro-palette.css">
+<link rel="stylesheet" href="assets/panel.css">
+</helmet>
+<div class="kp" style="min-height:100%;display:flex;flex-direction:column">
+  <sc-if value="{{ guest }}" hint-placeholder-val="{{ false }}">
+    <div style="flex:none;display:flex;align-items:center;gap:10px;height:60px;padding:{{ hdrPad }};border-bottom:1px solid hsl(var(--border)/0.7);background:hsl(var(--background)/0.35);backdrop-filter:blur(14px)">
+      <img src="assets/klaro-icon.svg" alt="" style="width:30px;height:30px;border-radius:9px"><span class="kp-brand" style="font-size:16px;font-weight:700">Klaro <span style="font-weight:500;color:hsl(var(--muted-foreground))">Panel</span></span>
+      <span class="kp-badge plain" style="margin-left:4px">Gost</span><span style="flex:1"></span>
+      <button class="kp-btn sm" onClick="{{ toLogin }}"><svg class="ic sm"><use href="#i-login"></use></svg>Prijavi se</button>
+    </div>
+  </sc-if>
+
+  <div class="kp-page" style="width:100%;max-width:{{ maxW }}">
+    <div class="kp-steps" style="flex-wrap:wrap">
+      <sc-for list="{{ steps }}" as="st" hint-placeholder-count="4"><sc-if value="{{ st.line }}" hint-placeholder-val="{{ false }}"><b></b></sc-if><span data-on="{{ st.on }}" data-done="{{ st.done }}"><em>{{ st.n }}</em>{{ st.label }}</span></sc-for>
+    </div>
+
+    <!-- 1 kod -->
+    <sc-if value="{{ at.code }}" hint-placeholder-val="{{ true }}">
+      <div><h1 class="kp-h1">Poveži TV</h1><p class="kp-sub">Upiši kod sa TV-a ili skeniraj QR — kod se tada upisuje sam.</p></div>
+      <div class="kp-card" style="gap:14px">
+        <sc-if value="{{ fromQr }}" hint-placeholder-val="{{ true }}"><div class="kp-note ok"><svg class="ic"><use href="#i-qr"></use></svg><span>Kod je preuzet iz QR koda sa TV-a. Proveri da je isti kao na ekranu.</span></div></sc-if>
+        <label class="kp-input {{ codeErrCls }}" style="height:64px;justify-content:center"><input value="{{ code }}" onChange="{{ onCode }}" onKeyDown="{{ onCodeKey }}" maxLength="7" spellCheck="false" placeholder="ABC-123" style="text-align:center;font-size:28px;font-weight:700;letter-spacing:0.28em;font-family:ui-monospace,'SF Mono',Menlo,monospace"></label>
+        <sc-if value="{{ codeErr }}" hint-placeholder-val="{{ false }}"><div class="kp-note bad"><svg class="ic"><use href="#i-ban"></use></svg><span>{{ codeErr }}</span></div></sc-if>
+        <button class="kp-btn primary lg block" onClick="{{ codeNext }}">Dalje</button>
+        <span class="mut" style="font-size:12.5px">Kod važi 15 minuta i radi jednom. TV ga sam menja — ako je istekao, na ekranu je već novi.</span>
+      </div>
+      <sc-if value="{{ guestHint }}" hint-placeholder-val="{{ false }}"><p class="mut" style="margin:0;font-size:12.5px;text-align:center">Bez naloga. Nalog možeš da napraviš posle, ako ti zatreba.</p></sc-if>
+    </sc-if>
+
+    <!-- 2 potvrda -->
+    <sc-if value="{{ at.confirm }}" hint-placeholder-val="{{ false }}">
+      <div><h1 class="kp-h1">Da li je ovo tvoj TV?</h1><p class="kp-sub">Na TV-u piše „Čeka potvrdu“ i isti kod.</p></div>
+      <div class="kp-card" style="gap:14px">
+        <div style="display:flex;align-items:center;gap:14px"><span class="kp-dev" style="width:52px;height:52px"><svg class="ic lg"><use href="#i-tv"></use></svg></span><div style="flex:1;display:flex;flex-direction:column;gap:2px"><b style="font-size:16px">Android TV · Xiaomi Mi Box S</b><span class="mut" style="font-size:13px">Klaro 2.4.0 · Beograd</span></div><span class="kp-badge ok mono">{{ codeShow }}</span></div>
+        <label class="kp-field">Naziv<span class="kp-input"><input value="{{ name }}" onChange="{{ onName }}"></span></label>
+        <dl class="kp-dl" style="margin:0">
+          <div><dt>Nalog</dt><dd>{{ acctLabel }}</dd></div>
+          <div><dt>Plan</dt><dd><span class="kp-badge {{ planTone }}">{{ planLabel }}</span></dd></div>
+        </dl>
+      </div>
+      <sc-if value="{{ atLimit }}" hint-placeholder-val="{{ false }}">
+        <div class="kp-card" style="gap:12px;box-shadow:inset 0 0 0 1.5px hsl(var(--warn)/0.5)">
+          <div><b style="font-size:16px">Imaš 5 od 5 uređaja</b><p class="kp-sub" style="margin:2px 0 0">Premium radi na 5 uređaja. Za šesti:</p></div>
+          <sc-for list="{{ limitTiles }}" as="r" hint-placeholder-count="2">
+            <button class="kp-opt" data-on="{{ r.on }}" onClick="{{ r.onClick }}" style="flex-direction:row;align-items:center;gap:14px;padding:14px;white-space:normal"><span style="width:42px;height:42px;flex:none;display:grid;place-items:center;border-radius:12px;background:hsl(var(--primary)/0.14);color:hsl(var(--primary))"><svg class="ic"><use href="{{ r.href }}"></use></svg></span><span style="flex:1;display:flex;flex-direction:column;gap:2px;min-width:0"><b style="font-size:15px;color:hsl(var(--foreground))">{{ r.t }}</b><span style="font-size:12.5px;text-wrap:pretty">{{ r.d }}</span></span></button>
+          </sc-for>
+          <sc-if value="{{ swapPick }}" hint-placeholder-val="{{ false }}">
+            <label class="kp-field">Koji uređaj ide napolje?<span class="kp-input"><svg class="ic sm"><use href="#i-swap"></use></svg><select><option>Kafić Centar · Android TV</option><option>TV Jelena · LG webOS</option><option>Stan Novi Sad · Samsung</option></select></span></label>
+          </sc-if>
+        </div>
+      </sc-if>
+      <div class="kp-row"><button class="kp-btn lg" onClick="{{ back }}">Nazad</button><button class="kp-btn primary lg" style="flex:1" onClick="{{ confirmNext }}" disabled="{{ confirmBlocked }}"><svg class="ic sm"><use href="#i-check"></use></svg>{{ confirmLabel }}</button></div>
+    </sc-if>
+
+    <!-- 3 izvor -->
+    <sc-if value="{{ at.source }}" hint-placeholder-val="{{ false }}">
+      <div><h1 class="kp-h1">Dodaj listu</h1><p class="kp-sub">Nalepi šta god si dobio od provajdera — link, celu poruku ili fajl. Prepoznaćemo sami.</p></div>
+      <sc-if value="{{ hasSaved }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <sc-for list="{{ srcOpts }}" as="o" hint-placeholder-count="2">
+            <button class="kp-opt" data-on="{{ o.on }}" onClick="{{ o.onClick }}" style="flex-direction:row;align-items:center;gap:12px;padding:12px 14px;white-space:normal"><span class="kp-dev" style="width:38px;height:38px"><svg class="ic sm"><use href="{{ o.href }}"></use></svg></span><span style="flex:1;display:flex;flex-direction:column;gap:1px;min-width:0"><b style="font-size:14.5px;color:hsl(var(--foreground))">{{ o.t }}</b><span style="font-size:12.5px">{{ o.d }}</span></span></button>
+          </sc-for>
+        </div>
+      </sc-if>
+      <sc-if value="{{ showPaste }}" hint-placeholder-val="{{ true }}">
+        <div class="kp-card" style="gap:12px">
+          <sc-if value="{{ notParsed }}" hint-placeholder-val="{{ true }}">
+            <label class="kp-input" style="height:auto;align-items:flex-start;padding:12px 13px;border-radius:14px"><textarea value="{{ ptext }}" onChange="{{ onPaste }}" placeholder="http://… ili poruka sa Host / Username / Password" rows="4" style="flex:1;min-width:0;border:0;background:transparent;color:inherit;font-size:14px;line-height:1.45;resize:none;outline:none;padding:0;font-family:ui-monospace,'SF Mono',Menlo,monospace"></textarea></label>
+            <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px"><button class="kp-btn" onClick="{{ doPaste }}"><svg class="ic sm"><use href="#i-paste"></use></svg>Nalepi</button><button class="kp-btn"><svg class="ic sm"><use href="#i-file"></use></svg>Fajl .m3u</button></div>
+            <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px"><span class="mut" style="font-size:12px">Primer:</span><sc-for list="{{ samples }}" as="x" hint-placeholder-count="3"><button class="kp-chip" data-on="{{ x.on }}" onClick="{{ x.onClick }}" style="height:26px;font-size:11.5px">{{ x.label }}</button></sc-for></div>
+          </sc-if>
+          <sc-if value="{{ parsed }}" hint-placeholder-val="{{ false }}">
+            <button onClick="{{ editPaste }}" style="display:flex;align-items:center;gap:10px;height:42px;padding:0 13px;border:0;border-radius:12px;background:hsl(var(--input)/0.32);box-shadow:inset 0 0 0 1px hsl(var(--border));color:hsl(var(--muted-foreground));font-size:13px;cursor:pointer;text-align:left"><svg class="ic sm"><use href="#i-paste"></use></svg><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;font-family:ui-monospace,'SF Mono',Menlo,monospace">{{ pasteOneLine }}</span><span style="color:hsl(var(--primary));font-weight:600">Izmeni</span></button>
+            <div style="display:flex;align-items:center;gap:10px"><span class="kp-badge info">{{ parsed.type }}</span><span class="mut" style="font-size:12.5px">prepoznato</span></div>
+            <dl class="kp-dl" style="margin:0">
+              <div><dt>Server</dt><dd class="mono" style="font-size:13px">{{ parsed.host }}</dd></div>
+              <sc-if value="{{ parsed.user }}" hint-placeholder-val="{{ true }}"><div><dt>Korisnik</dt><dd class="mono" style="font-size:13px">{{ parsed.user }}</dd></div><div><dt>Lozinka</dt><dd class="mono">{{ parsed.pass }}</dd></div></sc-if>
+            </dl>
+            <sc-if value="{{ checking }}" hint-placeholder-val="{{ false }}"><div style="display:flex;align-items:center;gap:10px;font-size:13.5px" class="mut"><span style="position:relative;width:10px;height:10px;flex:none"><span style="position:absolute;inset:0;border-radius:50%;background:hsl(var(--primary))"></span>{{ pulse }}</span>Proveravam vezu sa serverom…</div></sc-if>
+            <sc-if value="{{ checked }}" hint-placeholder-val="{{ false }}">
+              <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px"><sc-for list="{{ stats }}" as="st" hint-placeholder-count="4"><div style="display:flex;flex-direction:column;gap:1px;padding:10px 12px;border-radius:12px;background:hsl(var(--secondary)/0.5)"><b class="num" style="font-size:17px">{{ st.v }}</b><span class="mut" style="font-size:12px">{{ st.l }}</span></div></sc-for></div>
+            </sc-if>
+          </sc-if>
+          <sc-if value="{{ parseErr }}" hint-placeholder-val="{{ false }}"><div class="kp-note bad"><svg class="ic"><use href="#i-alert"></use></svg><span>{{ parseErr }}</span></div></sc-if>
+        </div>
+      </sc-if>
+      <button class="kp-btn primary lg block" onClick="{{ srcAct }}" disabled="{{ srcBusy }}">{{ srcLabel }}</button>
+      <div style="display:flex;justify-content:space-between;gap:10px;font-size:12.5px"><span class="mut">Šaljemo šifrovano, samo na ovaj TV.</span><button class="kp-link" onClick="{{ skipSrc }}" style="font-size:12.5px">Preskoči</button></div>
+    </sc-if>
+
+    <!-- 4 poslato -->
+    <sc-if value="{{ at.sent }}" hint-placeholder-val="{{ false }}">
+      <div class="kp-card" style="align-items:center;text-align:center;gap:14px;padding:32px 24px">
+        <span style="width:72px;height:72px;display:grid;place-items:center;border-radius:50%;background:hsl(var(--success)/0.16);color:hsl(var(--success))"><svg class="ic" style="width:34px;height:34px;stroke-width:2.4"><use href="#i-check"></use></svg></span>
+        <div><h1 class="kp-h1">{{ sentTitle }}</h1><p class="kp-sub" style="margin-left:auto;margin-right:auto">{{ sentSub }}</p></div>
+      </div>
+      <sc-if value="{{ guest }}" hint-placeholder-val="{{ false }}">
+        <div class="kp-card" style="gap:12px">
+          <b style="font-size:15px">Sačuvaj na nalog? <span class="mut" style="font-weight:400">— nije obavezno</span></b>
+          <sc-for list="{{ savePerks }}" as="p" hint-placeholder-count="3"><div style="display:flex;align-items:center;gap:10px;font-size:13.5px"><svg class="ic sm" style="color:hsl(var(--primary))"><use href="{{ p.href }}"></use></svg>{{ p.t }}</div></sc-for>
+          <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:4px"><button class="kp-btn lg" onClick="{{ toHome }}">Ne sada</button><button class="kp-btn primary lg" onClick="{{ toLogin }}">Sačuvaj</button></div>
+        </div>
+      </sc-if>
+      <sc-if value="{{ notGuest }}" hint-placeholder-val="{{ true }}">
+        <div class="kp-row"><button class="kp-btn lg" style="flex:1" onClick="{{ again }}">Poveži još jedan</button><button class="kp-btn primary lg" style="flex:1" onClick="{{ toDevices }}">Moji uređaji</button></div>
+      </sc-if>
+    </sc-if>
+
+    <!-- gost: početna -->
+    <sc-if value="{{ at.home }}" hint-placeholder-val="{{ false }}">
+      <div><h1 class="kp-h1">{{ name }}</h1><p class="kp-sub">Gost pristup — samo ovaj TV, samo u ovom pregledaču.</p></div>
+      <div class="kp-card tight">
+        <div class="kp-li"><span class="kp-dev"><svg class="ic"><use href="#i-tv"></use></svg></span><div class="t"><b>{{ name }}</b><span>Android TV · {{ homeSrc }}</span></div><span class="kp-badge ok">radi</span></div>
+        <div class="kp-li click" onClick="{{ toSource }}"><span class="kp-dev" style="color:hsl(var(--primary))"><svg class="ic"><use href="#i-plug"></use></svg></span><div class="t"><b>Promeni listu</b><span>Nalepi novi link ili poruku</span></div><svg class="ic sm mut"><use href="#i-right"></use></svg></div>
+        <sc-for list="{{ lockedRows }}" as="l" hint-placeholder-count="4">
+          <div class="kp-li click" onClick="{{ toLogin }}"><span class="kp-dev" style="color:hsl(var(--muted-foreground))"><svg class="ic"><use href="{{ l.href }}"></use></svg></span><div class="t"><b>{{ l.t }}</b><span>{{ l.d }}</span></div><svg class="ic sm mut"><use href="#i-lock"></use></svg></div>
+        </sc-for>
+      </div>
+      <div class="kp-card accent" style="gap:12px">
+        <div style="display:flex;align-items:center;gap:12px"><span style="width:40px;height:40px;flex:none;display:grid;place-items:center;border-radius:12px;background:hsl(var(--primary)/0.16);color:hsl(var(--primary))"><svg class="ic"><use href="#i-spark"></use></svg></span><div style="display:flex;flex-direction:column;gap:2px"><b style="font-size:15.5px">Free nalog · 30 dana Premium-a</b><span class="mut" style="font-size:13px">Google, Apple ili link na email — bez lozinke.</span></div></div>
+        <button class="kp-btn primary lg block" onClick="{{ toLogin }}">Napravi nalog</button>
+      </div>
+      <p class="mut" style="margin:0;font-size:12.5px">Kasnije ulaziš ponovo kodom sa TV-a: Opcije → Ovaj uređaj → Upravljaj u panelu.</p>
+    </sc-if>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;plan&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;gost&quot;,&quot;free&quot;,&quot;premium&quot;,&quot;premium5&quot;,&quot;provajder&quot;],&quot;default&quot;:&quot;free&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;dev&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;desktop&quot;,&quot;tablet&quot;,&quot;mobile&quot;],&quot;default&quot;:&quot;desktop&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;nav&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;(id:string)=&gt;void&quot;},&quot;toast&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;(t:string)=&gt;void&quot;}}">
+const VALID = ['KLR7Q4', 'M8X2PD', 'TQ59HN', 'W3K8RZ'];
+const SAMPLES = [
+  ['M3U link', 'http://x-tv.net:8080/get.php?username=ana_k92&password=7Hq4mZ&type=m3u_plus&output=ts'],
+  ['Poruka od provajdera', 'Hvala na kupovini!\nHost: http://x-tv.net:8080\nUsername: ana_k92\nPassword: 7Hq4mZ\nIstice: 12.03.2027'],
+  ['Nepotpuno', 'ana_k92 7Hq4mZ'],
+];
+function parseSource(t) {
+  const txt = (t || '').trim();
+  if (!txt) return { err: 'Nalepi link ili poruku od provajdera.' };
+  const url = txt.match(/https?:\/\/[^\s"']+/i);
+  const host = url ? url[0].replace(/^https?:\/\/([^/\s]+).*$/i, '$1') : '';
+  const q = txt.match(/username=([^&\s]+)&password=([^&\s]+)/i);
+  if (q && host) return { type: 'Xtream', host, user: q[1], pass: '•'.repeat(q[2].length), xt: true };
+  const u = txt.match(/user(?:name)?\s*[:=]\s*(\S+)/i), p = txt.match(/pass(?:word)?\s*[:=]\s*(\S+)/i);
+  if (u && p && host) return { type: 'Xtream', host, user: u[1], pass: '•'.repeat(p[1].length), xt: true };
+  if (url && /m3u/i.test(url[0])) return { type: 'M3U', host, user: '', pass: '', xt: false };
+  return { err: 'Nedostaje adresa servera (http://…). Nalepi celu poruku ili link koji si dobio.' };
+}
+
+class Component extends DCLogic {
+  state = { at: 'code', code: 'KLR-7Q4', codeErr: '', name: 'Dnevna soba TV', limit: null, src: 'saved', ptext: '', parsed: null, perr: '', chk: 'idle', srcSent: true };
+  componentWillUnmount() { clearTimeout(this.t); }
+  componentDidUpdate(p) { if (p.plan !== this.props.plan) this.setState({ at: 'code', limit: null, src: 'saved', parsed: null, chk: 'idle' }); }
+  toast(t) { this.props.toast && this.props.toast(t); }
+  nav(id) { this.props.nav && this.props.nav(id); }
+  runParse(text) {
+    const r = parseSource(text);
+    clearTimeout(this.t);
+    if (r.err) return this.setState({ parsed: null, perr: r.err, chk: 'idle' });
+    this.setState({ parsed: r, perr: '', chk: 'run' });
+    this.t = setTimeout(() => this.setState({ chk: 'done' }), 900);
+  }
+  renderVals() {
+    const s = this.state;
+    const plan = this.props.plan || 'free';
+    const guest = plan === 'gost';
+    const prov = plan === 'provajder';
+    const isM = (this.props.dev || 'desktop') === 'mobile';
+    const hasSaved = !guest && !prov;
+    const order = guest ? ['code', 'confirm', 'source', 'sent'] : prov ? ['code', 'confirm', 'sent'] : ['code', 'confirm', 'source', 'sent'];
+    const labels = { code: 'Kod', confirm: 'Potvrda', source: 'Lista', sent: 'Gotovo' };
+    const ix = s.at === 'home' ? order.length : order.indexOf(s.at);
+    const clean = s.code.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+    const atLimit = plan === 'premium5';
+    const usePaste = !hasSaved || s.src === 'paste';
+    const pasteReady = usePaste && s.chk === 'done';
+    const send = () => this.setState({ at: 'sent', srcSent: true });
+    const codeNext = () => {
+      if (clean.length < 6) return this.setState({ codeErr: 'Kod ima 6 znakova — fali još ' + (6 - clean.length) + '.' });
+      if (!VALID.includes(clean)) return this.setState({ codeErr: 'Kod ne postoji ili je istekao. Na TV-u je već novi — upiši njega.' });
+      this.setState({ at: 'confirm', codeErr: '' });
+    };
+    const PLAN = { gost: ['Bez naloga', 'plain'], free: ['Free', 'plain'], premium: ['Premium', 'ok'], premium5: ['Premium', 'ok'], provajder: ['Orbita TV', 'info'] }[plan] || ['Free', 'plain'];
+    return {
+      guest, notGuest: !guest, hdrPad: isM ? '0 14px' : '0 24px', maxW: s.at === 'home' ? '640px' : '560px',
+      steps: order.map((k, i) => ({ label: isM && i !== ix ? '' : labels[k], n: i < ix ? '✓' : i + 1, line: i > 0, on: i === ix ? '1' : '0', done: i < ix ? '1' : '0' })),
+      at: { [s.at]: true },
+      fromQr: s.code === 'KLR-7Q4' && !s.codeErr, guestHint: guest,
+      code: s.code, codeErr: s.codeErr, codeErrCls: s.codeErr ? 'err' : '', codeShow: clean.slice(0, 3) + '-' + clean.slice(3),
+      onCode: (e) => { let v = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6); if (v.length > 3) v = v.slice(0, 3) + '-' + v.slice(3); this.setState({ code: v, codeErr: '' }); },
+      onCodeKey: (e) => { if (e.key === 'Enter') codeNext(); }, codeNext,
+      name: s.name, onName: (e) => this.setState({ name: e.target.value }),
+      acctLabel: guest ? 'bez naloga (gost)' : prov ? 'ana@primer.com · Orbita TV' : 'ana@primer.com', planLabel: PLAN[0], planTone: PLAN[1],
+      atLimit, swapPick: s.limit === 'swap',
+      limitTiles: [
+        { href: '#i-swap', t: 'Zameni jedan uređaj', d: 'Stari se odjavljuje, novi preuzima njegovo mesto.', on: s.limit === 'swap' ? '1' : '0', onClick: () => this.setState({ limit: 'swap' }) },
+        { href: '#i-users', t: 'Partnerski nalog', d: 'Podešavaš Klaro drugima? Svako dobija svoj nalog, bez limita od 5.', on: s.limit === 'partner' ? '1' : '0', onClick: () => this.setState({ limit: 'partner' }) },
+      ],
+      confirmBlocked: atLimit && !s.limit,
+      confirmLabel: atLimit && s.limit === 'partner' ? 'Pošalji zahtev za partnera' : atLimit && s.limit === 'swap' ? 'Zameni i poveži' : 'Potvrdi',
+      confirmNext: () => {
+        if (atLimit && s.limit === 'partner') { this.toast('Zahtev za partnerski nalog je poslat'); this.nav('K1'); return; }
+        this.setState({ at: prov ? 'sent' : 'source' });
+      },
+      back: () => this.setState({ at: 'code' }),
+      hasSaved, showPaste: usePaste,
+      srcOpts: [
+        { href: '#i-plug', t: 'Moj izvor · M3U', d: 'već na nalogu · radi na 2 uređaja', on: s.src === 'saved' ? '1' : '0', onClick: () => this.setState({ src: 'saved' }) },
+        { href: '#i-paste', t: 'Nalepi novi', d: 'link, poruka ili fajl od provajdera', on: s.src === 'paste' ? '1' : '0', onClick: () => this.setState({ src: 'paste' }) },
+      ],
+      ptext: s.ptext, onPaste: (e) => this.setState({ ptext: e.target.value, parsed: null, perr: '', chk: 'idle' }),
+      doPaste: async () => { let t = ''; try { t = await navigator.clipboard.readText(); } catch (x) {} if (!t) t = SAMPLES[0][1]; this.setState({ ptext: t }); this.runParse(t); },
+      samples: SAMPLES.map(([label, t]) => ({ label, on: s.ptext === t ? '1' : '0', onClick: () => { this.setState({ ptext: t }); this.runParse(t); } })),
+      parsed: s.parsed, notParsed: !s.parsed, parseErr: s.perr, checking: s.chk === 'run', checked: s.chk === 'done',
+      pasteOneLine: s.ptext.replace(/\s+/g, ' ').trim(),
+      editPaste: () => { clearTimeout(this.t); this.setState({ parsed: null, chk: 'idle' }); },
+      pulse: React.createElement('span', { style: { position: 'absolute', inset: 0, borderRadius: '50%', background: 'hsl(var(--primary))', animation: 'kpPulse 1.4s ease-out infinite' } }),
+      stats: s.parsed && s.parsed.xt ? [{ v: '1.240', l: 'kanala' }, { v: '8.400', l: 'filmova i serija' }, { v: '12. 3. 2027.', l: 'ističe kod provajdera' }, { v: '2', l: 'konekcije' }] : [{ v: '1.240', l: 'kanala' }, { v: '38', l: 'grupa' }],
+      srcBusy: usePaste && s.chk === 'run',
+      srcLabel: !usePaste ? 'Pošalji na ' + s.name : pasteReady ? 'Pošalji na ' + s.name : 'Prepoznaj',
+      srcAct: () => (!usePaste || pasteReady ? send() : this.runParse(s.ptext)),
+      skipSrc: () => this.setState({ at: 'sent', srcSent: false }),
+      sentTitle: prov ? s.name + ' je povezan' : s.srcSent ? 'Poslato na ' + s.name : s.name + ' je povezan',
+      sentSub: prov ? 'Kanale dodeljuje Orbita TV — TV ih učitava sam.' : s.srcSent ? 'TV učitava listu. Telefon ti više ne treba.' : 'Listu možeš da dodaš kasnije, iz Izvora.',
+      savePerks: [{ href: '#i-refresh', t: 'Lista se vraća sama posle reseta ili novog TV-a' }, { href: '#i-devices', t: 'Do 5 uređaja na jednom mestu' }, { href: '#i-spark', t: '30 dana Premium-a besplatno' }],
+      toHome: () => this.setState({ at: 'home' }), toSource: () => this.setState({ at: 'source', parsed: null, chk: 'idle' }),
+      toLogin: () => this.nav('K0'), toDevices: () => this.nav('K1'),
+      again: () => this.setState({ at: 'code', code: '', parsed: null, chk: 'idle', limit: null }),
+      homeSrc: s.srcSent ? 'Xtream · x-tv.net' : 'nema liste',
+      lockedRows: [
+        { href: '#i-plus', t: 'Dodaj još jedan uređaj', d: 'potreban nalog' },
+        { href: '#i-shield', t: 'Roditeljska kontrola', d: 'potreban nalog' },
+        { href: '#i-refresh', t: 'Dokle je gledano, na svim ekranima', d: 'Premium' },
+      ],
+    };
+  }
+}
+</script>
+</body>
+</html>

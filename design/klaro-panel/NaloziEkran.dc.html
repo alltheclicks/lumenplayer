@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/klaro-player-design-system-0163f186-10a6-4b66-9271-90a3ee964bf7/foundations/tokens.css">
+<link rel="stylesheet" href="_ds/klaro-player-design-system-0163f186-10a6-4b66-9271-90a3ee964bf7/foundations/theme-tuning.css">
+<link rel="stylesheet" href="_ds/klaro-player-design-system-0163f186-10a6-4b66-9271-90a3ee964bf7/brand/brand.css">
+<link rel="stylesheet" href="assets/klaro-palette.css">
+<link rel="stylesheet" href="assets/panel.css">
+<script src="_ds/klaro-player-design-system-0163f186-10a6-4b66-9271-90a3ee964bf7/_ds_bundle.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+</helmet>
+<div class="kp {{ themeClass }}" data-a2="1" data-vodic="1" style="position:relative;width:100%;height:100%;display:flex;flex-direction:column;overflow:hidden;background:radial-gradient(60% 50% at 0% 0%,hsl(var(--primary)/0.12),transparent 70%),radial-gradient(50% 50% at 100% 100%,hsl(var(--a2,var(--primary))/0.06),transparent 70%),hsl(var(--background))">
+  <svg style="position:absolute;width:0;height:0" aria-hidden="true"><defs>
+    <symbol id="n-tv" viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"></rect><path d="m17 2-5 5-5-5"></path></symbol>
+    <symbol id="n-phone" viewBox="0 0 24 24"><rect x="6" y="2" width="12" height="20" rx="2.5"></rect><path d="M11 18h2"></path></symbol>
+    <symbol id="n-devices" viewBox="0 0 24 24"><rect x="2" y="4" width="15" height="11" rx="1.5"></rect><path d="M6 19h7"></path><rect x="16" y="9" width="6" height="11" rx="1.5"></rect></symbol>
+    <symbol id="n-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="4"></circle><path d="M2 21a7 7 0 0 1 14 0"></path><path d="M16 4a4 4 0 0 1 0 8M22 21a7 7 0 0 0-4-6.3"></path></symbol>
+    <symbol id="n-mail" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"></rect><path d="m22 7-10 6L2 7"></path></symbol>
+    <symbol id="n-left" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"></path></symbol>
+    <symbol id="n-right" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"></path></symbol>
+    <symbol id="n-shield" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></symbol>
+    <symbol id="n-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"></path></symbol>
+    <symbol id="n-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="M12 16v-4M12 8h.01"></path></symbol>
+    <symbol id="n-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></symbol>
+    <symbol id="n-qr" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect><path d="M14 14h3v3h-3zM20 14v.01M17 20h4v-3M14 20h.01"></path></symbol>
+    <symbol id="n-swap" viewBox="0 0 24 24"><path d="M16 3h5v5"></path><path d="M21 3 14 10"></path><path d="M8 21H3v-5"></path><path d="m3 21 7-7"></path></symbol>
+    <symbol id="n-spark" viewBox="0 0 24 24"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M5.6 18.4l2.8-2.8M15.6 8.4l2.8-2.8"></path></symbol>
+    <symbol id="n-card" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"></rect><path d="M2 10h20M6 15h4"></path></symbol>
+    <symbol id="n-sync" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.6-6.4L21 8"></path><path d="M21 3v5h-5"></path></symbol>
+    <symbol id="n-key" viewBox="0 0 24 24"><circle cx="7.5" cy="15.5" r="5.5"></circle><path d="m11.5 11.5 9-9M16 7l3 3M19 4l2 2"></path></symbol>
+    <symbol id="n-palette" viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 0 18c1.1 0 1.7-.8 1.7-1.6 0-.5-.2-.9-.5-1.2-.3-.3-.5-.7-.5-1.2 0-.9.8-1.7 1.7-1.7H16a5 5 0 0 0 5-5c0-4-4-7.3-9-7.3z"></path><circle cx="7.5" cy="11.5" r="1.2"></circle><circle cx="10" cy="7.5" r="1.2"></circle><circle cx="15" cy="7.5" r="1.2"></circle></symbol>
+    <symbol id="n-trash" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"></path></symbol>
+    <symbol id="n-pause" viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"></path></symbol>
+    <symbol id="n-paste" viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="17" rx="2"></rect><path d="M9 4V3h6v1M9 10h6M9 14h6M9 18h3"></path></symbol>
+    <symbol id="n-file" viewBox="0 0 24 24"><path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z"></path><path d="M14 3v5h5"></path></symbol>
+    <symbol id="n-remote" viewBox="0 0 24 24"><rect x="7" y="2" width="10" height="20" rx="3"></rect><circle cx="12" cy="8" r="2"></circle><path d="M10 14h.01M14 14h.01M10 17h.01M14 17h.01"></path></symbol>
+    <symbol id="n-ban" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="m5.6 5.6 12.8 12.8"></path></symbol>
+    <symbol id="n-bell" viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"></path></symbol>
+    <symbol id="n-ticket" viewBox="0 0 24 24"><path d="M3 8a2 2 0 0 0 2-2h14a2 2 0 0 0 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 0-2 2H5a2 2 0 0 0-2-2v-2a2 2 0 0 0 0-4z"></path></symbol>
+    <symbol id="n-alert" viewBox="0 0 24 24"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"></path><path d="M12 9v4M12 17h.01"></path></symbol>
+  </defs></svg>
+
+  <!-- ========== A1 PRIJAVA ========== -->
+  <sc-if value="{{ is.prijava }}" hint-placeholder-val="{{ false }}">
+    <div style="flex:1;min-height:0;overflow:auto;scrollbar-width:none;display:flex;align-items:center;justify-content:center;gap:72px;padding:{{ authPad }}">
+      <sc-if value="{{ wide }}" hint-placeholder-val="{{ false }}">
+        <div style="flex:1 1 0;max-width:460px;display:flex;flex-direction:column;gap:22px">
+          <div style="display:flex;align-items:center;gap:12px"><img src="assets/klaro-live.svg" alt="" style="width:64px;height:64px;border-radius:22.5%"><span class="kp-brand" style="font-size:24px;font-weight:700">Klaro <span style="font-weight:500;color:hsl(var(--muted-foreground))">Panel</span></span></div>
+          <div class="kp-brand" style="font-size:44px;font-weight:700;letter-spacing:-0.02em;line-height:1.05">Gledaš i bez naloga.<br>Sa nalogom — svuda.</div>
+          <div style="display:flex;flex-direction:column;gap:12px">
+            <sc-for list="{{ heroPerks }}" as="p" hint-placeholder-count="3"><div style="display:flex;align-items:center;gap:12px;font-size:15px"><span style="width:34px;height:34px;flex:none;display:grid;place-items:center;border-radius:10px;background:hsl(var(--primary)/0.14);color:hsl(var(--primary))"><svg class="ic"><use href="{{ p.href }}"></use></svg></span>{{ p.t }}</div></sc-for>
+          </div>
+        </div>
+      </sc-if>
+      <div style="flex:none;width:{{ authW }};display:flex;flex-direction:column;gap:14px">
+        <sc-if value="{{ notWide }}" hint-placeholder-val="{{ true }}"><div style="display:flex;align-items:center;gap:10px;margin-bottom:10px"><img src="assets/klaro-icon.svg" alt="" style="width:36px;height:36px;border-radius:10px"><span class="kp-brand" style="font-size:19px;font-weight:700">Klaro</span></div></sc-if>
+        <div><h1 class="kp-h1">Prijavi se u Klaro</h1><p class="kp-sub">Nemaš nalog? Isti koraci ga prave.</p></div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <sc-for list="{{ providers }}" as="p" hint-placeholder-count="4">
+            <button class="kp-btn lg block" style="justify-content:flex-start;gap:12px"><span style="width:26px;height:26px;flex:none;display:grid;place-items:center;border-radius:7px;background:hsl(var(--foreground));color:hsl(var(--background));font-size:11.5px;font-weight:800">{{ p.mark }}</span>Nastavi sa {{ p.name }}</button>
+          </sc-for>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;font-size:12.5px" class="mut"><span style="flex:1;height:1px;background:hsl(var(--border))"></span>ili emailom<span style="flex:1;height:1px;background:hsl(var(--border))"></span></div>
+        <label class="kp-input" style="height:50px;border-radius:14px"><svg class="ic sm"><use href="#n-mail"></use></svg><input type="email" inputmode="email" autocomplete="email" defaultValue="ana@primer.com"></label>
+        <button class="kp-btn primary lg block">Pošalji link za prijavu</button>
+        <p class="mut" style="margin:0;font-size:12.5px;text-align:center">Bez lozinke — na email stižu link i kod.</p>
+        <div class="kp-note" style="margin-top:6px"><svg class="ic"><use href="#n-info"></use></svg><span>Klaro radi i bez naloga. Nalog treba za upravljanje uređajima, Premium i partnere.</span></div>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- ========== A2 ČEKANJE ========== -->
+  <sc-if value="{{ is.cekanje }}" hint-placeholder-val="{{ false }}">
+    <div style="flex:1;min-height:0;overflow:auto;scrollbar-width:none;display:flex;flex-direction:column;gap:18px;padding:20px 20px 28px">
+      <button class="kp-btn quiet sm" style="align-self:flex-start;margin-left:-8px"><svg class="ic sm"><use href="#n-left"></use></svg>Promeni email</button>
+      <span style="width:56px;height:56px;display:grid;place-items:center;border-radius:16px;background:hsl(var(--primary)/0.14);color:hsl(var(--primary));margin-top:8px"><svg class="ic lg"><use href="#n-mail"></use></svg></span>
+      <div><h1 class="kp-h1">Proveri email</h1><p class="kp-sub">Link smo poslali na <b style="color:hsl(var(--foreground))">ana@primer.com</b>. Važi 15 minuta.</p></div>
+      <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px"><button class="kp-btn lg">Otvori Gmail</button><button class="kp-btn lg">Otvori Mail</button></div>
+      <div style="display:flex;align-items:flex-start;gap:12px;padding:14px;border-radius:14px;background:hsl(var(--secondary)/0.45);box-shadow:inset 0 0 0 1px hsl(var(--border))">
+        <span style="position:relative;width:10px;height:10px;flex:none;margin-top:5px"><span style="position:absolute;inset:0;border-radius:50%;background:hsl(var(--primary))"></span>{{ pulse }}</span>
+        <span style="font-size:13.5px;line-height:1.45"><b>Čekam potvrdu.</b> Ova stranica se sama prijavljuje kad klikneš link — i ako ga otvoriš na drugom uređaju.</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;font-size:12.5px" class="mut"><span style="flex:1;height:1px;background:hsl(var(--border))"></span>ili upiši kod iz emaila<span style="flex:1;height:1px;background:hsl(var(--border))"></span></div>
+      <div class="kp-code" style="justify-content:center;gap:6px">
+        <sc-for list="{{ otp }}" as="d" hint-placeholder-count="6"><sc-if value="{{ d.dash }}" hint-placeholder-val="{{ false }}"><i></i></sc-if><span data-cur="{{ d.cur }}" style="width:44px;height:56px;font-size:24px">{{ d.v }}</span></sc-for>
+      </div>
+      <span class="mut" style="font-size:13px;text-align:center">Nije stiglo? Proveri Promocije/Spam · ponovo za 0:42</span>
+    </div>
+  </sc-if>
+
+  <!-- ========== A3 POTVRDI (link otvoren) ========== -->
+  <sc-if value="{{ is.potvrdi }}" hint-placeholder-val="{{ false }}">
+    <div style="flex:1;min-height:0;overflow:auto;scrollbar-width:none;display:flex;flex-direction:column;gap:18px;padding:28px 20px">
+      <div style="display:flex;align-items:center;gap:10px"><img src="assets/klaro-icon.svg" alt="" style="width:36px;height:36px;border-radius:10px"><span class="kp-brand" style="font-size:19px;font-weight:700">Klaro</span></div>
+      <span style="width:56px;height:56px;display:grid;place-items:center;border-radius:16px;background:hsl(var(--primary)/0.14);color:hsl(var(--primary));margin-top:12px"><svg class="ic lg"><use href="#n-shield"></use></svg></span>
+      <div><h1 class="kp-h1">Potvrdi prijavu</h1><p class="kp-sub">Neko želi da se prijavi kao ana@primer.com.</p></div>
+      <dl class="kp-dl kp-card flat" style="margin:0;padding:4px 16px;gap:0">
+        <div><dt>Uređaj</dt><dd>iPhone · Safari</dd></div>
+        <div><dt>Mesto</dt><dd>Beograd (približno)</dd></div>
+        <div><dt>Vreme</dt><dd>pre 1 min</dd></div>
+      </dl>
+      <button class="kp-btn primary lg block"><svg class="ic sm"><use href="#n-check"></use></svg>Da, to sam ja</button>
+      <button class="kp-btn lg block">Nisam ja — odbij</button>
+      <button onClick="{{ toggleAlso }}" style="display:flex;align-items:center;gap:10px;padding:0;border:0;background:none;color:hsl(var(--foreground));font-size:13.5px;cursor:pointer;text-align:left;white-space:normal"><span class="kp-check" data-on="{{ alsoOn }}"><sc-if value="{{ also }}" hint-placeholder-val="{{ false }}"><svg class="ic sm"><use href="#n-check"></use></svg></sc-if></span>Prijavi i ovaj pregledač</button>
+      <p class="mut" style="margin:0;font-size:12.5px">Prijava se nastavlja tamo gde je zatražena. Ovu stranicu posle možeš da zatvoriš.</p>
+    </div>
+  </sc-if>
+
+  <!-- ========== A4 ISTEKAO ========== -->
+  <sc-if value="{{ is.istekao }}" hint-placeholder-val="{{ false }}">
+    <div style="flex:1;min-height:0;display:flex;flex-direction:column;gap:18px;padding:28px 20px">
+      <div style="display:flex;align-items:center;gap:10px"><img src="assets/klaro-icon.svg" alt="" style="width:36px;height:36px;border-radius:10px"><span class="kp-brand" style="font-size:19px;font-weight:700">Klaro</span></div>
+      <span style="width:56px;height:56px;display:grid;place-items:center;border-radius:16px;background:hsl(var(--warn)/0.15);color:hsl(var(--warn));margin-top:12px"><svg class="ic lg"><use href="#n-clock"></use></svg></span>
+      <div><h1 class="kp-h1">Link više ne važi</h1><p class="kp-sub">Linkovi važe 15 minuta i rade samo jednom. Novi link poništava stari.</p></div>
+      <button class="kp-btn primary lg block">Pošalji novi link</button>
+      <button class="kp-btn lg block">Prijavi se drugačije</button>
+      <span style="flex:1"></span>
+      <p class="mut" style="margin:0;font-size:12.5px;text-align:center">Već si prijavljen na drugom uređaju? Tamo nastavi.</p>
+    </div>
+  </sc-if>
+
+  <!-- ========== A5 DOBRODOŠLICA ========== -->
+  <sc-if value="{{ is.dobrodosli }}" hint-placeholder-val="{{ false }}">
+    <div style="flex:1;min-height:0;overflow:auto;scrollbar-width:none;display:flex;flex-direction:column;gap:18px;padding:28px 20px">
+      <div style="display:flex;align-items:center;gap:14px;margin-top:12px"><span class="kp-av lg" style="background:linear-gradient(135deg,hsl(194 90% 48%),hsl(216 90% 55%))">AP</span><div><h1 class="kp-h1">Zdravo, Ana</h1><p class="kp-sub" style="margin:2px 0 0">Nalog je napravljen preko Google-a.</p></div></div>
+      <div class="kp-card accent" style="gap:12px">
+        <div style="display:flex;align-items:center;gap:10px"><svg class="ic" style="color:hsl(var(--primary))"><use href="#n-spark"></use></svg><b style="font-size:16px">30 dana Premium-a, besplatno</b></div>
+        <sc-for list="{{ premiumPerks }}" as="p" hint-placeholder-count="3"><div style="display:flex;align-items:center;gap:10px;font-size:13.5px"><svg class="ic sm" style="color:hsl(var(--success))"><use href="#n-check"></use></svg>{{ p }}</div></sc-for>
+        <span class="mut" style="font-size:12.5px">Posle 30 dana prelaziš na Free. Ništa se ne naplaćuje samo od sebe.</span>
+      </div>
+      <button onClick="{{ togglePromo }}" style="display:flex;align-items:flex-start;gap:12px;padding:14px;border:0;border-radius:14px;background:hsl(var(--secondary)/0.45);box-shadow:inset 0 0 0 1px hsl(var(--border));color:hsl(var(--foreground));font-size:14px;cursor:pointer;text-align:left;white-space:normal"><span class="kp-check" data-on="{{ promoOn }}" style="margin-top:1px"><sc-if value="{{ promo }}" hint-placeholder-val="{{ false }}"><svg class="ic sm"><use href="#n-check"></use></svg></sc-if></span><span style="display:flex;flex-direction:column;gap:2px"><b style="font-weight:600">Šalji mi akcije i popuste</b><span class="mut" style="font-size:12.5px">Najviše dva puta mesečno. Odjava u svakom emailu.</span></span></button>
+      <span style="flex:1"></span>
+      <button class="kp-btn primary lg block">Uđi u panel</button>
+    </div>
+  </sc-if>
+
+  <!-- ========== B2 TELEFON POTVRDA TV ========== -->
+  <sc-if value="{{ is.tvtelefon }}" hint-placeholder-val="{{ false }}">
+    <div style="flex:1;min-height:0;overflow:auto;scrollbar-width:none;display:flex;flex-direction:column;gap:18px;padding:28px 20px">
+      <div style="display:flex;align-items:center;gap:10px"><img src="assets/klaro-icon.svg" alt="" style="width:36px;height:36px;border-radius:10px"><span class="kp-brand" style="font-size:19px;font-weight:700;flex:1">Klaro</span><span class="kp-av sm" style="background:linear-gradient(135deg,hsl(194 90% 48%),hsl(216 90% 55%))">AP</span></div>
+      <div style="margin-top:12px"><h1 class="kp-h1">Prijavi ovaj TV?</h1><p class="kp-sub">Proveri da je kod isti kao na ekranu.</p></div>
+      <div class="kp-card" style="gap:14px">
+        <div style="display:flex;align-items:center;gap:14px"><span class="kp-dev" style="width:52px;height:52px"><svg class="ic lg"><use href="#n-tv"></use></svg></span><div style="display:flex;flex-direction:column;gap:2px"><b style="font-size:16px">Android TV</b><span class="mut" style="font-size:13px">Klaro 2.4.0 · Beograd</span></div></div>
+        <div style="display:flex;align-items:center;justify-content:center;gap:10px;height:56px;border-radius:12px;background:hsl(var(--secondary)/0.5)"><b class="mono" style="font-size:26px;letter-spacing:0.24em">KLR-7Q4</b><span class="kp-badge ok">isti</span></div>
+        <label class="kp-field">Naziv<span class="kp-input"><input defaultValue="Dnevna soba TV"></span></label>
+      </div>
+      <dl class="kp-dl" style="margin:0"><div><dt>Nalog</dt><dd>ana@primer.com</dd></div><div><dt>Plan</dt><dd><span class="kp-badge trial">Premium proba</span></dd></div></dl>
+      <span style="flex:1"></span>
+      <button class="kp-btn primary lg block"><svg class="ic sm"><use href="#n-tv"></use></svg>Prijavi TV</button>
+      <button class="kp-btn quiet block">Nije moj TV</button>
+    </div>
+  </sc-if>
+
+  <!-- ========== C1 PLAN ========== -->
+  <sc-if value="{{ is.plan }}" hint-placeholder-val="{{ false }}">
+    <div style="flex:none;display:flex;align-items:center;gap:10px;height:60px;padding:{{ hdrPad }};border-bottom:1px solid hsl(var(--border)/0.6)"><img src="assets/klaro-icon.svg" alt="" style="width:30px;height:30px;border-radius:9px"><span class="kp-brand" style="font-size:16px;font-weight:700;flex:1">Klaro <span style="font-weight:500;color:hsl(var(--muted-foreground))">Panel</span></span><span class="kp-av sm" style="background:linear-gradient(135deg,hsl(194 90% 48%),hsl(216 90% 55%))">AP</span></div>
+    <div style="flex:1;min-height:0;overflow:auto;scrollbar-width:none">
+      <div style="max-width:880px;margin:0 auto;display:flex;flex-direction:column;gap:18px;padding:{{ pagePad }}">
+        <div><h1 class="kp-h1">Plan</h1><p class="kp-sub">Proba Premium-a je završena 4. 10. Sada si na Free planu.</p></div>
+        <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px">
+          <div class="kp-opt" style="cursor:default;white-space:normal"><span style="display:flex;align-items:center;gap:8px"><b style="font-size:15px;color:hsl(var(--foreground))">Free</b><span class="kp-badge plain">trenutno</span></span><span class="p">€0</span><span>zauvek</span></div>
+          <div class="kp-opt" data-on="1" style="cursor:default;white-space:normal"><b style="font-size:15px">Premium</b><span class="p">€10</span><span>godišnje · 5 uređaja</span></div>
+        </div>
+        <div class="kp-card tight">
+          <div style="display:grid;grid-template-columns:minmax(0,1fr) 64px 64px;align-items:center;padding:12px 16px;border-bottom:1px solid hsl(var(--border));font-size:12px;font-weight:600" class="mut"><span></span><span style="text-align:center">Free</span><span style="text-align:center;color:hsl(var(--primary))">Premium</span></div>
+          <sc-for list="{{ planRows }}" as="r" hint-placeholder-count="8">
+            <div style="display:grid;grid-template-columns:minmax(0,1fr) 64px 64px;align-items:center;min-height:{{ rowH }};padding:6px 16px;border-bottom:1px solid hsl(var(--border)/0.5);font-size:13.5px"><span style="text-wrap:pretty">{{ r.t }}</span><span style="text-align:center;font-weight:600;color:{{ r.fc }}">{{ r.f }}</span><span style="text-align:center;font-weight:700;color:hsl(var(--foreground))">{{ r.p }}</span></div>
+          </sc-for>
+        </div>
+        <button class="kp-btn primary lg block">Pređi na Premium — €10 godišnje</button>
+        <button class="kp-link" style="align-self:center;font-size:13px">Imaš promo kod?</button>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- ========== C2 PLAĆANJE (sheet) ========== -->
+  <sc-if value="{{ is.placanje }}" hint-placeholder-val="{{ false }}">
+    <div style="flex:1;background:hsl(var(--background))"></div>
+    <div class="kp-scrim"></div>
+    <div style="position:absolute;left:0;right:0;bottom:0;z-index:41;display:flex;flex-direction:column;gap:14px;padding:10px 20px 28px;border-radius:26px 26px 0 0;background:hsl(var(--popover));box-shadow:0 -20px 60px -20px hsl(var(--shell-shadow))">
+      <span style="align-self:center;width:40px;height:5px;border-radius:3px;background:hsl(var(--muted-foreground)/0.4);margin-bottom:6px"></span>
+      <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:12px"><div><h2 class="kp-h1" style="font-size:22px">Premium</h2><p class="kp-sub" style="margin:2px 0 0">1 godina · do 5. 10. 2027.</p></div><b class="num" style="font-size:26px">€10,00</b></div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <button class="kp-btn lg block" style="background:hsl(var(--foreground));color:hsl(var(--background));box-shadow:none">Plati uz Apple Pay</button>
+        <button class="kp-btn lg block">Plati uz Google Pay</button>
+        <button class="kp-btn lg block"><svg class="ic sm"><use href="#n-card"></use></svg>Platna kartica</button>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;padding:12px 0;border-top:1px solid hsl(var(--border)/0.6)"><span style="flex:1;display:flex;flex-direction:column;gap:2px"><b style="font-size:14px">Obnovi automatski</b><span class="mut" style="font-size:12.5px">Podsetimo te 7 dana pre isteka</span></span><button class="kp-sw" data-on="{{ autoOn }}" onClick="{{ toggleAuto }}"><i></i></button></div>
+      <span class="mut" style="font-size:12.5px;text-align:center">Račun stiže na ana@primer.com</span>
+    </div>
+  </sc-if>
+
+  <!-- ========== E1 LIMIT 5/5 ========== -->
+  <sc-if value="{{ is.limit }}" hint-placeholder-val="{{ false }}">
+    <div style="flex:1;background:hsl(var(--background))"></div>
+    <div class="kp-scrim"></div>
+    <div style="position:absolute;left:0;right:0;bottom:0;z-index:41;display:flex;flex-direction:column;gap:14px;padding:10px 20px 28px;border-radius:26px 26px 0 0;background:hsl(var(--popover));box-shadow:0 -20px 60px -20px hsl(var(--shell-shadow))">
+      <span style="align-self:center;width:40px;height:5px;border-radius:3px;background:hsl(var(--muted-foreground)/0.4);margin-bottom:6px"></span>
+      <div><h2 class="kp-h1" style="font-size:22px">Imaš 5 od 5 uređaja</h2><p class="kp-sub">Premium radi na 5 uređaja. Za šesti:</p></div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <sc-for list="{{ limitTiles }}" as="r" hint-placeholder-count="2">
+          <button class="kp-opt" data-on="{{ r.on }}" style="flex-direction:row;align-items:center;gap:14px;padding:14px;white-space:normal"><span style="width:44px;height:44px;flex:none;display:grid;place-items:center;border-radius:12px;background:hsl(var(--primary)/0.14);color:hsl(var(--primary))"><svg class="ic"><use href="{{ r.href }}"></use></svg></span><span style="flex:1;display:flex;flex-direction:column;gap:2px;min-width:0"><b style="font-size:15px;color:hsl(var(--foreground))">{{ r.t }}</b><span style="font-size:12.5px;text-wrap:pretty">{{ r.d }}</span></span><svg class="ic sm mut"><use href="#n-right"></use></svg></button>
+        </sc-for>
+      </div>
+      <button class="kp-btn quiet block">Odustani</button>
+    </div>
+  </sc-if>
+
+  <!-- ========== E2 PONUDA PARTNER (desktop) ========== -->
+  <sc-if value="{{ is.ponuda }}" hint-placeholder-val="{{ false }}">
+    <div style="flex:none;display:flex;align-items:center;gap:10px;height:60px;padding:{{ hdrPad }};border-bottom:1px solid hsl(var(--border)/0.6)"><img src="assets/klaro-icon.svg" alt="" style="width:30px;height:30px;border-radius:9px"><span class="kp-brand" style="font-size:16px;font-weight:700;flex:1">Klaro <span style="font-weight:500;color:hsl(var(--muted-foreground))">Panel</span></span><span class="kp-av sm">NJ</span></div>
+    <div style="flex:1;min-height:0;overflow:hidden">
+      <div style="max-width:880px;margin:0 auto;display:flex;flex-direction:column;gap:18px;padding:{{ pagePad }}">
+        <div class="kp-head"><div><h1 class="kp-h1">Moji uređaji</h1><p class="kp-sub">Premium · 5 od 5 uređaja</p></div></div>
+        <div class="kp-card tight">
+          <sc-for list="{{ tvs }}" as="d" hint-placeholder-count="5"><div class="kp-li"><span class="kp-dev"><svg class="ic"><use href="#n-tv"></use></svg></span><div class="t"><b>{{ d.n }}</b><span>{{ d.s }}</span></div><span class="kp-badge ok">aktivan</span></div></sc-for>
+        </div>
+      </div>
+    </div>
+    <div class="kp-scrim"></div>
+    <div class="kp-modal" style="width:min(560px,calc(100% - 32px))">
+      <div style="display:flex;align-items:center;gap:12px"><span style="width:44px;height:44px;flex:none;display:grid;place-items:center;border-radius:12px;background:hsl(var(--primary)/0.16);color:hsl(var(--primary))"><svg class="ic"><use href="#n-users"></use></svg></span><div><h2 class="kp-h1" style="font-size:22px">Podešavaš Klaro i drugima?</h2><p class="kp-sub" style="margin:2px 0 0">Na ovom nalogu je 5 televizora, a na još jednom iz istog pregledača 3.</p></div></div>
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <sc-for list="{{ whyPartner }}" as="w" hint-placeholder-count="4"><div style="display:flex;align-items:flex-start;gap:12px"><span style="width:32px;height:32px;flex:none;display:grid;place-items:center;border-radius:9px;background:hsl(var(--secondary));color:hsl(var(--primary))"><svg class="ic sm"><use href="{{ w.href }}"></use></svg></span><span style="display:flex;flex-direction:column;gap:1px"><b style="font-size:14.5px">{{ w.t }}</b><span class="mut" style="font-size:13px;text-wrap:pretty">{{ w.d }}</span></span></div></sc-for>
+      </div>
+      <div class="kp-note"><svg class="ic"><use href="#n-swap"></use></svg><span>Postojeći televizori prelaze kao tvoji korisnici. Plaćeno vreme ostaje.</span></div>
+      <div class="kp-row"><button class="kp-btn lg">Ne, sve je moje</button><button class="kp-btn primary lg" style="flex:1">Pošalji zahtev za partnera</button></div>
+    </div>
+  </sc-if>
+
+  <!-- ========== F2 TELEFON: NALEPI ========== -->
+  <sc-if value="{{ is.nalepi }}" hint-placeholder-val="{{ false }}">
+    <div style="flex:none;display:flex;align-items:center;gap:10px;height:60px;padding:0 16px;border-bottom:1px solid hsl(var(--border)/0.6)"><img src="assets/klaro-icon.svg" alt="" style="width:30px;height:30px;border-radius:9px"><span class="kp-brand" style="font-size:16px;font-weight:700;flex:1">Klaro</span><span class="kp-badge ok">Android TV povezan</span></div>
+    <div style="flex:1;min-height:0;overflow:auto;scrollbar-width:none;display:flex;flex-direction:column;gap:16px;padding:20px 16px 28px">
+      <sc-if value="{{ pasteEdit }}" hint-placeholder-val="{{ true }}">
+        <div><h1 class="kp-h1">Dodaj listu</h1><p class="kp-sub">Nalepi šta god si dobio od provajdera — link, celu poruku ili fajl. Prepoznaćemo sami.</p></div>
+        <sc-if value="{{ notParsed }}" hint-placeholder-val="{{ true }}">
+          <label class="kp-input" style="height:auto;align-items:flex-start;padding:12px 13px;border-radius:14px"><textarea value="{{ pasteText }}" onChange="{{ onPaste }}" placeholder="http://… ili poruka sa Host / Username / Password" rows="5" style="flex:1;min-width:0;border:0;background:transparent;color:inherit;font:inherit;font-size:14px;line-height:1.45;resize:none;outline:none;padding:0;font-family:ui-monospace,'SF Mono',Menlo,monospace"></textarea></label>
+          <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px"><button class="kp-btn lg" onClick="{{ doPaste }}"><svg class="ic sm"><use href="#n-paste"></use></svg>Nalepi</button><button class="kp-btn lg"><svg class="ic sm"><use href="#n-file"></use></svg>Fajl .m3u</button></div>
+          <div style="display:flex;flex-direction:column;gap:6px"><span class="mut" style="font-size:12px">Probaj primer:</span><div style="display:flex;flex-wrap:wrap;gap:6px"><sc-for list="{{ samples }}" as="x" hint-placeholder-count="3"><button class="kp-chip" data-on="{{ x.on }}" onClick="{{ x.onClick }}">{{ x.label }}</button></sc-for></div></div>
+        </sc-if>
+        <sc-if value="{{ parsed }}" hint-placeholder-val="{{ false }}">
+          <button onClick="{{ editPaste }}" style="display:flex;align-items:center;gap:10px;height:44px;padding:0 13px;border:0;border-radius:12px;background:hsl(var(--input)/0.32);box-shadow:inset 0 0 0 1px hsl(var(--border));color:hsl(var(--muted-foreground));font-size:13px;cursor:pointer;text-align:left"><svg class="ic sm"><use href="#n-paste"></use></svg><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;font-family:ui-monospace,'SF Mono',Menlo,monospace">{{ pasteOneLine }}</span><span style="color:hsl(var(--primary));font-weight:600">Izmeni</span></button>
+        </sc-if>
+        <sc-if value="{{ parseErr }}" hint-placeholder-val="{{ false }}"><div class="kp-note bad"><svg class="ic"><use href="#n-alert"></use></svg><span>{{ parseErr }}</span></div></sc-if>
+        <sc-if value="{{ parsed }}" hint-placeholder-val="{{ false }}">
+          <div class="kp-card accent" style="gap:12px">
+            <div style="display:flex;align-items:center;gap:10px"><span class="kp-badge info">{{ parsed.type }}</span><span class="mut" style="font-size:12.5px">prepoznato</span></div>
+            <dl class="kp-dl" style="margin:0">
+              <div><dt>Server</dt><dd class="mono" style="font-size:13px">{{ parsed.host }}</dd></div>
+              <sc-if value="{{ parsed.user }}" hint-placeholder-val="{{ true }}"><div><dt>Korisnik</dt><dd class="mono" style="font-size:13px">{{ parsed.user }}</dd></div><div><dt>Lozinka</dt><dd class="mono">{{ parsed.pass }}</dd></div></sc-if>
+            </dl>
+            <sc-if value="{{ checking }}" hint-placeholder-val="{{ false }}"><div style="display:flex;align-items:center;gap:10px;font-size:13.5px" class="mut"><span style="position:relative;width:10px;height:10px;flex:none"><span style="position:absolute;inset:0;border-radius:50%;background:hsl(var(--primary))"></span>{{ pulse }}</span>Proveravam vezu sa serverom…</div></sc-if>
+            <sc-if value="{{ checked }}" hint-placeholder-val="{{ false }}">
+              <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px">
+                <sc-for list="{{ stats }}" as="st" hint-placeholder-count="4"><div style="display:flex;flex-direction:column;gap:1px;padding:10px 12px;border-radius:12px;background:hsl(var(--secondary)/0.5)"><b class="num" style="font-size:17px">{{ st.v }}</b><span class="mut" style="font-size:12px">{{ st.l }}</span></div></sc-for>
+              </div>
+            </sc-if>
+          </div>
+        </sc-if>
+        <span style="flex:1"></span>
+        <button class="kp-btn primary lg block" onClick="{{ mainAct }}" disabled="{{ mainDisabled }}">{{ mainLabel }}</button>
+        <span class="mut" style="font-size:12.5px;text-align:center">Šaljemo šifrovano, samo na ovaj TV.</span>
+      </sc-if>
+      <sc-if value="{{ pasteSent }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;flex-direction:column;align-items:center;text-align:center;gap:14px;padding:20px 0 8px">
+          <span style="width:72px;height:72px;display:grid;place-items:center;border-radius:50%;background:hsl(var(--success)/0.16);color:hsl(var(--success))"><svg class="ic lg"><use href="#n-check"></use></svg></span>
+          <div><h1 class="kp-h1">Poslato na Android TV</h1><p class="kp-sub" style="margin-left:auto;margin-right:auto">TV učitava 1.240 kanala. Telefon ti više ne treba.</p></div>
+        </div>
+        <div class="kp-card" style="gap:12px">
+          <b style="font-size:15px">Sačuvaj na nalog? <span class="mut" style="font-weight:400">— nije obavezno</span></b>
+          <sc-for list="{{ savePerks }}" as="p" hint-placeholder-count="3"><div style="display:flex;align-items:center;gap:10px;font-size:13.5px"><svg class="ic sm" style="color:hsl(var(--primary))"><use href="{{ p.href }}"></use></svg>{{ p.t }}</div></sc-for>
+          <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:4px"><button class="kp-btn lg">Ne sada</button><button class="kp-btn primary lg">Sačuvaj</button></div>
+        </div>
+        <button class="kp-link" onClick="{{ pasteReset }}" style="align-self:center;font-size:13px">Kreni ispočetka</button>
+      </sc-if>
+    </div>
+  </sc-if>
+
+  <!-- ========== G1 PRETHODNI VLASNIK ========== -->
+  <sc-if value="{{ is.vlasnik }}" hint-placeholder-val="{{ false }}">
+    <div style="flex:none;display:flex;align-items:center;gap:10px;height:60px;padding:0 16px;border-bottom:1px solid hsl(var(--border)/0.6)"><img src="assets/klaro-icon.svg" alt="" style="width:30px;height:30px;border-radius:9px"><span class="kp-brand" style="font-size:16px;font-weight:700;flex:1">Klaro <span style="font-weight:500;color:hsl(var(--muted-foreground))">Panel</span></span><span class="kp-av sm" style="background:linear-gradient(135deg,hsl(194 90% 48%),hsl(216 90% 55%))">AP</span></div>
+    <div style="flex:1;min-height:0;overflow:auto;scrollbar-width:none;display:flex;flex-direction:column;gap:16px;padding:20px 16px 28px">
+      <div><h1 class="kp-h1">Moji uređaji</h1><p class="kp-sub">Premium · 2 od 5 uređaja</p></div>
+      <sc-if value="{{ ownOpen }}" hint-placeholder-val="{{ true }}">
+        <div class="kp-card" style="gap:14px;box-shadow:inset 0 0 0 1.5px hsl(var(--warn)/0.55)">
+          <div style="display:flex;align-items:flex-start;gap:12px"><span style="width:40px;height:40px;flex:none;display:grid;place-items:center;border-radius:12px;background:hsl(var(--warn)/0.15);color:hsl(var(--warn))"><svg class="ic"><use href="#n-bell"></use></svg></span><div style="display:flex;flex-direction:column;gap:3px"><b style="font-size:15.5px">Dnevna soba TV je povezan na drugi nalog</b><span class="mut" style="font-size:13.5px;text-wrap:pretty">TV je fabrički resetovan i povezan na drugi nalog 3. 10. Skinut je sa tvog naloga.</span></div></div>
+          <div style="display:flex;flex-direction:column;gap:8px"><button class="kp-btn lg block" onClick="{{ ownOk }}">Znam za ovo</button><button class="kp-btn danger lg block" onClick="{{ ownBlock }}"><svg class="ic sm"><use href="#n-ban"></use></svg>Ne znam za ovo — blokiraj TV</button></div>
+          <span class="mut" style="font-size:12.5px">Blokada važi i posle novog reseta.</span>
+        </div>
+      </sc-if>
+      <sc-if value="{{ ownDone }}" hint-placeholder-val="{{ false }}"><div class="kp-note {{ ownTone }}"><svg class="ic"><use href="{{ ownIcon }}"></use></svg><span>{{ ownMsg }}</span></div></sc-if>
+      <div class="kp-card tight">
+        <div class="kp-li"><span class="kp-dev"><svg class="ic"><use href="#n-phone"></use></svg></span><div class="t"><b>Telefon Ana</b><span>iPhone · gleda sada</span></div><span class="kp-badge ok">aktivan</span></div>
+        <div class="kp-li"><span class="kp-dev"><svg class="ic"><use href="#n-tv"></use></svg></span><div class="t"><b>Spavaća soba</b><span>Samsung Tizen · juče</span></div><span class="kp-badge ok">aktivan</span></div>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- ========== G2 PROVAJDER: PRENOS PRI AKTIVACIJI ========== -->
+  <sc-if value="{{ is.p4prenos }}" hint-placeholder-val="{{ false }}">
+    <div style="flex:none;display:flex;align-items:center;gap:10px;height:60px;padding:0 28px;border-bottom:1px solid hsl(var(--border)/0.6)"><img src="assets/klaro-icon.svg" alt="" style="width:30px;height:30px;border-radius:9px"><span class="kp-brand" style="font-size:16px;font-weight:700;flex:1">Klaro <span style="font-weight:500;color:hsl(var(--muted-foreground))">Panel</span> <span class="mut" style="font-weight:500;font-size:13.5px;font-family:Roboto,sans-serif">· Orbita TV</span></span><span class="kp-av sm" style="background:linear-gradient(135deg,hsl(262 70% 55%),hsl(216 90% 55%))">MI</span></div>
+    <div style="flex:1;min-height:0;overflow:auto;scrollbar-width:none">
+      <div style="max-width:620px;margin:0 auto;display:flex;flex-direction:column;gap:18px;padding:32px 28px 48px">
+        <div><h1 class="kp-h1">Aktiviraj uređaj</h1><p class="kp-sub">Kod sa TV-a važi 15 minuta i radi jednom.</p></div>
+        <span class="kp-input" style="height:60px;justify-content:center"><input defaultValue="KLR-7Q4" style="text-align:center;font-size:26px;font-weight:700;letter-spacing:0.26em;font-family:ui-monospace,'SF Mono',Menlo,monospace"></span>
+        <div class="kp-card" style="gap:14px">
+          <div style="display:flex;align-items:center;gap:14px"><span class="kp-dev" style="width:48px;height:48px"><svg class="ic lg"><use href="#n-tv"></use></svg></span><div style="flex:1;display:flex;flex-direction:column;gap:2px"><b style="font-size:15.5px">Android TV · Klaro 2.4.0</b><span class="mut" style="font-size:13px">ID uređaja 7F3A-91C2 · prvo pokretanje posle reseta</span></div><span class="kp-badge ok">kod važi</span></div>
+          <div class="kp-note warn"><svg class="ic"><use href="#n-swap"></use></svg><span><b>TV je ranije bio na drugom nalogu.</b> Posle aktivacije prelazi na tvog korisnika, a prethodni vlasnik dobija obaveštenje. Njegovo preostalo vreme se ne prenosi.</span></div>
+          <div class="kp-form">
+            <label class="kp-field">Korisnik<span class="kp-input"><input defaultValue="Jelena Marković"></span></label>
+            <label class="kp-field">Trajanje<span class="kp-input"><input defaultValue="1 godina · 1 kredit"></span></label>
+          </div>
+        </div>
+        <button class="kp-btn primary lg block"><svg class="ic sm"><use href="#n-key"></use></svg>Aktiviraj · 1 kredit</button>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- ========== G3 GENADMIN: ISTORIJA UREĐAJA ========== -->
+  <sc-if value="{{ is.istorija }}" hint-placeholder-val="{{ false }}">
+    <div style="flex:none;display:flex;align-items:center;gap:10px;height:60px;padding:0 28px;border-bottom:1px solid hsl(var(--border)/0.6)"><img src="assets/klaro-icon.svg" alt="" style="width:30px;height:30px;border-radius:9px"><span class="kp-brand" style="font-size:16px;font-weight:700;flex:1">Klaro <span style="font-weight:500;color:hsl(var(--muted-foreground))">Panel</span> <span class="mut" style="font-weight:500;font-size:13.5px;font-family:Roboto,sans-serif">· Genadmin</span></span><span class="kp-av sm" style="background:linear-gradient(135deg,hsl(349 90% 58%),hsl(42 100% 58%))">F</span></div>
+    <div style="flex:1;min-height:0;overflow:auto;scrollbar-width:none">
+      <div style="max-width:1080px;margin:0 auto;display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:20px;padding:32px 28px 48px;align-items:start">
+        <div style="grid-column:1/-1;display:flex;align-items:center;gap:14px"><span class="kp-dev" style="width:52px;height:52px"><svg class="ic lg"><use href="#n-tv"></use></svg></span><div><h1 class="kp-h1">Uređaj 7F3A-91C2</h1><p class="kp-sub" style="margin:2px 0 0">Android TV · Xiaomi TV Box S · stalni ID, preživljava reset</p></div></div>
+        <div class="kp-card" style="gap:4px">
+          <b class="kp-h2" style="margin-bottom:10px">Istorija</b>
+          <sc-for list="{{ history }}" as="h" hint-placeholder-count="5">
+            <div style="display:flex;gap:14px">
+              <div style="display:flex;flex-direction:column;align-items:center"><span style="width:28px;height:28px;flex:none;display:grid;place-items:center;border-radius:50%;background:{{ h.bg }};color:{{ h.fg }}"><svg class="ic sm"><use href="{{ h.href }}"></use></svg></span><sc-if value="{{ h.line }}" hint-placeholder-val="{{ true }}"><span style="width:2px;flex:1;min-height:18px;background:hsl(var(--border))"></span></sc-if></div>
+              <div style="display:flex;flex-direction:column;gap:2px;padding:4px 0 16px"><b style="font-size:14px">{{ h.t }}</b><span class="mut" style="font-size:12.5px">{{ h.d }}</span></div>
+            </div>
+          </sc-for>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:16px">
+          <div class="kp-card" style="gap:6px">
+            <dl class="kp-dl" style="margin:0">
+              <div><dt>Sada</dt><dd>Orbita TV → Jelena M.</dd></div>
+              <div><dt>Licenca</dt><dd><span class="kp-badge ok">do 3. 10. 2027.</span></dd></div>
+              <div><dt>Premium proba</dt><dd>iskorišćena</dd></div>
+              <div><dt>Resetovan</dt><dd>1×</dd></div>
+            </dl>
+          </div>
+          <div class="kp-note"><svg class="ic"><use href="#n-info"></use></svg><span>Proba i blokade prate stalni ID — reset ih ne briše.</span></div>
+          <button class="kp-btn danger block"><svg class="ic sm"><use href="#n-ban"></use></svg>Blokiraj uređaj</button>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:390,&quot;height&quot;:844},&quot;ekran&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;prijava&quot;,&quot;cekanje&quot;,&quot;potvrdi&quot;,&quot;istekao&quot;,&quot;dobrodosli&quot;,&quot;tvtelefon&quot;,&quot;plan&quot;,&quot;placanje&quot;,&quot;limit&quot;,&quot;ponuda&quot;,&quot;nalepi&quot;,&quot;prepoznato&quot;,&quot;poslato&quot;,&quot;vlasnik&quot;,&quot;p4prenos&quot;,&quot;istorija&quot;],&quot;default&quot;:&quot;prijava&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;dev&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;mobile&quot;,&quot;desktop&quot;],&quot;default&quot;:&quot;mobile&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;tema&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;Tamna&quot;,&quot;Svetla&quot;],&quot;default&quot;:&quot;Tamna&quot;,&quot;tsType&quot;:&quot;string&quot;}}">
+const SAMPLES = [
+  ['M3U link', 'http://x-tv.net:8080/get.php?username=ana_k92&password=7Hq4mZ&type=m3u_plus&output=ts'],
+  ['Poruka sa podacima', 'Hvala na kupovini!\nHost: http://x-tv.net:8080\nUsername: ana_k92\nPassword: 7Hq4mZ\nIstice: 12.03.2027'],
+  ['Nepotpuno', 'ana_k92 7Hq4mZ'],
+];
+function parseSource(t) {
+  const txt = (t || '').trim();
+  if (!txt) return { err: 'Nalepi link ili poruku od provajdera.' };
+  const url = txt.match(/https?:\/\/[^\s"']+/i);
+  const q = txt.match(/username=([^&\s]+)&password=([^&\s]+)/i);
+  const host = url ? url[0].replace(/^(https?:\/\/[^/\s]+).*$/i, '$1') : '';
+  if (q && host) return { type: 'Xtream', host: host.replace(/^https?:\/\//, ''), user: q[1], pass: '•'.repeat(q[2].length), xt: true };
+  const u = txt.match(/user(?:name)?\s*[:=]\s*(\S+)/i), p = txt.match(/pass(?:word)?\s*[:=]\s*(\S+)/i);
+  if (u && p && host) return { type: 'Xtream', host: host.replace(/^https?:\/\//, ''), user: u[1], pass: '•'.repeat(p[1].length), xt: true };
+  if (url && /m3u/i.test(url[0])) return { type: 'M3U', host: host.replace(/^https?:\/\//, ''), user: '', pass: '', xt: false };
+  return { err: 'Nedostaje adresa servera (http://…). Nalepi celu poruku ili link koji si dobio.' };
+}
+
+class Component extends DCLogic {
+  state = (() => {
+    const e = this.props.ekran;
+    const base = { also: false, promo: false, auto: false, ptext: '', parsed: null, perr: '', chk: 'idle', sent: false };
+    if (e === 'nalepi') return { ...base, ptext: SAMPLES[1][1] };
+    if (e === 'prepoznato') return { ...base, ptext: SAMPLES[1][1], parsed: parseSource(SAMPLES[1][1]), chk: 'done' };
+    if (e === 'poslato') return { ...base, sent: true };
+    return base;
+  })();
+  componentWillUnmount() { clearTimeout(this.t); }
+  runParse(text) {
+    const r = parseSource(text);
+    clearTimeout(this.t);
+    if (r.err) return this.setState({ parsed: null, perr: r.err, chk: 'idle' });
+    this.setState({ parsed: r, perr: '', chk: 'run' });
+    this.t = setTimeout(() => this.setState({ chk: 'done' }), 900);
+  }
+  renderVals() {
+    const s = this.state;
+    const raw = this.props.ekran || 'prijava';
+    const e = raw === 'prepoznato' || raw === 'poslato' ? 'nalepi' : raw;
+    const own = s.own;
+    const pasteVals = {
+      pasteEdit: !s.sent, pasteSent: s.sent, pasteText: s.ptext,
+      onPaste: (ev) => this.setState({ ptext: ev.target.value, parsed: null, perr: '', chk: 'idle' }),
+      doPaste: async () => { let t = ''; try { t = await navigator.clipboard.readText(); } catch (x) {} if (!t) t = SAMPLES[0][1]; this.setState({ ptext: t }); this.runParse(t); },
+      samples: SAMPLES.map(([label, t]) => ({ label, on: s.ptext === t ? '1' : '0', onClick: () => { this.setState({ ptext: t }); this.runParse(t); } })),
+      parseErr: s.perr, parsed: s.parsed, notParsed: !s.parsed,
+      pasteOneLine: s.ptext.replace(/\s+/g, ' ').trim(),
+      editPaste: () => { clearTimeout(this.t); this.setState({ parsed: null, chk: 'idle' }); }, checking: s.chk === 'run', checked: s.chk === 'done',
+      stats: s.parsed && s.parsed.xt
+        ? [{ v: '1.240', l: 'kanala' }, { v: '8.400', l: 'filmova i serija' }, { v: '12. 3. 2027.', l: 'ističe kod provajdera' }, { v: '2', l: 'konekcije' }]
+        : [{ v: '1.240', l: 'kanala' }, { v: '38', l: 'grupa' }],
+      mainLabel: s.chk === 'done' ? 'Pošalji na Android TV' : 'Prepoznaj',
+      mainDisabled: s.chk === 'run',
+      mainAct: () => (s.chk === 'done' ? this.setState({ sent: true }) : this.runParse(s.ptext)),
+      pasteReset: () => this.setState({ sent: false, ptext: '', parsed: null, perr: '', chk: 'idle' }),
+      savePerks: [{ href: '#n-sync', t: 'Lista se vraća sama posle reseta ili novog TV-a' }, { href: '#n-devices', t: 'Dodaješ telefon i druge ekrane jednim klikom' }, { href: '#n-spark', t: '30 dana Premium-a besplatno' }],
+      ownOpen: !own, ownDone: !!own,
+      ownOk: () => this.setState({ own: 'ok' }), ownBlock: () => this.setState({ own: 'block' }),
+      ownTone: own === 'block' ? 'bad' : 'ok', ownIcon: own === 'block' ? '#n-ban' : '#n-check',
+      ownMsg: own === 'block' ? 'TV je blokiran i ne može da gleda ni na jednom nalogu. Podrška te kontaktira u roku od 24 h.' : 'Zabeleženo. Mesto za uređaj ti je slobodno.',
+      history: [
+        { href: '#n-tv', t: 'Prvo pokretanje', d: '12. 1. 2026. · Ana Petrović · bez naloga', line: true, bg: 'hsl(var(--secondary))', fg: 'hsl(var(--muted-foreground))' },
+        { href: '#n-spark', t: 'Nalog i Premium proba', d: '14. 1. 2026. · Ana Petrović · Free → Premium', line: true, bg: 'hsl(var(--secondary))', fg: 'hsl(var(--muted-foreground))' },
+        { href: '#n-alert', t: 'Fabrički reset prepoznat', d: '3. 10. 2026. 18:02 · nova instalacija Klaro 2.4.0', line: true, bg: 'hsl(var(--warn)/0.15)', fg: 'hsl(var(--warn))' },
+        { href: '#n-key', t: 'Aktiviran kodom KLR-7Q4', d: '3. 10. 2026. 18:09 · Orbita TV → Jelena Marković · 1 kredit', line: true, bg: 'hsl(var(--primary)/0.16)', fg: 'hsl(var(--primary))' },
+        { href: '#n-bell', t: 'Prethodna vlasnica obaveštena', d: '3. 10. 2026. 18:09 · potvrđeno: „Znam za ovo“', line: false, bg: 'hsl(var(--success)/0.16)', fg: 'hsl(var(--success))' },
+      ],
+    };
+    const wide = (this.props.dev || 'mobile') === 'desktop';
+    const theme = (this.props.tema || 'Tamna') === 'Svetla' ? 'light' : 'dark';
+    const yes = '✓', no = '—';
+    return {
+      ...pasteVals,
+      themeClass: theme, is: { [e]: true }, wide, notWide: !wide,
+      authPad: wide ? '48px' : '24px 20px', authW: wide ? '400px' : '100%',
+      hdrPad: wide ? '0 28px' : '0 16px', pagePad: wide ? '22px 28px 24px' : '20px 16px 32px', rowH: wide ? '40px' : '44px',
+      heroPerks: [{ href: '#n-devices', t: 'Upravljaš uređajima iz panela' }, { href: '#n-sync', t: 'Premium: dokle je gledano, na svakom ekranu' }, { href: '#n-users', t: 'Partneri: korisnici, aktivacije i krediti' }],
+      providers: [['G', 'Google'], ['A', 'Apple'], ['M', 'Microsoft'], ['GH', 'GitHub']].map(([mark, name]) => ({ mark, name })),
+      pulse: React.createElement('span', { style: { position: 'absolute', inset: 0, borderRadius: '50%', background: 'hsl(var(--primary))', animation: 'kpPulse 1.4s ease-out infinite' } }),
+      otp: [0, 1, 2, 3, 4, 5].map((i) => ({ v: '', dash: i === 3, cur: i === 0 ? '1' : '0' })),
+      also: s.also, alsoOn: s.also ? '1' : '0', toggleAlso: () => this.setState({ also: !s.also }),
+      promo: s.promo, promoOn: s.promo ? '1' : '0', togglePromo: () => this.setState({ promo: !s.promo }),
+      autoOn: s.auto ? '1' : '0', toggleAuto: () => this.setState({ auto: !s.auto }),
+      premiumPerks: ['Dokle je gledano — nastaviš na bilo kom ekranu', '5 uređaja gleda istovremeno', 'Rezervna kopija podešavanja'],
+      planRows: [
+        ['Gledanje (osnovno)', yes, yes], ['Povezani uređaji', '5', '5'], ['Gleda istovremeno', '1', '5'],
+        ['Upravljanje iz panela', yes, yes], ['Roditeljska kontrola', yes, yes],
+        ['Dokle je gledano, istorija, sync', no, yes], ['Rezervna kopija podešavanja', no, yes], ['Sve što dodamo kasnije', no, yes],
+      ].map(([t, f, p]) => ({ t, f, p, fc: f === no ? 'hsl(var(--muted-foreground)/0.6)' : 'hsl(var(--foreground))' })),
+      limitTiles: [
+        { href: '#n-swap', t: 'Zameni jedan uređaj', d: 'Ukloni stari, novi preuzima njegovo mesto', on: '0' },
+        { href: '#n-users', t: 'Partnerski nalog', d: 'Podešavaš Klaro drugima? Svako dobija svoj nalog, bez limita od 5.', on: '0' },
+      ],
+      tvs: [['Dnevna soba', 'Android TV'], ['Stan Novi Sad', 'Samsung Tizen'], ['Kafić Centar', 'Android TV'], ['TV Jelena', 'LG webOS'], ['TV Dejan', 'Android TV']].map(([n, s2]) => ({ n, s: s2 })),
+      whyPartner: [
+        { href: '#n-users', t: 'Svaki korisnik ima svoj nalog', d: 'Svoja istorija, roditeljska kontrola i sync — ne mešaju se.' },
+        { href: '#n-swap', t: 'Bez „Prekini gledanje“ i bez limita', d: 'Koliko god uređaja, svaki gleda nezavisno.' },
+        { href: '#n-key', t: 'Aktivacija kodom sa TV-a', d: 'Plaćaš kreditima po uređaju, kad ti treba.' },
+        { href: '#n-palette', t: 'Tvoj logo i kontakt u playeru', d: 'Korisnici zovu tebe, ne nas.' },
+      ],
+    };
+  }
+}
+</script>
+</body>
+</html>

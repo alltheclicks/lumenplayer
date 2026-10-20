@@ -1,0 +1,126 @@
+/* ============================================================
+ * Klaro Player — Interaction states (single source of truth)
+ * Selektovano (fokus) ≠ Aktivno (trenutno se gleda).
+ * Web v1 koristi ovo odmah; TV (10-foot) nasleđuje ista pravila,
+ * pojačana pod html.lp-tv.
+ *
+ * Stanja:
+ *  1. Hover      — nagoveštaj, najslabije stanje (samo pointer)
+ *  2. Selected   — :focus-visible ring (tastatura / D-pad) — plavi prsten
+ *  3. Active     — kanal koji se TRENUTNO gleda ([data-active="true"])
+ *                  — primary tint + leva traka + animirani ekvilajzer
+ *  4. Active+Selected — oba istovremeno (ring oko aktivnog reda)
+ * ============================================================ */
+
+/* ---------- 1. Hover (samo nagoveštaj) ---------- */
+[data-testid="channel-row"] > div > div {
+  transition:
+    background-color var(--motion-base, 220ms) var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1)),
+    box-shadow var(--motion-base, 220ms) var(--ease-out-soft, cubic-bezier(0.22, 1, 0.36, 1)),
+    transform var(--motion-fast, 140ms) var(--ease-out-soft, cubic-bezier(0.22, 1, 0.36, 1));
+}
+[data-testid="channel-row"][data-active="false"] > div > div:hover {
+  background: hsl(var(--secondary, 223 16% 14%) / 0.75) !important;
+}
+
+/* ---------- 2. Selected — fokus prsten (tastatura / D-pad) ---------- */
+*:focus-visible { outline: none; }
+[data-testid="channel-select"]:focus-visible,
+button:focus-visible,
+[role="button"]:focus-visible,
+a:focus-visible,
+[tabindex]:focus-visible,
+input:focus-visible {
+  outline: none !important;
+  box-shadow:
+    0 0 0 2px hsl(var(--background, 224 28% 5%)),
+    0 0 0 4px hsl(var(--ring, 221 92% 62%)),
+    0 0 12px 3px hsl(var(--focus-glow, 221 96% 64%) / 0.45),
+    0 0 26px 8px hsl(var(--focus-glow, 221 96% 64%) / 0.2) !important;
+  border-radius: 12px;
+  z-index: 1;
+}
+
+/* ---------- 3. Active — kanal koji se trenutno gleda ---------- */
+[data-testid="channel-row"][data-active="true"] > div > div {
+  background: linear-gradient(90deg,
+    hsl(var(--primary, 221 92% 60%) / 0.42),
+    hsl(var(--primary, 221 92% 60%) / 0.18)) !important;
+  box-shadow:
+    inset 0 0 0 1px hsl(var(--primary, 221 92% 60%) / 0.7),
+    0 12px 30px -14px hsl(var(--primary, 221 92% 60%) / 0.75);
+}
+/* leva akcentna traka */
+[data-testid="channel-row"][data-active="true"] > div > div::before {
+  content: "";
+  position: absolute;
+  left: 0; top: 12px; bottom: 12px; width: 4px;
+  border-radius: 999px;
+  background: linear-gradient(
+    hsl(var(--primary, 221 92% 60%)),
+    hsl(var(--focus-glow, 221 96% 64%)));
+  box-shadow: 0 0 12px hsl(var(--primary, 221 92% 60%) / 0.7);
+}
+[data-testid="channel-row"][data-active="true"] .font-medium {
+  color: hsl(var(--primary-foreground, 0 0% 100%)) !important;
+  font-weight: 600 !important;
+}
+[data-testid="channel-row"][data-active="true"] .text-muted-foreground {
+  color: hsl(var(--foreground, 210 20% 98%) / 0.75) !important;
+}
+[data-testid="channel-row"][data-active="true"] .rounded-full {
+  background: hsl(var(--catchup, 265 84% 66%) / 0.22) !important;
+  border-color: hsl(var(--catchup, 265 84% 66%) / 0.55) !important;
+}
+
+/* broj kanala → animirani ekvilajzer ("sada svira") */
+[data-testid="channel-row"][data-active="true"] span.tabular-nums {
+  color: transparent !important;
+  position: relative;
+}
+[data-testid="channel-row"][data-active="true"] span.tabular-nums::after {
+  content: "";
+  position: absolute;
+  left: 50%; top: 50%;
+  width: 14px; height: 14px;
+  transform: translate(-50%, -50%);
+  background:
+    linear-gradient(hsl(var(--primary-foreground, 0 0% 100%)) 0 0) left bottom / 3px 60% no-repeat,
+    linear-gradient(hsl(var(--primary-foreground, 0 0% 100%)) 0 0) center bottom / 3px 100% no-repeat,
+    linear-gradient(hsl(var(--primary-foreground, 0 0% 100%)) 0 0) right bottom / 3px 45% no-repeat;
+  animation: lp-eq 1.1s var(--ease-in-out-soft, cubic-bezier(0.65, 0, 0.35, 1)) infinite alternate;
+}
+@keyframes lp-eq {
+  0%   { background-size: 3px 60%,  3px 100%, 3px 45%; }
+  45%  { background-size: 3px 100%, 3px 50%,  3px 80%; }
+  100% { background-size: 3px 40%,  3px 85%,  3px 100%; }
+}
+
+/* ---------- 4. TV pojačanja (10-foot) — html.lp-tv ---------- */
+html.lp-tv [data-testid="channel-select"]:focus-visible,
+html.lp-tv button:focus-visible,
+html.lp-tv [role="button"]:focus-visible,
+html.lp-tv [tabindex]:focus-visible {
+  box-shadow:
+    0 0 0 2px hsl(var(--background, 224 28% 5%)),
+    0 0 0 4px hsl(var(--ring, 221 92% 62%)),
+    0 0 16px 5px hsl(var(--focus-glow, 221 96% 64%) / 0.5),
+    0 0 40px 12px hsl(var(--focus-glow, 221 96% 64%) / 0.22) !important;
+  border-radius: 14px;
+}
+html.lp-tv [data-testid="channel-row"]:has(:focus-visible) > div > div {
+  transform: scale(1.01);
+  background: hsl(var(--secondary, 223 16% 14%) / 0.85) !important;
+}
+html.lp-tv [data-testid="channel-row"][data-active="true"] > div > div {
+  box-shadow:
+    inset 0 0 0 1px hsl(var(--primary, 221 92% 60%) / 0.65),
+    0 14px 34px -16px hsl(var(--primary, 221 92% 60%) / 0.6);
+}
+
+/* ---------- Reduced motion ---------- */
+@media (prefers-reduced-motion: reduce) {
+  [data-testid="channel-row"][data-active="true"] span.tabular-nums::after {
+    animation: none;
+  }
+}

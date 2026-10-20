@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/klaro-player-design-system-0163f186-10a6-4b66-9271-90a3ee964bf7/foundations/tokens.css">
+<link rel="stylesheet" href="_ds/klaro-player-design-system-0163f186-10a6-4b66-9271-90a3ee964bf7/foundations/theme-tuning.css">
+<link rel="stylesheet" href="assets/klaro-palette.css">
+<script src="_ds/klaro-player-design-system-0163f186-10a6-4b66-9271-90a3ee964bf7/_ds_bundle.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+html,body{margin:0;height:100%;background:hsl(224 20% 6%);-webkit-font-smoothing:antialiased;font-family:'Roboto',system-ui,sans-serif}
+a{color:hsl(var(--primary))}a:hover{color:hsl(var(--primary)/0.8)}
+[data-nav]:focus{outline:none}
+[data-vrow],[data-vsel] [data-nav],[data-vrow] > [data-nav]{transition:transform 300ms cubic-bezier(0.2,0.8,0.2,1),background-color 200ms ease,box-shadow 300ms cubic-bezier(0.2,0.8,0.2,1)}
+[data-vodic][data-vodic][data-tv="1"] [data-vrow]:has(> [data-row]:focus),[data-vodic][data-vodic][data-tv="0"] [data-vrow]:has(> [data-row]:focus-visible),[data-vodic][data-vodic][data-tv="1"] [data-vsel] [data-nav]:focus,[data-vodic][data-vodic][data-tv="0"] [data-vsel] [data-nav]:focus-visible,[data-vodic][data-vodic][data-tv="1"] [data-vrow] > [data-nav]:not([data-row]):focus,[data-vodic][data-vodic][data-tv="0"] [data-vrow] > [data-nav]:not([data-row]):focus-visible{--foreground:224 40% 12%;--muted-foreground:220 12% 40%;--muted:220 20% 88%;--surface-2:220 20% 94%;--secondary:220 20% 92%;--border:220 20% 86%;--catchup:265 78% 56%;outline:none!important;color:hsl(224 40% 12%)!important;background:hsl(0 0% 100%)!important;box-shadow:0 24px 48px -18px hsl(224 60% 3%/0.7),0 6px 14px -6px hsl(224 60% 3%/0.3)!important;z-index:2}
+[data-vodic][data-vodic].light[data-tv="1"] [data-vrow]:has(> [data-row]:focus),[data-vodic][data-vodic].light[data-tv="1"] [data-vsel] [data-nav]:focus,[data-vodic][data-vodic].light[data-tv="1"] [data-vrow] > [data-nav]:not([data-row]):focus{box-shadow:0 22px 44px -18px hsl(224 45% 25%/0.45),0 6px 14px -6px hsl(224 45% 25%/0.25),0 0 0 1px hsl(224 30% 30%/0.06)!important}
+[data-vodic][data-vodic][data-tv="1"] [data-vrow]:has(> [data-row]:focus){transform:scale(1.03)}
+[data-vodic][data-vodic][data-tv="1"] [data-vsel] [data-nav]:focus,[data-vodic][data-vodic][data-tv="1"] [data-vrow] > [data-nav]:not([data-row]):focus{transform:scale(1.04)}
+[data-vodic][data-vodic][data-vodic] [data-vrow] > [data-row]:focus,[data-vodic][data-vodic][data-vodic] [data-vrow] > [data-row]:focus-visible{outline:none!important;background:transparent!important;box-shadow:none!important;transform:none!important}
+[data-vodic][data-vodic][data-vodic] [data-vsel] input[data-nav]:focus{transform:none!important;box-shadow:none!important;background:transparent!important}
+@media (prefers-reduced-motion:reduce){[data-vodic][data-vodic] [data-vrow],[data-vodic][data-vodic] [data-nav]{transform:none!important;transition:none!important}}
+</style>
+</helmet>
+<div ref="{{ rootRef }}" class="{{ themeClass }}" data-vodic="1" data-a2="{{ a2Flag }}" data-tv="{{ tvFlag }}" onKeyDown="{{ onKey }}" style="position:{{ rootPos }};inset:0;width:100%;height:100%;display:flex;align-items:center;justify-content:center;overflow:hidden;background:hsl(var(--background)/0.6)">
+<svg style="position:absolute;width:0;height:0" aria-hidden="true"><defs>
+<symbol id="g-rewind" viewBox="0 0 24 24" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path></symbol>
+<symbol id="g-bell" viewBox="0 0 24 24" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"></path></symbol>
+<symbol id="g-search" viewBox="0 0 24 24" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path></symbol>
+<symbol id="g-heart" viewBox="0 0 24 24" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linejoin:round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"></path></symbol>
+<symbol id="g-heartf" viewBox="0 0 24 24" style="fill:hsl(var(--primary));stroke:hsl(var(--primary));stroke-width:2;stroke-linejoin:round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"></path></symbol>
+<symbol id="g-left" viewBox="0 0 24 24" style="fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round"><path d="m15 18-6-6 6-6"></path></symbol>
+<symbol id="g-play" viewBox="0 0 24 24" style="fill:currentColor"><path d="M7 4.5v15a1 1 0 0 0 1.5.86l12.5-7.5a1 1 0 0 0 0-1.72L8.5 3.64A1 1 0 0 0 7 4.5Z"></path></symbol>
+</defs></svg>
+<div data-frame="1" style="position:relative;flex:none;width:{{ frameW }};height:{{ frameH }};transform:{{ frameT }};border-radius:{{ frameR }};overflow:hidden;background:var(--bg-gradient);color:hsl(var(--foreground));box-shadow:0 0 0 1px hsl(var(--border))">
+<div style="width:{{ innerW }};height:{{ innerH }};zoom:{{ zoom }};display:flex;flex-direction:column;min-height:0">
+
+  <header data-vsel="1" style="flex:none;display:flex;flex-wrap:wrap;align-items:center;gap:12px 16px;padding:{{ headPad }}">
+    <div style="display:flex;flex-direction:column;gap:2px;margin-right:auto">
+      <h1 style="margin:0;font-size:22px;font-weight:700;letter-spacing:-0.02em">TV vodič</h1>
+      <span style="font-size:13px;color:hsl(var(--muted-foreground))">{{ todayLabel }} · sada {{ nowLabel }}</span>
+    </div>
+    <sc-if value="{{ listMode }}" hint-placeholder-val="{{ true }}">
+      <label style="display:flex;align-items:center;gap:8px;height:40px;padding:0 12px;min-width:0;flex:1 1 220px;max-width:340px;border-radius:12px;background:hsl(var(--secondary)/0.7);box-shadow:inset 0 0 0 1px hsl(var(--border));color:hsl(var(--muted-foreground))">
+        <svg style="width:16px;height:16px;flex:none"><use href="#g-search"></use></svg>
+        <input data-nav="1" value="{{ q }}" onChange="{{ onQ }}" placeholder="Pretraži emisije" style="flex:1;min-width:0;height:100%;border:0;background:transparent;color:hsl(var(--foreground));font:inherit;font-size:14px;outline:none">
+      </label>
+    </sc-if>
+    <div style="display:flex;gap:3px;padding:3px;border-radius:12px;background:hsl(var(--secondary)/0.7);box-shadow:inset 0 0 0 1px hsl(var(--border))">
+      <sc-for list="{{ modes }}" as="m" hint-placeholder-count="2">
+        <button data-nav="1" data-vmode="{{ m.vm }}" onClick="{{ m.onClick }}" style="height:34px;padding:0 12px;border:0;border-radius:9px;background:{{ m.bg }};color:{{ m.fg }};font:inherit;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap">{{ m.label }}</button>
+      </sc-for>
+    </div>
+  </header>
+
+  <sc-if value="{{ listMode }}" hint-placeholder-val="{{ true }}">
+  <div style="flex:1;min-height:0;display:flex;gap:16px;padding:{{ bodyPad }}">
+
+    <section data-g="list" style="flex:1 1 0;min-width:0;display:flex;flex-direction:column;border-radius:18px;background:hsl(var(--card)/0.55);box-shadow:inset 0 0 0 1px hsl(var(--border));overflow:hidden">
+      <div style="flex:none;display:flex;align-items:center;gap:10px;padding:12px 16px 8px;font-size:12px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:hsl(var(--muted-foreground))">
+        <span>{{ listTitle }}</span><span style="flex:1"></span><span style="text-transform:none;letter-spacing:0;font-weight:400">{{ listCount }}</span>
+      </div>
+      <sc-if value="{{ notSearching }}" hint-placeholder-val="{{ true }}">
+      <div data-vsel="1" style="flex:none;display:flex;gap:6px;padding:4px 14px 10px;overflow-x:auto;scrollbar-width:none">
+        <sc-for list="{{ cats }}" as="k" hint-placeholder-count="7">
+          <button data-nav="1" onClick="{{ k.onClick }}" style="flex:none;display:flex;align-items:center;gap:6px;height:36px;padding:0 13px;border:0;border-radius:10px;background:{{ k.bg }};color:{{ k.fg }};box-shadow:inset 0 0 0 1px {{ k.ring }};font:inherit;font-size:13.5px;font-weight:500;cursor:pointer;white-space:nowrap">{{ k.label }}<span style="font-size:11.5px;opacity:0.7;font-variant-numeric:tabular-nums">{{ k.count }}</span></button>
+        </sc-for>
+      </div>
+      </sc-if>
+      <div ref="{{ listRef }}" style="flex:1;min-height:0;overflow-y:auto;padding:0 8px 10px;scrollbar-width:thin">
+
+        <sc-if value="{{ searching }}" hint-placeholder-val="{{ false }}">
+          <div data-vsel="1">
+          <sc-for list="{{ results }}" as="r" hint-placeholder-count="4">
+            <button data-nav="1" onClick="{{ r.open }}" style="width:100%;display:flex;align-items:center;gap:14px;padding:12px 10px;border:0;border-bottom:1px solid hsl(var(--border)/0.6);background:transparent;color:inherit;font:inherit;text-align:left;cursor:pointer;border-radius:10px" style-hover="background:hsl(var(--secondary)/0.6)">
+              <span style="width:48px;flex:none;font-size:15px;font-weight:600;font-variant-numeric:tabular-nums">{{ r.time }}</span>
+              <span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px">
+                <span style="font-size:15.5px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ r.title }}</span>
+                <span style="font-size:13px;color:hsl(var(--muted-foreground))">{{ r.ch }}</span>
+              </span>
+              <span style="flex:none;padding:3px 8px;border-radius:6px;font-size:11px;font-weight:700;text-transform:uppercase;background:{{ r.tagBg }};color:{{ r.tagFg }}">{{ r.tag }}</span>
+            </button>
+          </sc-for>
+          </div>
+          <sc-if value="{{ noResults }}" hint-placeholder-val="{{ false }}">
+            <div style="padding:40px 16px;text-align:center;font-size:14px;color:hsl(var(--muted-foreground))">Nema emisija za „{{ q }}“ u današnjem programu.</div>
+          </sc-if>
+        </sc-if>
+
+        <sc-if value="{{ notSearching }}" hint-placeholder-val="{{ true }}">
+          <sc-for list="{{ rows }}" as="c" hint-placeholder-count="8">
+            <div data-vrow="1" style="position:relative;display:flex;align-items:stretch;gap:4px;margin:2px 0;border-radius:14px;background:{{ c.bg }};box-shadow:{{ c.ring }}">
+              <button data-nav="1" data-row="1" onClick="{{ c.open }}" style="flex:1;min-width:0;display:grid;grid-template-columns:{{ rowCols }};align-items:center;gap:14px;padding:7px 10px;border:0;border-radius:14px;background:transparent;color:inherit;font:inherit;text-align:left;cursor:pointer">
+                <span style="display:flex;align-items:center;gap:10px;min-width:0">
+                  <span style="width:22px;flex:none;text-align:right;font-size:12px;color:hsl(var(--muted-foreground));font-variant-numeric:tabular-nums">{{ c.num }}</span>
+                  <span style="width:38px;height:38px;flex:none;display:grid;place-items:center;border-radius:10px;background:hsl(var(--surface-2));box-shadow:inset 0 0 0 1px hsl(var(--border));font-size:10px;font-weight:700">{{ c.mono }}</span>
+                  <sc-if value="{{ notCompact }}" hint-placeholder-val="{{ true }}">
+                    <span style="min-width:0;font-size:14.5px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ c.name }}</span>
+                  </sc-if>
+                </span>
+                <span style="min-width:0;display:flex;flex-direction:column;gap:4px">
+                  <span style="display:flex;align-items:baseline;gap:8px;min-width:0">
+                    <sc-if value="{{ compact }}" hint-placeholder-val="{{ false }}"><span style="flex:none;font-size:12px;color:hsl(var(--muted-foreground))">{{ c.name }} ·</span></sc-if>
+                    <span style="min-width:0;font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ c.nowTitle }}</span>
+                  </span>
+                  <span style="display:flex;align-items:center;gap:10px">
+                    <span style="position:relative;flex:1;max-width:220px;height:4px;border-radius:4px;background:hsl(var(--muted))"><span style="position:absolute;left:0;top:0;bottom:0;width:{{ c.pct }};border-radius:4px;background:hsl(var(--a2,var(--primary)))"></span></span>
+                    <span style="flex:none;font-size:12.5px;color:hsl(var(--muted-foreground));font-variant-numeric:tabular-nums">još {{ c.left }}</span>
+                  </span>
+                  <sc-if value="{{ compact }}" hint-placeholder-val="{{ false }}">
+                    <span style="font-size:13px;color:hsl(var(--muted-foreground));white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ c.nextTime }} {{ c.nextTitle }}</span>
+                  </sc-if>
+                </span>
+                <sc-if value="{{ notCompact }}" hint-placeholder-val="{{ true }}">
+                  <span style="min-width:0;display:flex;flex-direction:column;gap:3px">
+                    <span style="font-size:12px;color:hsl(var(--muted-foreground))">Sledi u {{ c.nextTime }}</span>
+                    <span style="font-size:14.5px;color:hsl(var(--foreground)/0.85);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ c.nextTitle }}</span>
+                  </span>
+                </sc-if>
+              </button>
+              <button data-nav="1" onClick="{{ c.toggleFav }}" aria-label="Omiljeni" title="{{ c.favTitle }}" style="width:48px;flex:none;display:grid;place-items:center;border:0;border-radius:12px;background:transparent;color:hsl(var(--muted-foreground));cursor:pointer">
+                <sc-if value="{{ c.isFav }}" hint-placeholder-val="{{ false }}"><svg style="width:19px;height:19px"><use href="#g-heartf"></use></svg></sc-if><sc-if value="{{ c.notFav }}" hint-placeholder-val="{{ true }}"><svg style="width:19px;height:19px"><use href="#g-heart"></use></svg></sc-if>
+              </button>
+            </div>
+          </sc-for>
+          <sc-if value="{{ noFavs }}" hint-placeholder-val="{{ false }}">
+            <div style="padding:40px 16px;text-align:center;font-size:14px;color:hsl(var(--muted-foreground))">{{ emptyMsg }}</div>
+          </sc-if>
+        </sc-if>
+      </div>
+    </section>
+
+    <sc-if value="{{ showPanel }}" hint-placeholder-val="{{ true }}">
+    <section data-g="panel" style="position:{{ pPos }};inset:{{ pInset }};z-index:5;flex:{{ pFlex }};display:flex;flex-direction:column;min-height:0;border-radius:{{ panelR }};background:hsl(var(--card));box-shadow:inset 0 0 0 1px hsl(var(--border));overflow:hidden">
+      <div style="flex:none;display:flex;align-items:center;gap:12px;padding:14px 16px 10px">
+        <sc-if value="{{ isMobile }}" hint-placeholder-val="{{ false }}">
+          <button data-nav="1" onClick="{{ closePanel }}" aria-label="Nazad" style="width:44px;height:44px;flex:none;display:grid;place-items:center;border:0;border-radius:12px;background:hsl(var(--secondary));color:inherit;cursor:pointer"><svg style="width:20px;height:20px"><use href="#g-left"></use></svg></button>
+        </sc-if>
+        <span style="width:44px;height:44px;flex:none;display:grid;place-items:center;border-radius:11px;background:hsl(var(--surface-2));box-shadow:inset 0 0 0 1px hsl(var(--border));font-size:10.5px;font-weight:700">{{ sel.mono }}</span>
+        <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px">
+          <span style="font-size:17px;font-weight:700">{{ sel.name }}</span>
+          <span style="font-size:12.5px;color:hsl(var(--muted-foreground))">{{ sel.cuLabel }}</span>
+        </div>
+      </div>
+      <div data-g="days" data-vsel="1" style="flex:none;display:flex;gap:6px;padding:4px 16px 12px;overflow-x:auto;scrollbar-width:none">
+        <sc-for list="{{ days }}" as="d" hint-placeholder-count="11">
+          <button data-nav="1" data-day-on="{{ d.on }}" onClick="{{ d.onClick }}" style="flex:none;min-width:56px;height:52px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;padding:0 10px;border:0;border-radius:12px;background:{{ d.bg }};color:{{ d.fg }};box-shadow:inset 0 0 0 1px {{ d.ring }};font:inherit;cursor:pointer">
+            <span style="font-size:12px;font-weight:600">{{ d.top }}</span>
+            <span style="font-size:11.5px;opacity:0.8;font-variant-numeric:tabular-nums">{{ d.date }}</span>
+          </button>
+        </sc-for>
+      </div>
+      <div ref="{{ panelRef }}" data-vsel="1" style="flex:1;min-height:0;overflow-y:auto;padding:0 10px 14px;border-top:1px solid hsl(var(--border));scrollbar-width:thin">
+        <sc-for list="{{ progs }}" as="p" hint-placeholder-count="8">
+          <div data-now="{{ p.nowFlag }}" style="display:flex;align-items:flex-start;gap:4px;margin-top:6px;border-radius:12px;background:{{ p.bg }};box-shadow:{{ p.ring }}">
+            <button data-nav="1" onClick="{{ p.onClick }}" style="flex:1;min-width:0;display:flex;gap:14px;padding:12px 10px;border:0;border-radius:12px;background:transparent;color:inherit;font:inherit;text-align:left;cursor:{{ p.cursor }}">
+              <span style="width:46px;flex:none;padding-top:1px;font-size:15px;font-weight:600;font-variant-numeric:tabular-nums;color:{{ p.timeFg }}">{{ p.time }}</span>
+              <span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:4px">
+                <span style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                  <span style="font-size:15.5px;font-weight:{{ p.weight }};color:{{ p.titleFg }}">{{ p.title }}</span>
+                  <sc-if value="{{ p.isNow }}" hint-placeholder-val="{{ false }}"><span style="padding:2px 7px;border-radius:5px;background:hsl(var(--live));color:hsl(var(--live-foreground));font-size:10.5px;font-weight:700;letter-spacing:0.04em">UŽIVO</span></sc-if>
+                  <sc-if value="{{ p.canCu }}" hint-placeholder-val="{{ false }}"><span style="display:inline-flex;align-items:center;gap:4px;padding:2px 7px;border-radius:5px;background:hsl(var(--catchup)/0.16);color:hsl(var(--catchup));font-size:10.5px;font-weight:700;letter-spacing:0.04em"><svg style="width:11px;height:11px"><use href="#g-rewind"></use></svg>UNAZAD</span></sc-if>
+                </span>
+                <span style="font-size:13px;line-height:1.4;color:hsl(var(--muted-foreground));text-wrap:pretty">{{ p.desc }}</span>
+                <sc-if value="{{ p.isNow }}" hint-placeholder-val="{{ false }}">
+                  <span style="display:flex;align-items:center;gap:10px;margin-top:4px">
+                    <span style="position:relative;flex:1;height:4px;border-radius:4px;background:hsl(var(--muted))"><span style="position:absolute;left:0;top:0;bottom:0;width:{{ p.pct }};border-radius:4px;background:hsl(var(--a2,var(--primary)))"></span></span>
+                    <span style="font-size:12px;color:hsl(var(--muted-foreground))">još {{ p.left }}</span>
+                  </span>
+                </sc-if>
+              </span>
+            </button>
+            <sc-if value="{{ p.isFuture }}" hint-placeholder-val="{{ false }}">
+              <button data-nav="1" onClick="{{ p.toggleBell }}" aria-label="Podsetnik" title="{{ p.bellTitle }}" style="width:48px;height:48px;flex:none;margin:4px 4px 0 0;display:grid;place-items:center;border:0;border-radius:12px;background:{{ p.bellBg }};color:{{ p.bellFg }};cursor:pointer">
+                <svg style="width:18px;height:18px"><use href="#g-bell"></use></svg>
+              </button>
+            </sc-if>
+          </div>
+        </sc-for>
+      </div>
+    </section>
+    </sc-if>
+  </div>
+  </sc-if>
+
+  <sc-if value="{{ gridMode }}" hint-placeholder-val="{{ false }}">
+  <div style="flex:1;min-height:0;display:flex;flex-direction:column;gap:10px;padding:{{ bodyPad }}">
+    <div data-vsel="1" style="flex:none;display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;padding:10px 12px;border-radius:16px;background:hsl(var(--card)/0.7);box-shadow:inset 0 0 0 1px hsl(var(--border))">
+      <span style="width:44px;height:44px;flex:none;display:grid;place-items:center;border-radius:11px;background:hsl(var(--surface-2));box-shadow:inset 0 0 0 1px hsl(var(--border));font-size:10.5px;font-weight:700">{{ gi.mono }}</span>
+      <div style="flex:1 1 200px;min-width:0;display:flex;flex-direction:column;gap:3px">
+        <span style="display:flex;align-items:center;gap:8px;min-width:0">
+          <span style="min-width:0;font-size:12.5px;color:hsl(var(--muted-foreground));white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums">{{ gi.ch }} · {{ gi.time }}</span>
+          <span style="flex:none;padding:2px 7px;border-radius:5px;background:{{ gi.tagBg }};color:{{ gi.tagFg }};font-size:10.5px;font-weight:700;letter-spacing:0.04em">{{ gi.tag }}</span>
+        </span>
+        <span style="font-size:16px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ gi.title }}</span>
+        <sc-if value="{{ notMobile }}" hint-placeholder-val="{{ true }}"><span style="font-size:13px;color:hsl(var(--muted-foreground));white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ gi.desc }}</span></sc-if>
+      </div>
+      <div style="flex:none;display:flex;gap:8px">
+        <button data-nav="1" data-gbar="act" onClick="{{ gi.onAct }}" style="height:40px;display:flex;align-items:center;gap:8px;padding:0 14px;border:0;border-radius:11px;background:{{ gi.actBg }};color:{{ gi.actFg }};font:inherit;font-size:13.5px;font-weight:600;cursor:pointer;white-space:nowrap">{{ gi.act }}</button>
+        <button data-nav="1" data-gbar="now" onClick="{{ gNow }}" title="Vrati na trenutno vreme" style="height:40px;padding:0 14px;border:0;border-radius:11px;background:hsl(var(--secondary)/0.8);box-shadow:inset 0 0 0 1px hsl(var(--border));color:hsl(var(--foreground));font:inherit;font-size:13.5px;font-weight:600;cursor:pointer;white-space:nowrap">Sada</button>
+      </div>
+    </div>
+    <div style="position:relative;flex:1;min-height:0;border-radius:18px;overflow:hidden;background:hsl(var(--card)/0.55);box-shadow:inset 0 0 0 1px hsl(var(--border))">
+      <div ref="{{ gridRef }}" onScroll="{{ onGridScroll }}" onWheel="{{ onGridWheel }}" onPointerDown="{{ onGridWheel }}" onTouchStart="{{ onGridWheel }}" data-vsel="1" style="position:absolute;inset:0;overflow:auto;scrollbar-width:thin">
+        <div style="position:relative;width:{{ gridW }}">
+          <div style="position:sticky;top:0;z-index:4;display:flex;height:36px;box-sizing:border-box;background:hsl(var(--card));border-bottom:1px solid hsl(var(--border))">
+            <div style="position:sticky;left:0;z-index:5;width:{{ chColW }};flex:none;background:hsl(var(--card))"></div>
+            <div style="position:relative;flex:1">
+              <sc-for list="{{ ticks }}" as="t" hint-placeholder-count="10">
+                <span style="position:absolute;top:10px;left:{{ t.left }};font-size:12px;color:hsl(var(--muted-foreground));font-variant-numeric:tabular-nums">{{ t.label }}</span>
+              </sc-for>
+            </div>
+          </div>
+          <sc-for list="{{ gridRows }}" as="g" hint-placeholder-count="10">
+            <div style="display:flex;height:60px;box-sizing:border-box;border-bottom:1px solid hsl(var(--border)/0.6);background:{{ g.rowBg }}">
+              <div onClick="{{ g.pick }}" style="position:sticky;left:0;z-index:3;width:{{ chColW }};flex:none;box-sizing:border-box;display:flex;align-items:center;gap:10px;padding:0 12px;background:{{ g.chBg }};border-right:1px solid hsl(var(--border));cursor:pointer">
+                <span style="width:36px;height:36px;flex:none;display:grid;place-items:center;border-radius:9px;background:{{ g.monoBg }};color:{{ g.monoFg }};font-size:9.5px;font-weight:700">{{ g.mono }}</span>
+                <sc-if value="{{ showChName }}" hint-placeholder-val="{{ true }}"><span style="font-size:13.5px;font-weight:{{ g.nameW }};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ g.name }}</span></sc-if>
+              </div>
+              <div style="position:relative;flex:1">
+                <sc-for list="{{ g.cells }}" as="x" hint-placeholder-count="4">
+                  <button data-nav="1" data-gcell="{{ x.key }}" onClick="{{ x.onClick }}" onFocus="{{ x.onFocus }}" style="position:absolute;top:4px;bottom:4px;left:{{ x.left }};width:{{ x.width }};display:flex;flex-direction:column;justify-content:center;gap:2px;padding:0 10px;border:0;border-radius:8px;background:{{ x.bg }};box-shadow:{{ x.ring }};color:{{ x.fg }};font:inherit;text-align:left;overflow:hidden;cursor:pointer">
+                    <span style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ x.title }}</span>
+                    <span style="font-size:11px;color:hsl(var(--muted-foreground));white-space:nowrap">{{ x.time }}</span>
+                  </button>
+                </sc-for>
+              </div>
+            </div>
+          </sc-for>
+          <div style="position:absolute;top:36px;bottom:0;left:{{ nowLeft }};width:2px;margin-left:-1px;background:hsl(var(--live)/0.45);z-index:1;pointer-events:none"></div>
+        </div>
+      </div>
+      <div ref="{{ cursorRef }}" style="position:absolute;top:0;bottom:0;left:{{ lineLeft }};width:0;z-index:6;pointer-events:none">
+        <div data-cline="1" style="position:absolute;top:36px;bottom:0;left:-1px;width:2px;background:hsl(var(--live));box-shadow:0 0 12px hsl(var(--live)/0.5)"></div>
+        <span data-cpill="1" style="position:absolute;top:7px;left:0;transform:translateX(-50%);padding:3px 8px;border-radius:6px;background:hsl(var(--live));color:hsl(var(--live-foreground));font-size:11.5px;font-weight:700;white-space:nowrap;font-variant-numeric:tabular-nums">Sada 20:35</span>
+      </div>
+    </div>
+  </div>
+  </sc-if>
+
+  <sc-if value="{{ tvFooter }}" hint-placeholder-val="{{ false }}">
+    <footer style="flex:none;display:flex;gap:22px;padding:0 24px 16px;font-size:13px;color:hsl(var(--muted-foreground))">
+      <span>↑ ↓ kretanje</span><span>→ program kanala</span><span>OK gledaj / podsetnik</span><span>Nazad zatvori</span>
+    </footer>
+  </sc-if>
+  <sc-if value="{{ toast }}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;left:50%;bottom:24px;transform:translateX(-50%);padding:10px 16px;border-radius:12px;background:hsl(var(--elevated));box-shadow:inset 0 0 0 1px hsl(var(--border)),0 12px 30px -10px hsl(var(--scrim)/0.6);font-size:13.5px;white-space:nowrap">{{ toast }}</div>
+  </sc-if>
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;uredjaj&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;Desktop&quot;,&quot;Tablet&quot;,&quot;Mobilni&quot;,&quot;TV&quot;],&quot;default&quot;:&quot;Desktop&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Prikaz&quot;},&quot;prikaz&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;Lista&quot;,&quot;Mreža&quot;],&quot;default&quot;:&quot;Lista&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Prikaz&quot;},&quot;tema&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;Tamna&quot;,&quot;Svetla&quot;],&quot;default&quot;:&quot;Tamna&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Tema&quot;},&quot;paleta&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;Klaro&quot;,&quot;Standardna&quot;],&quot;default&quot;:&quot;Klaro&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;akcenat2&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;boolean&quot;}}">
+const NOW = 20 * 60 + 35;
+const CH = [
+  ['rts1', 'RTS 1', 'RTS1', 'info', 1, 1], ['rts2', 'RTS 2', 'RTS2', 'kult', 1, 0], ['prva', 'Prva', 'PRVA', 'zab', 1, 1],
+  ['pink', 'Pink', 'PINK', 'zab', 0, 0], ['n1', 'N1', 'N1', 'info', 1, 1], ['novas', 'Nova S', 'NOVA', 'film', 1, 0],
+  ['hrt1', 'HRT 1', 'HRT1', 'info', 1, 0], ['rtl', 'RTL', 'RTL', 'zab', 0, 0], ['bht1', 'BHT 1', 'BHT1', 'info', 1, 0],
+  ['as1', 'Arena Sport 1', 'AS1', 'sport', 1, 1], ['sk1', 'Sport Klub 1', 'SK1', 'sport', 1, 0], ['cine', 'Cinemania', 'CINE', 'film', 0, 0],
+  ['ngeo', 'Nat Geo', 'NGEO', 'dok', 1, 0], ['rtcg', 'RTCG 1', 'RTCG', 'info', 1, 0],
+  ['rtv1', 'RTV 1', 'RTV1', 'info', 1, 0], ['happy', 'Happy', 'HAPY', 'zab', 0, 0], ['eurs', 'Euronews Srbija', 'EURO', 'info', 1, 0], ['novabh', 'Nova BH', 'NVBH', 'zab', 1, 0],
+  ['hrt2', 'HRT 2', 'HRT2', 'kult', 1, 0], ['as2', 'Arena Sport 2', 'AS2', 'sport', 1, 0], ['sk2', 'Sport Klub 2', 'SK2', 'sport', 1, 0], ['disc', 'Discovery', 'DISC', 'dok', 1, 0],
+  ['vhist', 'Viasat History', 'VHIS', 'dok', 0, 0], ['cstar', 'Cinestar', 'CSTR', 'film', 0, 1], ['obn', 'OBN', 'OBN', 'zab', 0, 0], ['k5', 'Kanal 5', 'K5', 'info', 1, 0],
+].map((c, i) => ({ id: c[0], name: c[1], mono: c[2], k: c[3], cu: !!c[4], fav0: !!c[5], num: i + 1 }));
+const P = {
+  info: [['Vesti', 30, 'Najvažniji događaji iz zemlje i sveta.'], ['Dnevnik', 45, 'Centralna informativna emisija dana.'], ['Oko magazin', 60, 'Jedna tema dana iz više uglova.'], ['Upitnik', 75, 'Razgovor sa gostima o aktuelnim pitanjima.'], ['Dokumentarni program', 50, 'Priče i ljudi iz regiona.'], ['Sportski pregled', 15, 'Rezultati dana i najave.'], ['Kvadratura kruga', 60, 'Priče o ljudima koji menjaju svoje sredine.']],
+  kult: [['Koncert', 90, 'Snimak koncerta simfonijskog orkestra.'], ['Pozorište u kući', 55, 'Klasična domaća serija.'], ['Kulturni dnevnik', 30, 'Izložbe, premijere i knjige.'], ['Dokumentarni film', 60, 'Istorija i nasleđe Balkana.']],
+  zab: [['Kviz Potera', 50, 'Takmičari protiv Lovca za novčani fond.'], ['Domaća serija', 45, 'Nova epizoda porodične drame.'], ['Zvezde Granda', 120, 'Muzičko takmičenje mladih pevača.'], ['Magazin In', 40, 'Vesti iz sveta poznatih.'], ['Film: Montevideo', 110, 'Priča o putu fudbalske reprezentacije na prvo Svetsko prvenstvo.']],
+  film: [['Film: Ajvar', 95, 'Komedija o paru koji se vraća iz inostranstva.'], ['Film: Južni vetar', 130, 'Akcioni triler smešten u Beograd.'], ['Serija: Senke nad Balkanom', 55, 'Kriminalistička priča iz 1930-ih.'], ['Film: Toma', 150, 'Biografska drama o Tomi Zdravkoviću.']],
+  sport: [['Fudbal: Superliga', 110, 'Uživo prenos utakmice kola.'], ['Košarka: ABA liga', 120, 'Prenos utakmice regionalne lige.'], ['Sportski studio', 30, 'Analiza i intervjui.'], ['Tenis: ATP turnir', 150, 'Prenos meča glavnog žreba.']],
+  dok: [['Divlja Afrika', 50, 'Život savane kroz godišnja doba.'], ['Istraživači okeana', 45, 'Ekspedicija u duboko more.'], ['Megagradnje', 60, 'Kako nastaju najveći mostovi sveta.']],
+};
+const DN = ['Ned', 'Pon', 'Uto', 'Sre', 'Čet', 'Pet', 'Sub'];
+const hm = (m) => { m = ((m % 1440) + 1440) % 1440; return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'); };
+const dur = (m) => m >= 60 ? Math.floor(m / 60) + ' h ' + (m % 60 ? (m % 60) + ' min' : '') : m + ' min';
+const cache = {};
+function sched(ch, day) {
+  const key = ch.id + day; if (cache[key]) return cache[key];
+  const pool = P[ch.k]; let t = 6 * 60, i = (ch.num * 3 + day * 5 + 70) % pool.length; const out = [];
+  while (t < 30 * 60) { const x = pool[i % pool.length]; const d = x[1]; out.push({ s: t, e: t + d, t: x[0], d: x[2] }); t += d; i += 1 + ((ch.num + day + out.length) % 2); }
+  return (cache[key] = out);
+}
+const BASE = new Date(2026, 8, 30);
+
+class Component extends DCLogic {
+  state = { sel: 'rts1', day: 0, q: '', cat: 'all', favs: CH.filter((c) => c.fav0).map((c) => c.id), rem: [], mode: null, open: false, toast: '', vw: 1400, vh: 900, cw: 1200, gSel: null, gVW: 900 };
+  rootRef = React.createRef(); listRef = React.createRef(); panelRef = React.createRef(); gridRef = React.createRef(); cursorRef = React.createRef();
+  reduced() { return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); }
+  defKey(id) { const c = CH.find((x) => x.id === id) || CH[0], p = sched(c, 0).find((q) => q.s <= NOW && NOW < q.e) || sched(c, 0)[0]; return c.id + '|' + p.s; }
+  initGrid() {
+    const g = this.gridRef.current; if (!g) { this._gEl = null; return; } if (g === this._gEl) return; this._gEl = g;
+    this.gro && this.gro.disconnect();
+    if (window.ResizeObserver) { this.gro = new ResizeObserver(() => { const w = g.clientWidth; if (w && w !== this.state.gVW) { const T = this.gT ?? NOW; this.setState({ gVW: w }, () => this.gScroll(T, null, false)); } }); this.gro.observe(g); }
+    this.setState({ gVW: g.clientWidth || 900 }, () => this.gScroll(NOW, this.state.sel, false));
+  }
+  gScroll(T, chId, smooth) {
+    const g = this.gridRef.current; if (!g || !this._gm) return; const { G0, PX, CW } = this._gm;
+    const o = { behavior: smooth && !this.reduced() ? 'smooth' : 'auto' };
+    if (T != null) { o.left = Math.max(0, Math.min(g.scrollWidth - g.clientWidth, (T - G0) * PX - (g.clientWidth - CW) / 2)); this.gT = G0 + (o.left + (g.clientWidth - CW) / 2) / PX; this._tgtL = o.left; this.paintCursor(); }
+    if (chId) { const top = 36 + CH.findIndex((c) => c.id === chId) * 60, vh = g.clientHeight;
+      if (top - 60 < g.scrollTop) o.top = Math.max(0, top - 96); else if (top + 120 > g.scrollTop + vh) o.top = top + 120 - vh; }
+    if (o.left == null && o.top == null) return;
+    g.scrollTo(o); if (o.behavior === 'auto') { this._tgtL = null; this.syncCursor(); }
+  }
+  syncCursor() {
+    const g = this.gridRef.current, cur = this.cursorRef.current; if (!g || !this._gm) return; const { G0, PX, CW } = this._gm;
+    if (this._tgtL != null) { if (Math.abs(g.scrollLeft - this._tgtL) > 1.5) return; this._tgtL = null; }
+    this.gT = G0 + (g.scrollLeft + (g.clientWidth - CW) / 2) / PX; this.paintCursor();
+  }
+  paintCursor() {
+    const cur = this.cursorRef.current, T = this.gT; if (!cur || T == null) return;
+    const at = Math.abs(T - NOW) < 2, pill = cur.querySelector('[data-cpill]'), line = cur.querySelector('[data-cline]'), col = at ? 'hsl(var(--live))' : 'hsl(var(--primary))';
+    if (pill) { pill.textContent = at ? 'Sada ' + hm(NOW) : hm(Math.round(T)); pill.style.background = col; pill.style.color = at ? 'hsl(var(--live-foreground))' : '#fff'; }
+    if (line) { line.style.background = col; line.style.boxShadow = '0 0 12px ' + (at ? 'hsl(var(--live)/0.5)' : 'hsl(var(--primary)/0.5)'); }
+  }
+  onGridWheel = () => { this._tgtL = null; };
+  onGridScroll = () => { if (this._raf) return; this._raf = requestAnimationFrame(() => { this._raf = 0; this.syncCursor(); }); };
+  gPick(c, p, center) {
+    this.setState({ sel: c.id, gSel: c.id + '|' + p.s });
+    this.gScroll(center ? (p.s <= NOW && NOW < p.e ? NOW : p.s) : null, c.id, true);
+  }
+  gAt(c, T) { const row = sched(c, 0); return row.find((p) => p.s <= T && T < p.e) || (T < row[0].s ? row[0] : row[row.length - 1]); }
+  gAction(c, p) {
+    const now = p.s <= NOW && NOW < p.e, past = p.e <= NOW;
+    if (now) return this.flash('▶ ' + c.name + ' uživo');
+    if (past) return this.flash(c.cu ? '▶ Unazad: ' + p.t : 'Ovaj kanal nema arhivu');
+    const key = c.id + '|0|' + p.s, on = this.state.rem.includes(key);
+    this.setState((st) => ({ rem: on ? st.rem.filter((x) => x !== key) : st.rem.concat(key) }));
+    this.flash(on ? 'Podsetnik uklonjen' : 'Podsetićemo te u ' + hm(p.s - 5) + ' · ' + p.t);
+  }
+  emb() { const e = this.props.embedded; return e === true || e === '1' || e === 1; }
+  componentDidMount() {
+    this.onR = () => this.setState({ vw: window.innerWidth, vh: window.innerHeight }); this.onR(); window.addEventListener('resize', this.onR);
+    const el = this.rootRef.current; if (el && window.ResizeObserver) { this.ro = new ResizeObserver(() => { const w = el.clientWidth; if (w && Math.abs(w - this.state.cw) > 4) this.setState({ cw: w }); }); this.ro.observe(el); }
+    this.scrollNow(); setTimeout(() => this.initGrid(), 0);
+  }
+  componentWillUnmount() { window.removeEventListener('resize', this.onR); this.ro && this.ro.disconnect(); this.gro && this.gro.disconnect(); }
+  componentDidUpdate(pp, ps) { this.initGrid(); if (ps.sel !== this.state.sel || ps.day !== this.state.day || ps.open !== this.state.open) this.scrollNow(); }
+  scrollNow() { setTimeout(() => { const p = this.panelRef.current; if (!p) return;
+      const strip = p.parentNode.querySelector('[data-g="days"]'), on = strip && strip.querySelector('[data-day-on="1"]');
+      if (on) strip.scrollLeft = on.offsetLeft - strip.offsetLeft - (strip.clientWidth - on.offsetWidth) / 2; const n = p.querySelector('[data-now="1"]'); p.scrollTop = n ? n.offsetTop - p.offsetTop - 12 : (this.state.day < 0 ? p.scrollHeight : 0); }, 30); }
+  flash(t) { this.setState({ toast: t }); clearTimeout(this.tt); this.tt = setTimeout(() => this.setState({ toast: '' }), 2200); }
+  dev() { const d = this.props.uredjaj ?? 'Desktop'; return d === 'Mobilni' ? 'm' : d === 'TV' ? 'tv' : d === 'Tablet' ? 't' : 'd'; }
+  focusQ(sel) { const el = this.rootRef.current && this.rootRef.current.querySelector(sel); if (el) { this._kb = true; el.focus({ preventScroll: true }); this._kb = false; } return !!el; }
+  gFocusSel() {
+    const key = this._gKey; if (!key || !this.focusQ('[data-gcell="' + key + '"]')) return;
+    const [cid, ss] = key.split('|'), c = CH.find((x) => x.id === cid), p = c && sched(c, 0).find((q) => q.s === +ss); if (p) this.gPick(c, p, true);
+  }
+  gridKey(e) {
+    const t = e.target; if (!t || !t.getAttribute) return false;
+    const k = e.key, mode = this._mode, eat = () => { e.preventDefault(); e.stopPropagation(); return true; };
+    const toToggle = () => this.focusQ('[data-vmode="' + mode + '"]');
+    const vm = t.getAttribute('data-vmode');
+    if (vm) {
+      if (k === 'ArrowLeft' || k === 'ArrowRight') { const nm = k === 'ArrowRight' ? 'grid' : 'list'; if (nm !== mode) this.setState({ mode: nm }, () => setTimeout(() => this.focusQ('[data-vmode="' + nm + '"]'), 0)); return eat(); }
+      if (k === 'ArrowDown') { if (mode === 'grid') this.gFocusSel(); else this.focusQ('[data-row]'); return eat(); }
+      return false;
+    }
+    if (this.dev() === 'tv' && (k === 'Escape' || k === 'Backspace') && t.tagName !== 'INPUT' && !this.state.open) { toToggle(); return eat(); }
+    if (t.getAttribute('data-gbar')) {
+      if (k === 'ArrowUp') { toToggle(); return eat(); }
+      if (k === 'ArrowDown') { this.gFocusSel(); return eat(); }
+      return false;
+    }
+    const key = t.getAttribute('data-gcell'); if (!key) return false;
+    const d = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -2, ArrowDown: 2 }[k]; if (!d) return false;
+    const [cid, ss] = key.split('|'), ci = CH.findIndex((c) => c.id === cid); let tc, tp;
+    if (d === -1 || d === 1) { const row = sched(CH[ci], 0), i = row.findIndex((p) => p.s === +ss); tp = row[i + d]; tc = CH[ci]; if (!tp) return eat(); }
+    else { tc = CH[ci + d / 2]; if (!tc) { if (d < 0) this.focusQ('[data-gbar="act"]'); return eat(); } tp = this.gAt(tc, this.gT ?? NOW); }
+    e.preventDefault(); e.stopPropagation();
+    this.focusQ('[data-gcell="' + tc.id + '|' + tp.s + '"]');
+    this.gPick(tc, tp, d === -1 || d === 1);
+    return true;
+  }
+  onKey = (e) => {
+    const k = e.key;
+    if (this.gridKey(e)) return;
+    if (this.emb()) { if (this.state.open && (k === 'Escape' || k === 'Backspace') && e.target.tagName !== 'INPUT') { this.setState({ open: false }); e.preventDefault(); e.stopPropagation(); } return; }
+    if (k === 'Escape' || k === 'Backspace' && e.target.tagName !== 'INPUT') { if (this.state.open) { this.setState({ open: false }); e.preventDefault(); } return; }
+    const dir = { ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowLeft: [-1, 0], ArrowRight: [1, 0] }[k]; if (!dir) return;
+    if (e.target.tagName === 'INPUT' && dir[0]) return;
+    const root = this.rootRef.current; const all = [...root.querySelectorAll('[data-nav]')].filter((n) => n.offsetParent);
+    const a = document.activeElement; e.preventDefault();
+    if (!all.includes(a)) { const f = root.querySelector('[data-row]'); return f && f.focus(); }
+    const r = a.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+    let best = null, bs = 1e9;
+    all.forEach((n) => { if (n === a) return; const b = n.getBoundingClientRect(); const x = b.left + b.width / 2 - cx, y = b.top + b.height / 2 - cy;
+      const along = x * dir[0] + y * dir[1]; if (along <= 2) return; const across = Math.abs(x * dir[1] + y * dir[0]); const sc = along + across * 3; if (sc < bs) { bs = sc; best = n; } });
+    if (best) best.focus();
+  };
+  renderVals() {
+    const s = this.state, dv = this.dev(), isM = dv === 'm', isTV = dv === 'tv', PW = isTV ? 440 : dv === 't' ? 340 : 420;
+    const pz = this.props.prikaz ?? 'Lista', mode = s.mode ?? (pz === 'Mreža' || pz === 'Klasična mreža' ? 'grid' : 'list');
+    const light = (this.props.tema ?? 'Tamna') === 'Svetla';
+    const favSet = new Set(s.favs);
+    const toggleFav = (id) => this.setState((st) => ({ favs: st.favs.includes(id) ? st.favs.filter((x) => x !== id) : st.favs.concat(id) }));
+    const open = (id, day) => this.setState({ sel: id, day: day ?? 0, open: true, q: day === undefined ? this.state.q : '' });
+    const inCat = (c, k) => k === 'all' || (k === 'fav' ? favSet.has(c.id) : k === 'film' ? c.k === 'film' : k === 'kult' ? c.k === 'kult' || c.k === 'dok' : c.k === k);
+    const chs = CH.filter((c) => inCat(c, s.cat));
+    const cats = [['all', 'Svi'], ['fav', 'Omiljeni'], ['info', 'Informativni'], ['sport', 'Sport'], ['film', 'Film i serije'], ['zab', 'Zabava'], ['kult', 'Kultura i dok.']].map(([id, l]) => { const a = s.cat === id;
+      return { label: l, count: CH.filter((c) => inCat(c, id)).length, bg: a ? 'hsl(var(--primary))' : 'hsl(var(--secondary)/0.6)', fg: a ? '#fff' : 'hsl(var(--foreground))', ring: a ? 'transparent' : 'hsl(var(--border))', onClick: () => this.setState({ cat: id }) }; });
+    const rows = chs.map((c) => {
+      const sc = sched(c, 0); const i = sc.findIndex((p) => p.s <= NOW && NOW < p.e); const cur = sc[i], nx = sc[i + 1] || sc[0];
+      const act = c.id === s.sel && (!isM);
+      return { ...c, nowTitle: cur.t, nextTitle: nx.t, nextTime: hm(nx.s), pct: Math.round((NOW - cur.s) / (cur.e - cur.s) * 100) + '%', left: dur(cur.e - NOW),
+        bg: act ? 'hsl(var(--primary)/0.14)' : 'transparent', ring: act ? 'inset 0 0 0 1.5px hsl(var(--primary)/0.55)' : 'none',
+        open: () => open(c.id), toggleFav: () => toggleFav(c.id), isFav: favSet.has(c.id), notFav: !favSet.has(c.id), favTitle: favSet.has(c.id) ? 'Ukloni iz omiljenih' : 'Dodaj u omiljene' };
+    });
+    const q = s.q.trim().toLowerCase(); const results = [];
+    if (q) CH.forEach((c) => sched(c, 0).forEach((p) => { if (p.t.toLowerCase().includes(q) && p.e > NOW - 180) {
+      const now = p.s <= NOW && NOW < p.e, past = p.e <= NOW;
+      results.push({ s: p.s, time: hm(p.s), title: p.t, ch: c.name, tag: now ? 'Uživo' : past ? (c.cu ? 'Unazad' : 'Završeno') : 'Uskoro',
+        tagBg: now ? 'hsl(var(--live))' : past ? (c.cu ? 'hsl(var(--catchup)/0.16)' : 'hsl(var(--muted))') : 'hsl(var(--primary)/0.14)',
+        tagFg: now ? 'hsl(var(--live-foreground))' : past ? (c.cu ? 'hsl(var(--catchup))' : 'hsl(var(--muted-foreground))') : 'hsl(var(--primary))', open: () => open(c.id, 0) }); } }));
+    results.sort((a, b) => a.s - b.s);
+    const sel = CH.find((c) => c.id === s.sel) || CH[0];
+    const days = []; for (let d = -7; d <= 3; d++) { const dt = new Date(BASE); dt.setDate(dt.getDate() + d); const a = d === s.day;
+      days.push({ on: a ? '1' : '0', top: d === 0 ? 'Danas' : d === -1 ? 'Juče' : d === 1 ? 'Sutra' : DN[dt.getDay()], date: dt.getDate() + '.' + (dt.getMonth() + 1) + '.', bg: a ? 'hsl(var(--primary))' : 'hsl(var(--secondary)/0.6)', fg: a ? '#fff' : 'hsl(var(--foreground))', ring: a ? 'transparent' : 'hsl(var(--border))', onClick: () => this.setState({ day: d }) }); }
+    const progs = sched(sel, s.day).map((p) => {
+      const now = s.day === 0 && p.s <= NOW && NOW < p.e, past = s.day < 0 || (s.day === 0 && p.e <= NOW), fut = !now && !past;
+      const canCu = past && sel.cu, key = sel.id + '|' + s.day + '|' + p.s, on = s.rem.includes(key);
+      return { time: hm(p.s), title: p.t, desc: p.d, isNow: now, isFuture: fut, canCu, nowFlag: now ? '1' : '0',
+        pct: now ? Math.round((NOW - p.s) / (p.e - p.s) * 100) + '%' : '0%', left: dur(p.e - NOW),
+        bg: now ? 'hsl(var(--primary)/0.12)' : 'transparent', ring: now ? 'inset 0 0 0 1.5px hsl(var(--primary)/0.5)' : 'none',
+        titleFg: past && !canCu ? 'hsl(var(--muted-foreground))' : 'hsl(var(--foreground))', timeFg: now ? 'hsl(var(--primary))' : past ? 'hsl(var(--muted-foreground))' : 'hsl(var(--foreground))',
+        weight: now ? 700 : 500, cursor: past && !canCu ? 'default' : 'pointer',
+        onClick: () => this.flash(now ? '▶ ' + sel.name + ' uživo' : canCu ? '▶ Unazad: ' + p.t : fut ? 'Emisija počinje u ' + hm(p.s) : 'Ovaj kanal nema arhivu'),
+        bellBg: on ? 'hsl(var(--primary))' : 'hsl(var(--secondary)/0.7)', bellFg: on ? '#fff' : 'hsl(var(--muted-foreground))', bellTitle: on ? 'Ukloni podsetnik' : 'Podseti me',
+        toggleBell: () => { this.setState((st) => ({ rem: on ? st.rem.filter((x) => x !== key) : st.rem.concat(key) })); this.flash(on ? 'Podsetnik uklonjen' : 'Podsetićemo te u ' + hm(p.s - 5) + ' · ' + p.t); } };
+    });
+    const FR = { d: [Math.max(s.vw, 360), s.vh, 1], t: [1024, 768, 1], m: [390, 844, 1], tv: [1920, 1080, 1.45] }[dv];
+    const scale = isTV ? Math.min(s.vw / 1920, s.vh / 1080) : dv === 't' ? Math.min(1, s.vw / 1024, s.vh / 768) : isM ? Math.min(1, (s.vh - 24) / 844) : 1;
+    const modes = [['list', 'Lista'], ['grid', 'Mreža']].map(([id, l]) => ({ vm: id, label: l, bg: mode === id ? 'hsl(var(--primary))' : 'transparent', fg: mode === id ? '#fff' : 'hsl(var(--muted-foreground))', onClick: () => this.setState({ mode: id }) }));
+    const emb = this.emb();
+    const listW = (emb ? s.cw : FR[0] / FR[2]) - 48 - 16 - PW;
+    const compact = isM || dv === 't' || listW < 700;
+    const G0 = 6 * 60, G1 = 30 * 60, PX = 5, CW = isM ? 64 : 170; this._gm = { G0, PX, CW };
+    const gKey = s.gSel && s.gSel.startsWith(s.sel + '|') ? s.gSel : this.defKey(s.sel); this._gKey = gKey; this._mode = mode;
+    const gridRows = mode !== 'grid' ? [] : CH.map((c) => { const isSel = c.id === s.sel;
+      return { ...c, rowBg: isSel ? 'hsl(var(--primary)/0.07)' : 'transparent', chBg: isSel ? 'linear-gradient(hsl(var(--primary)/0.16),hsl(var(--primary)/0.16)),hsl(var(--card))' : 'hsl(var(--card))',
+        monoBg: isSel ? 'hsl(var(--primary))' : 'hsl(var(--surface-2))', monoFg: isSel ? '#fff' : 'hsl(var(--foreground))', nameW: isSel ? 700 : 500,
+        pick: () => { const p = this.gAt(c, this.gT ?? NOW); this.setState({ sel: c.id, gSel: c.id + '|' + p.s }); this.gScroll(null, c.id, true); },
+        cells: sched(c, 0).filter((p) => p.e > G0 && p.s < G1).map((p) => {
+          const a = Math.max(p.s, G0), b = Math.min(p.e, G1), now = p.s <= NOW && NOW < p.e, past = p.e <= NOW, key = c.id + '|' + p.s, on = key === gKey;
+          return { key, left: (a - G0) * PX + 2 + 'px', width: (b - a) * PX - 4 + 'px', title: p.t, time: hm(p.s) + '–' + hm(p.e),
+            bg: on ? 'hsl(var(--primary)/0.34)' : now ? 'hsl(var(--primary)/0.16)' : past ? 'hsl(var(--secondary)/0.4)' : 'hsl(var(--secondary)/0.8)',
+            ring: on ? 'inset 0 0 0 1.5px hsl(var(--primary))' : 'none', fg: past && !c.cu && !on ? 'hsl(var(--muted-foreground))' : 'hsl(var(--foreground))',
+            onClick: () => { if (key === (this.state.gSel && this.state.gSel.startsWith(this.state.sel + '|') ? this.state.gSel : this.defKey(this.state.sel))) this.gAction(c, p); else this.gPick(c, p, true); },
+            onFocus: (e) => { if (this._kb || (e.currentTarget.matches && !e.currentTarget.matches(':focus-visible'))) return; this.gPick(c, p, true); } };
+        }) }; });
+    const ticks = []; for (let m = G0; m < G1; m += 30) ticks.push({ label: hm(m), left: (m - G0) * PX + 6 + 'px' });
+    const [gc, gs] = gKey.split('|'), gCh = CH.find((c) => c.id === gc) || CH[0], gP = sched(gCh, 0).find((p) => p.s === +gs) || sched(gCh, 0)[0];
+    const gNowP = gP.s <= NOW && NOW < gP.e, gPast = gP.e <= NOW, gRem = s.rem.includes(gCh.id + '|0|' + gP.s);
+    const gi = { mono: gCh.mono, ch: gCh.name, time: hm(gP.s) + '–' + hm(gP.e), title: gP.t, desc: gP.d,
+      tag: gNowP ? 'UŽIVO' : gPast ? (gCh.cu ? 'UNAZAD' : 'ZAVRŠENO') : 'USKORO',
+      tagBg: gNowP ? 'hsl(var(--live))' : gPast ? (gCh.cu ? 'hsl(var(--catchup)/0.16)' : 'hsl(var(--muted))') : 'hsl(var(--primary)/0.14)',
+      tagFg: gNowP ? 'hsl(var(--live-foreground))' : gPast ? (gCh.cu ? 'hsl(var(--catchup))' : 'hsl(var(--muted-foreground))') : 'hsl(var(--primary))',
+      act: gNowP ? '▶ Gledaj uživo' : gPast ? (gCh.cu ? '▶ Gledaj unazad' : 'Bez arhive') : gRem ? 'Podsetnik uključen' : 'Podseti me',
+      actBg: gNowP ? 'hsl(var(--primary))' : gPast ? (gCh.cu ? 'hsl(var(--catchup))' : 'hsl(var(--muted))') : gRem ? 'hsl(var(--primary))' : 'hsl(var(--secondary)/0.8)',
+      actFg: (gNowP || (gPast && gCh.cu) || (!gPast && gRem)) ? '#fff' : gPast ? 'hsl(var(--muted-foreground))' : 'hsl(var(--foreground))',
+      onAct: () => this.gAction(gCh, gP) };
+    return {
+      gridRows, ticks, gridW: CW + (G1 - G0) * PX + 'px', chColW: CW + 'px', nowLeft: CW + (NOW - G0) * PX + 'px', gi, gridRef: this.gridRef, cursorRef: this.cursorRef, onGridScroll: this.onGridScroll, onGridWheel: this.onGridWheel,
+      lineLeft: CW + (s.gVW - CW) / 2 + 'px', gNow: () => { this.setState({ gSel: this.defKey(this.state.sel) }); this.gScroll(NOW, this.state.sel, true); },
+      rootRef: this.rootRef, listRef: this.listRef, panelRef: this.panelRef, onKey: this.onKey,
+      themeClass: light ? 'light' : 'dark', a2Flag: (this.props.paleta ?? 'Klaro') === 'Standardna' || [false, '0', 'false'].includes(this.props.akcenat2) ? '0' : '1', tvFlag: isTV ? '1' : '0', isTV, isMobile: isM, notMobile: !isM, showChName: !isM,
+      frameW: emb ? '100%' : FR[0] + 'px', frameH: emb ? '100%' : FR[1] + 'px', frameT: emb ? 'none' : 'scale(' + scale + ')', frameR: isM && !emb ? '28px' : '0px',
+      innerW: emb ? '100%' : FR[0] / FR[2] + 'px', innerH: emb ? '100%' : FR[1] / FR[2] + 'px', zoom: emb ? 1 : FR[2],
+      rootPos: emb ? 'relative' : 'fixed', tvFooter: isTV && !emb,
+      headPad: isM ? '16px 14px 10px' : dv === 't' ? '18px 18px 12px' : '20px 24px 14px', bodyPad: isM ? '0 10px 10px' : dv === 't' ? '0 18px 16px' : '0 24px 18px',
+      compact, notCompact: !compact,
+      rowCols: compact ? '76px minmax(0,1fr)' : 'minmax(170px,0.9fr) minmax(0,1.4fr) minmax(0,1fr)',
+      todayLabel: 'Sreda, 30. septembar', nowLabel: hm(NOW), modes, listMode: mode === 'list', gridMode: mode === 'grid',
+      q: s.q, onQ: (e) => this.setState({ q: e.target.value }), searching: !!q, notSearching: !q, results, noResults: !!q && !results.length,
+      cats, emptyMsg: s.cat === 'fav' ? 'Još nemaš omiljene kanale. Dodaj ih srcem pored kanala.' : 'Nema kanala u ovoj kategoriji.',
+      listTitle: q ? 'Rezultati pretrage' : 'Sada na programu', listCount: q ? results.length + ' emisija' : '',
+      rows, noFavs: !q && !rows.length,
+      showPanel: !isM || s.open, pPos: isM ? 'absolute' : 'relative', pInset: isM ? '0' : 'auto', pFlex: isM ? 'none' : '0 0 ' + PW + 'px', panelR: isM ? '0px' : '18px',
+      closePanel: () => this.setState({ open: false }),
+      sel: { ...sel, cuLabel: sel.cu ? 'Gledanje unazad · 7 dana' : 'Bez arhive' }, days, progs, toast: s.toast,
+    };
+  }
+}
+</script>
+</body>
+</html>

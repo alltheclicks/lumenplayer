@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/klaro-player-design-system-0163f186-10a6-4b66-9271-90a3ee964bf7/foundations/tokens.css">
+<link rel="stylesheet" href="_ds/klaro-player-design-system-0163f186-10a6-4b66-9271-90a3ee964bf7/foundations/theme-tuning.css">
+<link rel="stylesheet" href="assets/klaro-palette.css">
+<script src="_ds/klaro-player-design-system-0163f186-10a6-4b66-9271-90a3ee964bf7/_ds_bundle.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>html,body{margin:0;height:100%;background:hsl(var(--background));overflow:hidden}a{color:hsl(var(--primary));text-decoration:none}a:hover{color:hsl(var(--ring))}</style>
+</helmet>
+<div class="{{ themeClass }}" data-a2="{{ a2Flag }}" style="height:100vh;display:flex;flex-direction:column;background:hsl(var(--surface-0));color:hsl(var(--foreground));font-family:'Roboto',system-ui,sans-serif">
+  <header style="flex:none;display:flex;align-items:center;gap:16px;padding:10px 18px;border-bottom:1px solid hsl(var(--border));flex-wrap:wrap">
+    <img src="{{ brandLogo }}" alt="" style="width:28px;height:28px;border-radius:8px">
+    <span style="font-family:'Roboto',sans-serif;font-size:15px;font-weight:600">{{ brandTitle }}</span>
+    <nav style="display:flex;gap:4px;padding:3px;border-radius:10px;background:hsl(var(--secondary)/0.6);border:1px solid hsl(var(--border))">
+      <sc-for list="{{ pages }}" as="p" hint-placeholder-count="3">
+        <sc-if value="{{ p.active }}" hint-placeholder-val="{{ false }}"><span style="padding:5px 12px;border-radius:7px;background:hsl(var(--primary));color:hsl(var(--primary-foreground));font-size:13px;font-weight:600">{{ p.label }}</span></sc-if>
+        <sc-if value="{{ p.inactive }}" hint-placeholder-val="{{ true }}"><a href="{{ p.href }}" style="padding:5px 12px;border-radius:7px;color:hsl(var(--muted-foreground));font-size:13px;font-weight:500">{{ p.label }}</a></sc-if>
+      </sc-for>
+    </nav>
+    <span style="flex:1;min-width:0;font-size:13px;color:hsl(var(--muted-foreground));white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ desc }}</span>
+    <span style="font-size:12.5px;color:hsl(var(--muted-foreground));font-variant-numeric:tabular-nums;white-space:nowrap">{{ sizeLabel }}</span>
+    <div style="display:flex;gap:3px;padding:3px;border-radius:10px;background:hsl(var(--secondary)/0.6);border:1px solid hsl(var(--border))">
+      <sc-if value="{{ isDark }}" hint-placeholder-val="{{ true }}"><span style="padding:5px 12px;border-radius:7px;background:hsl(var(--foreground));color:hsl(var(--background));font-size:13px;font-weight:600">Tamna</span></sc-if>
+      <sc-if value="{{ isLight }}" hint-placeholder-val="{{ false }}"><button onClick="{{ setDark }}" style="padding:5px 12px;border:0;border-radius:7px;background:transparent;color:hsl(var(--muted-foreground));font:inherit;font-size:13px;font-weight:500;cursor:pointer">Tamna</button></sc-if>
+      <sc-if value="{{ isLight }}" hint-placeholder-val="{{ false }}"><span style="padding:5px 12px;border-radius:7px;background:hsl(var(--foreground));color:hsl(var(--background));font-size:13px;font-weight:600">Svetla</span></sc-if>
+      <sc-if value="{{ isDark }}" hint-placeholder-val="{{ true }}"><button onClick="{{ setLight }}" style="padding:5px 12px;border:0;border-radius:7px;background:transparent;color:hsl(var(--muted-foreground));font:inherit;font-size:13px;font-weight:500;cursor:pointer">Svetla</button></sc-if>
+    </div>
+    <div title="Paleta boja" style="display:flex;gap:3px;padding:3px;border-radius:10px;background:hsl(var(--secondary)/0.6);border:1px solid hsl(var(--border))">
+      <sc-if value="{{ a2Off }}" hint-placeholder-val="{{ false }}"><span style="display:flex;align-items:center;gap:6px;padding:5px 12px;border-radius:7px;background:hsl(var(--foreground));color:hsl(var(--background));font-size:13px;font-weight:600"><span style="width:8px;height:8px;border-radius:50%;background:hsl(220 12% 60%)"></span>Standardna</span></sc-if>
+      <sc-if value="{{ accent2 }}" hint-placeholder-val="{{ true }}"><button onClick="{{ setA2Off }}" style="display:flex;align-items:center;gap:6px;padding:5px 12px;border:0;border-radius:7px;background:transparent;color:hsl(var(--muted-foreground));font:inherit;font-size:13px;font-weight:500;cursor:pointer"><span style="width:8px;height:8px;border-radius:50%;background:hsl(220 12% 60%)"></span>Standardna</button></sc-if>
+      <sc-if value="{{ accent2 }}" hint-placeholder-val="{{ true }}"><span style="display:flex;align-items:center;gap:6px;padding:5px 12px;border-radius:7px;background:hsl(var(--foreground));color:hsl(var(--background));font-size:13px;font-weight:600"><span style="width:8px;height:8px;border-radius:50%;background:linear-gradient(135deg,#0a6cff,#2fd3ff)"></span>Klaro</span></sc-if>
+      <sc-if value="{{ a2Off }}" hint-placeholder-val="{{ false }}"><button onClick="{{ setA2On }}" style="display:flex;align-items:center;gap:6px;padding:5px 12px;border:0;border-radius:7px;background:transparent;color:hsl(var(--muted-foreground));font:inherit;font-size:13px;font-weight:500;cursor:pointer"><span style="width:8px;height:8px;border-radius:50%;background:linear-gradient(135deg,#0a6cff,#2fd3ff)"></span>Klaro</button></sc-if>
+    </div>
+  </header>
+  <div ref="{{ stageRef }}" style="flex:1;min-height:0;display:grid;place-items:center;overflow:auto;padding:24px">
+    <div style="width:{{ boxW }};height:{{ boxH }};flex:none">
+      <div style="width:{{ artW }};height:{{ artH }};transform:scale({{ scale }});transform-origin:0 0;border-radius:{{ radius }};overflow:hidden;box-shadow:0 0 0 1px hsl(var(--border)),0 40px 80px -30px hsl(var(--shell-shadow)/0.6)">
+        <dc-import name="KlaroPlayer" brand="{{ brand }}" direction="{{ direction }}" device="{{ pdev }}" screen="{{ pscreen }}" theme="{{ theme }}" hints="{{ hints }}" accent2="{{ accent2 }}" user-type="{{ userType }}" embedded="1" style="width:{{ artW }};height:{{ artH }}" hint-size="100%,100%"></dc-import>
+      </div>
+    </div>
+  </div>
+  <sc-if value="{{ showRemote }}" hint-placeholder-val="{{ false }}">
+    <div style="position:fixed;right:24px;bottom:24px;z-index:50;transform:translate({{ rx }}px,{{ ry }}px);display:flex;flex-direction:column;align-items:center;gap:12px;padding:12px 16px 16px;border-radius:24px;background:hsl(var(--card)/0.92);backdrop-filter:blur(14px);border:1px solid hsl(var(--border));box-shadow:0 24px 48px -16px hsl(var(--shell-shadow)/0.6);user-select:none;touch-action:none">
+      <div onPointerDown="{{ dragStart }}" title="Prevuci da pomeriš" style="display:flex;flex-direction:column;align-items:center;gap:6px;width:100%;padding:4px 0 2px;cursor:grab;color:hsl(var(--muted-foreground))">
+        <span style="width:36px;height:4px;border-radius:2px;background:hsl(var(--muted-foreground)/0.5)"></span>
+        <span style="font-size:11px;font-weight:600;letter-spacing:0.12em">DALJINSKI</span>
+      </div>
+      <div style="position:relative;width:156px;height:156px;border-radius:50%;background:hsl(var(--secondary));box-shadow:inset 0 0 0 1px hsl(var(--border))">
+        <button onMouseDown="{{ keep }}" onClick="{{ up }}" title="Gore (↑)" style="position:absolute;left:52px;top:4px;width:52px;height:44px;display:grid;place-items:center;border:0;border-radius:12px;background:transparent;color:hsl(var(--foreground));cursor:pointer" style-hover="background:hsl(var(--muted))"><svg viewBox="0 0 24 24" style="width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round"><path d="m6 15 6-6 6 6"></path></svg></button>
+        <button onMouseDown="{{ keep }}" onClick="{{ down }}" title="Dole (↓)" style="position:absolute;left:52px;bottom:4px;width:52px;height:44px;display:grid;place-items:center;border:0;border-radius:12px;background:transparent;color:hsl(var(--foreground));cursor:pointer" style-hover="background:hsl(var(--muted))"><svg viewBox="0 0 24 24" style="width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round"><path d="m6 9 6 6 6-6"></path></svg></button>
+        <button onMouseDown="{{ keep }}" onClick="{{ left }}" title="Levo (←)" style="position:absolute;left:4px;top:52px;width:44px;height:52px;display:grid;place-items:center;border:0;border-radius:12px;background:transparent;color:hsl(var(--foreground));cursor:pointer" style-hover="background:hsl(var(--muted))"><svg viewBox="0 0 24 24" style="width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round"><path d="m15 6-6 6 6 6"></path></svg></button>
+        <button onMouseDown="{{ keep }}" onClick="{{ right }}" title="Desno (→)" style="position:absolute;right:4px;top:52px;width:44px;height:52px;display:grid;place-items:center;border:0;border-radius:12px;background:transparent;color:hsl(var(--foreground));cursor:pointer" style-hover="background:hsl(var(--muted))"><svg viewBox="0 0 24 24" style="width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round"><path d="m9 6 6 6-6 6"></path></svg></button>
+        <button onMouseDown="{{ keep }}" onPointerDown="{{ okDown }}" onPointerUp="{{ okUp }}" onPointerCancel="{{ okUp }}" onPointerLeave="{{ okUp }}" onKeyDown="{{ keep }}" title="OK (Enter) · drži za omiljene" style="position:absolute;left:48px;top:48px;width:60px;height:60px;border-radius:50%;border:0;background:hsl(var(--primary));color:hsl(var(--primary-foreground));font:inherit;font-size:15px;font-weight:700;cursor:pointer" style-active="transform:scale(0.95)">OK</button>
+      </div>
+      <button onMouseDown="{{ keep }}" onClick="{{ back }}" title="Nazad (Esc)" style="display:flex;align-items:center;gap:8px;height:40px;padding:0 16px;border-radius:999px;border:1px solid hsl(var(--border));background:hsl(var(--secondary));color:hsl(var(--foreground));font:inherit;font-size:13px;font-weight:500;cursor:pointer" style-hover="background:hsl(var(--muted))"><svg viewBox="0 0 24 24" style="width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><path d="M9 14 4 9l5-5"></path><path d="M4 9h11a5 5 0 0 1 0 10h-3"></path></svg>Nazad</button>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;brand&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;string&quot;},&quot;direction&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;string&quot;},&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;Tamna&quot;,&quot;Svetla&quot;],&quot;default&quot;:&quot;Tamna&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;device&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;Desktop 1440&quot;,&quot;Laptop 1280&quot;,&quot;Tablet 1024&quot;,&quot;Tablet uspravno 768&quot;,&quot;Mobilni 390&quot;,&quot;TV 1920&quot;],&quot;default&quot;:&quot;Desktop 1440&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;screen&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;Reprodukcija&quot;,&quot;Bez kanala&quot;,&quot;Filmovi&quot;,&quot;Serije&quot;],&quot;default&quot;:&quot;Reprodukcija&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;fit&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;},&quot;hints&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;},&quot;remote&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;},&quot;userType&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;updated&quot;,&quot;new&quot;],&quot;default&quot;:&quot;updated&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;accent2&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;boolean&quot;}}">
+const DEVICES = {
+  'Desktop 1440': [1440, 900, 'desktop'],
+  'Laptop 1280': [1280, 800, 'desktop'],
+  'Tablet 1024': [1024, 768, 'tablet'],
+  'Tablet uspravno 768': [768, 1024, 'mobile'],
+  'Mobilni 390': [390, 844, 'mobile'],
+  'TV 1920': [1920, 1080, 'tv'],
+};
+const SCREENS = { 'Reprodukcija': 'player', 'Bez kanala': 'empty', 'Filmovi': 'vod', 'Serije': 'series' };
+const PAGES = [
+  ['d', '1d Kolone', '1d Kolone.dc.html', 'Šina + stalna kolona kategorija + kanali — uvek se vidi TV › Srbija › RTS 1; program kao traka ispod videa'],
+];
+const BRANDS = {
+  klaro: { logo: 'assets/klaro-icon.svg', name: 'Klaro Player', prefix: 'Klaro ', accent: 'Player', title: 'Klaro Player 2026' },
+  exyu: { logo: 'assets/exyu-logo.png', name: 'EXYU.tv', prefix: 'EXYU', accent: '.tv', title: 'EXYU Player 2026' },
+};
+const brandOf = (b) => BRANDS[b === 'exyu' || b === 'EXYU.tv' ? 'exyu' : 'klaro'];
+class Component extends DCLogic {
+  stageRef = React.createRef();
+  state = { sw: 1200, sh: 800, themeOverride: null, rx: 0, ry: 0 };
+  constructor(p) {
+    super(p);
+    try { const v = JSON.parse(localStorage.getItem('exyu-remote-pos') || 'null'); if (Array.isArray(v)) { this.state.rx = v[0] || 0; this.state.ry = v[1] || 0; } } catch (_) {}
+  }
+  attach() {
+    const el = this.stageRef.current;
+    if (!el || this.ro) return;
+    const upd = () => { const w = el.clientWidth - 48, h = el.clientHeight - 48; if (w > 0 && (Math.abs(w - this.state.sw) > 1 || Math.abs(h - this.state.sh) > 1)) this.setState({ sw: w, sh: h }); };
+    upd();
+    this.ro = new ResizeObserver(upd); this.ro.observe(el);
+  }
+  measure = () => {
+    const el = this.stageRef.current; if (!el) return;
+    const w = el.clientWidth - 48, h = el.clientHeight - 48;
+    if (w > 0 && h > 0 && (Math.abs(w - this.state.sw) > 1 || Math.abs(h - this.state.sh) > 1)) this.setState({ sw: w, sh: h });
+  };
+  componentDidMount() {
+    this.attach();
+    window.addEventListener('resize', this.measure);
+    this.t = setInterval(() => { if (!this.ro) this.attach(); this.measure(); }, 300);
+    requestAnimationFrame(this.measure);
+  }
+  componentDidUpdate(prev) { if (!this.ro) this.attach(); if (prev.theme !== this.props.theme && this.state.themeOverride) this.setState({ themeOverride: null }); }
+  componentWillUnmount() { this.ro && this.ro.disconnect(); clearInterval(this.t); window.removeEventListener('resize', this.measure); }
+  tvTarget() {
+    const root = this.stageRef.current && this.stageRef.current.querySelector('[data-tv="1"]');
+    if (!root) return null;
+    const a = document.activeElement;
+    const inside = a && a !== root && root.contains(a);
+    return { root, a, inside };
+  }
+  press(key) {
+    const t = this.tvTarget(); if (!t) return;
+    if (key === 'Enter') { if (t.inside) { t.a.click(); return; } key = 'ArrowDown'; }
+    (t.inside ? t.a : t.root).dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
+  }
+  // OK: kanali dobijaju pravi keydown/keyup (kratko = pusti, dugo = omiljeni); ostalo = klik
+  okDown = (e) => {
+    e.preventDefault();
+    const t = this.tvTarget(); if (!t || !t.inside) return;
+    if (t.a.closest('[data-ch-id]')) { this._okHeld = t.a; t.a.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })); }
+  };
+  okUp = (e) => {
+    if (this._okHeld) { const el = this._okHeld; this._okHeld = null; el.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', bubbles: true, cancelable: true })); return; }
+    if (e.type === 'pointerup') this.press('Enter');
+  };
+  dragStart = (e) => {
+    e.preventDefault();
+    const sx = e.clientX - this.state.rx, sy = e.clientY - this.state.ry;
+    const move = (ev) => this.setState({ rx: ev.clientX - sx, ry: ev.clientY - sy });
+    const up = () => {
+      window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up);
+      try { localStorage.setItem('exyu-remote-pos', JSON.stringify([this.state.rx, this.state.ry])); } catch (_) {}
+    };
+    window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
+  };
+  renderVals() {
+    const dir = 'd';
+    const devKey = DEVICES[this.props.device] ? this.props.device : 'Desktop 1440';
+    const [w, h, pdev] = DEVICES[devKey];
+    const pscreen = SCREENS[this.props.screen] || 'player';
+    const fit = this.props.fit !== false && this.props.fit !== '0';
+    const scale = fit ? Math.min(1, this.state.sw / w, this.state.sh / h) : 1;
+    const page = PAGES.find((p) => p[0] === dir) || PAGES[0];
+    const propTheme = (this.props.theme ?? 'Tamna') === 'Svetla' || this.props.theme === 'light' ? 'light' : 'dark';
+    const theme = this.state.themeOverride || propTheme;
+    const brand = brandOf(this.props.brand);
+    return {
+      brand: this.props.brand === 'exyu' ? 'exyu' : 'klaro', brandLogo: brand.logo, brandTitle: brand.title,
+      theme, themeClass: theme, isDark: theme === 'dark', isLight: theme === 'light',
+      ...(() => { const a2 = this.state.a2Override ?? ![false, '0', 'false'].includes(this.props.accent2); return { accent2: a2, a2Off: !a2, a2Flag: a2 ? '1' : '0' }; })(),
+      setA2On: () => this.setState({ a2Override: true }), setA2Off: () => this.setState({ a2Override: false }), hints: this.props.hints !== false && this.props.hints !== '0', userType: this.props.userType === 'new' ? 'new' : 'updated',
+      setDark: () => this.setState({ themeOverride: 'dark' }), setLight: () => this.setState({ themeOverride: 'light' }),
+      isTV: pdev === 'tv', showRemote: pdev === 'tv' && this.props.remote !== false && this.props.remote !== '0', keep: (e) => e.preventDefault(),
+      up: () => this.press('ArrowUp'), down: () => this.press('ArrowDown'), left: () => this.press('ArrowLeft'), right: () => this.press('ArrowRight'),
+      okDown: this.okDown, okUp: this.okUp, back: () => this.press('Escape'),
+      dragStart: this.dragStart,
+      rx: Math.max(-(window.innerWidth - 240), Math.min(0, this.state.rx)),
+      ry: Math.max(-(window.innerHeight - 320), Math.min(0, this.state.ry)),
+      stageRef: this.stageRef, direction: dir, pdev, pscreen, scale,
+      artW: w + 'px', artH: h + 'px', boxW: Math.round(w * scale) + 'px', boxH: Math.round(h * scale) + 'px',
+      radius: pdev === 'mobile' && w < 500 ? '32px' : '10px',
+      sizeLabel: devKey + ' · ' + w + '×' + h + ' · ' + Math.round(scale * 100) + '%',
+      desc: page[3],
+      pages: PAGES.map(([id, label, href]) => ({ label, href, active: id === dir, inactive: id !== dir })),
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/klaro-player-design-system-0163f186-10a6-4b66-9271-90a3ee964bf7/foundations/tokens.css">
+<link rel="stylesheet" href="_ds/klaro-player-design-system-0163f186-10a6-4b66-9271-90a3ee964bf7/foundations/theme-tuning.css">
+<link rel="stylesheet" href="_ds/klaro-player-design-system-0163f186-10a6-4b66-9271-90a3ee964bf7/brand/brand.css">
+<link rel="stylesheet" href="assets/klaro-palette.css">
+<link rel="stylesheet" href="assets/panel.css">
+<script src="_ds/klaro-player-design-system-0163f186-10a6-4b66-9271-90a3ee964bf7/_ds_bundle.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+html,body{margin:0;height:100%;overflow:hidden;background:hsl(var(--background))}
+*{box-sizing:border-box}
+button{font:inherit;white-space:nowrap}
+.kp-nav{display:flex;align-items:center;gap:11px;width:100%;height:38px;padding:0 11px;border:0;border-radius:10px;background:transparent;color:hsl(var(--sidebar-foreground)/0.78);font-size:14px;font-weight:500;cursor:pointer;text-align:left;transition:background-color 140ms ease,color 140ms ease}
+.kp-nav:hover{background:hsl(var(--sidebar-accent)/0.7);color:hsl(var(--sidebar-foreground))}
+.kp-nav[data-on="1"]{background:hsl(var(--primary)/0.14);color:hsl(var(--foreground));box-shadow:inset 0 0 0 1px hsl(var(--primary)/0.35)}
+.kp-nav[data-on="1"] .ic{color:hsl(var(--primary))}
+.kp-nav .cnt{margin-left:auto;padding:1px 7px;border-radius:7px;background:hsl(var(--warn)/0.16);color:hsl(var(--warn));font-size:11.5px;font-weight:700}
+.kp-tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;height:58px;border:0;background:none;color:hsl(var(--muted-foreground));font-size:10.5px;font-weight:600;cursor:pointer}
+.kp-tab[data-on="1"]{color:hsl(var(--primary))}
+.kp-tab[data-on="1"] .ic{filter:drop-shadow(0 0 8px hsl(var(--primary)/0.6))}
+.kp-sheet-it{display:flex;align-items:center;gap:12px;height:48px;padding:0 14px;border:0;border-radius:12px;background:hsl(var(--secondary)/0.5);color:hsl(var(--foreground));font-size:14.5px;font-weight:500;cursor:pointer;text-align:left}
+.kp-sheet-it[data-on="1"]{background:hsl(var(--primary)/0.16);color:hsl(var(--primary))}
+</style>
+</helmet>
+<div class="{{ themeClass }}" data-a2="{{ a2Flag }}" data-vodic="1" style="height:100vh;display:flex;flex-direction:column;background:hsl(var(--surface-0));color:hsl(var(--foreground));font-family:'Roboto',system-ui,sans-serif">
+  <header style="flex:none;display:flex;flex-direction:column;gap:8px;padding:10px 18px;border-bottom:1px solid hsl(var(--border))">
+    <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+      <img src="assets/klaro-icon.svg" alt="" style="width:28px;height:28px;border-radius:8px">
+      <span style="font-size:15px;font-weight:600">Klaro Panel</span>
+      <span style="flex:1;min-width:0;font-size:13px;color:hsl(var(--muted-foreground));white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ pageDesc }}</span>
+      <div style="display:flex;gap:3px;padding:3px;border-radius:10px;background:hsl(var(--secondary)/0.6);border:1px solid hsl(var(--border))">
+        <sc-for list="{{ roleChips }}" as="d" hint-placeholder-count="3">
+          <button onClick="{{ d.onClick }}" style="padding:5px 11px;border:0;border-radius:7px;background:{{ d.bg }};color:{{ d.fg }};font-size:12.5px;font-weight:600;cursor:pointer">{{ d.label }}</button>
+        </sc-for>
+      </div>
+      <sc-if value="{{ isUser }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;gap:3px;padding:3px;border-radius:10px;background:hsl(var(--secondary)/0.6);border:1px solid hsl(var(--border))">
+          <sc-for list="{{ kindChips }}" as="d" hint-placeholder-count="2">
+            <button onClick="{{ d.onClick }}" style="padding:5px 11px;border:0;border-radius:7px;background:{{ d.bg }};color:{{ d.fg }};font-size:12.5px;font-weight:600;cursor:pointer">{{ d.label }}</button>
+          </sc-for>
+        </div>
+      </sc-if>
+      <div style="display:flex;gap:3px;padding:3px;border-radius:10px;background:hsl(var(--secondary)/0.6);border:1px solid hsl(var(--border))">
+        <sc-for list="{{ devChips }}" as="d" hint-placeholder-count="4">
+          <button onClick="{{ d.onClick }}" style="padding:5px 11px;border:0;border-radius:7px;background:{{ d.bg }};color:{{ d.fg }};font-size:12.5px;font-weight:600;cursor:pointer">{{ d.label }}</button>
+        </sc-for>
+      </div>
+      <button onClick="{{ toggleTheme }}" style="padding:6px 12px;border-radius:10px;border:1px solid hsl(var(--border));background:hsl(var(--secondary)/0.6);color:hsl(var(--foreground));font-size:12.5px;font-weight:600;cursor:pointer">{{ themeLabel }}</button>
+    </div>
+    <div style="display:flex;gap:4px;flex-wrap:wrap">
+      <sc-for list="{{ pageChips }}" as="s" hint-placeholder-count="9">
+        <button onClick="{{ s.onClick }}" style="display:flex;align-items:center;gap:6px;padding:4px 10px;border:0;border-radius:999px;background:{{ s.bg }};color:{{ s.fg }};font-size:12px;font-weight:500;cursor:pointer"><span style="font-size:10.5px;font-weight:700;opacity:0.7">{{ s.id }}</span>{{ s.label }}</button>
+      </sc-for>
+    </div>
+  </header>
+
+  <div ref="{{ stageRef }}" style="flex:1;min-height:0;display:grid;place-items:center;overflow:hidden;padding:24px">
+    <div style="width:{{ boxW }};height:{{ boxH }};flex:none">
+      <div class="kp {{ themeClass }}" data-a2="{{ a2Flag }}" data-dev="{{ kind }}" style="position:relative;width:{{ artW }};height:{{ artH }};transform:scale({{ scale }});transform-origin:0 0;border-radius:{{ frameR }};overflow:hidden;display:flex;background:radial-gradient(60% 50% at 0% 0%,hsl(var(--primary)/0.10),transparent 70%),var(--bg-gradient,hsl(var(--background)));box-shadow:0 0 0 1px hsl(var(--border)),0 40px 80px -30px hsl(var(--shell-shadow)/0.6)">
+        <svg style="position:absolute;width:0;height:0" aria-hidden="true"><defs>
+          <symbol id="i-home" viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5"></path><path d="M5 9.5V21h14V9.5"></path><path d="M10 21v-6h4v6"></path></symbol>
+          <symbol id="i-tv" viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"></rect><path d="m17 2-5 5-5-5"></path></symbol>
+          <symbol id="i-phone" viewBox="0 0 24 24"><rect x="6" y="2" width="12" height="20" rx="2.5"></rect><path d="M11 18h2"></path></symbol>
+          <symbol id="i-laptop" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="11" rx="1.5"></rect><path d="M2 19h20"></path></symbol>
+          <symbol id="i-tablet" viewBox="0 0 24 24"><rect x="4" y="2" width="16" height="20" rx="2.5"></rect><path d="M11 18h2"></path></symbol>
+          <symbol id="i-devices" viewBox="0 0 24 24"><rect x="2" y="4" width="15" height="11" rx="1.5"></rect><path d="M6 19h7"></path><rect x="16" y="9" width="6" height="11" rx="1.5"></rect></symbol>
+          <symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="4"></circle><path d="M2 21a7 7 0 0 1 14 0"></path><path d="M16 4a4 4 0 0 1 0 8M22 21a7 7 0 0 0-4-6.3"></path></symbol>
+          <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"></circle><path d="M4 21a8 8 0 0 1 16 0"></path></symbol>
+          <symbol id="i-plug" viewBox="0 0 24 24"><path d="M9 2v6M15 2v6M6 8h12v3a6 6 0 0 1-12 0z"></path><path d="M12 17v5"></path></symbol>
+          <symbol id="i-card" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"></rect><path d="M2 10h20M6 15h4"></path></symbol>
+          <symbol id="i-key" viewBox="0 0 24 24"><circle cx="7.5" cy="15.5" r="5.5"></circle><path d="m11.5 11.5 9-9M16 7l3 3M19 4l2 2"></path></symbol>
+          <symbol id="i-coins" viewBox="0 0 24 24"><ellipse cx="9" cy="7" rx="6" ry="3"></ellipse><path d="M3 7v5c0 1.7 2.7 3 6 3s6-1.3 6-3V7"></path><path d="M3 12v5c0 1.7 2.7 3 6 3 1.4 0 2.6-.2 3.6-.6"></path><circle cx="17" cy="16" r="5"></circle><path d="M17 14v4"></path></symbol>
+          <symbol id="i-ticket" viewBox="0 0 24 24"><path d="M3 8a2 2 0 0 0 2-2h14a2 2 0 0 0 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 0-2 2H5a2 2 0 0 0-2-2v-2a2 2 0 0 0 0-4z"></path><path d="M14 6v12" stroke-dasharray="2 2"></path></symbol>
+          <symbol id="i-palette" viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 0 18c1.1 0 1.7-.8 1.7-1.6 0-.5-.2-.9-.5-1.2-.3-.3-.5-.7-.5-1.2 0-.9.8-1.7 1.7-1.7H16a5 5 0 0 0 5-5c0-4-4-7.3-9-7.3z"></path><circle cx="7.5" cy="11.5" r="1.2"></circle><circle cx="10" cy="7.5" r="1.2"></circle><circle cx="15" cy="7.5" r="1.2"></circle></symbol>
+          <symbol id="i-team" viewBox="0 0 24 24"><circle cx="12" cy="7" r="3.5"></circle><path d="M5 21v-1a7 7 0 0 1 14 0v1"></path><circle cx="4.5" cy="10" r="2.2"></circle><circle cx="19.5" cy="10" r="2.2"></circle></symbol>
+          <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></symbol>
+          <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"></path></symbol>
+          <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"></path></symbol>
+          <symbol id="i-list" viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"></path></symbol>
+          <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></symbol>
+          <symbol id="i-chart" viewBox="0 0 24 24"><path d="M3 3v18h18"></path><path d="M7 16v-4M12 16V8M17 16v-7"></path></symbol>
+          <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"></path></symbol>
+          <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"></path></symbol>
+          <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"></path></symbol>
+          <symbol id="i-right" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"></path></symbol>
+          <symbol id="i-left" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"></path></symbol>
+          <symbol id="i-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"></path></symbol>
+          <symbol id="i-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.3"></circle><circle cx="12" cy="12" r="1.3"></circle><circle cx="19" cy="12" r="1.3"></circle></symbol>
+          <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"></rect><rect x="14" y="3" width="7" height="7" rx="1.5"></rect><rect x="3" y="14" width="7" height="7" rx="1.5"></rect><rect x="14" y="14" width="7" height="7" rx="1.5"></rect></symbol>
+          <symbol id="i-edit" viewBox="0 0 24 24"><path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"></path></symbol>
+          <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"></path></symbol>
+          <symbol id="i-swap" viewBox="0 0 24 24"><path d="M16 3h5v5"></path><path d="M21 3 14 10"></path><path d="M8 21H3v-5"></path><path d="m3 21 7-7"></path></symbol>
+          <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.6-6.4L21 8"></path><path d="M21 3v5h-5"></path></symbol>
+          <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5"></path><path d="M4 21h16"></path></symbol>
+          <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 21V9M7 14l5-5 5 5"></path><path d="M4 3h16"></path></symbol>
+          <symbol id="i-mail" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"></rect><path d="m22 7-10 6L2 7"></path></symbol>
+          <symbol id="i-lock" viewBox="0 0 24 24"><rect x="4" y="11" width="16" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></symbol>
+          <symbol id="i-logout" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><path d="m16 17 5-5-5-5M21 12H9"></path></symbol>
+          <symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3M12 17h.01"></path></symbol>
+          <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"></path><circle cx="12" cy="12" r="3"></circle></symbol>
+          <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"></rect><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"></path></symbol>
+          <symbol id="i-server" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="7" rx="2"></rect><rect x="3" y="14" width="18" height="7" rx="2"></rect><path d="M7 6.5h.01M7 17.5h.01"></path></symbol>
+          <symbol id="i-flag" viewBox="0 0 24 24"><path d="M4 22V4s1.5-1 5-1 5 2 8 2 3-1 3-1v11s-1 1-3 1-5-2-8-2-5 1-5 1"></path></symbol>
+          <symbol id="i-mega" viewBox="0 0 24 24"><path d="M3 11v2a1 1 0 0 0 1 1h3l6 5V5L7 10H4a1 1 0 0 0-1 1z"></path><path d="M17 8a5 5 0 0 1 0 8"></path></symbol>
+          <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"></path></symbol>
+          <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></symbol>
+          <symbol id="i-ban" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="m5.6 5.6 12.8 12.8"></path></symbol>
+          <symbol id="i-alert" viewBox="0 0 24 24"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"></path><path d="M12 9v4M12 17h.01"></path></symbol>
+          <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="M12 16v-4M12 8h.01"></path></symbol>
+          <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"></path></symbol>
+          <symbol id="i-qr" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect><path d="M14 14h3v3h-3zM20 14v.01M17 20h4v-3M14 20h.01"></path></symbol>
+          <symbol id="i-gift" viewBox="0 0 24 24"><rect x="3" y="8" width="18" height="5" rx="1"></rect><path d="M5 13v8h14v-8M12 8v13"></path><path d="M12 8S10.5 3 7.5 3a2.5 2.5 0 0 0 0 5M12 8s1.5-5 4.5-5a2.5 2.5 0 0 1 0 5"></path></symbol>
+          <symbol id="i-receipt" viewBox="0 0 24 24"><path d="M5 2h14v20l-3-2-2 2-2-2-2 2-2-2-3 2z"></path><path d="M9 7h6M9 11h6M9 15h4"></path></symbol>
+          <symbol id="i-filter" viewBox="0 0 24 24"><path d="M3 5h18l-7 9v6l-4-2v-4z"></path></symbol>
+          <symbol id="i-login" viewBox="0 0 24 24"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path><path d="m10 17 5-5-5-5M15 12H3"></path></symbol>
+          <symbol id="i-paste" viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="17" rx="2"></rect><path d="M9 4V3h6v1M9 10h6M9 14h6M9 18h3"></path></symbol>
+          <symbol id="i-file" viewBox="0 0 24 24"><path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z"></path><path d="M14 3v5h5"></path></symbol>
+          <symbol id="i-spark" viewBox="0 0 24 24"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M5.6 18.4l2.8-2.8M15.6 8.4l2.8-2.8"></path></symbol>
+        </defs></svg>
+
+        <!-- impersonation banner (genadmin → „Prijavi se kao“) -->
+        <sc-if value="{{ impersonating }}" hint-placeholder-val="{{ false }}">
+          <div style="position:absolute;left:0;right:0;top:0;z-index:60;height:34px;display:flex;align-items:center;justify-content:center;gap:12px;background:hsl(var(--warn));color:hsl(222 58% 8%);font-size:13px;font-weight:600">
+            <svg class="ic sm"><use href="#i-eye"></use></svg>Gledaš panel kao <b>Orbita TV</b> · svaka radnja se upisuje u dnevnik
+            <button onClick="{{ endImpersonation }}" style="height:24px;padding:0 10px;border:0;border-radius:7px;background:hsl(222 58% 8%/0.85);color:#fff;font-size:12px;font-weight:600;cursor:pointer">Vrati se u Genadmin</button>
+          </div>
+        </sc-if>
+
+        <!-- sidebar (desktop / tablet) -->
+        <sc-if value="{{ showSide }}" hint-placeholder-val="{{ true }}">
+          <aside style="flex:none;width:{{ sideW }};display:flex;flex-direction:column;gap:14px;padding:{{ sidePad }};background:hsl(var(--sidebar-background)/0.72);box-shadow:inset -1px 0 0 hsl(var(--sidebar-border));backdrop-filter:blur(18px)">
+            <div style="display:flex;align-items:center;gap:10px;padding:2px 6px">
+              <img src="assets/klaro-icon.svg" alt="Klaro" style="width:32px;height:32px;border-radius:9px">
+              <span class="kp-brand" style="font-size:18px;font-weight:700">Klaro <span style="font-weight:500;color:hsl(var(--muted-foreground))">Panel</span></span>
+            </div>
+            <button style="display:flex;align-items:center;gap:10px;width:100%;padding:10px;border:0;border-radius:14px;background:hsl(var(--card)/0.7);box-shadow:inset 0 0 0 1px hsl(var(--glass-border)/0.4);color:inherit;text-align:left;cursor:pointer">
+              <span class="kp-av sm" style="background:{{ ws.grad }}">{{ ws.ini }}</span>
+              <span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:1px"><b style="font-size:13.5px;overflow:hidden;text-overflow:ellipsis">{{ ws.name }}</b><span style="font-size:12px;color:hsl(var(--muted-foreground))">{{ ws.meta }}</span></span>
+              <svg class="ic sm mut"><use href="#i-down"></use></svg>
+            </button>
+            <nav style="flex:1;min-height:0;overflow:auto;scrollbar-width:none;display:flex;flex-direction:column;gap:14px">
+              <sc-for list="{{ navGroups }}" as="g" hint-placeholder-count="3">
+                <div style="display:flex;flex-direction:column;gap:2px">
+                  <sc-if value="{{ g.title }}" hint-placeholder-val="{{ true }}"><span style="padding:0 11px 4px;font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:hsl(var(--muted-foreground)/0.8)">{{ g.title }}</span></sc-if>
+                  <sc-for list="{{ g.items }}" as="it" hint-placeholder-count="3">
+                    <button class="kp-nav" data-on="{{ it.on }}" onClick="{{ it.onClick }}"><svg class="ic"><use href="{{ it.href }}"></use></svg>{{ it.label }}<sc-if value="{{ it.cnt }}" hint-placeholder-val="{{ false }}"><span class="cnt">{{ it.cnt }}</span></sc-if></button>
+                  </sc-for>
+                </div>
+              </sc-for>
+            </nav>
+            <div style="display:flex;flex-direction:column;gap:2px">
+              <button class="kp-nav"><svg class="ic"><use href="#i-help"></use></svg>Pomoć i uputstva</button>
+              <div style="display:flex;align-items:center;gap:10px;padding:10px 8px 0;border-top:1px solid hsl(var(--sidebar-border));margin-top:6px">
+                <span class="kp-av sm" style="background:{{ me.grad }}">{{ me.ini }}</span>
+                <span style="flex:1;min-width:0;display:flex;flex-direction:column"><b style="font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ me.name }}</b><span style="font-size:11.5px;color:hsl(var(--muted-foreground));overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ me.mail }}</span></span>
+                <button class="kp-btn quiet sm icon" onClick="{{ goLogin }}" title="Odjava"><svg class="ic sm"><use href="#i-logout"></use></svg></button>
+              </div>
+            </div>
+          </aside>
+        </sc-if>
+
+        <div style="position:relative;flex:1;min-width:0;display:flex;flex-direction:column;padding-top:{{ bannerPad }}">
+          <!-- top bar -->
+          <sc-if value="{{ showTop }}" hint-placeholder-val="{{ true }}">
+            <div style="flex:none;display:flex;align-items:center;gap:12px;height:{{ topH }};padding:{{ topPad }};border-bottom:1px solid hsl(var(--border)/0.7);background:hsl(var(--background)/0.35);backdrop-filter:blur(14px)">
+              <sc-if value="{{ isM }}" hint-placeholder-val="{{ false }}">
+                <img src="assets/klaro-icon.svg" alt="Klaro" style="width:30px;height:30px;border-radius:9px">
+                <span style="flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.2"><b class="kp-brand" style="font-size:16px">Klaro <span style="font-weight:500;color:hsl(var(--muted-foreground))">Panel</span></b><span style="font-size:11.5px;color:hsl(var(--muted-foreground))">{{ ws.name }}</span></span>
+              </sc-if>
+              <sc-if value="{{ notM }}" hint-placeholder-val="{{ true }}">
+                <span style="display:flex;align-items:center;gap:8px;font-size:13px;color:hsl(var(--muted-foreground))">{{ ws.name }}<svg class="ic sm"><use href="#i-right"></use></svg><b style="color:hsl(var(--foreground));font-weight:600">{{ curLabel }}</b></span>
+                <span style="flex:1"></span>
+                <sc-if value="{{ showSearch }}" hint-placeholder-val="{{ true }}">
+                  <label class="kp-input" style="width:{{ searchW }};height:38px;font-size:13.5px"><svg class="ic sm"><use href="#i-search"></use></svg><input placeholder="{{ searchPh }}" onKeyDown="{{ onSearchKey }}"><span style="padding:2px 6px;border-radius:6px;background:hsl(var(--secondary));font-size:11px;color:hsl(var(--muted-foreground))">⌘K</span></label>
+                </sc-if>
+                <sc-if value="{{ cta }}" hint-placeholder-val="{{ true }}">
+                  <button class="kp-btn primary" onClick="{{ cta.onClick }}" style="height:38px"><svg class="ic sm"><use href="{{ cta.href }}"></use></svg>{{ cta.label }}</button>
+                </sc-if>
+              </sc-if>
+              <button class="kp-btn quiet icon" style="position:relative;height:38px;width:38px"><svg class="ic"><use href="#i-bell"></use></svg><span style="position:absolute;top:8px;right:9px;width:8px;height:8px;border-radius:50%;background:hsl(var(--live));box-shadow:0 0 0 2px hsl(var(--background))"></span></button>
+              <sc-if value="{{ isM }}" hint-placeholder-val="{{ false }}">
+                <span class="kp-av sm" style="background:{{ me.grad }}">{{ me.ini }}</span>
+              </sc-if>
+            </div>
+          </sc-if>
+
+          <main class="kp-main" style="flex:1;min-height:0;overflow:auto;scrollbar-width:thin">
+            <sc-if value="{{ kIs.login }}" hint-placeholder-val="{{ false }}">
+              <dc-import name="PanelPrijava" dev="{{ kind }}" nav="{{ nav }}" toast="{{ showToast }}" set-plan="{{ setPlan }}" style="display:block;width:100%;min-height:100%" hint-size="100%,800px"></dc-import>
+            </sc-if>
+            <sc-if value="{{ kIs.tv }}" hint-placeholder-val="{{ false }}">
+              <dc-import name="PanelPoveziTV" plan="{{ plan }}" dev="{{ kind }}" nav="{{ nav }}" toast="{{ showToast }}" style="display:block;width:100%;min-height:100%" hint-size="100%,800px"></dc-import>
+            </sc-if>
+            <sc-if value="{{ kIs.plan }}" hint-placeholder-val="{{ false }}">
+              <dc-import name="PanelPlan" plan="{{ plan }}" paid="{{ paid }}" dev="{{ kind }}" set-plan="{{ setPlan }}" toast="{{ showToast }}" style="display:block;width:100%" hint-size="100%,800px"></dc-import>
+            </sc-if>
+            <sc-if value="{{ kIs.rest }}" hint-placeholder-val="{{ true }}">
+              <dc-import name="PanelKorisnik" page="{{ page }}" dev="{{ kind }}" direct="{{ direct }}" plan="{{ plan }}" paid="{{ paid }}" nav="{{ nav }}" toast="{{ showToast }}" style="display:block;width:100%" hint-size="100%,860px"></dc-import>
+            </sc-if>
+            <sc-if value="{{ roleIs.P }}" hint-placeholder-val="{{ false }}">
+              <dc-import name="PanelProvajder" page="{{ page }}" dev="{{ kind }}" nav="{{ nav }}" toast="{{ showToast }}" impersonating="{{ impersonating }}" style="display:block;width:100%" hint-size="100%,860px"></dc-import>
+            </sc-if>
+            <sc-if value="{{ roleIs.G }}" hint-placeholder-val="{{ false }}">
+              <dc-import name="PanelGenadmin" page="{{ page }}" dev="{{ kind }}" nav="{{ nav }}" toast="{{ showToast }}" impersonate="{{ startImpersonation }}" style="display:block;width:100%" hint-size="100%,860px"></dc-import>
+            </sc-if>
+          </main>
+
+          <!-- mobile tab bar -->
+          <sc-if value="{{ showTabs }}" hint-placeholder-val="{{ false }}">
+            <div style="position:absolute;left:10px;right:10px;bottom:10px;z-index:30;display:flex;padding:0 4px 4px;border-radius:22px;background:hsl(var(--card)/0.86);backdrop-filter:blur(20px);box-shadow:inset 0 0 0 1px hsl(var(--glass-border)/0.45),0 20px 40px -16px hsl(var(--shell-shadow)/0.9)">
+              <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="5">
+                <button class="kp-tab" data-on="{{ t.on }}" onClick="{{ t.onClick }}"><svg class="ic lg"><use href="{{ t.href }}"></use></svg>{{ t.label }}</button>
+              </sc-for>
+            </div>
+          </sc-if>
+          <sc-if value="{{ sheetOpen }}" hint-placeholder-val="{{ false }}">
+            <div class="kp-scrim" onClick="{{ closeSheet }}"></div>
+            <div style="position:absolute;left:0;right:0;bottom:0;z-index:41;display:flex;flex-direction:column;gap:8px;padding:10px 16px 26px;border-radius:26px 26px 0 0;background:hsl(var(--popover));box-shadow:0 -20px 60px -20px hsl(var(--shell-shadow));animation:kpIn 260ms cubic-bezier(0.22,1,0.36,1) both">
+              <span style="align-self:center;width:40px;height:5px;border-radius:3px;background:hsl(var(--muted-foreground)/0.4);margin-bottom:8px"></span>
+              <sc-for list="{{ sheetItems }}" as="it" hint-placeholder-count="6">
+                <button class="kp-sheet-it" data-on="{{ it.on }}" onClick="{{ it.onClick }}"><svg class="ic"><use href="{{ it.href }}"></use></svg>{{ it.label }}</button>
+              </sc-for>
+              <button class="kp-sheet-it" onClick="{{ goLogin }}" style="background:transparent;color:hsl(var(--destructive))"><svg class="ic"><use href="#i-logout"></use></svg>Odjavi se</button>
+            </div>
+          </sc-if>
+
+          <!-- toast -->
+          <sc-if value="{{ toast }}" hint-placeholder-val="{{ false }}">
+            <div style="position:absolute;left:50%;bottom:{{ toastBottom }};z-index:70;display:flex;align-items:center;gap:10px;max-width:calc(100% - 32px);padding:11px 16px;border-radius:14px;background:hsl(var(--popover));box-shadow:inset 0 0 0 1px hsl(var(--success)/0.5),0 20px 40px -14px hsl(var(--shell-shadow));font-size:13.5px;font-weight:500;animation:kpToast 260ms cubic-bezier(0.22,1,0.36,1) both;transform:translateX(-50%)">
+              <span style="width:22px;height:22px;flex:none;display:grid;place-items:center;border-radius:50%;background:hsl(var(--success)/0.18);color:hsl(var(--success))"><svg class="ic sm"><use href="#i-check"></use></svg></span>{{ toast }}
+            </div>
+          </sc-if>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;ekran&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;K0 Prijava&quot;,&quot;K1 Moji uređaji&quot;,&quot;K2 Poveži TV&quot;,&quot;K3 Izvori&quot;,&quot;K4 Licenca i plaćanje&quot;,&quot;K5 Nalog i podrška&quot;,&quot;P1 Pregled&quot;,&quot;P2 Korisnici&quot;,&quot;P3 Uređaji&quot;,&quot;P4 Aktiviraj uređaj&quot;,&quot;P5 Krediti&quot;,&quot;P6 Aktivacioni kodovi&quot;,&quot;P7 Serveri&quot;,&quot;P8 Brending&quot;,&quot;P9 Tim&quot;,&quot;G1 Pregled&quot;,&quot;G2 Provajderi&quot;,&quot;G3 Krediti&quot;,&quot;G4 Pretraga&quot;,&quot;G5 Planovi i cene&quot;,&quot;G6 Aplikacija&quot;,&quot;G7 Dnevnik i bezbednost&quot;],&quot;default&quot;:&quot;P1 Pregled&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Ekran&quot;},&quot;uredjaj&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;Desktop 1440&quot;,&quot;Laptop 1280&quot;,&quot;Tablet 1024&quot;,&quot;Mobilni 390&quot;],&quot;default&quot;:&quot;Desktop 1440&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Prikaz&quot;},&quot;korisnik&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;Gost&quot;,&quot;Free&quot;,&quot;Premium&quot;,&quot;Premium · 5 TV&quot;,&quot;Od provajdera&quot;],&quot;default&quot;:&quot;Free&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Korisnik&quot;},&quot;tema&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;Tamna&quot;,&quot;Svetla&quot;],&quot;default&quot;:&quot;Tamna&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Tema&quot;},&quot;paleta&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;Klaro&quot;,&quot;Standardna&quot;],&quot;default&quot;:&quot;Klaro&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Tema&quot;}}">
+const PAGES = [
+  ['K0', 'Prijava', 'Google / Apple / Microsoft / GitHub ili magic link (bez lozinke) · isti ulaz za gledaoce, provajdere i Genadmin · zahtev za partnera', 'login'],
+  ['K1', 'Moji uređaji', 'Uređaji po planu (Free: 1 gleda u isto vreme · Premium: 5) · obaveštenje o promeni vlasnika · ponuda partnerskog naloga', 'devices'],
+  ['K2', 'Poveži TV', 'klaroplayer.com/tv — kod/QR → potvrda → nalepi listu od provajdera → šalje se na TV · radi i bez naloga (Gost)', 'tv'],
+  ['K3', 'Izvori', 'Xtream / M3U / EPG izvori; izvor od provajdera je zaključan', 'plug'],
+  ['K4', 'Plan', 'Free zauvek / Premium €10 godišnje · proba 30 dana · Apple Pay, Google Pay, kartica', 'card'],
+  ['K5', 'Nalog i podrška', 'Profil, lozinka, odjava sa svih uređaja, kontakt podrške', 'user'],
+  ['P1', 'Pregled', 'Provajder: aktivni uređaji, ističu u 7/30 dana, krediti, nove aktivacije', 'home'],
+  ['P2', 'Korisnici', 'Provajder: pretraga, detalj korisnika (uređaji, izvor, istorija), produži, suspenduj, beleška', 'users'],
+  ['P3', 'Uređaji', 'Svi uređaji, filteri · grupno produženje — preko 10 kredita traži potvrdu emailom', 'devices'],
+  ['P4', 'Aktiviraj uređaj', 'Kod sa TV-a → korisnik + izvor + trajanje · upozorenje ako je TV ranije bio na drugom nalogu (probaj TQ5-9HN)', 'key'],
+  ['P5', 'Krediti', 'Stanje, kupovina od Klaro, knjiga promena (ko, kada, zašto)', 'coins'],
+  ['P6', 'Aktivacioni kodovi', 'Paketi vaučera (12 znakova) za prodaju; izvoz CSV, status', 'ticket'],
+  ['P7', 'Serveri', 'Adresa Xtream servera se unosi jednom; po korisniku samo korisničko ime i lozinka', 'server'],
+  ['P8', 'Brending', 'White-label lite: logo, ime i kontakt koji se prikazuju u playeru korisnicima', 'palette'],
+  ['P9', 'Tim', 'Dodatni nalozi provajdera — uloge Vlasnik / Podrška', 'team'],
+  ['G1', 'Pregled', 'Genadmin: prihod, prodati / potrošeni krediti, aktivni uređaji, po provajderu', 'home'],
+  ['G2', 'Provajderi', 'Otvori / odobri / suspenduj, cene po provajderu, „Prijavi se kao“', 'users'],
+  ['G3', 'Krediti', 'Prodaja i dodela kredita, ručna korekcija (obavezna napomena), knjiga svih promena', 'coins'],
+  ['G4', 'Pretraga', 'Kod, ID uređaja, email, vaučer · istorija uređaja (reset, promena vlasnika)', 'search'],
+  ['G5', 'Planovi i cene', 'Free / Premium, proba, signal za partnera · cena kredita, potvrda emailom', 'card'],
+  ['G6', 'Aplikacija', 'Obaveštenja u playeru, minimalna verzija po platformi, feature flagovi', 'mega'],
+  ['G7', 'Dnevnik i bezbednost', 'Ko je šta i kada uradio; blokade uređaja i naloga', 'shield'],
+];
+const GROUPS = {
+  K: [['', ['K1', 'K2', 'K3']], ['Nalog', ['K4', 'K5']]],
+  P: [['', ['P1']], ['Klijenti', ['P2', 'P3', 'P4']], ['Poslovanje', ['P5', 'P6', 'P7']], ['Podešavanja', ['P8', 'P9']]],
+  G: [['', ['G1', 'G4']], ['Mreža', ['G2', 'G3']], ['Proizvod', ['G5', 'G6']], ['Bezbednost', ['G7']]],
+};
+const TABS = { K: ['K1', 'K2', 'K3', 'K4'], P: ['P1', 'P2', 'P4', 'P3'], G: ['G1', 'G2', 'G4', 'G3'] };
+const SHORT = { K1: 'Uređaji', K2: 'Poveži TV', K3: 'Izvori', K4: 'Plan', P1: 'Pregled', P2: 'Korisnici', P3: 'Uređaji', P4: 'Aktiviraj', G1: 'Pregled', G2: 'Provajderi', G3: 'Krediti', G4: 'Pretraga' };
+const COUNTS = { P3: '23', G2: '2' };
+const ROLES = [['K', 'Korisnik', 'K1'], ['P', 'Provajder', 'P1'], ['G', 'Genadmin', 'G1']];
+const DEVS = { 'Desktop 1440': [1440, 900, 'desktop'], 'Laptop 1280': [1280, 800, 'desktop'], 'Tablet 1024': [1024, 768, 'tablet'], 'Mobilni 390': [390, 844, 'mobile'] };
+const PLANS = [['gost', 'Gost'], ['free', 'Free'], ['premium', 'Premium'], ['premium5', 'Premium · 5 TV'], ['provajder', 'Od provajdera']];
+const PLAN_PROP = { 'Gost': 'gost', 'Free': 'free', 'Premium': 'premium', 'Premium · 5 TV': 'premium5', 'Od provajdera': 'provajder', 'Direktni': 'free' };
+const DEV_SHORT = [['Desktop 1440', 'Desktop'], ['Laptop 1280', 'Laptop'], ['Tablet 1024', 'Tablet'], ['Mobilni 390', 'Mobilni']];
+
+class Component extends DCLogic {
+  stageRef = React.createRef();
+  state = { sw: 1200, sh: 700, page: null, dev: null, planOv: null, paid: false, themeOv: null, toast: '', sheet: false, imp: false, last: {} };
+  attach() {
+    const el = this.stageRef.current;
+    if (!el || this.ro) return;
+    const upd = () => { const w = el.clientWidth - 48, h = el.clientHeight - 48; if (w > 0 && (Math.abs(w - this.state.sw) > 1 || Math.abs(h - this.state.sh) > 1)) this.setState({ sw: w, sh: h }); };
+    upd();
+    this.ro = new ResizeObserver(upd); this.ro.observe(el);
+  }
+  componentDidMount() { this.attach(); this.poll = setInterval(() => { if (!this.ro) this.attach(); }, 500); }
+  componentWillUnmount() { this.ro && this.ro.disconnect(); clearInterval(this.poll); clearTimeout(this.tt); }
+  componentDidUpdate() { if (!this.ro) this.attach(); }
+  nav = (id) => this.setState((s) => ({ page: id, sheet: false, last: { ...s.last, [id[0]]: id } }));
+  showToast = (text) => { clearTimeout(this.tt); this.setState({ toast: text }); this.tt = setTimeout(() => this.setState({ toast: '' }), 2800); };
+  startImpersonation = () => { this.setState({ imp: true }); this.nav('P1'); this.showToast('Prijavljen si kao Orbita TV — upisano u dnevnik'); };
+  renderVals() {
+    const s = this.state;
+    const plan = s.planOv || PLAN_PROP[this.props.korisnik] || 'free';
+    const pid0 = s.page || (this.props.ekran ?? 'P1 Pregled').split(' ')[0];
+    const pid = pid0[0] === 'K' && plan === 'gost' && pid0 !== 'K0' ? 'K2' : pid0;
+    const role = pid[0];
+    const devKey = s.dev || (DEVS[this.props.uredjaj] ? this.props.uredjaj : 'Desktop 1440');
+    const [W, H, kind] = DEVS[devKey];
+    const isM = kind === 'mobile', isTab = kind === 'tablet';
+    const direct = plan !== 'provajder';
+    const guest = role === 'K' && plan === 'gost';
+    const theme = s.themeOv || ((this.props.tema ?? 'Tamna') === 'Svetla' ? 'light' : 'dark');
+    const a2 = (this.props.paleta ?? 'Klaro') !== 'Standardna';
+    const scale = Math.min(1, s.sw / W, s.sh / H);
+    const imp = s.imp && role === 'P';
+    const P = Object.fromEntries(PAGES.map((p) => [p[0], p]));
+    const cur = P[pid] || P.P1;
+    const auth = pid === 'K0' || guest;
+    const chip = (on) => ({ bg: on ? 'hsl(var(--primary))' : 'transparent', fg: on ? 'hsl(var(--primary-foreground))' : 'hsl(var(--muted-foreground))' });
+    const item = (id) => ({ id, label: P[id][1], href: '#i-' + P[id][3], on: id === pid ? '1' : '0', cnt: COUNTS[id] || '', onClick: () => this.nav(id) });
+    const WS = {
+      K: direct ? { name: 'Ana Petrović', meta: { gost: 'Gost', free: 'Free', premium: s.paid ? 'Premium' : 'Premium proba · još 23 dana', premium5: 'Premium · 5 od 5' }[plan] || 'Free', ini: 'AP', grad: 'linear-gradient(135deg,hsl(194 90% 48%),hsl(216 90% 55%))' } : { name: 'Ana Petrović', meta: 'Korisnik · Orbita TV', ini: 'AP', grad: 'linear-gradient(135deg,hsl(194 90% 48%),hsl(216 90% 55%))' },
+      P: { name: 'Orbita TV', meta: 'Provajder · 184 kredita', ini: 'OR', grad: 'linear-gradient(135deg,hsl(262 70% 55%),hsl(216 90% 55%))' },
+      G: { name: 'Klaro', meta: 'Genadmin · sve mreže', ini: 'K', grad: 'linear-gradient(135deg,hsl(349 90% 58%),hsl(42 100% 58%))' },
+    };
+    const ME = {
+      K: { name: 'Ana Petrović', mail: 'ana@primer.com', ini: 'AP', grad: WS.K.grad },
+      P: imp ? { name: 'Filip (Genadmin)', mail: 'kao Orbita TV', ini: 'FG', grad: WS.G.grad } : { name: 'Marko Ilić', mail: 'marko@orbita.tv · vlasnik', ini: 'MI', grad: WS.P.grad },
+      G: { name: 'Filip', mail: 'genadmin', ini: 'F', grad: WS.G.grad },
+    };
+    const CTA = { K: null, P: pid === 'P4' ? null : { label: 'Aktiviraj uređaj', href: '#i-key', onClick: () => this.nav('P4') }, G: pid === 'G3' ? null : { label: 'Dodeli kredite', href: '#i-coins', onClick: () => this.nav('G3') } };
+    const tabIds = TABS[role];
+    const moreOn = !tabIds.includes(pid);
+    const tabs = tabIds.map((id) => ({ ...item(id), label: SHORT[id] })).concat([{ label: 'Više', href: '#i-grid', on: moreOn || s.sheet ? '1' : '0', onClick: () => this.setState({ sheet: true }) }]);
+    const all = GROUPS[role].flatMap(([, ids]) => ids);
+    return {
+      themeClass: theme, a2Flag: a2 ? '1' : '0', kind, isM, notM: !isM, isUser: role === 'K',
+      toggleTheme: () => this.setState({ themeOv: theme === 'dark' ? 'light' : 'dark' }), themeLabel: theme === 'dark' ? 'Tamna' : 'Svetla',
+      pageDesc: cur[0] + ' · ' + cur[2],
+      roleChips: ROLES.map(([r, label, first]) => ({ label, ...chip(r === role), onClick: () => { this.setState({ imp: false }); this.nav(s.last[r] || first); } })),
+      kindChips: PLANS.map(([k, label]) => ({ label, ...chip(k === plan), onClick: () => { this.setState({ planOv: k, sheet: false }); if (k === 'gost') this.nav('K2'); else if (pid === 'K2' && plan === 'gost') this.nav('K1'); } })),
+      plan, paid: s.paid, setPlan: (p, pd) => this.setState((st) => ({ planOv: p, paid: pd == null ? (p === 'premium' ? st.paid : false) : pd })),
+      kIs: { login: pid === 'K0', tv: role === 'K' && pid === 'K2', plan: pid === 'K4', rest: role === 'K' && !['K0', 'K2', 'K4'].includes(pid) },
+      devChips: DEV_SHORT.map(([k, label]) => ({ label, ...chip(k === devKey), onClick: () => this.setState({ dev: k, sheet: false }) })),
+      pageChips: PAGES.filter((p) => p[0][0] === role && (!guest || ['K0', 'K2'].includes(p[0]))).map(([id, label]) => ({ id, label, onClick: () => this.nav(id), bg: id === pid ? 'hsl(var(--primary))' : 'hsl(var(--secondary)/0.5)', fg: id === pid ? 'hsl(var(--primary-foreground))' : 'hsl(var(--muted-foreground))' })),
+      stageRef: this.stageRef,
+      artW: W + 'px', artH: H + 'px', scale, boxW: Math.round(W * scale) + 'px', boxH: Math.round(H * scale) + 'px', frameR: isM ? '36px' : '14px',
+      page: pid, roleIs: { K: role === 'K', P: role === 'P', G: role === 'G' }, direct, nav: this.nav, showToast: this.showToast,
+      impersonating: imp, startImpersonation: this.startImpersonation, endImpersonation: () => { this.setState({ imp: false }); this.nav('G2'); },
+      bannerPad: imp ? '34px' : '0',
+      showSide: !isM && !auth, sideW: isTab ? '224px' : '256px', sidePad: imp ? '50px 12px 14px' : '18px 12px 14px',
+      ws: WS[role], me: ME[role], curLabel: cur[1],
+      navGroups: GROUPS[role].map(([title, ids]) => ({ title, items: ids.map(item) })),
+      showTop: !auth, topH: isM ? '60px' : '60px', topPad: isM ? '0 14px' : '0 24px',
+      showSearch: role !== 'K' && !isTab, searchW: '300px', searchPh: role === 'G' ? 'Kod, ID uređaja, email, vaučer…' : 'Korisnik, email, ID uređaja…',
+      onSearchKey: (e) => { if (e.key === 'Enter') this.nav(role === 'G' ? 'G4' : 'P2'); },
+      cta: CTA[role],
+      showTabs: isM && !auth, tabs,
+      sheetOpen: isM && s.sheet, closeSheet: () => this.setState({ sheet: false }),
+      sheetItems: all.map(item),
+      goLogin: () => { this.setState({ imp: false }); this.nav('K0'); },
+      toast: s.toast, toastBottom: isM ? '92px' : '28px',
+    };
+  }
+}
+</script>
+</body>
+</html>

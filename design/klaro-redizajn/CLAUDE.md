@@ -1,0 +1,1 @@
+- Uvek odgovaraj i komuniciraj na srpskom (latinica).

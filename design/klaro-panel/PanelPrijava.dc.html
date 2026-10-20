@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/klaro-player-design-system-0163f186-10a6-4b66-9271-90a3ee964bf7/foundations/tokens.css">
+<link rel="stylesheet" href="_ds/klaro-player-design-system-0163f186-10a6-4b66-9271-90a3ee964bf7/foundations/theme-tuning.css">
+<link rel="stylesheet" href="assets/klaro-palette.css">
+<link rel="stylesheet" href="assets/panel.css">
+</helmet>
+<div class="kp" style="min-height:100%;display:flex;align-items:{{ alignY }};justify-content:center;gap:72px;padding:{{ pad }}">
+  <sc-if value="{{ wide }}" hint-placeholder-val="{{ true }}">
+    <div style="flex:1 1 0;max-width:470px;display:flex;flex-direction:column;gap:22px;animation:kpIn 360ms cubic-bezier(0.22,1,0.36,1) both">
+      <div style="display:flex;align-items:center;gap:12px"><img src="assets/klaro-live.svg" alt="" style="width:64px;height:64px;border-radius:22.5%"><span class="kp-brand" style="font-size:24px;font-weight:700">Klaro <span style="font-weight:500;color:hsl(var(--muted-foreground))">Panel</span></span></div>
+      <div class="kp-brand" style="font-size:44px;font-weight:700;letter-spacing:-0.02em;line-height:1.05">{{ head1 }}<br>{{ head2 }}</div>
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <sc-for list="{{ perks }}" as="p" hint-placeholder-count="3"><div style="display:flex;align-items:center;gap:12px;font-size:15px"><span style="width:34px;height:34px;flex:none;display:grid;place-items:center;border-radius:10px;background:hsl(var(--primary)/0.14);color:hsl(var(--primary))"><svg class="ic"><use href="{{ p.href }}"></use></svg></span>{{ p.t }}</div></sc-for>
+      </div>
+    </div>
+  </sc-if>
+
+  <div style="flex:none;width:{{ cardW }};display:flex;flex-direction:column;gap:14px">
+    <sc-if value="{{ notWide }}" hint-placeholder-val="{{ false }}"><div style="display:flex;align-items:center;gap:10px;margin-bottom:6px"><img src="assets/klaro-icon.svg" alt="" style="width:36px;height:36px;border-radius:10px"><span class="kp-brand" style="font-size:19px;font-weight:700">Klaro <span style="font-weight:500;color:hsl(var(--muted-foreground))">Panel</span></span></div></sc-if>
+
+    <!-- start -->
+    <sc-if value="{{ at.start }}" hint-placeholder-val="{{ true }}">
+      <div><h1 class="kp-h1">Prijavi se</h1><p class="kp-sub">Nemaš nalog? Isti koraci ga prave.</p></div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <sc-for list="{{ providers }}" as="p" hint-placeholder-count="4">
+          <button class="kp-btn lg block" onClick="{{ p.onClick }}" style="justify-content:flex-start;gap:12px"><span style="width:26px;height:26px;flex:none;display:grid;place-items:center;border-radius:7px;background:hsl(var(--foreground));color:hsl(var(--background));font-size:11.5px;font-weight:800">{{ p.mark }}</span>Nastavi sa {{ p.name }}</button>
+        </sc-for>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;font-size:12.5px" class="mut"><span style="flex:1;height:1px;background:hsl(var(--border))"></span>ili emailom<span style="flex:1;height:1px;background:hsl(var(--border))"></span></div>
+      <label class="kp-input" style="height:50px;border-radius:14px"><svg class="ic sm"><use href="#i-mail"></use></svg><input type="email" inputMode="email" autoComplete="email" value="{{ email }}" onChange="{{ onEmail }}" onKeyDown="{{ onEmailKey }}"></label>
+      <div style="display:flex;flex-wrap:wrap;gap:6px">
+        <sc-for list="{{ demo }}" as="d" hint-placeholder-count="5"><button class="kp-chip" data-on="{{ d.on }}" onClick="{{ d.onClick }}" title="{{ d.hint }}" style="height:26px;font-size:11.5px">{{ d.label }}</button></sc-for>
+      </div>
+      <button class="kp-btn primary lg block" onClick="{{ sendLink }}">Pošalji link za prijavu</button>
+      <p class="mut" style="margin:0;font-size:12.5px;text-align:center">Bez lozinke — na email stižu link i kod.</p>
+      <div class="kp-sep" style="margin:4px 0"></div>
+      <button class="kp-btn quiet block" onClick="{{ toPartner }}"><svg class="ic sm"><use href="#i-users"></use></svg>Prodaješ Klaro drugima? Postani partner</button>
+      <button class="kp-btn quiet block" onClick="{{ toGuest }}"><svg class="ic sm"><use href="#i-tv"></use></svg>Imam kod sa TV-a — bez naloga</button>
+    </sc-if>
+
+    <!-- čekanje -->
+    <sc-if value="{{ at.wait }}" hint-placeholder-val="{{ false }}">
+      <button class="kp-btn quiet sm" onClick="{{ toStart }}" style="align-self:flex-start;margin-left:-8px"><svg class="ic sm"><use href="#i-left"></use></svg>Promeni email</button>
+      <span style="width:56px;height:56px;display:grid;place-items:center;border-radius:16px;background:hsl(var(--primary)/0.14);color:hsl(var(--primary))"><svg class="ic lg"><use href="#i-mail"></use></svg></span>
+      <div><h1 class="kp-h1">Proveri email</h1><p class="kp-sub">Link smo poslali na <b style="color:hsl(var(--foreground))">{{ email }}</b>. Važi 15 minuta.</p></div>
+      <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px"><button class="kp-btn lg">Otvori Gmail</button><button class="kp-btn lg">Otvori Mail</button></div>
+      <div style="display:flex;align-items:flex-start;gap:12px;padding:14px;border-radius:14px;background:hsl(var(--secondary)/0.45);box-shadow:inset 0 0 0 1px hsl(var(--border))">
+        <span style="position:relative;width:10px;height:10px;flex:none;margin-top:5px"><span style="position:absolute;inset:0;border-radius:50%;background:hsl(var(--primary))"></span>{{ pulse }}</span>
+        <span style="font-size:13.5px;line-height:1.45"><b>Čekam potvrdu.</b> Ova stranica se sama prijavljuje kad klikneš link — i ako ga otvoriš na drugom uređaju.</span>
+      </div>
+      <label class="kp-field">ili upiši kod iz emaila<span class="kp-input" style="height:52px"><input value="{{ otp }}" onChange="{{ onOtp }}" inputMode="numeric" autoComplete="one-time-code" placeholder="000 000" class="mono" style="font-size:22px;letter-spacing:0.3em;text-align:center"></span></label>
+      <span class="mut" style="font-size:12.5px;text-align:center">Nije stiglo? Proveri Promocije i Spam · ponovo za 0:42</span>
+      <div style="display:flex;flex-direction:column;gap:8px;padding:12px;border-radius:14px;border:1.5px dashed hsl(var(--border))">
+        <span class="mut" style="font-size:11.5px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase">Demo · šta korisnik uradi u emailu</span>
+        <div style="display:flex;flex-wrap:wrap;gap:6px"><button class="kp-chip" onClick="{{ finish }}">Klikne link ovde</button><button class="kp-chip" onClick="{{ toConfirm }}">Otvori na drugom uređaju</button><button class="kp-chip" onClick="{{ toExpired }}">Klikne posle 15 min</button></div>
+      </div>
+    </sc-if>
+
+    <!-- potvrdi (link otvoren drugde) -->
+    <sc-if value="{{ at.confirm }}" hint-placeholder-val="{{ false }}">
+      <span style="width:56px;height:56px;display:grid;place-items:center;border-radius:16px;background:hsl(var(--primary)/0.14);color:hsl(var(--primary))"><svg class="ic lg"><use href="#i-shield"></use></svg></span>
+      <div><h1 class="kp-h1">Potvrdi prijavu</h1><p class="kp-sub">Neko želi da se prijavi kao {{ email }}.</p></div>
+      <dl class="kp-dl kp-card flat" style="margin:0;padding:4px 16px;gap:0">
+        <div><dt>Uređaj</dt><dd>iPhone · Safari</dd></div>
+        <div><dt>Mesto</dt><dd>Beograd (približno)</dd></div>
+        <div><dt>Vreme</dt><dd>pre 1 min</dd></div>
+      </dl>
+      <button class="kp-btn primary lg block" onClick="{{ finish }}"><svg class="ic sm"><use href="#i-check"></use></svg>Da, to sam ja</button>
+      <button class="kp-btn lg block" onClick="{{ deny }}">Nisam ja — odbij</button>
+      <p class="mut" style="margin:0;font-size:12.5px">Prijava se nastavlja tamo gde je zatražena. Ovu stranicu posle možeš da zatvoriš.</p>
+    </sc-if>
+
+    <!-- istekao -->
+    <sc-if value="{{ at.expired }}" hint-placeholder-val="{{ false }}">
+      <span style="width:56px;height:56px;display:grid;place-items:center;border-radius:16px;background:hsl(var(--warn)/0.15);color:hsl(var(--warn))"><svg class="ic lg"><use href="#i-clock"></use></svg></span>
+      <div><h1 class="kp-h1">Link više ne važi</h1><p class="kp-sub">Linkovi važe 15 minuta i rade samo jednom. Novi link poništava stari.</p></div>
+      <button class="kp-btn primary lg block" onClick="{{ sendLink }}">Pošalji novi link</button>
+      <button class="kp-btn lg block" onClick="{{ toStart }}">Prijavi se drugačije</button>
+    </sc-if>
+
+    <!-- dobrodošlica (nov nalog) -->
+    <sc-if value="{{ at.welcome }}" hint-placeholder-val="{{ false }}">
+      <div style="display:flex;align-items:center;gap:14px"><span class="kp-av lg" style="background:linear-gradient(135deg,hsl(194 90% 48%),hsl(216 90% 55%))">{{ ini }}</span><div><h1 class="kp-h1">Dobrodošli u Klaro</h1><p class="kp-sub" style="margin:2px 0 0">{{ email }} · {{ via }}</p></div></div>
+      <div class="kp-card accent" style="gap:12px">
+        <div style="display:flex;align-items:center;gap:10px"><svg class="ic" style="color:hsl(var(--primary))"><use href="#i-spark"></use></svg><b style="font-size:16px">30 dana Premium-a, besplatno</b></div>
+        <sc-for list="{{ premiumPerks }}" as="p" hint-placeholder-count="3"><div style="display:flex;align-items:center;gap:10px;font-size:13.5px"><svg class="ic sm" style="color:hsl(var(--success))"><use href="#i-check"></use></svg>{{ p }}</div></sc-for>
+        <span class="mut" style="font-size:12.5px">Posle 30 dana prelaziš na Free. Ništa se ne naplaćuje samo od sebe.</span>
+      </div>
+      <button onClick="{{ togglePromo }}" style="display:flex;align-items:flex-start;gap:12px;padding:14px;border:0;border-radius:14px;background:hsl(var(--secondary)/0.45);box-shadow:inset 0 0 0 1px hsl(var(--border));color:hsl(var(--foreground));font-size:14px;cursor:pointer;text-align:left;white-space:normal"><span class="kp-check" data-on="{{ promoOn }}" style="margin-top:1px"><sc-if value="{{ promo }}" hint-placeholder-val="{{ false }}"><svg class="ic sm" style="width:13px;height:13px;stroke-width:3"><use href="#i-check"></use></svg></sc-if></span><span style="display:flex;flex-direction:column;gap:2px"><b style="font-weight:600">Šalji mi akcije i popuste</b><span class="mut" style="font-size:12.5px">Najviše dva puta mesečno. Odjava u svakom emailu.</span></span></button>
+      <button class="kp-btn primary lg block" onClick="{{ enterNew }}">Uđi u panel</button>
+    </sc-if>
+
+    <!-- izbor naloga -->
+    <sc-if value="{{ at.choose }}" hint-placeholder-val="{{ false }}">
+      <div><h1 class="kp-h1">Gde ulaziš?</h1><p class="kp-sub">Na {{ email }} su dva naloga.</p></div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <sc-for list="{{ chooseTiles }}" as="r" hint-placeholder-count="2">
+          <button class="kp-opt" onClick="{{ r.onClick }}" style="flex-direction:row;align-items:center;gap:14px;padding:14px;white-space:normal" style-hover="box-shadow:inset 0 0 0 1.5px hsl(var(--primary)/0.7)"><span class="kp-av" style="background:{{ r.grad }}">{{ r.ini }}</span><span style="flex:1;display:flex;flex-direction:column;gap:2px;min-width:0"><b style="font-size:15px;color:hsl(var(--foreground))">{{ r.title }}</b><span style="font-size:12.5px">{{ r.desc }}</span></span><svg class="ic sm mut"><use href="#i-right"></use></svg></button>
+        </sc-for>
+      </div>
+      <p class="mut" style="margin:0;font-size:12.5px">Kasnije prelaziš iz menija naloga, bez nove prijave.</p>
+    </sc-if>
+
+    <!-- partner: zahtev -->
+    <sc-if value="{{ partnerSteps }}" hint-placeholder-val="{{ false }}">
+      <div class="kp-steps" style="flex-wrap:wrap">
+        <sc-for list="{{ pSteps }}" as="st" hint-placeholder-count="4"><sc-if value="{{ st.line }}" hint-placeholder-val="{{ false }}"><b></b></sc-if><span data-on="{{ st.on }}" data-done="{{ st.done }}"><em>{{ st.n }}</em>{{ st.label }}</span></sc-for>
+      </div>
+    </sc-if>
+    <sc-if value="{{ at.p1 }}" hint-placeholder-val="{{ false }}">
+      <div><h1 class="kp-h1">Partnerski nalog</h1><p class="kp-sub">Za one koji prodaju i aktiviraju Klaro drugima. Zahtev pregledamo za 1 radni dan.</p></div>
+      <label class="kp-field">Naziv firme ili brenda<span class="kp-input"><svg class="ic sm"><use href="#i-palette"></use></svg><input defaultValue="Tron IPTV"></span></label>
+      <div class="kp-form">
+        <label class="kp-field">Ime i prezime<span class="kp-input"><input defaultValue="Petar Tomić"></span></label>
+        <label class="kp-field">Zemlja<span class="kp-input"><svg class="ic sm"><use href="#i-globe"></use></svg><input defaultValue="Srbija"></span></label>
+      </div>
+      <label class="kp-field">Email za nalog <span class="hint">potvrđuješ ga linkom</span><span class="kp-input"><svg class="ic sm"><use href="#i-mail"></use></svg><input defaultValue="petar@tronmedia.rs"></span></label>
+      <label class="kp-field">Telefon, WhatsApp ili Telegram<span class="kp-input"><input defaultValue="+381 64 222 333"></span></label>
+      <div class="kp-row"><button class="kp-btn lg" onClick="{{ toStart }}">Nazad</button><button class="kp-btn primary lg" style="flex:1" onClick="{{ pNext }}">Dalje</button></div>
+    </sc-if>
+    <sc-if value="{{ at.p2 }}" hint-placeholder-val="{{ false }}">
+      <div><h1 class="kp-h1">Kako radiš</h1><p class="kp-sub">Da otvorimo nalog sa pravim podešavanjima.</p></div>
+      <div class="kp-field">Okvirno korisnika<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px"><sc-for list="{{ sizeOpts }}" as="o" hint-placeholder-count="3"><button class="kp-opt" data-on="{{ o.on }}" onClick="{{ o.onClick }}" style="align-items:center;padding:10px 6px"><b style="font-size:14px;color:hsl(var(--foreground))">{{ o.label }}</b></button></sc-for></div></div>
+      <div class="kp-field">Xtream server<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px"><sc-for list="{{ srvOpts }}" as="o" hint-placeholder-count="3"><button class="kp-opt" data-on="{{ o.on }}" onClick="{{ o.onClick }}" style="align-items:center;padding:10px 6px;white-space:normal"><b style="font-size:13.5px;color:hsl(var(--foreground));text-align:center">{{ o.label }}</b></button></sc-for></div></div>
+      <div class="kp-note"><svg class="ic"><use href="#i-coins"></use></svg><span>Plaćaš kreditima po uređaju, kad ti treba — bez pretplate. Cene dobijaš uz odobrenje.</span></div>
+      <div class="kp-row"><button class="kp-btn lg" onClick="{{ pBack }}">Nazad</button><button class="kp-btn primary lg" style="flex:1" onClick="{{ pNext }}">Pošalji zahtev</button></div>
+    </sc-if>
+    <sc-if value="{{ at.p3 }}" hint-placeholder-val="{{ false }}">
+      <div><h1 class="kp-h1">Zahtev je na pregledu</h1><p class="kp-sub">Javljamo se na petar@tronmedia.rs. Do tada ništa ne plaćaš.</p></div>
+      <div style="display:flex;flex-direction:column">
+        <sc-for list="{{ review }}" as="r" hint-placeholder-count="3">
+          <div style="display:flex;gap:14px">
+            <div style="display:flex;flex-direction:column;align-items:center"><span style="width:26px;height:26px;flex:none;display:grid;place-items:center;border-radius:50%;background:{{ r.bg }};color:{{ r.fg }}"><svg class="ic sm"><use href="{{ r.href }}"></use></svg></span><sc-if value="{{ r.line }}" hint-placeholder-val="{{ true }}"><span style="width:2px;flex:1;min-height:20px;background:hsl(var(--border))"></span></sc-if></div>
+            <div style="display:flex;flex-direction:column;gap:2px;padding:3px 0 14px"><b style="font-size:14.5px">{{ r.t }}</b><span class="mut" style="font-size:13px">{{ r.d }}</span></div>
+          </div>
+        </sc-for>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px;padding:12px;border-radius:14px;border:1.5px dashed hsl(var(--border))"><span class="mut" style="font-size:11.5px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase">Demo</span><button class="kp-chip" onClick="{{ pNext }}" style="align-self:flex-start">Genadmin odobri (G2)</button></div>
+    </sc-if>
+    <sc-if value="{{ at.p4 }}" hint-placeholder-val="{{ false }}">
+      <div class="kp-note ok"><svg class="ic"><use href="#i-check"></use></svg><span><b>Odobreno.</b> Tron IPTV je Klaro partner.</span></div>
+      <div><h1 class="kp-h1">Četiri koraka do prve aktivacije</h1></div>
+      <div class="kp-card tight"><div class="kp-list">
+        <sc-for list="{{ firstSteps }}" as="f" hint-placeholder-count="4"><div class="kp-li"><span class="kp-dev" style="width:38px;height:38px"><svg class="ic"><use href="{{ f.href }}"></use></svg></span><div class="t"><b>{{ f.t }}</b><span>{{ f.d }}</span></div></div></sc-for>
+      </div></div>
+      <button class="kp-btn primary lg block" onClick="{{ enterPartner }}">Otvori provajder panel</button>
+    </sc-if>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;dev&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;desktop&quot;,&quot;tablet&quot;,&quot;mobile&quot;],&quot;default&quot;:&quot;desktop&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;nav&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;(id:string)=&gt;void&quot;},&quot;toast&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;(t:string)=&gt;void&quot;},&quot;setPlan&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;(p:string)=&gt;void&quot;}}">
+const ACC = { 'ana@primer.com': 'K', 'marko@orbita.tv': 'B', 'podrska@orbita.tv': 'P', 'filip@klaroplayer.com': 'G' };
+const DEMO = [['ana@primer.com', 'Free korisnik'], ['marko@orbita.tv', 'Provajder + gledalac'], ['podrska@orbita.tv', 'Provajder (tim)'], ['filip@klaroplayer.com', 'Genadmin'], ['novi@primer.com', 'Novi nalog']];
+
+class Component extends DCLogic {
+  state = { at: 'start', email: 'ana@primer.com', otp: '', promo: false, via: 'magic link', size: 1, srv: 0 };
+  toast(t) { this.props.toast && this.props.toast(t); }
+  nav(id) { this.props.nav && this.props.nav(id); }
+  plan(p) { this.props.setPlan && this.props.setPlan(p); }
+  finish(email, via) {
+    const acc = ACC[(email || '').trim().toLowerCase()];
+    if (acc === 'K') { this.plan('free'); this.nav('K1'); this.toast('Prijavljena si · ' + via); return; }
+    if (acc === 'P') { this.nav('P1'); this.toast('Prijavljen si u Orbita TV'); return; }
+    if (acc === 'G') { this.nav('G1'); this.toast('Prijavljen si kao Genadmin'); return; }
+    if (acc === 'B') return this.setState({ at: 'choose', email });
+    this.setState({ at: 'welcome', email, via });
+  }
+  renderVals() {
+    const s = this.state;
+    const dev = this.props.dev || 'desktop';
+    const isM = dev === 'mobile';
+    const partner = ['p1', 'p2', 'p3', 'p4'].includes(s.at);
+    const pIx = ['p1', 'p2', 'p3', 'p4'].indexOf(s.at);
+    const go = (at) => () => this.setState({ at });
+    const opt = (arr, key) => arr.map((label, i) => ({ label, on: s[key] === i ? '1' : '0', onClick: () => this.setState({ [key]: i }) }));
+    const OK = { bg: 'hsl(var(--success)/0.18)', fg: 'hsl(var(--success))', href: '#i-check' };
+    const NOW = { bg: 'hsl(var(--primary))', fg: 'hsl(var(--primary-foreground))', href: '#i-clock' };
+    const TODO = { bg: 'hsl(var(--secondary))', fg: 'hsl(var(--muted-foreground))', href: '#i-mail' };
+    const sendLink = () => this.setState({ at: 'wait', otp: '' });
+    return {
+      at: { [s.at]: true },
+      wide: !isM, notWide: isM, alignY: isM ? 'flex-start' : 'center', pad: isM ? '24px 18px 32px' : '48px',
+      cardW: isM ? '100%' : '400px',
+      head1: partner ? 'Tvoji korisnici.' : 'Gledaš i bez naloga.', head2: partner ? 'Jedan panel.' : 'Sa nalogom — svuda.',
+      perks: (partner
+        ? [['#i-key', 'Aktivacija kodom sa TV-a za par sekundi'], ['#i-coins', 'Krediti po uređaju, kad ti treba'], ['#i-palette', 'Tvoj logo i kontakt u playeru']]
+        : [['#i-devices', 'Upravljaš uređajima iz panela'], ['#i-refresh', 'Premium: dokle je gledano, na svakom ekranu'], ['#i-users', 'Partneri: korisnici, aktivacije i krediti']]).map(([href, t]) => ({ href, t })),
+      providers: [['G', 'Google'], ['A', 'Apple'], ['M', 'Microsoft'], ['GH', 'GitHub']].map(([mark, name]) => ({ mark, name, onClick: () => this.finish('ana@primer.com', name) })),
+      email: s.email, onEmail: (e) => this.setState({ email: e.target.value }), onEmailKey: (e) => { if (e.key === 'Enter') sendLink(); },
+      demo: DEMO.map(([email, hint]) => ({ label: email, hint, on: s.email === email ? '1' : '0', onClick: () => this.setState({ email }) })),
+      sendLink, toStart: go('start'), toConfirm: go('confirm'), toExpired: go('expired'),
+      toPartner: go('p1'), toGuest: () => { this.plan('gost'); this.nav('K2'); },
+      finish: () => this.finish(s.email, 'magic link'),
+      deny: () => { this.setState({ at: 'start' }); this.toast('Prijava je odbijena — link je poništen'); },
+      pulse: React.createElement('span', { style: { position: 'absolute', inset: 0, borderRadius: '50%', background: 'hsl(var(--primary))', animation: 'kpPulse 1.4s ease-out infinite' } }),
+      otp: s.otp, onOtp: (e) => { const v = e.target.value.replace(/\D/g, '').slice(0, 6); this.setState({ otp: v }); if (v.length === 6) setTimeout(() => this.finish(s.email, 'kod iz emaila'), 250); },
+      ini: s.email.slice(0, 2).toUpperCase(), via: 'preko: ' + s.via,
+      premiumPerks: ['Dokle je gledano — nastaviš na bilo kom ekranu', '5 uređaja gleda istovremeno', 'Rezervna kopija podešavanja'],
+      promo: s.promo, promoOn: s.promo ? '1' : '0', togglePromo: () => this.setState({ promo: !s.promo }),
+      enterNew: () => { this.plan('premium'); this.nav('K1'); this.toast('Premium proba traje 30 dana'); },
+      chooseTiles: [
+        { ini: 'OR', grad: 'linear-gradient(135deg,hsl(262 70% 55%),hsl(216 90% 55%))', title: 'Orbita TV', desc: 'Provajder panel · vlasnik', onClick: () => { this.nav('P1'); this.toast('Prijavljen si u Orbita TV'); } },
+        { ini: 'MI', grad: 'linear-gradient(135deg,hsl(194 90% 48%),hsl(216 90% 55%))', title: 'Moji uređaji', desc: 'Gledalac · Free', onClick: () => { this.plan('free'); this.nav('K1'); } },
+      ],
+      partnerSteps: partner,
+      pSteps: ['O firmi', 'Posao', 'Pregled', 'Start'].map((label, i) => ({ label: isM && i !== pIx ? '' : label, n: i < pIx ? '✓' : i + 1, line: i > 0, on: i === pIx ? '1' : '0', done: i < pIx ? '1' : '0' })),
+      pNext: () => this.setState({ at: ['p1', 'p2', 'p3', 'p4'][Math.min(3, pIx + 1)] }), pBack: () => this.setState({ at: ['p1', 'p2', 'p3', 'p4'][Math.max(0, pIx - 1)] }),
+      sizeOpts: opt(['do 100', '100–1.000', '1.000+'], 'size'), srvOpts: opt(['Imam svoj', 'Koristim tuđi', 'Nemam još'], 'srv'),
+      review: [
+        { ...OK, t: 'Zahtev poslat', d: 'danas u 14:32', line: true },
+        { ...NOW, t: 'Pregled', d: 'Klaro proverava podatke — obično do 1 radnog dana', line: true },
+        { ...TODO, t: 'Nalog otvoren', d: 'stiže email sa linkom za prijavu', line: false },
+      ],
+      firstSteps: [
+        ['#i-server', 'Dodaj Xtream server', 'Adresu upisuješ jednom (P7)'], ['#i-coins', 'Kupi prve kredite', 'Paketi i cene u Krediti (P5)'],
+        ['#i-palette', 'Logo i kontakt', 'Prikazuju se tvojim korisnicima (P8)'], ['#i-team', 'Pozovi tim', 'Opciono · uloga Podrška (P9)'],
+      ].map(([href, t, d]) => ({ href, t, d })),
+      enterPartner: () => { this.nav('P1'); this.toast('Dobrodošao, partneru'); },
+    };
+  }
+}
+</script>
+</body>
+</html>
