@@ -65,7 +65,7 @@ The first TV builds are internal engineering deliverables. They do not need the 
 | Source | What to use it for | Availability/caveat |
 |---|---|---|
 | Owner conversation, 2026-10-20 | Whole-product vision; no provider transcoding by us; realtime state; device recovery goal; TV apps first; one GRAND_PLAN | Latest product direction |
-| `design/README.md`, `design/klaro-panel/README.md`, player/panel `.dc.html` exports | Newer design and account model; screen/state references | Uncommitted mirror inspected on branch `t3/sync-klaro-design-dashboard`, baseline `0105fb7`; absent from this checkout. Read-only mirror, not production code or blanket approval of every mockup |
+| [Design mirror guide](design/README.md), [panel design rules](design/klaro-panel/README.md), player/panel `.dc.html` exports | Newer design and account model; screen/state references | Committed on local `feat/klaro-player-rebrand` at `bfd5d3f` and merged into this branch. Available in this checkout; not pushed. Read-only mirror, not production code or blanket approval of every mockup |
 | `docs/KLARO-NALOZI-I-PANEL.md`, 2026-10-05 | Detailed user/provider/genadmin panels, credits, vouchers, activation | Untracked source found in worktree branch `t3code/klaro-player-logo-design`; not present in this checkout. Its important requirements are consolidated here; do not assume a relative link resolves |
 | `docs/DECISION-KLARO-PLATFORM-STACK-20261006.md` | Accepted React/Convex/Effect boundaries | Tracked on branch `t3code/evaluate-svelte-convex-effect-fit`, reviewed at `2f8d14d`; not in this checkout |
 | `docs/P4-CORE-EXTRACTION-PLAN-20261006.md` and that branch's `HANDOFF.md` | Extraction tasks and recorded validation | Same P4 branch; existing completed work must be retained |
@@ -83,6 +83,7 @@ Reviewed repository: `alltheclicks/lumenplayer`.
 | Area | State as reviewed |
 |---|---|
 | Analysis/documentation checkout | `t3/klaro-codebase-analysis`, baseline `0105fb7` |
+| Documentation/design integration | Plan committed as `291710d`; design commit `bfd5d3f` merged locally into this branch. Local integration with `feat/klaro-player-rebrand` is owner-authorized; no push |
 | Newer P4 branch | `t3code/evaluate-svelte-convex-effect-fit`, `2f8d14d`, 10 commits beyond baseline |
 | Existing applications | `apps/web`, `apps/proxy`, `apps/push-api` |
 | Web | React/Vite, hls.js, live/EPG/catch-up/VOD/series, source handling, Cast/AirPlay, PWA |
@@ -97,7 +98,7 @@ Reviewed repository: `alltheclicks/lumenplayer`.
 | P4 checks | RECORDED: 603 unit tests and required checks passed on that branch; not rerun during this documentation change |
 | Device evidence | Owner has Samsung 2023, LG 2022, Sony Android TV 2024, Fire TV 4K approximately 1–2 years old; Apple TV planned. No new physical-device result produced here |
 
-Do not replace the newer P4 branch with this older checkout. Integrate this documentation deliberately into the chosen implementation base; no merge or push was performed by creating this file.
+Do not replace the newer P4 branch with this older code baseline. Documentation and design have been combined locally; the P4 implementation branch remains separate. Integrate these documents deliberately into the chosen implementation base. No push or production deployment is authorized by this plan.
 
 ### Conflict register
 
@@ -325,7 +326,7 @@ First TV scope: install/launch, controlled EXYU test source, channels/EPG, live,
 
 Full player scope retains VOD/series, search/categories, favorites, progress, subtitles/audio tracks, settings and supported casting. Later consideration: profiles/parental controls, PiP and explicit phone-as-remote/handoff. Confirm release scope rather than dropping features silently.
 
-UX handoff must cover remote focus/Back, couch readability, touch layouts, orientation, accessibility, slow/empty/offline states and activation/recovery. A Claude Design mirror has now been inspected in the sibling design branch; see sections 2 and 12 for availability, omissions and unresolved rules. Rendered behavior and full approval are not established by that source inspection. Do not invent a new visual identity or mark the redesign integrated from mockups alone.
+UX handoff must cover remote focus/Back, couch readability, touch layouts, orientation, accessibility, slow/empty/offline states and activation/recovery. The inspected Claude Design mirror is now committed and available under `design/`; see sections 2 and 12 for omissions and unresolved rules. Rendered behavior and full approval are not established by that source inspection. Do not invent a new visual identity or mark the redesign integrated into the application from mockups alone.
 
 Public brand is Klaro. Preserve `@lumen/*`, storage keys, cookies, environment names and other technical identifiers unless a separately authorized migration requires changes.
 
@@ -379,7 +380,7 @@ No universal launch date or “all platforms done” claim is established. Estim
 | D05 | Convex hosting/region/auth and recovery policy | Backend foundation | OPEN |
 | D06 | Exact TV models/OS and minimum supported generations | Platform compatibility claims | Years known; exact inventory OPEN |
 | D07 | Prices, lifetime terms, voucher accounting, refunds and store purchase paths | Commercial release | Baseline credits/trial accepted; remaining rules OPEN |
-| D08 | Approved design export, screen inventory, profiles/parental scope | Production UI implementation | Mirror source inspected on design branch; rendered review and final approval OPEN |
+| D08 | Approved design export, screen inventory, profiles/parental scope | Production UI implementation | Mirror committed and available locally; rendered review and final approval OPEN |
 | D09 | Genadmin operational roles, metric definitions and viewing-data access | Full dashboards/telemetry | Detailed proposal in sections 4–5 |
 | D10 | VIDAA hardware/distribution and future-target priority | Committing its release schedule | In vision; implementation timing OPEN |
 | D11 | Independent playback vs explicit shared control/handoff | Cloud playback/session integration | Clarification PROPOSED; do not sync setSource globally |
@@ -389,7 +390,7 @@ Resolve decisions when their implementation needs them. Most do not block M1.
 
 ### Design import reconciliation — 2026-10-20
 
-The mirror on `t3/sync-klaro-design-dashboard` contains player, activation and user/provider/genadmin panels. Its README records four missing large player screenshots and some shared assets copied from the companion project. This review inspected source files and instructions, not rendered UI or byte-for-byte fidelity against Claude Design.
+The mirror was imported through `t3/sync-klaro-design-dashboard`, committed as `bfd5d3f` and incorporated into local `feat/klaro-player-rebrand` and this branch. It contains player, activation and user/provider/genadmin panels. Its README records four missing large player screenshots and some shared assets copied from the companion project. This review inspected source files and instructions, not rendered UI or byte-for-byte fidelity against Claude Design.
 
 Current design evidence from panel README, `PanelPlan.dc.html` and `PanelGenadmin.dc.html`:
 
@@ -403,7 +404,7 @@ These findings supersede treating the October 5 direct-user price/trial model as
 
 Mixed-generation content remains **inside** the export: `Aktivacija.dc.html`, README proposal #3 and legacy text/logic in `PanelKorisnik.dc.html` retain 7-day trial/per-device annual/lifetime pricing. Provider server/branding copy also mixes immediate delivery and next-launch updates. Use the relevant current screen plus explicit business decisions, not every string indiscriminately. Preserve mirror bytes; corrections belong upstream or in a separate reconciliation record.
 
-Before combining branches, preserve both instruction changes: `GRAND_PLAN.md` navigation and `design/README.md` navigation. Both worktrees created `AGENTS.md` independently; resolve the add/add conflict by combining intent, not choosing one file wholesale. Export completeness, inferred visual approval and mock payment behavior must not be mistaken for implemented production features.
+Both instruction entry points are preserved: `GRAND_PLAN.md` navigation and `design/README.md` navigation. The design commit incorporated identical `AGENTS.md`/`CLAUDE.md` contents, so the local merge required no conflict resolution. Preserve both entry points in future integrations. Export completeness, inferred visual approval and mock payment behavior must not be mistaken for implemented production features.
 
 ## 13. AI execution and handoff protocol
 
@@ -447,7 +448,7 @@ Rules:
 | Android TV app | NOT STARTED in reviewed tree | Installable Sony build and real playback |
 | Fire/Apple/VIDAA | Planned targets; readiness unverified | Exact Fire identity; Apple hardware; VIDAA access |
 | Klaro backend/panel/billing | NOT STARTED in reviewed tree | Domain decisions then smallest connected beta |
-| Klaro redesign | Player/panel mirror inspected on separate design branch; not integrated | Rendered/state review; reconcile current and legacy account rules |
+| Klaro redesign | Player/panel mirror committed and available locally; not integrated into application code | Rendered/state review; reconcile current and legacy account rules |
 | EXYU web | Existing; historical deployment evidence | Preserve behavior; inspect live only within authorized task |
 
 The earlier conversation's “25 work packages” are a planning decomposition, not 25 mandatory serial gates. Keep their detail only where useful; milestones and current evidence govern execution.
