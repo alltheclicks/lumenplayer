@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/klaro-player-design-system-0163f186-10a6-4b66-9271-90a3ee964bf7/foundations/tokens.css">
+<link rel="stylesheet" href="_ds/klaro-player-design-system-0163f186-10a6-4b66-9271-90a3ee964bf7/foundations/theme-tuning.css">
+<link rel="stylesheet" href="assets/klaro-palette.css">
+<link rel="stylesheet" href="assets/panel.css">
+</helmet>
+<div class="kp">
+  <div class="kp-page">
+    <div class="kp-head"><div><h1 class="kp-h1">Plan</h1><p class="kp-sub">{{ sub }}</p></div></div>
+
+    <sc-if value="{{ isProv }}" hint-placeholder-val="{{ false }}">
+      <div class="kp-cols even">
+        <div class="kp-card">
+          <div style="display:flex;align-items:center;gap:12px"><span class="kp-av" style="background:linear-gradient(135deg,hsl(262 70% 55%),hsl(216 90% 55%))">OR</span><span><b style="font-size:16px">Orbita TV</b><span class="mut" style="display:block;font-size:13px">tvoj provajder</span></span></div>
+          <p class="mut" style="margin:0;font-size:14px">Licence za tvoje uređaje produžava Orbita TV. Plaćanje i paket dogovaraš direktno sa njima.</p>
+          <dl class="kp-dl" style="margin:0"><div><dt>Email</dt><dd>podrska@orbita.tv</dd></div><div><dt>Telefon</dt><dd class="num">+381 11 123 45 67</dd></div></dl>
+          <button class="kp-btn primary block"><svg class="ic sm"><use href="#i-mail"></use></svg>Pošalji zahtev za produženje</button>
+        </div>
+        <div class="kp-card flat">
+          <h2 class="kp-h2">Šta dobijaš preko provajdera</h2>
+          <sc-for list="{{ provPerks }}" as="p" hint-placeholder-count="3"><div style="display:flex;align-items:center;gap:10px;font-size:14px"><svg class="ic sm" style="color:hsl(var(--success))"><use href="#i-check"></use></svg>{{ p }}</div></sc-for>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ notProv }}" hint-placeholder-val="{{ true }}">
+      <div class="kp-cols">
+        <div class="kp-stack" style="gap:20px">
+          <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px">
+            <div class="kp-opt" data-on="{{ freeOn }}" style="cursor:default;white-space:normal"><span style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><b style="font-size:15px;color:hsl(var(--foreground))">Free</b><sc-if value="{{ isFree }}" hint-placeholder-val="{{ false }}"><span class="kp-badge plain">trenutno</span></sc-if></span><span class="p">€0</span><span>zauvek · 1 gleda u isto vreme</span></div>
+            <div class="kp-opt" data-on="{{ premOn }}" style="cursor:default;white-space:normal"><span style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><b style="font-size:15px;color:hsl(var(--foreground))">Premium</b><sc-if value="{{ isPrem }}" hint-placeholder-val="{{ false }}"><span class="kp-badge {{ premTone }}">{{ premTag }}</span></sc-if></span><span class="p">€10</span><span>godišnje · 5 uređaja</span></div>
+          </div>
+          <div class="kp-card tight">
+            <div style="display:grid;grid-template-columns:minmax(0,1fr) 72px 72px;align-items:center;padding:12px 18px;border-bottom:1px solid hsl(var(--border));font-size:12px;font-weight:600" class="mut"><span></span><span style="text-align:center">Free</span><span style="text-align:center;color:hsl(var(--primary))">Premium</span></div>
+            <sc-for list="{{ rows }}" as="r" hint-placeholder-count="8">
+              <div style="display:grid;grid-template-columns:minmax(0,1fr) 72px 72px;align-items:center;min-height:44px;padding:6px 18px;border-bottom:1px solid hsl(var(--border)/0.5);font-size:13.5px"><span style="text-wrap:pretty">{{ r.t }}</span><span style="text-align:center;font-weight:600;color:{{ r.fc }}">{{ r.f }}</span><span style="text-align:center;font-weight:700">{{ r.p }}</span></div>
+            </sc-for>
+          </div>
+        </div>
+        <div class="kp-stack" style="gap:16px">
+          <div class="kp-card accent" style="gap:14px">
+            <h2 class="kp-h2">{{ cardTitle }}</h2>
+            <p class="mut" style="margin:0;font-size:13.5px;text-wrap:pretty">{{ cardBody }}</p>
+            <sc-if value="{{ trialBar }}" hint-placeholder-val="{{ false }}"><div style="display:flex;flex-direction:column;gap:6px"><div class="kp-meter"><i style="width:23%"></i></div><span class="mut num" style="font-size:12px">7 od 30 dana iskorišćeno</span></div></sc-if>
+            <sc-if value="{{ showBuy }}" hint-placeholder-val="{{ true }}"><button class="kp-btn primary lg block" onClick="{{ openPay }}"><svg class="ic sm"><use href="#i-spark"></use></svg>{{ buyLabel }}</button></sc-if>
+            <sc-if value="{{ isPaid }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex;align-items:center;gap:12px"><span style="flex:1;display:flex;flex-direction:column;gap:2px"><b style="font-size:14px">Obnovi automatski</b><span class="mut" style="font-size:12.5px">Podsetimo te 7 dana pre isteka</span></span><button class="kp-sw" data-on="{{ autoOn }}" onClick="{{ toggleAuto }}"><i></i></button></div>
+            </sc-if>
+            <button class="kp-link" style="align-self:flex-start;font-size:13px">Imaš promo kod?</button>
+          </div>
+          <sc-if value="{{ isPaid }}" hint-placeholder-val="{{ false }}">
+            <div class="kp-card tight">
+              <div class="kp-card-h"><h2 class="kp-h2">Računi</h2></div>
+              <div class="kp-list"><div class="kp-li"><span class="kp-dev" style="width:36px;height:36px"><svg class="ic sm"><use href="#i-receipt"></use></svg></span><span class="t"><b>Premium · 1 godina</b><span>5. 10. 2026. · KL-2026-02317</span></span><b class="num">€10,00</b><button class="kp-btn sm quiet icon"><svg class="ic sm"><use href="#i-download"></use></svg></button></div></div>
+            </div>
+          </sc-if>
+        </div>
+      </div>
+    </sc-if>
+  </div>
+
+  <sc-if value="{{ payOpen }}" hint-placeholder-val="{{ false }}">
+    <div class="kp-scrim" onClick="{{ closePay }}"></div>
+    <div style="position:absolute;left:{{ shL }};right:{{ shR }};top:{{ shT }};bottom:{{ shB }};z-index:51;width:{{ shW }};transform:{{ shTf }};display:flex;flex-direction:column;gap:14px;padding:{{ shPad }};border-radius:{{ shR2 }};background:hsl(var(--popover));box-shadow:0 30px 80px -24px hsl(var(--shell-shadow)),inset 0 0 0 1px hsl(var(--glass-border)/0.5)">
+      <sc-if value="{{ isM }}" hint-placeholder-val="{{ false }}"><span style="align-self:center;width:40px;height:5px;border-radius:3px;background:hsl(var(--muted-foreground)/0.4);margin-bottom:4px"></span></sc-if>
+      <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:12px"><div><h2 class="kp-h1" style="font-size:22px">Premium</h2><p class="kp-sub" style="margin:2px 0 0">1 godina · {{ payUntil }}</p></div><b class="num" style="font-size:26px">€10,00</b></div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <button class="kp-btn lg block" onClick="{{ pay }}" style="background:hsl(var(--foreground));color:hsl(var(--background));box-shadow:none">Plati uz Apple Pay</button>
+        <button class="kp-btn lg block" onClick="{{ pay }}">Plati uz Google Pay</button>
+        <button class="kp-btn lg block" onClick="{{ pay }}"><svg class="ic sm"><use href="#i-card"></use></svg>Platna kartica</button>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;padding-top:12px;border-top:1px solid hsl(var(--border)/0.6)"><span style="flex:1;display:flex;flex-direction:column;gap:2px"><b style="font-size:14px">Obnovi automatski</b><span class="mut" style="font-size:12.5px">Podsetimo te 7 dana pre isteka</span></span><button class="kp-sw" data-on="{{ autoOn }}" onClick="{{ toggleAuto }}"><i></i></button></div>
+      <span class="mut" style="font-size:12.5px;text-align:center">PDV uračunat · račun stiže na ana@primer.com</span>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;plan&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;free&quot;,&quot;premium&quot;,&quot;premium5&quot;,&quot;provajder&quot;],&quot;default&quot;:&quot;free&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;paid&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;},&quot;dev&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;desktop&quot;,&quot;tablet&quot;,&quot;mobile&quot;],&quot;default&quot;:&quot;desktop&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;setPlan&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;(p:string,paid?:boolean)=&gt;void&quot;},&quot;toast&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;(t:string)=&gt;void&quot;}}">
+class Component extends DCLogic {
+  state = { pay: false, auto: false };
+  toast(t) { this.props.toast && this.props.toast(t); }
+  renderVals() {
+    const s = this.state;
+    const plan = this.props.plan || 'free';
+    const paid = !!this.props.paid || plan === 'premium5';
+    const isM = (this.props.dev || 'desktop') === 'mobile';
+    const prov = plan === 'provajder', free = plan === 'free' || plan === 'gost', prem = plan === 'premium' || plan === 'premium5';
+    const trial = prem && !paid;
+    const yes = '✓', no = '—';
+    return {
+      isProv: prov, notProv: !prov, isM,
+      sub: prov ? 'Tvoj nalog je otvorio provajder Orbita TV.' : free ? 'Free je besplatan zauvek. Premium otključava sync i 5 uređaja istovremeno.' : trial ? 'Premium proba · još 23 dana.' : 'Premium · važi do 5. 10. 2027.',
+      provPerks: ['Kanali i izvor od Orbita TV', 'Upravljanje uređajima iz panela', 'Podrška preko provajdera'],
+      isFree: free, isPrem: prem, freeOn: free ? '1' : '0', premOn: prem ? '1' : '0',
+      premTag: trial ? 'proba' : 'aktivan', premTone: trial ? 'trial' : 'ok',
+      rows: [
+        ['Gledanje (osnovno)', yes, yes], ['Povezani uređaji', '5', '5'], ['Gleda istovremeno', '1', '5'],
+        ['Upravljanje iz panela', yes, yes], ['Roditeljska kontrola', yes, yes],
+        ['Dokle je gledano, istorija, sync', no, yes], ['Rezervna kopija podešavanja', no, yes], ['Sve što dodamo kasnije', no, yes],
+      ].map(([t, f, p]) => ({ t, f, p, fc: f === no ? 'hsl(var(--muted-foreground)/0.6)' : 'hsl(var(--foreground))' })),
+      cardTitle: free ? 'Pređi na Premium' : trial ? 'Proba ističe 28. 10.' : 'Premium je aktivan',
+      cardBody: free ? 'Nastavi gledanje tamo gde si stao, na svakom ekranu. 5 uređaja gleda istovremeno.' : trial ? 'Posle probe prelaziš na Free — ništa se ne naplaćuje samo od sebe. Nastavi Premium da zadržiš sync i 5 uređaja.' : 'Važi do 5. 10. 2027. za 5 uređaja.',
+      trialBar: trial, showBuy: !paid || free, isPaid: paid && prem,
+      buyLabel: free ? 'Pređi na Premium — €10 godišnje' : 'Nastavi Premium — €10 godišnje',
+      payOpen: s.pay, openPay: () => this.setState({ pay: true }), closePay: () => this.setState({ pay: false }),
+      payUntil: trial ? 'od 28. 10. 2026. do 28. 10. 2027.' : 'do 5. 10. 2027.',
+      ...(isM
+        ? { shL: '0', shR: '0', shT: 'auto', shB: '0', shW: 'auto', shTf: 'none', shPad: '10px 20px 28px', shR2: '26px 26px 0 0' }
+        : { shL: '50%', shR: 'auto', shT: '50%', shB: 'auto', shW: 'min(440px, calc(100% - 32px))', shTf: 'translate(-50%,-50%)', shPad: '22px', shR2: '22px' }),
+      autoOn: s.auto ? '1' : '0', toggleAuto: () => this.setState({ auto: !s.auto }),
+      pay: () => { this.setState({ pay: false }); this.props.setPlan && this.props.setPlan('premium', true); this.toast('Plaćeno €10,00 — Premium važi godinu dana'); },
+    };
+  }
+}
+</script>
+</body>
+</html>

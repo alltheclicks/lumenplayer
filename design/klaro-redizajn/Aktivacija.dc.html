@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/klaro-player-design-system-0163f186-10a6-4b66-9271-90a3ee964bf7/foundations/tokens.css">
+<link rel="stylesheet" href="_ds/klaro-player-design-system-0163f186-10a6-4b66-9271-90a3ee964bf7/foundations/theme-tuning.css">
+<link rel="stylesheet" href="_ds/klaro-player-design-system-0163f186-10a6-4b66-9271-90a3ee964bf7/brand/brand.css">
+<link rel="stylesheet" href="assets/klaro-palette.css">
+<script src="_ds/klaro-player-design-system-0163f186-10a6-4b66-9271-90a3ee964bf7/_ds_bundle.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+html,body{margin:0;height:100%;overflow:hidden;background:hsl(var(--background));-webkit-font-smoothing:antialiased}
+*{box-sizing:border-box}
+button{font:inherit;white-space:nowrap}
+.dark{--warn:42 100% 62%}
+.light{--warn:36 92% 42%}
+[data-akt] [data-nav]:focus{outline:none}
+[data-akt] [data-nav]{transition:transform 220ms cubic-bezier(0.22,1,0.36,1),box-shadow 220ms cubic-bezier(0.22,1,0.36,1),background-color 180ms ease}
+[data-akt][data-tv="0"] [data-nav]:focus-visible,[data-akt][data-tv="1"] [data-nav]:focus{box-shadow:0 0 0 2px hsl(var(--background)),0 0 0 4px hsl(var(--ring)),0 0 28px 2px hsl(var(--focus-glow)/0.45)!important}
+[data-akt][data-tv="1"] [data-nav]:focus{transform:scale(1.04)}
+[data-akt][data-tv="1"] [data-key]:focus{transform:scale(1.12);z-index:2}
+@keyframes aktPulse{0%,100%{opacity:.35;transform:scale(.85)}50%{opacity:1;transform:scale(1)}}
+@keyframes aktRing{0%{transform:scale(.9);opacity:.7}100%{transform:scale(1.5);opacity:0}}
+@keyframes aktIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+[data-anim]{animation:aktIn 420ms cubic-bezier(0.22,1,0.36,1) both}
+@media (prefers-reduced-motion:reduce){[data-akt] *{animation:none!important;transition:none!important}}
+</style>
+</helmet>
+<div class="{{ themeClass }}" data-a2="{{ a2Flag }}" data-vodic="1" style="height:100vh;display:flex;flex-direction:column;background:hsl(var(--surface-0));color:hsl(var(--foreground));font-family:'Roboto',system-ui,sans-serif">
+  <header style="flex:none;display:flex;flex-direction:column;gap:8px;padding:10px 18px;border-bottom:1px solid hsl(var(--border))">
+    <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+      <img src="assets/klaro-icon.svg" alt="" style="width:28px;height:28px;border-radius:8px">
+      <span style="font-size:15px;font-weight:600">Klaro Player · Aktivacija uređaja</span>
+      <span style="flex:1;min-width:0;font-size:13px;color:hsl(var(--muted-foreground));white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ screenDesc }}</span>
+      <div style="display:flex;gap:3px;padding:3px;border-radius:10px;background:hsl(var(--secondary)/0.6);border:1px solid hsl(var(--border))">
+        <sc-for list="{{ devChips }}" as="d" hint-placeholder-count="4">
+          <button onClick="{{ d.onClick }}" style="padding:5px 11px;border:0;border-radius:7px;background:{{ d.bg }};color:{{ d.fg }};font-size:12.5px;font-weight:600;cursor:pointer">{{ d.label }}</button>
+        </sc-for>
+      </div>
+      <div style="display:flex;gap:3px;padding:3px;border-radius:10px;background:hsl(var(--secondary)/0.6);border:1px solid hsl(var(--border))">
+        <sc-for list="{{ licChips }}" as="d" hint-placeholder-count="2">
+          <button onClick="{{ d.onClick }}" style="padding:5px 11px;border:0;border-radius:7px;background:{{ d.bg }};color:{{ d.fg }};font-size:12.5px;font-weight:600;cursor:pointer">{{ d.label }}</button>
+        </sc-for>
+      </div>
+      <button onClick="{{ toggleTheme }}" style="padding:6px 12px;border-radius:10px;border:1px solid hsl(var(--border));background:hsl(var(--secondary)/0.6);color:hsl(var(--foreground));font-size:12.5px;font-weight:600;cursor:pointer">{{ themeLabel }}</button>
+    </div>
+    <div style="display:flex;gap:4px;flex-wrap:wrap">
+      <sc-for list="{{ screenChips }}" as="s" hint-placeholder-count="13">
+        <button onClick="{{ s.onClick }}" style="display:flex;align-items:center;gap:6px;padding:4px 10px;border:0;border-radius:999px;background:{{ s.bg }};color:{{ s.fg }};font-size:12px;font-weight:500;cursor:pointer"><span style="font-size:10.5px;font-weight:700;opacity:0.7">{{ s.id }}</span>{{ s.label }}</button>
+      </sc-for>
+    </div>
+  </header>
+
+  <div ref="{{ stageRef }}" style="flex:1;min-height:0;display:grid;place-items:center;overflow:hidden;padding:24px">
+    <div style="width:{{ boxW }};height:{{ boxH }};flex:none">
+      <div ref="{{ rootRef }}" data-akt="1" class="{{ themeClass }}" data-a2="{{ a2Flag }}" data-tv="{{ tvFlag }}" onKeyDown="{{ onKey }}" style="position:relative;width:{{ artW }};height:{{ artH }};transform:scale({{ scale }});transform-origin:0 0;border-radius:{{ frameR }};overflow:hidden;background:var(--bg-gradient,hsl(var(--background)));color:hsl(var(--foreground));box-shadow:0 0 0 1px hsl(var(--border)),0 40px 80px -30px hsl(var(--shell-shadow)/0.6)">
+      <svg style="position:absolute;width:0;height:0" aria-hidden="true"><defs>
+        <symbol id="a-tv" viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"></rect><path d="m17 2-5 5-5-5"></path></symbol>
+        <symbol id="a-phone" viewBox="0 0 24 24"><rect x="6" y="2" width="12" height="20" rx="2.5"></rect><path d="M11 18h2"></path></symbol>
+        <symbol id="a-laptop" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="11" rx="1.5"></rect><path d="M2 19h20"></path></symbol>
+        <symbol id="a-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"></path></symbol>
+        <symbol id="a-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></symbol>
+        <symbol id="a-ban" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="m5.6 5.6 12.8 12.8"></path></symbol>
+        <symbol id="a-lock" viewBox="0 0 24 24"><rect x="4" y="11" width="16" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></symbol>
+        <symbol id="a-plug" viewBox="0 0 24 24"><path d="M9 2v6M15 2v6M6 8h12v3a6 6 0 0 1-12 0z"></path><path d="M12 17v5"></path></symbol>
+        <symbol id="a-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="4"></circle><path d="M2 21a7 7 0 0 1 14 0"></path><path d="M16 4a4 4 0 0 1 0 8M22 21a7 7 0 0 0-4-6.3"></path></symbol>
+        <symbol id="a-wifi" viewBox="0 0 24 24"><path d="M2 2l20 20"></path><path d="M8.5 16.5a5 5 0 0 1 7 0M5 13a10 10 0 0 1 5.2-2.8M19 13a10 10 0 0 0-2.1-1.6M2 8.8a15 15 0 0 1 4.2-2.7M22 8.8A15 15 0 0 0 11 5"></path><path d="M12 20h.01"></path></symbol>
+        <symbol id="a-refresh" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.6-6.4L21 8"></path><path d="M21 3v5h-5"></path></symbol>
+        <symbol id="a-key" viewBox="0 0 24 24"><circle cx="7.5" cy="15.5" r="5.5"></circle><path d="m11.5 11.5 9-9M16 7l3 3M19 4l2 2"></path></symbol>
+        <symbol id="a-mail" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"></rect><path d="m22 7-10 6L2 7"></path></symbol>
+        <symbol id="a-logout" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><path d="m16 17 5-5-5-5M21 12H9"></path></symbol>
+        <symbol id="a-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3M12 17h.01"></path></symbol>
+        <symbol id="a-edit" viewBox="0 0 24 24"><path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"></path></symbol>
+        <symbol id="a-back" viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"></path><path d="M4 9h11a5 5 0 0 1 0 10h-3"></path></symbol>
+        <symbol id="a-del" viewBox="0 0 24 24"><path d="M21 4H8l-7 8 7 8h13a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z"></path><path d="m18 9-6 6M12 9l6 6"></path></symbol>
+      </defs></svg>
+
+      <div style="position:absolute;inset:0;zoom:{{ zoom }};display:flex;flex-direction:column">
+
+        <sc-if value="{{ topBrand }}" hint-placeholder-val="{{ true }}">
+          <div style="flex:none;display:flex;align-items:center;gap:12px;padding:{{ topPad }}">
+            <img src="assets/klaro-icon.svg" alt="Klaro Player" style="width:36px;height:36px;border-radius:10px">
+            <span style="font-family:var(--klaro-font,'Inter Tight'),sans-serif;font-size:19px;font-weight:700;letter-spacing:-0.01em">Klaro <span style="font-weight:500;color:hsl(var(--muted-foreground))">Player</span></span>
+            <span style="flex:1"></span>
+            <sc-if value="{{ showHelp }}" hint-placeholder-val="{{ true }}">
+              <button data-nav="1" style="display:flex;align-items:center;gap:8px;height:40px;padding:0 14px;border:0;border-radius:12px;background:hsl(var(--secondary)/0.6);box-shadow:inset 0 0 0 1px hsl(var(--border));color:hsl(var(--muted-foreground));font-size:13.5px;font-weight:500;cursor:pointer"><svg viewBox="0 0 24 24" style="width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><use href="#a-help"></use></svg>Pomoć</button>
+            </sc-if>
+          </div>
+        </sc-if>
+
+        <div style="flex:1;min-height:0;display:flex;align-items:{{ bodyAlign }};justify-content:center;padding:{{ bodyPad }};overflow:auto;scrollbar-width:none">
+
+          <!-- A1 Dobrodošlica -->
+          <sc-if value="{{ is.A1 }}" hint-placeholder-val="{{ false }}">
+            <div data-anim="1" style="display:flex;flex-direction:column;align-items:center;text-align:center;gap:18px;max-width:560px">
+              <img src="assets/klaro-live.svg" alt="" style="width:{{ heroLogo }};height:{{ heroLogo }};border-radius:22.5%;box-shadow:0 40px 90px -30px hsl(216 100% 50%/0.55)">
+              <div style="font-family:var(--klaro-font,'Inter Tight'),sans-serif;font-size:{{ h1Size }};font-weight:700;letter-spacing:-0.02em;line-height:1.05">Klaro <span style="font-weight:500;color:hsl(var(--muted-foreground))">Player</span></div>
+              <div style="font-size:18px;font-weight:600;color:hsl(var(--a2,var(--primary)))">One setup. Every screen.</div>
+              <p style="margin:0;font-size:15.5px;line-height:1.55;color:hsl(var(--muted-foreground));text-wrap:pretty">Dodaj svoj izvor jednom — kanali, omiljeni i napredak te prate na svakom ekranu.</p>
+              <div style="display:flex;flex-direction:{{ btnDir }};gap:12px;margin-top:10px;width:{{ btnW }}">
+                <button data-nav="1" data-autofocus="1" onClick="{{ go.A2 }}" style="{{ btnPrimary }}">Počni</button>
+                <button data-nav="1" onClick="{{ go.A5 }}" style="{{ btnGhost }}">Imam aktivacioni kod</button>
+              </div>
+              <span style="margin-top:14px;font-size:13px;color:hsl(var(--muted-foreground))">Jezik: Srpski ▾</span>
+            </div>
+          </sc-if>
+
+          <!-- A2/A3 Kod za uparivanje · Čekamo potvrdu -->
+          <sc-if value="{{ is.pair }}" hint-placeholder-val="{{ false }}">
+            <div data-anim="1" style="display:flex;flex-direction:{{ pairDir }};align-items:center;gap:{{ pairGap }};width:100%;max-width:1120px">
+              <div style="flex:1 1 0;min-width:0;display:flex;flex-direction:column;gap:22px;align-items:{{ pairAlign }};text-align:{{ pairText }}">
+                <div style="display:flex;flex-direction:column;gap:8px">
+                  <h1 style="margin:0;font-size:{{ h1Size }};font-weight:700;letter-spacing:-0.02em;line-height:1.08">{{ pairTitle }}</h1>
+                  <p style="margin:0;font-size:16px;line-height:1.5;color:hsl(var(--muted-foreground));max-width:520px;text-wrap:pretty">{{ pairSub }}</p>
+                </div>
+                <div style="display:flex;align-items:center;gap:10px">
+                  <sc-for list="{{ codeCells }}" as="c" hint-placeholder-count="7">
+                    <sc-if value="{{ c.sep }}" hint-placeholder-val="{{ false }}"><span style="width:18px;height:4px;border-radius:2px;background:hsl(var(--muted-foreground)/0.6)"></span></sc-if>
+                    <sc-if value="{{ c.ch }}" hint-placeholder-val="{{ true }}"><span style="width:{{ cellW }};height:{{ cellH }};display:grid;place-items:center;border-radius:16px;background:hsl(var(--card)/0.75);box-shadow:inset 0 0 0 1px hsl(var(--glass-border)/0.55),0 18px 40px -24px hsl(var(--shell-shadow)/0.8);font-size:{{ cellFont }};font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:0">{{ c.ch }}</span></sc-if>
+                  </sc-for>
+                </div>
+                <sc-if value="{{ is.A2 }}" hint-placeholder-val="{{ true }}">
+                  <div style="display:flex;flex-direction:column;gap:8px;width:{{ timerW }}">
+                    <div style="display:flex;justify-content:space-between;font-size:13.5px;color:hsl(var(--muted-foreground))"><span>Kod važi još <b style="color:hsl(var(--foreground));font-variant-numeric:tabular-nums">{{ timeLeft }}</b></span><span>pa se sam menja</span></div>
+                    <div style="height:4px;border-radius:4px;background:hsl(var(--muted))"><div style="height:100%;width:{{ timePct }};border-radius:4px;background:hsl(var(--a2,var(--primary)));transition:width 1s linear"></div></div>
+                  </div>
+                  <ol style="margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:12px;text-align:left">
+                    <sc-for list="{{ steps }}" as="st" hint-placeholder-count="3">
+                      <li style="display:flex;align-items:center;gap:12px;font-size:15.5px"><span style="width:30px;height:30px;flex:none;display:grid;place-items:center;border-radius:50%;background:hsl(var(--primary)/0.16);color:hsl(var(--primary));font-size:13.5px;font-weight:700">{{ st.n }}</span><span>{{ st.text }}<b style="color:hsl(var(--a2,var(--primary)))">{{ st.em }}</b></span></li>
+                    </sc-for>
+                  </ol>
+                </sc-if>
+                <sc-if value="{{ is.A3 }}" hint-placeholder-val="{{ false }}">
+                  <div style="display:flex;align-items:center;gap:14px;padding:14px 18px;border-radius:16px;background:hsl(var(--primary)/0.12);box-shadow:inset 0 0 0 1px hsl(var(--primary)/0.4)">
+                    <span style="position:relative;width:14px;height:14px;flex:none"><span style="position:absolute;inset:0;border-radius:50%;background:hsl(var(--a2,var(--primary)))"></span><span style="position:absolute;inset:0;border-radius:50%;border:2px solid hsl(var(--a2,var(--primary)));animation:aktRing 1.4s ease-out infinite"></span></span>
+                    <span style="display:flex;flex-direction:column;gap:2px;text-align:left"><b style="font-size:15.5px">Kod je otvoren na telefonu</b><span style="font-size:13.5px;color:hsl(var(--muted-foreground))">Čekamo da potvrdiš uređaj — ovaj ekran će se sam promeniti.</span></span>
+                  </div>
+                </sc-if>
+                <div style="display:flex;flex-direction:{{ btnDir }};gap:12px;width:{{ btnW }}">
+                  <sc-if value="{{ is.A2 }}" hint-placeholder-val="{{ true }}">
+                    <button data-nav="1" data-autofocus="1" onClick="{{ newCode }}" style="{{ btnGhost }}"><svg viewBox="0 0 24 24" style="width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><use href="#a-refresh"></use></svg>Novi kod</button>
+                    <button data-nav="1" onClick="{{ go.A5 }}" style="{{ btnGhost }}"><svg viewBox="0 0 24 24" style="width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><use href="#a-key"></use></svg>Imam aktivacioni kod</button>
+                  </sc-if>
+                  <sc-if value="{{ is.A3 }}" hint-placeholder-val="{{ false }}">
+                    <button data-nav="1" data-autofocus="1" onClick="{{ go.A2 }}" style="{{ btnGhost }}">Otkaži</button>
+                    <button data-nav="1" onClick="{{ go.A4 }}" style="{{ btnPrimary }}">Simuliraj potvrdu</button>
+                  </sc-if>
+                </div>
+              </div>
+              <div style="flex:none;display:flex;flex-direction:column;align-items:center;gap:14px">
+                <div style="padding:{{ qrPad }};border-radius:28px;background:#fff;box-shadow:0 40px 80px -30px hsl(var(--shell-shadow)/0.9),0 0 0 1px hsl(0 0% 100%/0.6)">
+                  <img src="assets/qr-demo.svg" alt="QR kod" style="display:block;width:{{ qrSize }};height:{{ qrSize }}">
+                </div>
+                <span style="font-size:14px;color:hsl(var(--muted-foreground))">Skeniraj kamerom telefona</span>
+              </div>
+            </div>
+          </sc-if>
+
+          <!-- A4 Povezano -->
+          <sc-if value="{{ is.A4 }}" hint-placeholder-val="{{ false }}">
+            <div data-anim="1" style="display:flex;flex-direction:column;align-items:center;text-align:center;gap:18px;width:100%;max-width:560px">
+              <span style="position:relative;width:88px;height:88px;display:grid;place-items:center;border-radius:50%;background:hsl(var(--success)/0.16);color:hsl(var(--success))"><span style="position:absolute;inset:0;border-radius:50%;border:2px solid hsl(var(--success)/0.6);animation:aktRing 1.8s ease-out 2"></span><svg viewBox="0 0 24 24" style="width:44px;height:44px;fill:none;stroke:currentColor;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round"><use href="#a-check"></use></svg></span>
+              <h1 style="margin:0;font-size:{{ h1Size }};font-weight:700;letter-spacing:-0.02em">Povezano</h1>
+              <p style="margin:0;font-size:16px;line-height:1.5;color:hsl(var(--muted-foreground))">{{ connectedText }}</p>
+              <div style="{{ infoCard }}">
+                <sc-for list="{{ connectedRows }}" as="r" hint-placeholder-count="4">
+                  <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 4px;border-bottom:1px solid hsl(var(--border)/0.6)"><span style="font-size:14px;color:hsl(var(--muted-foreground))">{{ r.k }}</span><span style="font-size:15px;font-weight:600;text-align:right">{{ r.v }}</span></div>
+                </sc-for>
+              </div>
+              <div style="display:flex;flex-direction:column;align-items:center;gap:10px;width:{{ btnW }}">
+                <button data-nav="1" data-autofocus="1" onClick="{{ go.A1 }}" style="{{ btnPrimary }}">Kreni</button>
+                <span style="font-size:13px;color:hsl(var(--muted-foreground))">Krećemo sami za 5 s</span>
+              </div>
+            </div>
+          </sc-if>
+
+          <!-- A5 Aktivacioni kod (vaučer) -->
+          <sc-if value="{{ is.A5 }}" hint-placeholder-val="{{ false }}">
+            <div data-anim="1" style="display:flex;flex-direction:column;align-items:center;text-align:center;gap:20px;width:100%;max-width:820px">
+              <div style="display:flex;flex-direction:column;gap:8px">
+                <h1 style="margin:0;font-size:{{ h1Size }};font-weight:700;letter-spacing:-0.02em">Unesi aktivacioni kod</h1>
+                <p style="margin:0;font-size:16px;color:hsl(var(--muted-foreground))">Kod od 12 znakova dobio si od svog provajdera.</p>
+              </div>
+              <div style="display:flex;align-items:center;gap:{{ vGap }};flex-wrap:nowrap">
+                <sc-for list="{{ vCells }}" as="c" hint-placeholder-count="14">
+                  <sc-if value="{{ c.sep }}" hint-placeholder-val="{{ false }}"><span style="width:10px;height:3px;border-radius:2px;background:hsl(var(--muted-foreground)/0.5)"></span></sc-if>
+                  <sc-if value="{{ c.cell }}" hint-placeholder-val="{{ true }}"><span style="width:{{ vCellW }};height:{{ vCellH }};display:grid;place-items:center;border-radius:10px;background:hsl(var(--card)/0.75);box-shadow:{{ c.ring }};font-size:{{ vFont }};font-weight:700">{{ c.ch }}</span></sc-if>
+                </sc-for>
+              </div>
+              <sc-if value="{{ vError }}" hint-placeholder-val="{{ false }}">
+                <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:12px;background:hsl(var(--destructive)/0.14);color:hsl(var(--destructive));font-size:14px;font-weight:500"><svg viewBox="0 0 24 24" style="width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round"><use href="#a-ban"></use></svg>{{ vError }}</div>
+              </sc-if>
+              <sc-if value="{{ isTV }}" hint-placeholder-val="{{ true }}">
+                <div style="display:grid;grid-template-columns:repeat(11,52px);gap:8px;padding:16px;border-radius:22px;background:hsl(var(--card)/0.6);box-shadow:inset 0 0 0 1px hsl(var(--glass-border)/0.45)">
+                  <sc-for list="{{ keys }}" as="k" hint-placeholder-count="33">
+                    <button data-nav="1" data-key="1" data-autofocus="{{ k.af }}" onClick="{{ k.onClick }}" style="grid-column:span {{ k.span }};height:52px;display:flex;align-items:center;justify-content:center;gap:6px;border:0;border-radius:12px;background:{{ k.bg }};color:{{ k.fg }};font-size:{{ k.size }};font-weight:600;cursor:pointer">{{ k.label }}</button>
+                  </sc-for>
+                </div>
+                <span style="font-size:13px;color:hsl(var(--muted-foreground))">Slova koja se lako mešaju (O, I) nisu u kodu — 0 i 1 su uvek cifre.</span>
+              </sc-if>
+              <sc-if value="{{ notTV }}" hint-placeholder-val="{{ false }}">
+                <div style="display:flex;flex-direction:{{ btnDir }};gap:12px;width:{{ btnW }}">
+                  <button data-nav="1" onClick="{{ go.A2 }}" style="{{ btnGhost }}">Nazad</button>
+                  <button data-nav="1" data-autofocus="1" onClick="{{ vSubmit }}" style="{{ btnPrimary }}">Aktiviraj</button>
+                </div>
+                <span style="font-size:13px;color:hsl(var(--muted-foreground))">Na telefonu i računaru ovde se otvara obična tastatura.</span>
+              </sc-if>
+            </div>
+          </sc-if>
+
+          <!-- A6 Prijava -->
+          <sc-if value="{{ is.A6 }}" hint-placeholder-val="{{ false }}">
+            <div data-anim="1" style="display:flex;align-items:center;gap:72px;width:100%;max-width:1040px;justify-content:center">
+              <sc-if value="{{ wide }}" hint-placeholder-val="{{ true }}">
+                <div style="flex:1 1 0;min-width:0;display:flex;flex-direction:column;gap:18px">
+                  <img src="assets/klaro-live.svg" alt="" style="width:120px;height:120px;border-radius:22.5%">
+                  <div style="font-family:var(--klaro-font,'Inter Tight'),sans-serif;font-size:44px;font-weight:700;letter-spacing:-0.02em;line-height:1.05">One setup.<br>Every screen.</div>
+                  <p style="margin:0;font-size:16px;line-height:1.55;color:hsl(var(--muted-foreground));max-width:420px">Prijavi se i ovaj uređaj se sam povezuje sa tvojim nalogom — izvor, omiljeni i napredak su odmah tu.</p>
+                </div>
+              </sc-if>
+              <div style="flex:none;width:{{ formW }};display:flex;flex-direction:column;gap:14px;padding:{{ formPad }};border-radius:24px;background:{{ formBg }};box-shadow:{{ formSh }}">
+                <h1 style="margin:0 0 4px;font-size:26px;font-weight:700;letter-spacing:-0.02em">Prijavi se</h1>
+                <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:500;color:hsl(var(--muted-foreground))">Email<span data-nav="1" tabindex="0" style="display:flex;align-items:center;gap:10px;height:48px;padding:0 14px;border-radius:12px;background:hsl(var(--input)/0.35);box-shadow:inset 0 0 0 1px hsl(var(--border));color:hsl(var(--foreground));font-size:15px"><svg viewBox="0 0 24 24" style="width:17px;height:17px;flex:none;fill:none;stroke:hsl(var(--muted-foreground));stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><use href="#a-mail"></use></svg>ana@primer.com</span></label>
+                <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:500;color:hsl(var(--muted-foreground))">Lozinka<span data-nav="1" tabindex="0" style="display:flex;align-items:center;gap:10px;height:48px;padding:0 14px;border-radius:12px;background:hsl(var(--input)/0.35);box-shadow:inset 0 0 0 1px hsl(var(--border));color:hsl(var(--foreground));font-size:15px;letter-spacing:0.2em"><svg viewBox="0 0 24 24" style="width:17px;height:17px;flex:none;fill:none;stroke:hsl(var(--muted-foreground));stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><use href="#a-lock"></use></svg>••••••••••</span></label>
+                <span style="align-self:flex-end;font-size:13px;color:hsl(var(--primary));font-weight:500">Zaboravljena lozinka?</span>
+                <button data-nav="1" data-autofocus="1" onClick="{{ go.A4 }}" style="{{ btnPrimary }}">Prijavi se</button>
+                <div style="display:flex;align-items:center;gap:10px;font-size:12.5px;color:hsl(var(--muted-foreground))"><span style="flex:1;height:1px;background:hsl(var(--border))"></span>ili<span style="flex:1;height:1px;background:hsl(var(--border))"></span></div>
+                <button data-nav="1" style="{{ btnGhost }}"><svg viewBox="0 0 24 24" style="width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><use href="#a-mail"></use></svg>Pošalji mi link za prijavu</button>
+                <button data-nav="1" onClick="{{ go.A2 }}" style="{{ btnGhost }}"><svg viewBox="0 0 24 24" style="width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><use href="#a-tv"></use></svg>Poveži kodom</button>
+                <span style="text-align:center;font-size:13.5px;color:hsl(var(--muted-foreground));margin-top:4px">Nemaš nalog? <b style="color:hsl(var(--primary))">Napravi nalog</b> — 7 dana besplatno</span>
+              </div>
+            </div>
+          </sc-if>
+
+          <!-- A7–A10 Stanja licence / naloga / izvora -->
+          <sc-if value="{{ is.status }}" hint-placeholder-val="{{ false }}">
+            <div data-anim="1" style="display:flex;flex-direction:column;align-items:center;text-align:center;gap:18px;width:100%;max-width:640px">
+              <span style="width:84px;height:84px;display:grid;place-items:center;border-radius:50%;background:hsl({{ st.tone }}/0.15);color:hsl({{ st.tone }});box-shadow:inset 0 0 0 1px hsl({{ st.tone }}/0.35)"><svg viewBox="0 0 24 24" style="width:40px;height:40px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><use href="#a-{{ st.icon }}"></use></svg></span>
+              <h1 style="margin:0;font-size:{{ h1Size }};font-weight:700;letter-spacing:-0.02em;line-height:1.1">{{ st.title }}</h1>
+              <p style="margin:0;font-size:16px;line-height:1.55;color:hsl(var(--muted-foreground));text-wrap:pretty">{{ st.body }}</p>
+              <sc-if value="{{ st.provider }}" hint-placeholder-val="{{ true }}">
+                <div style="{{ infoCard }};flex-direction:row;align-items:center;gap:14px;text-align:left">
+                  <span style="width:48px;height:48px;flex:none;display:grid;place-items:center;border-radius:12px;background:linear-gradient(135deg,hsl(262 70% 55%),hsl(216 90% 55%));color:#fff;font-weight:800;font-size:15px">OR</span>
+                  <span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px"><b style="font-size:16px">Orbita TV</b><span style="font-size:13.5px;color:hsl(var(--muted-foreground))">podrska@orbita.tv · +381 11 123 45 67</span></span>
+                  <span style="font-size:12px;color:hsl(var(--muted-foreground))">tvoj provajder</span>
+                </div>
+              </sc-if>
+              <sc-if value="{{ st.qr }}" hint-placeholder-val="{{ false }}">
+                <div style="{{ infoCard }};flex-direction:row;align-items:center;gap:18px;text-align:left">
+                  <span style="padding:8px;border-radius:12px;background:#fff;flex:none"><img src="assets/qr-demo.svg" alt="" style="display:block;width:84px;height:84px"></span>
+                  <span style="display:flex;flex-direction:column;gap:4px"><b style="font-size:15.5px">{{ st.qrTitle }}</b><span style="font-size:13.5px;color:hsl(var(--muted-foreground))">ili otvori <b style="color:hsl(var(--a2,var(--primary)))">{{ st.qrUrl }}</b></span></span>
+                </div>
+              </sc-if>
+              <div style="display:flex;flex-direction:{{ btnDir }};gap:12px;width:{{ btnW }};justify-content:center">
+                <sc-for list="{{ st.actions }}" as="a" hint-placeholder-count="2">
+                  <button data-nav="1" data-autofocus="{{ a.af }}" onClick="{{ a.onClick }}" style="{{ a.style }}">{{ a.label }}</button>
+                </sc-for>
+              </div>
+              <span style="font-size:13px;color:hsl(var(--muted-foreground))">ID uređaja <b style="color:hsl(var(--foreground));font-variant-numeric:tabular-nums">7F3A-91C2</b> · navedi ga podršci</span>
+            </div>
+          </sc-if>
+
+          <!-- A11 Limit uređaja -->
+          <sc-if value="{{ is.A11 }}" hint-placeholder-val="{{ false }}">
+            <div data-anim="1" style="display:flex;flex-direction:column;align-items:center;text-align:center;gap:18px;width:100%;max-width:640px">
+              <span style="width:84px;height:84px;display:grid;place-items:center;border-radius:50%;background:hsl(var(--warn)/0.15);color:hsl(var(--warn));box-shadow:inset 0 0 0 1px hsl(var(--warn)/0.35)"><svg viewBox="0 0 24 24" style="width:40px;height:40px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><use href="#a-users"></use></svg></span>
+              <h1 style="margin:0;font-size:{{ h1Size }};font-weight:700;letter-spacing:-0.02em">Dostignut limit uređaja</h1>
+              <p style="margin:0;font-size:16px;line-height:1.55;color:hsl(var(--muted-foreground))">Tvoja licenca dozvoljava 2 uređaja. Izaberi koji uređaj ovaj TV zamenjuje.</p>
+              <div style="width:100%;display:flex;flex-direction:column;gap:8px">
+                <sc-for list="{{ devices }}" as="d" hint-placeholder-count="2">
+                  <button data-nav="1" data-autofocus="{{ d.af }}" onClick="{{ d.onClick }}" style="display:flex;align-items:center;gap:14px;padding:14px 16px;border:0;border-radius:16px;background:{{ d.bg }};box-shadow:{{ d.ring }};color:inherit;text-align:left;cursor:pointer">
+                    <span style="width:44px;height:44px;flex:none;display:grid;place-items:center;border-radius:12px;background:hsl(var(--surface-2));color:hsl(var(--foreground))"><svg viewBox="0 0 24 24" style="width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><use href="#a-{{ d.icon }}"></use></svg></span>
+                    <span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px"><b style="font-size:15.5px">{{ d.name }}</b><span style="font-size:13px;color:hsl(var(--muted-foreground))">{{ d.meta }}</span></span>
+                    <span style="width:22px;height:22px;flex:none;border-radius:50%;box-shadow:inset 0 0 0 2px {{ d.radio }};display:grid;place-items:center"><sc-if value="{{ d.sel }}" hint-placeholder-val="{{ false }}"><span style="width:12px;height:12px;border-radius:50%;background:hsl(var(--primary))"></span></sc-if></span>
+                  </button>
+                </sc-for>
+              </div>
+              <div style="display:flex;flex-direction:{{ btnDir }};gap:12px;width:{{ btnW }};justify-content:center">
+                <button data-nav="1" onClick="{{ go.A2 }}" style="{{ btnGhost }}">Otkaži</button>
+                <button data-nav="1" onClick="{{ go.A4 }}" style="{{ btnPrimary }}">Zameni izabrani</button>
+              </div>
+              <span style="font-size:13px;color:hsl(var(--muted-foreground))">Zamena je moguća još 2 puta ove godine. Stari uređaj se odjavljuje.</span>
+            </div>
+          </sc-if>
+
+          <!-- A12 Bez interneta -->
+          <sc-if value="{{ is.A12 }}" hint-placeholder-val="{{ false }}">
+            <div style="position:absolute;inset:0;display:flex;gap:18px;padding:18px;filter:saturate(0.6);opacity:0.55">
+              <div style="width:88px;border-radius:28px;background:hsl(var(--card)/0.7);box-shadow:inset 0 0 0 1px hsl(var(--glass-border)/0.35)"></div>
+              <div style="width:22%;display:flex;flex-direction:column;gap:10px;padding-top:60px"><sc-for list="{{ ghostRows }}" as="g" hint-placeholder-count="8"><div style="height:40px;border-radius:12px;background:hsl(var(--secondary)/0.5);width:{{ g.w }}"></div></sc-for></div>
+              <div style="flex:1;display:flex;flex-direction:column;gap:16px"><div style="flex:0 0 58%;border-radius:22px;background:#000;box-shadow:inset 0 0 0 1px hsl(var(--border))"></div><div style="height:28px;width:40%;border-radius:8px;background:hsl(var(--secondary)/0.6)"></div><div style="flex:1;border-radius:18px;background:hsl(var(--card)/0.6)"></div></div>
+            </div>
+            <div data-anim="1" style="position:absolute;left:50%;top:{{ bannerTop }};transform:translateX(-50%);width:{{ bannerW }};display:flex;align-items:center;gap:14px;padding:14px 16px;border-radius:18px;background:hsl(var(--card)/0.92);backdrop-filter:blur(16px);box-shadow:inset 0 0 0 1px hsl(var(--warn)/0.45),0 24px 50px -20px hsl(var(--shell-shadow)/0.9)">
+              <span style="width:44px;height:44px;flex:none;display:grid;place-items:center;border-radius:12px;background:hsl(var(--warn)/0.16);color:hsl(var(--warn))"><svg viewBox="0 0 24 24" style="width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><use href="#a-wifi"></use></svg></span>
+              <span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px"><b style="font-size:15.5px">Nema interneta</b><span style="font-size:13.5px;color:hsl(var(--muted-foreground))">Licenca je sačuvana na uređaju — Klaro radi još 6 dana bez provere.</span></span>
+              <button data-nav="1" data-autofocus="1" style="{{ btnSmall }}">Pokušaj ponovo</button>
+            </div>
+          </sc-if>
+
+          <!-- A13 Opcije → Ovaj uređaj -->
+          <sc-if value="{{ is.A13 }}" hint-placeholder-val="{{ false }}">
+            <div data-anim="1" style="width:100%;max-width:760px;display:flex;flex-direction:column;gap:16px">
+              <div style="display:flex;align-items:center;gap:10px;font-size:13px;color:hsl(var(--muted-foreground))">Opcije <span>›</span> <b style="color:hsl(var(--foreground))">Ovaj uređaj</b></div>
+              <div style="display:flex;align-items:center;gap:16px">
+                <span style="width:60px;height:60px;flex:none;display:grid;place-items:center;border-radius:16px;background:hsl(var(--primary)/0.14);color:hsl(var(--primary))"><svg viewBox="0 0 24 24" style="width:30px;height:30px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><use href="#a-{{ devIcon }}"></use></svg></span>
+                <span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px"><b style="font-size:24px;letter-spacing:-0.01em">{{ devName }}</b><span style="font-size:14px;color:hsl(var(--muted-foreground))">{{ devKind }}</span></span>
+                <button data-nav="1" data-autofocus="1" style="{{ btnSmall }}"><svg viewBox="0 0 24 24" style="width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><use href="#a-edit"></use></svg>Preimenuj</button>
+              </div>
+              <div style="{{ infoCard }}">
+                <sc-for list="{{ deviceRows }}" as="r" hint-placeholder-count="7">
+                  <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;padding:13px 4px;border-bottom:1px solid hsl(var(--border)/0.6)">
+                    <span style="font-size:14px;color:hsl(var(--muted-foreground))">{{ r.k }}</span>
+                    <span style="display:flex;align-items:center;gap:8px;font-size:15px;font-weight:600;text-align:right">
+                      <sc-if value="{{ r.badge }}" hint-placeholder-val="{{ false }}"><span style="padding:3px 8px;border-radius:6px;background:hsl({{ r.tone }}/0.16);color:hsl({{ r.tone }});font-size:11.5px;font-weight:700;letter-spacing:0.02em">{{ r.badge }}</span></sc-if>
+                      {{ r.v }}
+                      <sc-if value="{{ r.locked }}" hint-placeholder-val="{{ false }}"><svg viewBox="0 0 24 24" style="width:15px;height:15px;fill:none;stroke:hsl(var(--muted-foreground));stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><use href="#a-lock"></use></svg></sc-if>
+                    </span>
+                  </div>
+                </sc-for>
+              </div>
+              <div style="display:flex;flex-direction:{{ btnDir }};gap:12px">
+                <button data-nav="1" style="{{ btnGhost }}"><svg viewBox="0 0 24 24" style="width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><use href="#a-refresh"></use></svg>Proveri licencu</button>
+                <button data-nav="1" onClick="{{ go.A1 }}" style="{{ btnDanger }}"><svg viewBox="0 0 24 24" style="width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><use href="#a-logout"></use></svg>Odjavi uređaj</button>
+              </div>
+            </div>
+          </sc-if>
+
+        </div>
+
+        <sc-if value="{{ tvFooter }}" hint-placeholder-val="{{ false }}">
+          <footer style="flex:none;display:flex;justify-content:space-between;gap:24px;padding:0 48px 26px;font-size:13px;color:hsl(var(--muted-foreground))">
+            <span>ID uređaja 7F3A-91C2 · Klaro 2.4.0</span>
+            <span>↑ ↓ ← → kretanje · OK izbor · Nazad</span>
+          </footer>
+        </sc-if>
+      </div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;ekran&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;A1 Dobrodošlica&quot;,&quot;A2 Kod za uparivanje&quot;,&quot;A3 Čekamo potvrdu&quot;,&quot;A4 Povezano&quot;,&quot;A5 Aktivacioni kod&quot;,&quot;A6 Prijava&quot;,&quot;A7 Licenca istekla&quot;,&quot;A8 Uređaj deaktiviran&quot;,&quot;A9 Nalog suspendovan&quot;,&quot;A10 Izvor nije dodeljen&quot;,&quot;A11 Limit uređaja&quot;,&quot;A12 Bez interneta&quot;,&quot;A13 Ovaj uređaj&quot;],&quot;default&quot;:&quot;A2 Kod za uparivanje&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Ekran&quot;},&quot;uredjaj&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;TV 1920&quot;,&quot;Desktop 1440&quot;,&quot;Tablet 1024&quot;,&quot;Mobilni 390&quot;],&quot;default&quot;:&quot;TV 1920&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Prikaz&quot;},&quot;licenca&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;Od provajdera&quot;,&quot;Direktna&quot;],&quot;default&quot;:&quot;Od provajdera&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Licenca&quot;},&quot;tema&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;Tamna&quot;,&quot;Svetla&quot;],&quot;default&quot;:&quot;Tamna&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Tema&quot;},&quot;paleta&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;Klaro&quot;,&quot;Standardna&quot;],&quot;default&quot;:&quot;Klaro&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Tema&quot;}}">
+const SCREENS = [
+  ['A1', 'Dobrodošlica', 'Prvo pokretanje: intro animacija, „Počni“ ili „Imam aktivacioni kod“'],
+  ['A2', 'Kod za uparivanje', 'TV prikazuje kod + QR; korisnik ga potvrđuje na telefonu ili ga provajder upisuje u panelu. Kod važi 10 min.'],
+  ['A3', 'Čekamo potvrdu', 'Neko je otvorio link sa koda — TV čeka potvrdu i sam prelazi dalje'],
+  ['A4', 'Povezano', 'Uređaj je vezan za nalog / provajdera; prikaz licence i izvora'],
+  ['A5', 'Aktivacioni kod', 'Vaučer od provajdera (12 znakova) — aktivira uređaj bez naloga. Probaj: KLRO-2026-TV01'],
+  ['A6', 'Prijava', 'Telefon / tablet / računar: email + lozinka ili link na email; uređaj se sam vezuje'],
+  ['A7', 'Licenca istekla', 'Ko produžava zavisi od licence: provajder (kontakt) ili direktno (plaćanje sa telefona)'],
+  ['A8', 'Uređaj deaktiviran', 'Provajder ili korisnik je uklonio uređaj sa naloga'],
+  ['A9', 'Nalog suspendovan', 'Nalog je privremeno blokiran — samo kontakt'],
+  ['A10', 'Izvor nije dodeljen', 'Licenca je aktivna, ali uređaj nema Xtream / M3U izvor'],
+  ['A11', 'Limit uređaja', 'Nalog je pun — izaberi koji uređaj ovaj zamenjuje'],
+  ['A12', 'Bez interneta', 'Ne blokira: baner preko playera, licenca radi offline do isteka grace perioda'],
+  ['A13', 'Ovaj uređaj', 'Opcije → Ovaj uređaj: ID, licenca, provajder, izvor, odjava'],
+];
+const DEVS = { 'TV 1920': [1920, 1080, 'tv', 1.5], 'Desktop 1440': [1440, 900, 'desktop', 1], 'Tablet 1024': [1024, 768, 'tablet', 1], 'Mobilni 390': [390, 844, 'mobile', 1] };
+const DEV_SHORT = [['TV 1920', 'TV'], ['Desktop 1440', 'Desktop'], ['Tablet 1024', 'Tablet'], ['Mobilni 390', 'Mobilni']];
+const CODES = ['KLR7Q4', 'M8X2PD', 'TQ59HN', 'W3K8RZ'];
+const KEYS = 'ABCDEFGHJKLMNPQRSTUVWXYZ0123456789'.split('');
+const VALID = 'KLRO2026TV01';
+const TTL = 600;
+
+class Component extends DCLogic {
+  stageRef = React.createRef();
+  rootRef = React.createRef();
+  state = { sw: 1200, sh: 700, screen: null, dev: null, lic: null, themeOv: null, codeIx: 0, left: 582, voucher: 'KLRO2026', vErr: '', pick: 1 };
+  attach() {
+    const el = this.stageRef.current;
+    if (!el || this.ro) return;
+    const upd = () => { const w = el.clientWidth - 48, h = el.clientHeight - 48; if (w > 0 && (Math.abs(w - this.state.sw) > 1 || Math.abs(h - this.state.sh) > 1)) this.setState({ sw: w, sh: h }); };
+    upd();
+    this.ro = new ResizeObserver(upd); this.ro.observe(el);
+  }
+  componentDidMount() {
+    this.attach();
+    this.tick = setInterval(() => { if (!this.ro) this.attach(); this.setState((s) => (s.left <= 1 ? { left: TTL, codeIx: (s.codeIx + 1) % CODES.length } : { left: s.left - 1 })); }, 1000);
+    this.focusFirst();
+  }
+  componentWillUnmount() { this.ro && this.ro.disconnect(); clearInterval(this.tick); }
+  componentDidUpdate() {
+    if (!this.ro) this.attach();
+    const key = [this.state.screen, this.state.dev, this.props.ekran, this.props.uredjaj].join('|');
+    if (key !== this._focusKey) { this._focusKey = key; this.focusFirst(); }
+  }
+  focusFirst() { setTimeout(() => { const r = this.rootRef.current; if (!r || r.getAttribute('data-tv') !== '1') return; const f = r.querySelector('[data-autofocus="1"]') || r.querySelector('[data-nav]'); f && f.focus({ preventScroll: true }); }, 60); }
+  onKey = (e) => {
+    const dir = { ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowLeft: [-1, 0], ArrowRight: [1, 0] }[e.key];
+    if (!dir) return;
+    const root = this.rootRef.current; const all = [...root.querySelectorAll('[data-nav]')].filter((n) => n.offsetParent);
+    const a = document.activeElement; e.preventDefault();
+    if (!all.includes(a)) { all[0] && all[0].focus(); return; }
+    const r = a.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+    let best = null, bs = 1e9;
+    all.forEach((n) => { if (n === a) return; const b = n.getBoundingClientRect(); const x = b.left + b.width / 2 - cx, y = b.top + b.height / 2 - cy;
+      const along = x * dir[0] + y * dir[1]; if (along <= 2) return; const across = Math.abs(x * dir[1] + y * dir[0]); const sc = along + across * 3; if (sc < bs) { bs = sc; best = n; } });
+    if (best) best.focus();
+  };
+  renderVals() {
+    const s = this.state;
+    const scrId = s.screen || (this.props.ekran ?? 'A2 Kod za uparivanje').split(' ')[0];
+    const devKey = s.dev || (DEVS[this.props.uredjaj] ? this.props.uredjaj : 'TV 1920');
+    const [W, H, kind, Z] = DEVS[devKey];
+    const isTV = kind === 'tv', isM = kind === 'mobile', wide = !isM;
+    const prov = (s.lic || this.props.licenca || 'Od provajdera') !== 'Direktna';
+    const theme = s.themeOv || ((this.props.tema ?? 'Tamna') === 'Svetla' ? 'light' : 'dark');
+    const a2 = (this.props.paleta ?? 'Klaro') !== 'Standardna';
+    const scale = Math.min(1, s.sw / W, s.sh / H);
+    const go = Object.fromEntries(SCREENS.map(([id]) => [id, () => this.setState({ screen: id, vErr: '' })]));
+    const is = Object.fromEntries(SCREENS.map(([id]) => [id, id === scrId]));
+    is.pair = scrId === 'A2' || scrId === 'A3';
+    is.status = ['A7', 'A8', 'A9', 'A10'].includes(scrId);
+    const btn = (bg, fg, ring) => `display:flex;align-items:center;justify-content:center;gap:10px;flex:0 0 auto;min-width:${isM ? 0 : 200}px;height:${isTV ? 56 : 50}px;padding:0 22px;border:0;border-radius:14px;background:${bg};color:${fg};box-shadow:${ring};font-size:${isTV ? 17 : 15.5}px;font-weight:600;cursor:pointer`;
+    const btnPrimary = btn('hsl(var(--primary))', 'hsl(var(--primary-foreground))', '0 14px 30px -14px hsl(var(--primary)/0.9)');
+    const btnGhost = btn('hsl(var(--secondary)/0.7)', 'hsl(var(--foreground))', 'inset 0 0 0 1px hsl(var(--border))');
+    const btnDanger = btn('hsl(var(--destructive)/0.12)', 'hsl(var(--destructive))', 'inset 0 0 0 1px hsl(var(--destructive)/0.45)');
+    const btnSmall = 'display:flex;align-items:center;gap:8px;height:42px;padding:0 16px;border:0;border-radius:12px;background:hsl(var(--secondary)/0.8);box-shadow:inset 0 0 0 1px hsl(var(--border));color:hsl(var(--foreground));font-size:14px;font-weight:600;cursor:pointer;flex:none';
+    const infoCard = 'width:100%;display:flex;flex-direction:column;padding:6px 18px;border-radius:20px;background:hsl(var(--card)/0.7);box-shadow:inset 0 0 0 1px hsl(var(--glass-border)/0.45);backdrop-filter:blur(14px)';
+    const code = CODES[s.codeIx];
+    const codeCells = [...code.slice(0, 3)].map((ch) => ({ ch, sep: false })).concat([{ ch: '', sep: true }], [...code.slice(3)].map((ch) => ({ ch, sep: false })));
+    const mm = Math.floor(s.left / 60), ss = String(s.left % 60).padStart(2, '0');
+    const v = s.voucher;
+    const vCells = []; for (let i = 0; i < 12; i++) { if (i && i % 4 === 0) vCells.push({ sep: true, cell: false }); vCells.push({ sep: false, cell: true, ch: v[i] || '', ring: i === v.length ? 'inset 0 0 0 2px hsl(var(--primary))' : 'inset 0 0 0 1px hsl(var(--glass-border)/0.55)' }); }
+    const press = (ch) => this.setState((st) => ({ voucher: (st.voucher + ch).slice(0, 12), vErr: '' }));
+    const vSubmit = () => { if (s.voucher === VALID) this.setState({ screen: 'A4', vErr: '' }); else this.setState({ vErr: s.voucher.length < 12 ? 'Kod ima 12 znakova — fali još ' + (12 - s.voucher.length) + '.' : 'Ovaj kod ne važi ili je već iskorišćen.' }); };
+    const keyStyle = (bg, fg) => ({ bg, fg });
+    const keys = KEYS.map((k, i) => ({ label: k, span: 1, size: '18px', af: i === 0 ? '1' : '0', onClick: () => press(k), ...keyStyle('hsl(var(--secondary)/0.8)', 'hsl(var(--foreground))') }))
+      .concat([
+        { label: '⌫ Obriši', span: 3, size: '15px', af: '0', onClick: () => this.setState((st) => ({ voucher: st.voucher.slice(0, -1), vErr: '' })), ...keyStyle('hsl(var(--muted))', 'hsl(var(--foreground))') },
+        { label: 'Aktiviraj', span: 4, size: '15px', af: '0', onClick: vSubmit, ...keyStyle('hsl(var(--primary))', 'hsl(var(--primary-foreground))') },
+      ]);
+    const lic = prov ? 'Orbita TV' : 'Klaro direktno';
+    const statusMap = {
+      A7: prov
+        ? { tone: 'var(--warn)', icon: 'clock', title: 'Licenca je istekla', body: 'Licenca za ovaj uređaj važila je do 1. 10. 2026. Produžava je tvoj provajder.', provider: true, qr: false, actions: [['Proveri ponovo', 'ghost', 'A4']] }
+        : { tone: 'var(--warn)', icon: 'clock', title: 'Probni period je istekao', body: 'Probao si Klaro 7 dana. Produži licencu za ovaj uređaj — godišnje ili doživotno.', provider: false, qr: true, qrTitle: 'Produži sa telefona', qrUrl: 'klaroplayer.com/produzi', actions: [['Proveri ponovo', 'ghost', 'A4']] },
+      A8: { tone: 'var(--destructive)', icon: 'ban', title: 'Uređaj je deaktiviran', body: prov ? 'Orbita TV je uklonio ovaj uređaj sa tvog naloga. Ako je greška, javi im se.' : 'Ovaj uređaj je uklonjen sa tvog naloga u panelu.', provider: prov, qr: false, actions: [['Poveži ponovo', 'primary', 'A2']] },
+      A9: { tone: 'var(--destructive)', icon: 'lock', title: 'Nalog je suspendovan', body: prov ? 'Pristup je privremeno zaustavljen. Za detalje se obrati provajderu.' : 'Pristup je privremeno zaustavljen. Obrati se Klaro podršci.', provider: prov, qr: false, actions: [] },
+      A10: prov
+        ? { tone: 'var(--a2,var(--primary))', icon: 'plug', title: 'Izvor još nije dodeljen', body: 'Licenca je aktivna, ali Orbita TV još nije dodelio izvor ovom uređaju. Čim ga doda, kanali se sami učitavaju.', provider: true, qr: false, actions: [['Proveri ponovo', 'primary', 'A4']] }
+        : { tone: 'var(--a2,var(--primary))', icon: 'plug', title: 'Dodaj svoj izvor', body: 'Klaro ne isporučuje kanale — dodaj Xtream ili M3U izvor koji već koristiš. Najlakše je sa telefona.', provider: false, qr: true, qrTitle: 'Dodaj izvor sa telefona', qrUrl: 'klaroplayer.com/izvor', actions: [['Unesi ovde', 'ghost', 'A10']] },
+    };
+    const sm = statusMap[scrId] || statusMap.A7;
+    const st = { ...sm, actions: sm.actions.map(([label, kind2, to], i) => ({ label, af: i === 0 ? '1' : '0', onClick: go[to], style: kind2 === 'primary' ? btnPrimary : btnGhost })) };
+    const devices = [['tv', 'Dnevna soba TV', 'Android TV · poslednji put juče'], ['phone', 'Telefon Ana', 'iPhone · pre 2 sata'], ['laptop', 'Laptop', 'Web · pre 5 dana']]
+      .slice(0, 2).map(([icon, name, meta], i) => ({ icon, name, meta, sel: s.pick === i, af: i === 0 ? '1' : '0', onClick: () => this.setState({ pick: i }),
+        bg: s.pick === i ? 'hsl(var(--primary)/0.12)' : 'hsl(var(--card)/0.6)', ring: s.pick === i ? 'inset 0 0 0 1.5px hsl(var(--primary)/0.6)' : 'inset 0 0 0 1px hsl(var(--border))', radio: s.pick === i ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground)/0.6)' }));
+    const devName = isTV ? 'Dnevna soba TV' : isM ? 'Telefon Ana' : kind === 'tablet' ? 'Tablet' : 'Laptop';
+    const devKind = isTV ? 'Android TV · 1920×1080' : isM ? 'iPhone · iOS 19' : kind === 'tablet' ? 'iPad · iPadOS 19' : 'Web · Chrome na macOS';
+    const deviceRows = [
+      { k: 'ID uređaja', v: '7F3A-91C2' },
+      { k: 'Nalog', v: prov ? 'Bez naloga — aktiviran kodom' : 'ana@primer.com' },
+      { k: 'Licenca', v: prov ? 'do 5. 10. 2027.' : 'probna, još 5 dana', badge: prov ? 'AKTIVNA' : 'PROBNA', tone: prov ? 'var(--success)' : 'var(--warn)' },
+      { k: 'Provajder', v: prov ? 'Orbita TV · podrska@orbita.tv' : '— (direktni korisnik)' },
+      { k: 'Izvor', v: prov ? 'Orbita TV · Xtream' : 'Moj izvor · M3U', locked: prov },
+      { k: 'Verzija', v: 'Klaro 2.4.0' },
+    ];
+    const connectedRows = [
+      { k: prov ? 'Aktivirao' : 'Nalog', v: prov ? 'Orbita TV' : 'ana@primer.com' },
+      { k: 'Licenca', v: prov ? 'do 5. 10. 2027.' : 'probna · 7 dana' },
+      { k: 'Izvor', v: prov ? 'Orbita TV · Xtream' : 'nije dodat — dodaj ga u panelu' },
+      { k: 'Naziv uređaja', v: devName },
+    ];
+    const scr = SCREENS.find((x) => x[0] === scrId) || SCREENS[1];
+    const chip = (on) => ({ bg: on ? 'hsl(var(--primary))' : 'transparent', fg: on ? 'hsl(var(--primary-foreground))' : 'hsl(var(--muted-foreground))' });
+    return {
+      themeClass: theme, a2Flag: a2 ? '1' : '0', tvFlag: isTV ? '1' : '0', isTV, notTV: !isTV, wide,
+      toggleTheme: () => this.setState({ themeOv: theme === 'dark' ? 'light' : 'dark' }), themeLabel: theme === 'dark' ? 'Tamna' : 'Svetla',
+      screenDesc: scr[0] + ' · ' + scr[2],
+      screenChips: SCREENS.map(([id, label]) => ({ id, label, onClick: () => this.setState({ screen: id, vErr: '' }), ...chip(id === scrId), bg: id === scrId ? 'hsl(var(--primary))' : 'hsl(var(--secondary)/0.5)' })),
+      devChips: DEV_SHORT.map(([k, label]) => ({ label, onClick: () => this.setState({ dev: k }), ...chip(k === devKey) })),
+      licChips: [['Od provajdera', 'Provajder'], ['Direktna', 'Direktni']].map(([k, label]) => ({ label, onClick: () => this.setState({ lic: k }), ...chip((k !== 'Direktna') === prov) })),
+      stageRef: this.stageRef, rootRef: this.rootRef, onKey: this.onKey,
+      artW: W + 'px', artH: H + 'px', scale, boxW: Math.round(W * scale) + 'px', boxH: Math.round(H * scale) + 'px', zoom: Z, frameR: isM ? '36px' : isTV ? '6px' : '14px',
+      topBrand: !is.A1 && !is.A12, showHelp: wide, topPad: isM ? '18px 18px 0' : isTV ? '28px 48px 0' : '24px 36px 0',
+      bodyAlign: isM ? 'flex-start' : 'center', bodyPad: isM ? '28px 20px 28px' : isTV ? '0 48px' : '0 48px 24px',
+      tvFooter: isTV && !is.A12,
+      go, is, h1Size: isM ? '30px' : '40px', heroLogo: isM ? '128px' : '168px', btnDir: isM ? 'column' : 'row', btnW: isM ? '100%' : 'auto',
+      btnPrimary, btnGhost, btnDanger, btnSmall, infoCard,
+      pairDir: isM ? 'column' : 'row', pairGap: isM ? '28px' : '72px', pairAlign: isM ? 'center' : 'flex-start', pairText: isM ? 'center' : 'left',
+      pairTitle: isTV ? 'Poveži ovaj TV' : 'Poveži ovaj uređaj',
+      pairSub: prov ? 'Skeniraj QR telefonom i potvrdi uređaj — ili pošalji kod svom provajderu da ga aktivira.' : 'Skeniraj QR telefonom, prijavi se i potvrdi uređaj. Bez kucanja na daljinskom.',
+      codeCells, cellW: isM ? '40px' : '64px', cellH: isM ? '54px' : '80px', cellFont: isM ? '28px' : '44px',
+      timeLeft: mm + ':' + ss, timePct: Math.round((s.left / TTL) * 100) + '%', timerW: isM ? '100%' : '420px',
+      steps: [{ n: 1, text: 'Na telefonu otvori ', em: 'klaroplayer.com/tv' }, { n: 2, text: 'Prijavi se ili napravi nalog', em: '' }, { n: 3, text: 'Upiši kod sa ekrana', em: '' }],
+      newCode: () => this.setState((st) => ({ codeIx: (st.codeIx + 1) % CODES.length, left: TTL })),
+      qrSize: isM ? '150px' : isTV ? '260px' : '220px', qrPad: isM ? '14px' : '20px',
+      connectedText: prov ? 'Orbita TV je aktivirao ovaj uređaj. Kanali se učitavaju.' : 'Uređaj je dodat na tvoj nalog.', connectedRows,
+      vCells, vGap: isM ? '4px' : '8px', vCellW: isM ? '22px' : '46px', vCellH: isM ? '38px' : '60px', vFont: isM ? '16px' : '26px', vError: s.vErr, keys, vSubmit,
+      formW: isM ? '100%' : '420px', formPad: isM ? '0' : '28px', formBg: isM ? 'transparent' : 'hsl(var(--card)/0.75)', formSh: isM ? 'none' : 'inset 0 0 0 1px hsl(var(--glass-border)/0.45),0 30px 60px -30px hsl(var(--shell-shadow)/0.8)',
+      st, devices,
+      ghostRows: [80, 70, 90, 60, 75, 85, 65, 70].map((w) => ({ w: w + '%' })), bannerTop: isM ? '16px' : '28px', bannerW: isM ? 'calc(100% - 24px)' : '640px',
+      devIcon: isTV ? 'tv' : isM ? 'phone' : 'laptop', devName, devKind, deviceRows,
+    };
+  }
+}
+</script>
+</body>
+</html>

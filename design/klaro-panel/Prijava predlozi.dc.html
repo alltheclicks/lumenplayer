@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="stylesheet" href="_ds/klaro-player-design-system-0163f186-10a6-4b66-9271-90a3ee964bf7/foundations/tokens.css">
+<link rel="stylesheet" href="_ds/klaro-player-design-system-0163f186-10a6-4b66-9271-90a3ee964bf7/foundations/theme-tuning.css">
+<link rel="stylesheet" href="_ds/klaro-player-design-system-0163f186-10a6-4b66-9271-90a3ee964bf7/brand/brand.css">
+<link rel="stylesheet" href="assets/klaro-palette.css">
+<link rel="stylesheet" href="assets/panel.css">
+<script src="_ds/klaro-player-design-system-0163f186-10a6-4b66-9271-90a3ee964bf7/_ds_bundle.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+html,body{margin:0;background:hsl(222 58% 4%)}
+*{box-sizing:border-box}
+a{color:hsl(194 100% 59%);text-decoration:none}
+a:hover{color:hsl(194 100% 70%);text-decoration:underline}
+</style>
+</helmet>
+<section class="kp dark" data-a2="1" data-vodic="1" data-screen-label="Registracija — tokovi" style="display:flex;flex-direction:column;gap:40px;padding:64px;background:hsl(222 58% 4%);color:hsl(var(--foreground));font-family:'Roboto',system-ui,sans-serif;border-bottom:1px solid hsl(var(--border))">
+  <div style="display:flex;flex-direction:column;gap:14px;max-width:1100px">
+    <span style="font-size:13px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:hsl(var(--muted-foreground))">Registracija · gost sa TV kodom · prepoznat provajder</span>
+    <h1 class="kp-brand" style="margin:0;font-size:44px;font-weight:700;letter-spacing:-0.02em;line-height:1.1">Odvojeni tokovi, zajednički ulaz</h1>
+    <p style="margin:0;font-size:18px;line-height:1.5;color:hsl(var(--muted-foreground));text-wrap:pretty">Ulaz ostaje isti (<a href="#1c">1c</a>, email prvo), a registracija se posle grana. Gledalac pravi nalog sam i odmah ga koristi. Provajder šalje zahtev, Klaro ga odobrava (G2), pa tek onda dobija lozinku i drugi korak prijave — zato što troši kredite. Kod sa TV-a otvara panel bez naloga, a nalog se traži tek kad zatreba. Panel sam prepoznaje ko verovatno prodaje pristup i jednom mu ponudi partnerski nalog.</p>
+  </div>
+  <div style="display:flex;flex-wrap:wrap;gap:64px;align-items:flex-start">
+    <div id="2a" style="display:flex;flex-direction:column;gap:18px">
+      <div style="display:flex;align-items:center;gap:12px"><span style="padding:4px 10px;border-radius:8px;background:hsl(var(--primary));color:hsl(var(--primary-foreground));font-size:15px;font-weight:700">2a</span><b style="font-size:22px">Gledalac · sam, odmah</b></div>
+      <p style="margin:0;max-width:820px;font-size:15px;line-height:1.5;color:hsl(var(--muted-foreground))">Nalog → potvrda emaila kodom → prvi uređaj. Proba od 7 dana počinje kad se poveže prvi uređaj, a ne kad se napravi nalog, pa ne ističe dok čeka. Može i bez lozinke, samo linkom.</p>
+      <div style="display:flex;gap:32px;align-items:flex-start">
+        <div style="width:1280px;height:800px;flex:none;border-radius:14px;overflow:hidden;box-shadow:0 0 0 1px hsl(var(--border)),0 40px 80px -30px hsl(var(--shell-shadow)/0.6)"><dc-import name="TokRegistracije" tok="gledalac" dev="desktop" style="display:block;width:100%;height:100%" hint-size="1280px,800px"></dc-import></div>
+        <div style="width:390px;height:844px;flex:none;border-radius:36px;overflow:hidden;box-shadow:0 0 0 1px hsl(var(--border)),0 40px 80px -30px hsl(var(--shell-shadow)/0.6)"><dc-import name="TokRegistracije" tok="gledalac" dev="mobile" style="display:block;width:100%;height:100%" hint-size="390px,844px"></dc-import></div>
+      </div>
+    </div>
+    <div id="2b" style="display:flex;flex-direction:column;gap:18px">
+      <div style="display:flex;align-items:center;gap:12px"><span style="padding:4px 10px;border-radius:8px;background:hsl(var(--primary));color:hsl(var(--primary-foreground));font-size:15px;font-weight:700">2b</span><b style="font-size:22px">Provajder · zahtev i odobrenje</b></div>
+      <p style="margin:0;max-width:820px;font-size:15px;line-height:1.5;color:hsl(var(--muted-foreground))">O firmi → kako radi → pregled (Genadmin odobrava u G2) → aktivacija sa lozinkom i kodom iz aplikacije → četiri prva koraka (server, krediti, logo, tim). Direktan link sa sajta: klaroplayer.com/partner.</p>
+      <div style="display:flex;gap:32px;align-items:flex-start">
+        <div style="width:1280px;height:800px;flex:none;border-radius:14px;overflow:hidden;box-shadow:0 0 0 1px hsl(var(--border)),0 40px 80px -30px hsl(var(--shell-shadow)/0.6)"><dc-import name="TokRegistracije" tok="provajder" dev="desktop" style="display:block;width:100%;height:100%" hint-size="1280px,800px"></dc-import></div>
+        <div style="width:390px;height:844px;flex:none;border-radius:36px;overflow:hidden;box-shadow:0 0 0 1px hsl(var(--border)),0 40px 80px -30px hsl(var(--shell-shadow)/0.6)"><dc-import name="TokRegistracije" tok="provajder" dev="mobile" style="display:block;width:100%;height:100%" hint-size="390px,844px"></dc-import></div>
+      </div>
+    </div>
+    <div id="2c" style="display:flex;flex-direction:column;gap:18px">
+      <div style="display:flex;align-items:center;gap:12px"><span style="padding:4px 10px;border-radius:8px;background:hsl(var(--primary));color:hsl(var(--primary-foreground));font-size:15px;font-weight:700">2c</span><b style="font-size:22px">Gost · kod sa TV-a bez naloga</b></div>
+      <p style="margin:0;max-width:820px;font-size:15px;line-height:1.5;color:hsl(var(--muted-foreground))">QR sa TV-a → potvrda → panel samo za taj uređaj (proba i izvor rade). Drugi uređaj, plaćanje i zamena traže nalog, pa se nalog nudi baš kad zatreba. Nalog je samo email, a TV i proba prelaze na njega.</p>
+      <div style="display:flex;gap:32px;align-items:flex-start">
+        <div style="width:1280px;height:800px;flex:none;border-radius:14px;overflow:hidden;box-shadow:0 0 0 1px hsl(var(--border)),0 40px 80px -30px hsl(var(--shell-shadow)/0.6)"><dc-import name="TokRegistracije" tok="gost" dev="desktop" style="display:block;width:100%;height:100%" hint-size="1280px,800px"></dc-import></div>
+        <div style="width:390px;height:844px;flex:none;border-radius:36px;overflow:hidden;box-shadow:0 0 0 1px hsl(var(--border)),0 40px 80px -30px hsl(var(--shell-shadow)/0.6)"><dc-import name="TokRegistracije" tok="gost" dev="mobile" style="display:block;width:100%;height:100%" hint-size="390px,844px"></dc-import></div>
+      </div>
+    </div>
+    <div id="2d" style="display:flex;flex-direction:column;gap:18px">
+      <div style="display:flex;align-items:center;gap:12px"><span style="padding:4px 10px;border-radius:8px;background:hsl(var(--primary));color:hsl(var(--primary-foreground));font-size:15px;font-weight:700">2d</span><b style="font-size:22px">Prepoznat potencijalni provajder</b></div>
+      <p style="margin:0;max-width:820px;font-size:15px;line-height:1.5;color:hsl(var(--muted-foreground))">Signal (predlog): 4+ uređaja na direktnom nalogu, ili 3+ različita Xtream/M3U naloga, ili 3+ povezivanja kodom za 30 dana. Ponuda se pokazuje jednom, ne blokira ništa i može da se odbije („sve je moje“ — porodica). Uz poređenje cene; uređaji prelaze kao korisnici.</p>
+      <div style="display:flex;gap:32px;align-items:flex-start">
+        <div style="width:1280px;height:800px;flex:none;border-radius:14px;overflow:hidden;box-shadow:0 0 0 1px hsl(var(--border)),0 40px 80px -30px hsl(var(--shell-shadow)/0.6)"><dc-import name="TokRegistracije" tok="signal" dev="desktop" style="display:block;width:100%;height:100%" hint-size="1280px,800px"></dc-import></div>
+        <div style="width:390px;height:844px;flex:none;border-radius:36px;overflow:hidden;box-shadow:0 0 0 1px hsl(var(--border)),0 40px 80px -30px hsl(var(--shell-shadow)/0.6)"><dc-import name="TokRegistracije" tok="signal" dev="mobile" style="display:block;width:100%;height:100%" hint-size="390px,844px"></dc-import></div>
+      </div>
+    </div>
+  </div>
+</section>
+<section class="kp dark" data-a2="1" data-vodic="1" data-screen-label="Prijava — predlozi" style="display:flex;flex-direction:column;gap:40px;padding:64px;background:hsl(222 58% 4%);color:hsl(var(--foreground));font-family:'Roboto',system-ui,sans-serif">
+  <div style="display:flex;flex-direction:column;gap:14px;max-width:1100px">
+    <span style="font-size:13px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:hsl(var(--muted-foreground))">K0 Prijava · gledalac i provajder</span>
+    <h1 class="kp-brand" style="margin:0;font-size:44px;font-weight:700;letter-spacing:-0.02em;line-height:1.1">Tri načina da isti ulaz razdvoji gledaoca i provajdera</h1>
+    <p style="margin:0;font-size:18px;line-height:1.5;color:hsl(var(--muted-foreground));text-wrap:pretty">Preporuka: <a href="#1c">1c</a> — email prvo, sistem sam zna ulogu. Niko ne mora da zna da li je „korisnik provajdera“, nema pogrešnog izbora ni poruke „pogrešna lozinka“ zbog toga, a ko ima oba naloga bira posle prijave. Provajder uvek dobija drugi korak (kod iz aplikacije) jer troši kredite. Genadmin se ne nudi nigde — isti ulaz, prepoznaje se po nalogu. Sve tri verzije su klikabilne.</p>
+  </div>
+  <div style="display:flex;flex-wrap:wrap;gap:64px;align-items:flex-start">
+    <div id="1a" style="display:flex;flex-direction:column;gap:18px">
+      <div style="display:flex;align-items:center;gap:12px"><span style="padding:4px 10px;border-radius:8px;background:hsl(var(--primary));color:hsl(var(--primary-foreground));font-size:15px;font-weight:700">1a</span><b style="font-size:22px">Prekidač na kartici</b></div>
+      <p style="margin:0;max-width:820px;font-size:15px;line-height:1.5;color:hsl(var(--muted-foreground))">Gledalac / Provajder iznad forme, gledalac podrazumevan. Menja tekst levo i dno forme (link za prijavu i TV kod ↔ „Postani partner“). Najmanje promene u odnosu na sadašnji K0; minus — korisnik provajdera može da klikne pogrešno.</p>
+      <div style="display:flex;gap:32px;align-items:flex-start">
+        <div style="width:1280px;height:800px;flex:none;border-radius:14px;overflow:hidden;box-shadow:0 0 0 1px hsl(var(--border)),0 40px 80px -30px hsl(var(--shell-shadow)/0.6)"><dc-import name="PrijavaOpcija" varijanta="a" dev="desktop" style="display:block;width:100%;height:100%" hint-size="1280px,800px"></dc-import></div>
+        <div style="width:390px;height:844px;flex:none;border-radius:36px;overflow:hidden;box-shadow:0 0 0 1px hsl(var(--border)),0 40px 80px -30px hsl(var(--shell-shadow)/0.6)"><dc-import name="PrijavaOpcija" varijanta="a" dev="mobile" style="display:block;width:100%;height:100%" hint-size="390px,844px"></dc-import></div>
+      </div>
+    </div>
+    <div id="1b" style="display:flex;flex-direction:column;gap:18px">
+      <div style="display:flex;align-items:center;gap:12px"><span style="padding:4px 10px;border-radius:8px;background:hsl(var(--primary));color:hsl(var(--primary-foreground));font-size:15px;font-weight:700">1b</span><b style="font-size:22px">Dva ulaza</b></div>
+      <p style="margin:0;max-width:820px;font-size:15px;line-height:1.5;color:hsl(var(--muted-foreground))">Prvo pitanje „Ko se prijavljuje?“, pa forma za izabranu ulogu sa „promeni“. Najjasnije za marketing i dva odvojena linka (npr. sa sajta „Za provajdere“); minus — klik više za svakoga, i dalje moguć pogrešan izbor.</p>
+      <div style="display:flex;gap:32px;align-items:flex-start">
+        <div style="width:1280px;height:800px;flex:none;border-radius:14px;overflow:hidden;box-shadow:0 0 0 1px hsl(var(--border)),0 40px 80px -30px hsl(var(--shell-shadow)/0.6)"><dc-import name="PrijavaOpcija" varijanta="b" dev="desktop" style="display:block;width:100%;height:100%" hint-size="1280px,800px"></dc-import></div>
+        <div style="width:390px;height:844px;flex:none;border-radius:36px;overflow:hidden;box-shadow:0 0 0 1px hsl(var(--border)),0 40px 80px -30px hsl(var(--shell-shadow)/0.6)"><dc-import name="PrijavaOpcija" varijanta="b" dev="mobile" style="display:block;width:100%;height:100%" hint-size="390px,844px"></dc-import></div>
+      </div>
+    </div>
+    <div id="1c" style="display:flex;flex-direction:column;gap:18px">
+      <div style="display:flex;align-items:center;gap:12px"><span style="padding:4px 10px;border-radius:8px;background:hsl(var(--primary));color:hsl(var(--primary-foreground));font-size:15px;font-weight:700">1c</span><b style="font-size:22px">Email prvo · sistem prepoznaje</b><span class="kp-badge ok">Preporuka</span></div>
+      <p style="margin:0;max-width:820px;font-size:15px;line-height:1.5;color:hsl(var(--muted-foreground))">Email → lozinka; ulogu određuje nalog. Probaj demo emailove: <b>ana@</b> ide pravo u korisnički panel, <b>podrska@orbita</b> u provajder + kod, <b>marko@orbita</b> ima oba naloga i bira, nepoznat email nudi „Napravi nalog“ ili „Postani partner“.</p>
+      <div style="display:flex;gap:32px;align-items:flex-start">
+        <div style="width:1280px;height:800px;flex:none;border-radius:14px;overflow:hidden;box-shadow:0 0 0 1px hsl(var(--border)),0 40px 80px -30px hsl(var(--shell-shadow)/0.6)"><dc-import name="PrijavaOpcija" varijanta="c" dev="desktop" style="display:block;width:100%;height:100%" hint-size="1280px,800px"></dc-import></div>
+        <div style="width:390px;height:844px;flex:none;border-radius:36px;overflow:hidden;box-shadow:0 0 0 1px hsl(var(--border)),0 40px 80px -30px hsl(var(--shell-shadow)/0.6)"><dc-import name="PrijavaOpcija" varijanta="c" dev="mobile" style="display:block;width:100%;height:100%" hint-size="390px,844px"></dc-import></div>
+      </div>
+    </div>
+  </div>
+</section>
+</x-dc>
+</body>
+</html>

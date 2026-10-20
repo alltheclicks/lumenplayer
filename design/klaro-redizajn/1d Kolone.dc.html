@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/klaro-player-design-system-0163f186-10a6-4b66-9271-90a3ee964bf7/foundations/tokens.css">
+<link rel="stylesheet" href="_ds/klaro-player-design-system-0163f186-10a6-4b66-9271-90a3ee964bf7/foundations/theme-tuning.css">
+<link rel="stylesheet" href="assets/klaro-palette.css">
+<script src="_ds/klaro-player-design-system-0163f186-10a6-4b66-9271-90a3ee964bf7/_ds_bundle.js"></script>
+<style>html,body{margin:0;height:100%;background:hsl(var(--background));overflow:hidden}</style>
+</helmet>
+<dc-import name="PlayerViewer" brand="{{ brand }}" direction="d" theme="{{ theme }}" device="{{ device }}" screen="{{ screen }}" fit="{{ fit }}" hints="{{ hints }}" accent2="{{ accent2 }}" remote="{{ remote }}" user-type="{{ userType }}" style="display:block;width:100%;height:100vh" hint-size="100%,100vh"></dc-import>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;brend&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;Klaro Player&quot;,&quot;EXYU.tv&quot;],&quot;default&quot;:&quot;Klaro Player&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Brend&quot;},&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;Tamna&quot;,&quot;Svetla&quot;],&quot;default&quot;:&quot;Tamna&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Tema&quot;},&quot;paleta&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;Klaro&quot;,&quot;Standardna&quot;],&quot;default&quot;:&quot;Klaro&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Tema&quot;},&quot;device&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;Desktop 1440&quot;,&quot;Laptop 1280&quot;,&quot;Tablet 1024&quot;,&quot;Tablet uspravno 768&quot;,&quot;Mobilni 390&quot;,&quot;TV 1920&quot;],&quot;default&quot;:&quot;Desktop 1440&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Prikaz&quot;},&quot;screen&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;Reprodukcija&quot;,&quot;Bez kanala&quot;,&quot;Filmovi&quot;,&quot;Serije&quot;],&quot;default&quot;:&quot;Reprodukcija&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Prikaz&quot;},&quot;fit&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Prikaz&quot;},&quot;daljinski&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Prikaz&quot;},&quot;saveti&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Uputstva&quot;},&quot;korisnik&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;Posle ažuriranja&quot;,&quot;Novi korisnik&quot;],&quot;default&quot;:&quot;Posle ažuriranja&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Uputstva&quot;}}">
+class Component extends DCLogic {
+  renderVals() {
+    return { brand: (this.props.brend ?? 'Klaro Player') === 'EXYU.tv' ? 'exyu' : 'klaro', theme: this.props.theme ?? 'Tamna', device: this.props.device ?? 'Desktop 1440', screen: this.props.screen ?? 'Reprodukcija', fit: this.props.fit ?? true, hints: this.props.saveti ?? true, accent2: (this.props.paleta ?? 'Klaro') !== 'Standardna', remote: this.props.daljinski ?? true, userType: (this.props.korisnik ?? 'Posle ažuriranja') === 'Novi korisnik' ? 'new' : 'updated' };
+  }
+}
+</script>
+</body>
+</html>

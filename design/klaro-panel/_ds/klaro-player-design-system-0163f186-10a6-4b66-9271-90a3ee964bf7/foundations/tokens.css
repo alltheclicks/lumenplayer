@@ -1,0 +1,216 @@
+/* VERBATIM copy of the token blocks in apps/web/src/index.css.
+ * /design-pull applies edits to this file back to the codebase 1:1.
+ * Keep the structure: :root { } .dark { } .light { } */
+:root {
+    --background: 225 24% 5%;
+    --foreground: 210 20% 98%;
+
+    --card: 224 20% 8%;
+    --card-foreground: 210 20% 98%;
+
+    --popover: 224 22% 9%;
+    --popover-foreground: 210 20% 98%;
+
+    --primary: 221 92% 60%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 223 16% 14%;
+    --secondary-foreground: 210 20% 98%;
+
+    --muted: 223 14% 17%;
+    --muted-foreground: 220 12% 64%;
+
+    --accent: 221 92% 60%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 84% 61%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 152 62% 45%;
+    --success-foreground: 0 0% 100%;
+
+    --live: 0 84% 61%;
+    --live-foreground: 0 0% 100%;
+
+    --catchup: 265 84% 66%;
+    --catchup-foreground: 0 0% 100%;
+
+    --border: 223 15% 16%;
+    --input: 223 15% 20%;
+    --ring: 221 92% 62%;
+
+    --radius: 0.85rem;
+
+    --sidebar-background: 225 24% 6%;
+    --sidebar-foreground: 210 20% 96%;
+    --sidebar-primary: 221 92% 60%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 223 16% 13%;
+    --sidebar-accent-foreground: 210 20% 98%;
+    --sidebar-border: 223 15% 14%;
+    --sidebar-ring: 221 92% 62%;
+
+    /* Legacy aliases kept while LP-0363 migrates shell implementation. */
+    --surface-0: 225 24% 6%;
+    --surface-1: 224 20% 8%;
+    --surface-2: 223 16% 13%;
+    --shell-border: var(--sidebar-border);
+    --shell-shadow: 224 60% 2%;
+
+    /* Streaming-shell semantics (2026 modernization). */
+    --overlay: 224 45% 3%;
+    --glass: 224 22% 10%;
+    --glass-border: 220 22% 34%;
+    --focus-glow: 221 96% 64%;
+    --elevated: 224 18% 11%;
+    --scrim: 0 0% 0%;
+
+    /* Motion system — animate transform + opacity only. */
+    --motion-instant: 80ms;
+    --motion-fast: 140ms;
+    --motion-base: 220ms;
+    --motion-slow: 360ms;
+    --motion-slower: 560ms;
+    --motion-stagger: 30ms;
+    --motion-tv-focus: 180ms;
+    --motion-tv-reveal: 480ms;
+
+    --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+    --ease-in-out-soft: cubic-bezier(0.65, 0, 0.35, 1);
+    --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+    --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+    --ease-spring: cubic-bezier(0.34, 1.26, 0.44, 1);
+}
+
+.dark {
+    --background: 225 24% 5%;
+    --foreground: 210 20% 98%;
+
+    --card: 224 20% 8%;
+    --card-foreground: 210 20% 98%;
+
+    --popover: 224 22% 9%;
+    --popover-foreground: 210 20% 98%;
+
+    --primary: 221 92% 60%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 223 16% 14%;
+    --secondary-foreground: 210 20% 98%;
+
+    --muted: 223 14% 17%;
+    --muted-foreground: 220 12% 64%;
+
+    --accent: 221 92% 60%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 84% 61%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 152 62% 45%;
+    --success-foreground: 0 0% 100%;
+
+    --live: 0 84% 61%;
+    --live-foreground: 0 0% 100%;
+
+    --catchup: 265 84% 66%;
+    --catchup-foreground: 0 0% 100%;
+
+    --border: 223 15% 16%;
+    --input: 223 15% 20%;
+    --ring: 221 92% 62%;
+
+    --sidebar-background: 225 24% 6%;
+    --sidebar-foreground: 210 20% 96%;
+    --sidebar-primary: 221 92% 60%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 223 16% 13%;
+    --sidebar-accent-foreground: 210 20% 98%;
+    --sidebar-border: 223 15% 14%;
+    --sidebar-ring: 221 92% 62%;
+
+    --surface-0: 225 24% 6%;
+    --surface-1: 224 20% 8%;
+    --surface-2: 223 16% 13%;
+    --shell-border: var(--sidebar-border);
+    --shell-shadow: 224 60% 2%;
+
+    --overlay: 224 45% 3%;
+    --glass: 224 22% 10%;
+    --glass-border: 220 22% 34%;
+    --focus-glow: 221 96% 64%;
+    --elevated: 224 18% 11%;
+    --scrim: 0 0% 0%;
+}
+
+.light {
+    --background: 220 30% 98%;
+    --foreground: 224 40% 12%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 224 40% 12%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 224 40% 12%;
+
+    --primary: 221 92% 55%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 220 20% 94%;
+    --secondary-foreground: 224 40% 12%;
+
+    --muted: 220 20% 94%;
+    --muted-foreground: 220 12% 42%;
+
+    --accent: 221 92% 55%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 80% 55%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 152 62% 38%;
+    --success-foreground: 0 0% 100%;
+
+    --live: 0 80% 55%;
+    --live-foreground: 0 0% 100%;
+
+    --catchup: 265 78% 56%;
+    --catchup-foreground: 0 0% 100%;
+
+    --border: 220 20% 88%;
+    --input: 220 20% 86%;
+    --ring: 221 92% 55%;
+
+    --sidebar-background: 220 24% 97%;
+    --sidebar-foreground: 224 40% 12%;
+    --sidebar-primary: 221 92% 55%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 220 20% 94%;
+    --sidebar-accent-foreground: 224 40% 12%;
+    --sidebar-border: 220 20% 88%;
+    --sidebar-ring: 221 92% 55%;
+
+    --surface-0: 220 24% 97%;
+    --surface-1: 0 0% 100%;
+    --surface-2: 220 20% 94%;
+    --shell-border: var(--sidebar-border);
+    --shell-shadow: 220 30% 60%;
+
+    --overlay: 224 30% 20%;
+    --glass: 0 0% 100%;
+    --glass-border: 220 20% 82%;
+    --focus-glow: 221 92% 55%;
+    --elevated: 220 24% 96%;
+    --scrim: 0 0% 0%;
+}
+
+@supports (animation-timing-function: linear(0, 1)) {
+  :root {
+    --ease-spring: linear(
+      0, 0.009 1.1%, 0.036 2.3%, 0.141 4.6%, 0.281 6.9%,
+      0.723 12.6%, 0.938 16.1%, 1.017 18.4%, 1.077 21.9%,
+      1.093 24.2%, 1.092 26.5%, 1.065 30.5%, 1.011 36.8%,
+      0.987 41.9%, 0.991 49.5%, 1.003 59.8%, 1 100%
+    );
+  }
+}

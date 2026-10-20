@@ -1,0 +1,52 @@
+/* Klaro paleta — izvedena iz loga: noćna plava (#121d36 → #03060d), navy #0d1729, mist #f3f5f9, spektar za statuse.
+   Uključuje se sa data-a2="1" na korenu teme. Standardna paleta = tokens.css + theme-tuning.css. */
+.dark{--accent-2:194 100% 59%;--accent-2-foreground:224 40% 8%}
+.light{--accent-2:193 92% 34%;--accent-2-foreground:0 0% 100%}
+[data-a2="1"]{--a2:var(--accent-2)}
+.dark[data-a2="1"]{
+  --background:222 58% 5%;--foreground:220 33% 97%;
+  --card:222 45% 9%;--card-foreground:220 33% 97%;
+  --popover:222 44% 11%;--popover-foreground:220 33% 97%;
+  --primary:216 100% 56%;--primary-foreground:0 0% 100%;
+  --secondary:222 36% 15%;--secondary-foreground:220 33% 97%;
+  --muted:222 30% 18%;--muted-foreground:218 24% 72%;
+  --accent:216 100% 56%;--accent-foreground:0 0% 100%;
+  --live:349 100% 59%;--destructive:349 100% 59%;--success:160 76% 50%;--catchup:275 100% 66%;
+  --border:222 34% 17%;--input:222 32% 21%;--ring:194 100% 59%;--focus-glow:194 100% 59%;
+  --sidebar-background:223 55% 6%;--sidebar-foreground:220 33% 96%;--sidebar-primary:216 100% 56%;--sidebar-accent:222 38% 14%;--sidebar-border:222 36% 14%;--sidebar-ring:194 100% 59%;
+  --surface-0:223 55% 6%;--surface-1:222 45% 9%;--surface-2:222 38% 14%;
+  --overlay:223 60% 3%;--glass:222 44% 11%;--glass-border:218 40% 32%;--elevated:222 42% 12%;--shell-shadow:223 70% 2%;
+  --bg-gradient:linear-gradient(180deg,hsl(222 50% 13%) 0%,hsl(222 58% 6%) 45%,hsl(221 63% 3%) 100%);
+  --card-gradient:linear-gradient(180deg,hsl(222 44% 11%) 0%,hsl(222 48% 8%) 100%);
+}
+.light[data-a2="1"]{
+  --background:220 33% 95%;--foreground:219 52% 11%;
+  --card:0 0% 100%;--card-foreground:219 52% 11%;
+  --popover:0 0% 100%;--popover-foreground:219 52% 11%;
+  --primary:216 100% 46%;--primary-foreground:0 0% 100%;
+  --secondary:220 30% 90%;--secondary-foreground:219 52% 11%;
+  --muted:220 30% 91%;--muted-foreground:220 24% 36%;
+  --accent:216 100% 46%;--accent-foreground:0 0% 100%;
+  --live:349 88% 48%;--destructive:349 88% 48%;--success:160 82% 30%;--catchup:275 78% 54%;
+  --border:220 26% 85%;--input:220 26% 82%;--ring:216 100% 46%;--focus-glow:216 100% 50%;
+  --sidebar-background:220 33% 93%;--sidebar-foreground:219 52% 11%;--sidebar-primary:216 100% 46%;--sidebar-accent:220 30% 88%;--sidebar-border:220 26% 85%;--sidebar-ring:216 100% 46%;
+  --surface-0:220 33% 93%;--surface-1:0 0% 100%;--surface-2:220 30% 90%;
+  --overlay:222 40% 18%;--glass:0 0% 100%;--glass-border:220 26% 80%;--elevated:220 40% 98%;--shell-shadow:222 40% 45%;
+  --bg-gradient:linear-gradient(180deg,hsl(220 40% 97%) 0%,hsl(220 30% 92%) 100%);
+  --card-gradient:linear-gradient(180deg,hsl(0 0% 100%) 0%,hsl(220 40% 98%) 100%);
+}
+/* Klaro raspored (svi uređaji): bez „kocke" — kolone leže na pozadini, šina je plutajuća kapsula */
+.dark[data-a2="1"]:not([data-vodic]):not([data-fs]){background:radial-gradient(70% 60% at 0% 0%,hsl(216 100% 56%/0.14),transparent 70%),radial-gradient(50% 50% at 100% 100%,hsl(194 100% 59%/0.06),transparent 70%),var(--bg-gradient)!important}
+.light[data-a2="1"]:not([data-vodic]):not([data-fs]){background:radial-gradient(70% 60% at 0% 0%,hsl(216 100% 60%/0.10),transparent 70%),radial-gradient(50% 50% at 100% 100%,hsl(194 100% 59%/0.08),transparent 70%),var(--bg-gradient)!important}
+:is(.dark,.light)[data-a2="1"]:not([data-vodic]) :is(aside[data-nav-group="cats"],section[data-nav-group="list"]){background:transparent!important;border-right:0!important}
+:is(.dark,.light)[data-a2="1"]:not([data-vodic]) aside[data-nav-group="cats"]{margin-right:8px}
+:is(.dark,.light)[data-a2="1"]:not([data-vodic]) section[data-nav-group="list"]{margin-right:20px}
+:is(.dark,.light)[data-a2="1"]:not([data-vodic]) nav[data-nav-group="rail"]{border-right:0!important;border-radius:32px;margin-right:16px;backdrop-filter:blur(18px)}
+.light[data-a2="1"]:not([data-vodic]) nav[data-nav-group="rail"]{background:hsl(0 0% 100%/0.72)!important;box-shadow:inset 0 0 0 1px hsl(0 0% 100%/0.9),0 0 0 1px hsl(220 30% 86%/0.6),0 28px 56px -30px hsl(222 60% 25%/0.35)}
+.dark[data-a2="1"]:not([data-vodic]) nav[data-nav-group="rail"]{background:hsl(222 44% 11%/0.72)!important;box-shadow:inset 0 0 0 1px hsl(218 40% 32%/0.35),0 30px 60px -30px hsl(223 70% 2%/0.9)}
+:is(.dark,.light)[data-a2="1"][data-tv="0"] nav[data-nav-group="rail"]{margin:12px 14px 12px 12px;border-radius:26px}
+[data-dev="tablet"]:is(.dark,.light)[data-a2="1"] nav[data-nav-group="rail"]{margin:10px 10px 10px 10px}
+:is(.dark,.light)[data-a2="1"][data-tv="0"] section[data-nav-group="list"]{margin-right:8px}
+[data-a2="1"] [data-vodic][data-a2="1"]{background:transparent!important}
+.dark[data-a2="1"][data-cu="1"] :is([data-nav-group="rail"],[data-nav-group="cats"]){--primary:216 100% 56%;--ring:194 100% 59%;--focus-glow:194 100% 59%}
+.light[data-a2="1"][data-cu="1"] :is([data-nav-group="rail"],[data-nav-group="cats"]){--primary:216 100% 46%;--ring:216 100% 46%;--focus-glow:216 100% 50%}

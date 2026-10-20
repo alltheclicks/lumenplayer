@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/klaro-player-design-system-0163f186-10a6-4b66-9271-90a3ee964bf7/foundations/tokens.css">
+<link rel="stylesheet" href="_ds/klaro-player-design-system-0163f186-10a6-4b66-9271-90a3ee964bf7/foundations/theme-tuning.css">
+<link rel="stylesheet" href="assets/klaro-palette.css">
+<link rel="stylesheet" href="assets/panel.css">
+<style>
+.ga-feed{display:flex;flex-direction:column}
+.ga-feed>div{display:flex;align-items:flex-start;gap:12px;padding:12px 0;border-bottom:1px solid hsl(var(--border)/0.55)}
+.ga-feed>div:last-child{border-bottom:0}
+.ga-dot{width:30px;height:30px;flex:none;display:grid;place-items:center;border-radius:9px}
+.ga-search{height:60px;font-size:20px;border-radius:16px}
+.ga-search input{font-size:20px}
+.ga-hit{display:flex;align-items:center;gap:14px;padding:14px 18px;border-bottom:1px solid hsl(var(--border)/0.55)}
+.ga-hit:last-child{border-bottom:0}
+.ga-hit mark{background:hsl(var(--a2,var(--primary))/0.25);color:inherit;border-radius:4px;padding:0 2px}
+.ga-banner{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:14px;background:hsl(222 45% 11%/0.92);color:#f3f5f9;box-shadow:inset 0 0 0 1px hsl(42 100% 62%/0.5)}
+.ga-flag{display:flex;align-items:center;gap:14px;padding:13px 0;border-bottom:1px solid hsl(var(--border)/0.55)}
+.ga-flag:last-child{border-bottom:0}
+.ga-num{width:110px}
+.ga-num input{text-align:right;font-variant-numeric:tabular-nums}
+</style>
+</helmet>
+<div class="kp">
+
+  <!-- G1 Pregled -->
+  <sc-if value="{{ is.G1 }}" hint-placeholder-val="{{ true }}">
+    <div class="kp-page">
+      <div class="kp-head"><div><h1 class="kp-h1">Klaro · pregled</h1><p class="kp-sub">Oktobar 2026. · 14 provajdera · sve mreže</p></div><div class="kp-seg"><button data-on="1">Mesec</button><button>Kvartal</button><button>Godina</button></div></div>
+      <div class="kp-kpis">
+        <div class="kp-kpi hero"><span class="l"><svg class="ic sm"><use href="#i-chart"></use></svg>Prihod · oktobar</span><span class="v">€18 420</span><span class="d"><b style="color:hsl(var(--success))">+12%</b> u odnosu na septembar</span></div>
+        <div class="kp-kpi"><span class="l"><svg class="ic sm"><use href="#i-coins"></use></svg>Krediti prodati / potrošeni</span><span class="v">4 100 <span class="mut" style="font-size:18px;font-weight:500">/ 3 620</span></span><span class="d">u rukama provajdera: 6 840</span></div>
+        <div class="kp-kpi"><span class="l"><svg class="ic sm"><use href="#i-devices"></use></svg>Aktivni uređaji</span><span class="v">21 480</span><span class="d"><b style="color:hsl(var(--success))">+1 120</b> ovog meseca</span></div>
+        <div class="kp-kpi"><span class="l"><svg class="ic sm"><use href="#i-user"></use></svg>Direktni korisnici</span><span class="v">2 310</span><span class="d">412 na probi · konverzija 34%</span></div>
+      </div>
+      <div class="kp-cols">
+        <div class="kp-card">
+          <div class="kp-card-h"><div><h2 class="kp-h2">Prihod po mesecima</h2><span class="mut" style="font-size:13px">€171 900 u poslednjih 12 meseci · krediti 71% · direktni 29%</span></div></div>
+          <div class="kp-chart">
+            <div class="kp-bars" style="height:180px" role="img" aria-label="Prihod po mesecima, poslednjih 12 meseci">
+              <sc-for list="{{ revBars }}" as="b" hint-placeholder-count="12"><div class="kp-bar {{ b.cls }}" style="padding:0 3px"><i style="height:{{ b.h }}"></i><span class="tip">{{ b.label }} · <b>{{ b.v }}</b></span></div></sc-for>
+            </div>
+            <div class="kp-axis"><sc-for list="{{ revAxis }}" as="a" hint-placeholder-count="12"><span style="flex:1;text-align:center">{{ a }}</span></sc-for></div>
+          </div>
+        </div>
+        <div class="kp-card">
+          <div class="kp-card-h"><h2 class="kp-h2">Potrebna pažnja</h2><span class="kp-badge warn">4</span></div>
+          <div class="ga-feed">
+            <sc-for list="{{ alerts }}" as="a" hint-placeholder-count="4">
+              <div><span class="ga-dot" style="background:hsl({{ a.tone }}/0.15);color:hsl({{ a.tone }})"><svg class="ic sm"><use href="{{ a.href }}"></use></svg></span><span style="flex:1;min-width:0;font-size:13.5px"><b>{{ a.t }}</b><span class="mut" style="display:block;font-size:12.5px">{{ a.d }}</span></span><button class="kp-btn sm" onClick="{{ a.onClick }}">{{ a.cta }}</button></div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+      <div class="kp-card tight">
+        <div class="kp-card-h"><h2 class="kp-h2">Po provajderu</h2><button class="kp-btn sm" onClick="{{ go.G2 }}">Svi provajderi</button></div>
+        <table class="kp-table">
+          <thead><tr><th>Provajder</th><th class="r">Uređaji</th><th class="r">Krediti</th><th class="r">Potrošnja / mes.</th><th class="r">Prihod 30 d</th><th>Status</th></tr></thead>
+          <tbody>
+            <sc-for list="{{ topProv }}" as="p" hint-placeholder-count="5">
+              <tr onClick="{{ p.onClick }}">
+                <td><div class="who"><span class="kp-av sm" style="background:{{ p.grad }}">{{ p.ini }}</span><div><b>{{ p.name }}</b><span>{{ p.country }}</span></div></div></td>
+                <td class="r num">{{ p.devs }}</td>
+                <td class="r num hide-m">{{ p.credits }}</td>
+                <td class="r num hide-m">{{ p.burn }}</td>
+                <td class="r num hide-m">{{ p.rev }}</td>
+                <td class="full"><span class="kp-badge {{ p.tone }}">{{ p.status }}</span></td>
+              </tr>
+            </sc-for>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- G2 Provajderi -->
+  <sc-if value="{{ is.G2 }}" hint-placeholder-val="{{ false }}">
+    <div class="kp-page">
+      <div class="kp-head"><div><h1 class="kp-h1">Provajderi</h1><p class="kp-sub">Cena kredita i doživotne licence može da se razlikuje po provajderu. Sub-provajderi dolaze kasnije — model ih već podržava.</p></div><button class="kp-btn primary" onClick="{{ openNewProv }}"><svg class="ic sm"><use href="#i-plus"></use></svg>Otvori provajdera</button></div>
+      <div class="kp-row"><sc-for list="{{ provFilters }}" as="f" hint-placeholder-count="4"><button class="kp-chip" data-on="{{ f.on }}" onClick="{{ f.onClick }}">{{ f.label }} <span class="num" style="opacity:0.7">{{ f.n }}</span></button></sc-for></div>
+      <div class="kp-card tight">
+        <table class="kp-table">
+          <thead><tr><th>Provajder</th><th class="r">Uređaji</th><th class="r">Krediti</th><th class="r">Cena kredita</th><th class="r">Doživotna</th><th>Status</th></tr></thead>
+          <tbody>
+            <sc-for list="{{ provs }}" as="p" hint-placeholder-count="7">
+              <tr onClick="{{ p.onClick }}" data-sel="{{ p.sel }}">
+                <td><div class="who"><span class="kp-av sm" style="background:{{ p.grad }}">{{ p.ini }}</span><div><b>{{ p.name }}</b><span>{{ p.mail }}</span></div></div></td>
+                <td class="r num">{{ p.devs }}</td>
+                <td class="r num hide-m">{{ p.credits }}</td>
+                <td class="r num hide-m">{{ p.price }}<sc-if value="{{ p.custom }}" hint-placeholder-val="{{ false }}"><span class="kp-badge info plain" style="margin-left:6px;height:20px;font-size:11px">posebna</span></sc-if></td>
+                <td class="r num hide-m">{{ p.life }}</td>
+                <td class="full"><span class="kp-badge {{ p.tone }}">{{ p.status }}</span></td>
+              </tr>
+            </sc-for>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- G3 Krediti -->
+  <sc-if value="{{ is.G3 }}" hint-placeholder-val="{{ false }}">
+    <div class="kp-page">
+      <div class="kp-head"><div><h1 class="kp-h1">Krediti</h1><p class="kp-sub">Stanje se nikad ne menja „u mestu“ — svaka promena je zapis u knjizi sa autorom i razlogom.</p></div></div>
+      <div class="kp-cols">
+        <div class="kp-card">
+          <h2 class="kp-h2">Nova promena</h2>
+          <div class="kp-seg" style="align-self:flex-start"><sc-for list="{{ kinds }}" as="k" hint-placeholder-count="3"><button data-on="{{ k.on }}" onClick="{{ k.onClick }}">{{ k.label }}</button></sc-for></div>
+          <div class="kp-form">
+            <label class="kp-field full">Provajder<span class="kp-input"><svg class="ic sm"><use href="#i-users"></use></svg><select><option>Orbita TV · stanje 184</option><option>NovaNet · stanje 3</option><option>Balkan Stream · stanje 1 220</option></select></span></label>
+            <label class="kp-field">Količina<span class="kp-input"><input class="num" value="{{ amt }}" onChange="{{ onAmt }}"><span class="mut" style="font-size:13px">kredita</span></span><span class="hint">{{ amtHint }}</span></label>
+            <label class="kp-field">Iznos<span class="kp-input {{ priceLock }}"><input class="num" value="{{ amtPrice }}" readOnly><span class="mut" style="font-size:13px">€4,20 / kr</span></span><span class="hint">{{ priceHint }}</span></label>
+            <label class="kp-field full">Napomena <span class="hint">{{ noteHint }}</span><span class="kp-input {{ noteErrCls }}" style="height:auto;padding:10px 13px"><textarea rows="2" style="flex:1;border:0;background:transparent;color:inherit;font:inherit;resize:none;outline:none" value="{{ note }}" onChange="{{ onNote }}" placeholder="npr. vraćen kredit za duplu aktivaciju, tiket #482"></textarea></span></label>
+          </div>
+          <sc-if value="{{ noteErr }}" hint-placeholder-val="{{ false }}"><div class="kp-note bad"><svg class="ic"><use href="#i-alert"></use></svg><span>Korekcija bez napomene nije dozvoljena — napiši zašto menjaš stanje.</span></div></sc-if>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:14px 16px;border-radius:14px;background:hsl(var(--secondary)/0.6)">
+            <span style="display:flex;flex-direction:column"><span class="mut" style="font-size:12.5px">Orbita TV · stanje</span><b class="num" style="font-size:20px">184 → {{ after }}</b></span>
+            <button class="kp-btn primary" onClick="{{ applyCredit }}"><svg class="ic sm"><use href="#i-check"></use></svg>{{ applyLabel }}</button>
+          </div>
+        </div>
+        <div class="kp-stack">
+          <div class="kp-kpi hero"><span class="l">U rukama provajdera</span><span class="v">6 840</span><span class="d">od toga 410 rezervisano za vaučere</span></div>
+          <div class="kp-kpi"><span class="l">Korekcije ovog meseca</span><span class="v">3</span><span class="d">+2 / −1 · sve sa napomenom</span></div>
+          <div class="kp-kpi"><span class="l"><svg class="ic sm" style="color:hsl(var(--warn))"><use href="#i-alert"></use></svg>Niska stanja</span><span class="v">2</span><span class="d">NovaNet (3), Tron IPTV (11)</span></div>
+        </div>
+      </div>
+      <div class="kp-card tight">
+        <div class="kp-card-h"><h2 class="kp-h2">Knjiga — svi provajderi</h2><button class="kp-btn sm"><svg class="ic sm"><use href="#i-download"></use></svg>CSV</button></div>
+        <table class="kp-table">
+          <thead><tr><th>Datum</th><th>Provajder</th><th>Promena</th><th>Razlog</th><th>Ko</th></tr></thead>
+          <tbody>
+            <sc-for list="{{ ledger }}" as="l" hint-placeholder-count="6">
+              <tr style="cursor:default"><td class="mut num hide-m">{{ l.when }}</td><td>{{ l.prov }}</td><td class="r" style="text-align:left"><b class="num" style="color:{{ l.color }}">{{ l.delta }}</b></td><td class="full">{{ l.why }}</td><td class="hide-m">{{ l.who }}</td></tr>
+            </sc-for>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- G4 Pretraga -->
+  <sc-if value="{{ is.G4 }}" hint-placeholder-val="{{ false }}">
+    <div class="kp-page">
+      <div class="kp-head"><div><h1 class="kp-h1">Pretraga</h1><p class="kp-sub">Jedno polje za sve: kod za uparivanje, ID uređaja, email, vaučer, provajder.</p></div></div>
+      <label class="kp-input ga-search"><svg class="ic lg"><use href="#i-search"></use></svg><input value="{{ q }}" onChange="{{ onQ }}" placeholder="7F3A, ana@, KLRO-2026…" spellCheck="false"><sc-if value="{{ q }}" hint-placeholder-val="{{ true }}"><button class="kp-btn sm quiet icon" onClick="{{ clearQ }}"><svg class="ic sm"><use href="#i-x"></use></svg></button></sc-if></label>
+      <div class="kp-row"><sc-for list="{{ qTypes }}" as="t" hint-placeholder-count="6"><button class="kp-chip" data-on="{{ t.on }}" onClick="{{ t.onClick }}">{{ t.label }}</button></sc-for><span class="kp-spacer"></span><span class="mut" style="font-size:12.5px">{{ hitCount }}</span></div>
+      <sc-for list="{{ groups }}" as="g" hint-placeholder-count="2">
+        <div class="kp-card tight">
+          <div class="kp-card-h"><h2 class="kp-h2">{{ g.title }}</h2><span class="mut num" style="font-size:12.5px">{{ g.n }}</span></div>
+          <sc-for list="{{ g.hits }}" as="h" hint-placeholder-count="2">
+            <div class="ga-hit">
+              <span class="kp-dev" style="width:40px;height:40px"><svg class="ic"><use href="{{ h.href }}"></use></svg></span>
+              <span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px"><b style="font-size:14.5px">{{ h.pre }}<mark>{{ h.mid }}</mark>{{ h.post }}</b><span class="mut" style="font-size:12.5px">{{ h.meta }}</span></span>
+              <span class="kp-badge {{ h.tone }}">{{ h.status }}</span>
+              <span class="kp-row kp-hide-m" style="gap:6px"><sc-for list="{{ h.acts }}" as="a" hint-placeholder-count="2"><button class="kp-btn sm {{ a.cls }}" onClick="{{ a.onClick }}">{{ a.label }}</button></sc-for></span>
+            </div>
+          </sc-for>
+        </div>
+      </sc-for>
+      <sc-if value="{{ noHits }}" hint-placeholder-val="{{ false }}">
+        <div class="kp-card" style="align-items:center;text-align:center;padding:40px 20px"><svg class="ic lg mut"><use href="#i-search"></use></svg><b>Nema rezultata za „{{ q }}“</b><span class="mut" style="font-size:13px">Kod za uparivanje važi 10 minuta — stariji kodovi se ne čuvaju.</span></div>
+      </sc-if>
+    </div>
+  </sc-if>
+
+  <!-- G5 Planovi i cene -->
+  <sc-if value="{{ is.G5 }}" hint-placeholder-val="{{ false }}">
+    <div class="kp-page">
+      <div class="kp-head"><div><h1 class="kp-h1">Planovi i cene</h1><p class="kp-sub">Promene važe za nove kupovine. Postojeći Premium i krediti ostaju kakvi jesu. Bez naloga osnovno gledanje uvek radi.</p></div><button class="kp-btn primary" onClick="{{ savePrices }}">Sačuvaj promene</button></div>
+      <div class="kp-cols even">
+        <div class="kp-card">
+          <div class="kp-card-h"><h2 class="kp-h2">Gledaoci · Free i Premium</h2><span class="kp-badge info plain">Apple Pay · Google Pay · kartica</span></div>
+          <dl class="kp-dl" style="margin:0">
+            <div><dt>Premium · godišnje po nalogu</dt><dd><span class="kp-input ga-num"><span class="mut">€</span><input defaultValue="10,00"></span></dd></div>
+            <div><dt>Premium · uređaja istovremeno</dt><dd><span class="kp-input ga-num"><input defaultValue="5"></span></dd></div>
+            <div><dt>Free · povezanih uređaja</dt><dd><span class="kp-input ga-num"><input defaultValue="5"></span></dd></div>
+            <div><dt>Free · gleda istovremeno</dt><dd><span class="kp-input ga-num"><input defaultValue="1"></span></dd></div>
+            <div><dt>Premium proba za nove naloge</dt><dd><span class="kp-input ga-num"><input defaultValue="30"><span class="mut">dana</span></span></dd></div>
+            <div><dt>Automatsko obnavljanje · podrazumevano</dt><dd><button class="kp-sw" data-on="0"><i></i></button></dd></div>
+          </dl>
+          <div class="kp-note"><svg class="ic"><use href="#i-info"></use></svg><span>Proba se daje jednom po nalogu i jednom po uređaju (stalni ID) — fabrički reset je ne vraća.</span></div>
+          <span class="mut" style="font-size:12.5px;font-weight:600">Ponuda partnerskog naloga · signal</span>
+          <dl class="kp-dl" style="margin:0">
+            <div><dt>Televizora na jednom nalogu</dt><dd><span class="kp-input ga-num"><input defaultValue="5"><span class="mut">+</span></span></dd></div>
+            <div><dt>Televizora na više naloga · isti pregledač / kartica</dt><dd><span class="kp-input ga-num"><input defaultValue="6"><span class="mut">+</span></span></dd></div>
+            <div><dt>Ponudi pri pokušaju 6. uređaja</dt><dd><button class="kp-sw" data-on="1"><i></i></button></dd></div>
+          </dl>
+        </div>
+        <div class="kp-card">
+          <div class="kp-card-h"><h2 class="kp-h2">Provajderi · podrazumevano</h2><span class="mut" style="font-size:12.5px">menja se po provajderu</span></div>
+          <dl class="kp-dl" style="margin:0">
+            <div><dt>Cena kredita</dt><dd><span class="kp-input ga-num"><span class="mut">€</span><input defaultValue="4,50"></span></dd></div>
+            <div><dt>Doživotna licenca</dt><dd><div class="kp-seg"><sc-for list="{{ lifeOpts }}" as="o" hint-placeholder-count="2"><button data-on="{{ o.on }}" onClick="{{ o.onClick }}">{{ o.label }}</button></sc-for></div></dd></div>
+            <div><dt>Offline rad bez provere</dt><dd><span class="kp-input ga-num"><input defaultValue="7"><span class="mut">dana</span></span></dd></div>
+            <div><dt>Potvrda emailom iznad</dt><dd><span class="kp-input ga-num"><input defaultValue="10"><span class="mut">kr. odjednom</span></span></dd></div>
+            <div><dt>Povrat kredita posle aktivacije</dt><dd><span class="kp-input ga-num"><input defaultValue="24"><span class="mut">h</span></span></dd></div>
+          </dl>
+          <span class="mut" style="font-size:12.5px;font-weight:600">Paketi i popusti</span>
+          <div class="kp-opts" style="grid-template-columns:repeat(auto-fit,minmax(110px,1fr))"><sc-for list="{{ packs }}" as="p" hint-placeholder-count="4"><div class="kp-opt" style="cursor:default"><b class="num">{{ p.n }}</b><span>kredita</span><span class="p num" style="font-size:17px">{{ p.u }}</span><span>{{ p.off }}</span></div></sc-for></div>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- G6 Aplikacija -->
+  <sc-if value="{{ is.G6 }}" hint-placeholder-val="{{ false }}">
+    <div class="kp-page">
+      <div class="kp-head"><div><h1 class="kp-h1">Aplikacija</h1><p class="kp-sub">Ono što player preuzima sa servera pri pokretanju: obaveštenja, minimalna verzija i flagovi.</p></div></div>
+      <div class="kp-tabs"><sc-for list="{{ appTabs }}" as="t" hint-placeholder-count="3"><button data-on="{{ t.on }}" onClick="{{ t.onClick }}">{{ t.label }}<span class="cnt">{{ t.n }}</span></button></sc-for></div>
+      <sc-if value="{{ at.notice }}" hint-placeholder-val="{{ true }}">
+        <div class="kp-cols">
+          <div class="kp-card">
+            <h2 class="kp-h2">Novo obaveštenje</h2>
+            <div class="kp-form">
+              <label class="kp-field full">Naslov<span class="kp-input"><input value="{{ nTitle }}" onChange="{{ onNTitle }}"></span></label>
+              <label class="kp-field full">Tekst<span class="kp-input" style="height:auto;padding:10px 13px"><textarea rows="2" style="flex:1;border:0;background:transparent;color:inherit;font:inherit;resize:none;outline:none" value="{{ nBody }}" onChange="{{ onNBody }}"></textarea></span></label>
+              <label class="kp-field">Kome<span class="kp-input"><select><option>Svi korisnici</option><option>Samo direktni</option><option>Provajder: Orbita TV</option></select></span></label>
+              <label class="kp-field">Platforme<span class="kp-input"><select><option>Sve</option><option>TV (Android, Tizen, webOS)</option><option>Mobilni</option></select></span></label>
+              <label class="kp-field">Od<span class="kp-input"><input defaultValue="11. 10. 2026. 20:00"></span></label>
+              <label class="kp-field">Do<span class="kp-input"><input defaultValue="12. 10. 2026. 04:00"></span></label>
+            </div>
+            <div class="kp-row"><div class="kp-seg"><sc-for list="{{ nTones }}" as="t" hint-placeholder-count="2"><button data-on="{{ t.on }}" onClick="{{ t.onClick }}">{{ t.label }}</button></sc-for></div><span class="kp-spacer"></span><button class="kp-btn primary" onClick="{{ publishNotice }}">Zakaži</button></div>
+          </div>
+          <div class="kp-stack">
+            <span class="mut" style="font-size:12.5px;font-weight:600">Pregled u playeru</span>
+            <div class="ga-banner" style="box-shadow:inset 0 0 0 1px hsl({{ nToneHsl }}/0.55)"><span class="ga-dot" style="background:hsl({{ nToneHsl }}/0.18);color:hsl({{ nToneHsl }})"><svg class="ic sm"><use href="#i-mega"></use></svg></span><span style="flex:1;min-width:0;font-size:13px"><b style="display:block">{{ nTitle }}</b><span style="color:hsl(218 24% 72%)">{{ nBody }}</span></span></div>
+            <div class="kp-card tight">
+              <div class="kp-card-h"><h2 class="kp-h2">Aktivna i zakazana</h2></div>
+              <div class="kp-list"><sc-for list="{{ notices }}" as="n" hint-placeholder-count="2"><div class="kp-li"><span class="t"><b>{{ n.t }}</b><span>{{ n.d }}</span></span><span class="kp-badge {{ n.tone }}">{{ n.s }}</span></div></sc-for></div>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+      <sc-if value="{{ at.ver }}" hint-placeholder-val="{{ false }}">
+        <div class="kp-card tight">
+          <table class="kp-table">
+            <thead><tr><th>Platforma</th><th>Najnovija</th><th>Minimalna</th><th class="r">Ispod minimalne</th><th>Obavezno od</th></tr></thead>
+            <tbody>
+              <sc-for list="{{ versions }}" as="v" hint-placeholder-count="6">
+                <tr style="cursor:default"><td><div class="who"><span class="kp-dev" style="width:34px;height:34px"><svg class="ic sm"><use href="{{ v.href }}"></use></svg></span><div><b>{{ v.p }}</b><span>{{ v.store }}</span></div></div></td><td class="num hide-m">{{ v.latest }}</td><td><span class="kp-input" style="width:96px;height:34px"><input class="num" defaultValue="{{ v.min }}"></span></td><td class="r num"><span class="kp-badge {{ v.tone }}">{{ v.below }}</span></td><td class="hide-m mut">{{ v.from }}</td></tr>
+              </sc-for>
+            </tbody>
+          </table>
+        </div>
+        <div class="kp-note warn"><svg class="ic"><use href="#i-alert"></use></svg><span>Uređaj ispod minimalne verzije prikazuje „Potrebno ažuriranje“ i ne pušta sadržaj. Na Android TV 412 uređaja je na 2.2.x — pre roka pošalji obaveštenje.</span></div>
+      </sc-if>
+      <sc-if value="{{ at.flags }}" hint-placeholder-val="{{ false }}">
+        <div class="kp-card">
+          <div class="ga-flag mut" style="font-size:12px;font-weight:600;padding-top:0"><span style="flex:1">Flag</span><span style="width:150px" class="kp-hide-m">Ko dobija</span><span style="width:60px;text-align:right">Udeo</span><span style="width:40px"></span></div>
+          <sc-for list="{{ flags }}" as="f" hint-placeholder-count="5">
+            <div class="ga-flag"><span style="flex:1;min-width:0"><b style="font-size:14px">{{ f.name }}</b><span class="mut mono" style="display:block;font-size:11.5px">{{ f.key }}</span></span><span class="kp-hide-m mut" style="width:150px;font-size:13px">{{ f.who }}</span><b class="num" style="width:60px;text-align:right">{{ f.pct }}</b><button class="kp-sw" data-on="{{ f.on }}" onClick="{{ f.onClick }}"><i></i></button></div>
+          </sc-for>
+        </div>
+      </sc-if>
+    </div>
+  </sc-if>
+
+  <!-- G7 Dnevnik i bezbednost -->
+  <sc-if value="{{ is.G7 }}" hint-placeholder-val="{{ false }}">
+    <div class="kp-page">
+      <div class="kp-head"><div><h1 class="kp-h1">Dnevnik i bezbednost</h1><p class="kp-sub">Ko je šta i kada uradio — uključujući genadmina. Zapisi se ne brišu.</p></div><button class="kp-btn danger" onClick="{{ openBlock }}"><svg class="ic sm"><use href="#i-ban"></use></svg>Blokiraj…</button></div>
+      <div class="kp-note bad"><svg class="ic"><use href="#i-shield"></use></svg><span style="flex:1 1 260px"><b>Rate limit aktiviran</b> · 37 pogrešnih kodova za uparivanje sa 185.12.••.•• (RS) za 5 min. IP je privremeno blokiran 1 h.</span><button class="kp-btn sm">Detalji</button></div>
+      <div class="kp-row"><sc-for list="{{ logFilters }}" as="f" hint-placeholder-count="6"><button class="kp-chip" data-on="{{ f.on }}" onClick="{{ f.onClick }}">{{ f.label }}</button></sc-for></div>
+      <div class="kp-cols">
+        <div class="kp-card tight">
+          <table class="kp-table">
+            <thead><tr><th>Vreme</th><th>Ko</th><th>Radnja</th></tr></thead>
+            <tbody>
+              <sc-for list="{{ log }}" as="l" hint-placeholder-count="8">
+                <tr style="cursor:default"><td class="mut num hide-m" style="white-space:nowrap">{{ l.when }}</td><td><b style="font-size:13.5px">{{ l.who }}</b><span class="mut" style="display:block;font-size:12px">{{ l.role }}</span></td><td class="full"><span class="kp-badge {{ l.tone }} plain" style="margin-right:8px">{{ l.kind }}</span>{{ l.what }}</td></tr>
+              </sc-for>
+            </tbody>
+          </table>
+        </div>
+        <div class="kp-card tight">
+          <div class="kp-card-h"><h2 class="kp-h2">Blokade</h2><span class="mut num" style="font-size:12.5px">{{ blockCount }}</span></div>
+          <div class="kp-list">
+            <sc-for list="{{ blocks }}" as="b" hint-placeholder-count="3">
+              <div class="kp-li"><span class="kp-dev" style="width:36px;height:36px;color:hsl(var(--destructive))"><svg class="ic sm"><use href="{{ b.href }}"></use></svg></span><span class="t"><b class="mono" style="font-size:13.5px">{{ b.what }}</b><span>{{ b.why }}</span></span><button class="kp-btn sm quiet" onClick="{{ b.onClick }}">Ukloni</button></div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- provider drawer -->
+  <sc-if value="{{ provOpen }}" hint-placeholder-val="{{ false }}">
+    <div class="kp-scrim" onClick="{{ closeProv }}"></div>
+    <div class="kp-drawer">
+      <div class="hd"><span class="kp-av lg" style="background:{{ cp.grad }}">{{ cp.ini }}</span><span style="flex:1;min-width:0"><b style="font-size:17px">{{ cp.name }}</b><span class="mut" style="display:block;font-size:13px">{{ cp.mail }}</span></span><span class="kp-badge {{ cp.tone }}">{{ cp.status }}</span><button class="kp-btn quiet icon sm" onClick="{{ closeProv }}"><svg class="ic sm"><use href="#i-x"></use></svg></button></div>
+      <div class="bd">
+        <sc-if value="{{ cp.pending }}" hint-placeholder-val="{{ false }}">
+          <div class="kp-note warn"><svg class="ic"><use href="#i-clock"></use></svg><span>Zahtev poslat 3. 10. · firma „Tron Media doo“, PIB 112233445 · Beograd. Proveri podatke pre odobrenja.</span></div>
+        </sc-if>
+        <div class="kp-kpis" style="grid-template-columns:repeat(3,minmax(0,1fr));gap:10px">
+          <div class="kp-kpi" style="padding:12px"><span class="l">Uređaji</span><span class="v" style="font-size:20px">{{ cp.devs }}</span></div>
+          <div class="kp-kpi" style="padding:12px"><span class="l">Krediti</span><span class="v" style="font-size:20px">{{ cp.credits }}</span></div>
+          <div class="kp-kpi" style="padding:12px"><span class="l">Prihod 30 d</span><span class="v" style="font-size:20px">{{ cp.rev }}</span></div>
+        </div>
+        <div class="kp-card flat" style="gap:10px">
+          <h2 class="kp-h2">Cene za ovog provajdera</h2>
+          <dl class="kp-dl" style="margin:0">
+            <div><dt>Cena kredita</dt><dd><span class="kp-input ga-num" style="height:34px"><span class="mut">€</span><input defaultValue="{{ cp.priceIn }}"></span></dd></div>
+            <div><dt>Doživotna licenca</dt><dd><span class="kp-input ga-num" style="height:34px"><input defaultValue="{{ cp.lifeIn }}"><span class="mut">kr.</span></span></dd></div>
+            <div><dt>Nadređeni provajder</dt><dd class="mut" style="font-weight:500">— (sub-provajderi uskoro)</dd></div>
+          </dl>
+        </div>
+        <div class="kp-card flat" style="gap:10px">
+          <h2 class="kp-h2">Kontakt</h2>
+          <dl class="kp-dl" style="margin:0"><div><dt>Vlasnik</dt><dd>{{ cp.owner }}</dd></div><div><dt>Telefon</dt><dd class="num">{{ cp.phone }}</dd></div><div><dt>Tim</dt><dd>{{ cp.team }}</dd></div></dl>
+        </div>
+      </div>
+      <div class="ft">
+        <sc-if value="{{ cp.pending }}" hint-placeholder-val="{{ false }}"><button class="kp-btn danger" onClick="{{ closeProv }}">Odbij</button><span class="kp-spacer"></span><button class="kp-btn primary" onClick="{{ approve }}"><svg class="ic sm"><use href="#i-check"></use></svg>Odobri</button></sc-if>
+        <sc-if value="{{ cp.active }}" hint-placeholder-val="{{ true }}"><button class="kp-btn danger">Suspenduj</button><span class="kp-spacer"></span><button class="kp-btn" onClick="{{ go.G3 }}">Krediti</button><button class="kp-btn primary" onClick="{{ askImpersonate }}"><svg class="ic sm"><use href="#i-login"></use></svg>Prijavi se kao</button></sc-if>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- device history drawer -->
+  <sc-if value="{{ histOpen }}" hint-placeholder-val="{{ false }}">
+    <div class="kp-scrim" onClick="{{ closeHist }}"></div>
+    <div class="kp-drawer">
+      <div class="hd"><span class="kp-dev"><svg class="ic lg"><use href="#i-tv"></use></svg></span><span style="flex:1;min-width:0"><b style="font-size:17px">Uređaj {{ hist }}</b><span class="mut" style="display:block;font-size:13px">Android TV · stalni ID, preživljava reset</span></span><button class="kp-btn quiet icon sm" onClick="{{ closeHist }}"><svg class="ic sm"><use href="#i-x"></use></svg></button></div>
+      <div class="bd">
+        <dl class="kp-dl" style="margin:0">
+          <div><dt>Sada</dt><dd>Orbita TV → Jelena Marković</dd></div>
+          <div><dt>Premium proba</dt><dd>iskorišćena</dd></div>
+          <div><dt>Resetovan</dt><dd>1×</dd></div>
+        </dl>
+        <div style="display:flex;flex-direction:column">
+          <sc-for list="{{ history }}" as="h" hint-placeholder-count="5">
+            <div style="display:flex;gap:14px">
+              <div style="display:flex;flex-direction:column;align-items:center"><span style="width:28px;height:28px;flex:none;display:grid;place-items:center;border-radius:50%;background:{{ h.bg }};color:{{ h.fg }}"><svg class="ic sm"><use href="{{ h.href }}"></use></svg></span><sc-if value="{{ h.line }}" hint-placeholder-val="{{ true }}"><span style="width:2px;flex:1;min-height:18px;background:hsl(var(--border))"></span></sc-if></div>
+              <div style="display:flex;flex-direction:column;gap:2px;padding:4px 0 16px"><b style="font-size:14px">{{ h.t }}</b><span class="mut" style="font-size:12.5px">{{ h.d }}</span></div>
+            </div>
+          </sc-for>
+        </div>
+        <div class="kp-note"><svg class="ic"><use href="#i-info"></use></svg><span>Proba i blokade prate stalni ID — reset ih ne briše. Kod za uparivanje nikad nije isto što i ID.</span></div>
+      </div>
+      <div class="ft"><button class="kp-btn danger" onClick="{{ blockHist }}"><svg class="ic sm"><use href="#i-ban"></use></svg>Blokiraj uređaj</button><span class="kp-spacer"></span><button class="kp-btn" onClick="{{ closeHist }}">Zatvori</button></div>
+    </div>
+  </sc-if>
+
+  <!-- generic modal -->
+  <sc-if value="{{ modal }}" hint-placeholder-val="{{ false }}">
+    <div class="kp-scrim" onClick="{{ closeModal }}"></div>
+    <div class="kp-modal">
+      <div style="display:flex;align-items:center;gap:12px"><span class="kp-dev"><svg class="ic lg"><use href="{{ modal.href }}"></use></svg></span><h2 class="kp-h1" style="flex:1;font-size:20px">{{ modal.title }}</h2><button class="kp-btn quiet icon sm" onClick="{{ closeModal }}"><svg class="ic sm"><use href="#i-x"></use></svg></button></div>
+      <p class="kp-sub" style="margin:0">{{ modal.body }}</p>
+      <sc-if value="{{ modal.fields }}" hint-placeholder-val="{{ false }}"><div class="kp-form"><sc-for list="{{ modal.fields }}" as="f" hint-placeholder-count="2"><label class="kp-field {{ f.cls }}">{{ f.label }}<span class="kp-input"><input defaultValue="{{ f.v }}"></span></label></sc-for></div></sc-if>
+      <sc-if value="{{ modal.note }}" hint-placeholder-val="{{ false }}"><div class="kp-note warn"><svg class="ic"><use href="#i-info"></use></svg><span>{{ modal.note }}</span></div></sc-if>
+      <div class="kp-row" style="justify-content:flex-end"><button class="kp-btn" onClick="{{ closeModal }}">Otkaži</button><button class="kp-btn {{ modal.cls }}" onClick="{{ modal.onOk }}">{{ modal.ok }}</button></div>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;page&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;G1&quot;,&quot;G2&quot;,&quot;G3&quot;,&quot;G4&quot;,&quot;G5&quot;,&quot;G6&quot;,&quot;G7&quot;],&quot;default&quot;:&quot;G1&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;dev&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;desktop&quot;,&quot;tablet&quot;,&quot;mobile&quot;],&quot;default&quot;:&quot;desktop&quot;,&quot;tsType&quot;:&quot;string&quot;}}">
+const GR = ['linear-gradient(135deg,hsl(262 70% 55%),hsl(216 90% 55%))', 'linear-gradient(135deg,hsl(160 70% 40%),hsl(194 90% 45%))', 'linear-gradient(135deg,hsl(30 90% 55%),hsl(349 85% 58%))', 'linear-gradient(135deg,hsl(194 90% 48%),hsl(216 90% 55%))', 'linear-gradient(135deg,hsl(275 70% 58%),hsl(330 80% 58%))', 'linear-gradient(135deg,hsl(216 60% 45%),hsl(222 40% 30%))', 'linear-gradient(135deg,hsl(42 95% 55%),hsl(20 90% 55%))'];
+// name, mail, country, devs, credits, price, custom, life, status, tone, burn, rev, owner, phone, team
+const PROVS = [
+  ['Balkan Stream', 'ops@balkanstream.net', 'Srbija', 6420, 1220, 3.9, true, 3, 'Aktivan', 'ok', 540, '€2 106', 'Ivan Kostić', '+381 63 555 120', '5 članova'],
+  ['Orbita TV', 'marko@orbita.tv', 'Srbija', 1248, 184, 4.2, true, 3, 'Aktivan', 'ok', 52, '€420', 'Marko Ilić', '+381 11 123 45 67', '3 člana'],
+  ['AlpeNet', 'info@alpenet.si', 'Slovenija', 2310, 410, 4.5, false, 3, 'Aktivan', 'ok', 190, '€855', 'Luka Novak', '+386 41 220 330', '2 člana'],
+  ['Jadran Media', 'podrska@jadranmedia.hr', 'Hrvatska', 1980, 266, 4.5, false, 2, 'Aktivan', 'ok', 160, '€720', 'Ana Marić', '+385 91 400 500', '4 člana'],
+  ['NovaNet', 'hello@novanet.ba', 'BiH', 840, 3, 4.5, false, 3, 'Malo kredita', 'warn', 70, '€315', 'Emir Hodžić', '+387 61 777 888', '1 član'],
+  ['Tron IPTV', 'zahtev@tronmedia.rs', 'Srbija', 0, 0, 4.5, false, 3, 'Na čekanju', 'info', 0, '—', 'Petar Tomić', '+381 64 222 333', '—'],
+  ['FlashBox', 'admin@flashbox.me', 'Crna Gora', 312, 40, 4.5, false, 3, 'Suspendovan', 'bad', 0, '€0', 'Nikola Vuković', '+382 67 100 200', '1 član'],
+];
+const REV = [11200, 11900, 12400, 12100, 13300, 13900, 14600, 15100, 15800, 16200, 16450, 18420];
+const MON = ['nov', 'dec', 'jan', 'feb', 'mar', 'apr', 'maj', 'jun', 'jul', 'avg', 'sep', 'okt'];
+const IDX = [
+  ['dev', '#i-tv', '7F3A-91C2', 'Android TV · Dnevna soba TV · Ana Petrović · Orbita TV · Klaro 2.4.0', 'Ističe 9. 10.', 'warn'],
+  ['dev', '#i-phone', '2C81-0B7E', 'iPhone · Telefon Ana · Ana Petrović · Orbita TV', 'Ističe 9. 10.', 'warn'],
+  ['dev', '#i-laptop', '9D44-AE13', 'Web · Laptop · Jovan Ilić · Orbita TV', 'Istekla', 'bad'],
+  ['dev', '#i-tv', '51BE-77A0', 'Android TV · Jelena Marković · Orbita TV · resetovan 3. 10. (ranije Ana Petrović)', 'Novi vlasnik', 'info'],
+  ['user', '#i-user', 'ana@primer.com', 'Ana Petrović · korisnik Orbita TV · 2 uređaja', 'Aktivan', 'ok'],
+  ['user', '#i-user', 'ana.k@gmail.com', 'Ana Kovač · direktni · 1 uređaj · proba još 3 dana', 'Probna', 'trial'],
+  ['code', '#i-tv', 'KLR-7Q4', 'kod za uparivanje · Android TV · Beograd · važi još 8:42', 'Čeka potvrdu', 'info'],
+  ['voucher', '#i-ticket', 'KLRO-2026-TV01', 'vaučer · Orbita TV · paket Jesen 2026 · iskorišćen na 7F3A-91C2', 'Iskorišćen', 'ok'],
+  ['voucher', '#i-ticket', 'KLRO-2026-TV12', 'vaučer · Orbita TV · paket Jesen 2026', 'Slobodan', 'info'],
+  ['prov', '#i-users', 'Orbita TV', 'provajder · Srbija · 1 248 uređaja · 184 kredita', 'Aktivan', 'ok'],
+];
+const TYPES = [['all', 'Sve'], ['code', 'Kod za uparivanje'], ['dev', 'ID uređaja'], ['user', 'Email'], ['voucher', 'Vaučer'], ['prov', 'Provajder']];
+const TITLES = { dev: 'Uređaji', user: 'Nalozi', code: 'Kodovi za uparivanje', voucher: 'Vaučeri', prov: 'Provajderi' };
+
+class Component extends DCLogic {
+  state = { prov: null, pf: 'all', modal: null, kind: 'sale', amt: '100', note: '', noteErr: false, q: '7F3A', qt: 'all', life: 3, atab: 'notice', nTitle: 'Održavanje u subotu 20–04h', nBody: 'Neki kanali mogu kratko da prekinu. Izvini zbog smetnje!', nTone: 'warn', flags: { 0: true, 1: true, 2: false, 3: true, 4: false }, lf: 'all', unblocked: {}, approved: false };
+  componentDidUpdate(prev) { if (prev.page !== this.props.page) this.setState({ prov: null, modal: null }); }
+  toast(t) { this.props.toast && this.props.toast(t); }
+  nav(id) { this.props.nav && this.props.nav(id); }
+  renderVals() {
+    const s = this.state;
+    const page = this.props.page || 'G1';
+    const is = Object.fromEntries(['G1', 'G2', 'G3', 'G4', 'G5', 'G6', 'G7'].map((k) => [k, k === page]));
+    const go = Object.fromEntries(Object.keys(is).map((k) => [k, () => this.nav(k)]));
+    const fmt = (n) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+    const close = () => this.setState({ modal: null });
+    const ini = (n) => n.split(' ').map((w) => w[0]).join('').slice(0, 2);
+    const openProv = (i) => () => this.setState({ prov: i });
+    const row = (p, i) => {
+      const pending = p[8] === 'Na čekanju' && !s.approved;
+      return { name: p[0], mail: p[1], country: p[2], devs: fmt(p[3]), credits: fmt(p[4]), price: '€' + p[5].toFixed(2).replace('.', ','), priceIn: p[5].toFixed(2).replace('.', ','), custom: p[6], life: p[7] + ' kr.', lifeIn: String(p[7]), status: pending || p[8] !== 'Na čekanju' ? p[8] : 'Aktivan', tone: pending || p[8] !== 'Na čekanju' ? p[9] : 'ok', burn: p[10] ? fmt(p[10]) : '—', rev: p[11], owner: p[12], phone: p[13], team: p[14], grad: GR[[2, 0, 1, 3, 6, 4, 5][i]], ini: p[0] === 'Orbita TV' ? 'OR' : ini(p[0]), pending, active: !pending, sel: s.prov === i ? '1' : '0', onClick: openProv(i) };
+    };
+    const provs = PROVS.map(row);
+    const cp = s.prov != null ? provs[s.prov] : provs[1];
+    // credits
+    const n = parseInt(s.amt, 10) || 0;
+    const delta = s.kind === 'fix' ? n : n;
+    const kindsDef = [['sale', 'Prodaja'], ['gift', 'Poklon'], ['fix', 'Korekcija']];
+    const applyCredit = () => {
+      if (s.kind === 'fix' && !s.note.trim()) return this.setState({ noteErr: true });
+      this.setState({ note: '', noteErr: false });
+      this.toast((delta >= 0 ? '+' : '') + delta + ' kredita za Orbita TV · upisano u knjigu');
+    };
+    // search
+    const q = s.q.trim().toLowerCase();
+    const hits = IDX.filter((r) => (s.qt === 'all' || r[0] === s.qt) && q && (r[2].toLowerCase().includes(q) || r[3].toLowerCase().includes(q)));
+    const split = (txt) => { const i = txt.toLowerCase().indexOf(q); return i < 0 ? { pre: txt, mid: '', post: '' } : { pre: txt.slice(0, i), mid: txt.slice(i, i + q.length), post: txt.slice(i + q.length) }; };
+    const acts = (type, label) => ({
+      dev: [{ label: 'Istorija', cls: '', onClick: () => this.setState({ hist: label }) }, { label: 'Blokiraj', cls: 'danger', onClick: () => this.toast('Uređaj ' + label + ' je blokiran') }, { label: 'Kao Orbita TV', cls: '', onClick: () => this.setState({ prov: 1 }) }],
+      user: [{ label: 'Otvori', cls: '', onClick: () => this.toast('Otvaram nalog ' + label) }],
+      code: [{ label: 'Poništi kod', cls: '', onClick: () => this.toast('Kod ' + label + ' je poništen') }],
+      voucher: [{ label: 'Istorija', cls: '', onClick: () => this.toast('Istorija vaučera ' + label) }],
+      prov: [{ label: 'Otvori', cls: '', onClick: () => { this.nav('G2'); } }],
+    }[type]);
+    const groups = Object.keys(TITLES).map((t) => ({ t, list: hits.filter((h) => h[0] === t) })).filter((g) => g.list.length).map((g) => ({ title: TITLES[g.t], n: g.list.length + (g.list.length === 1 ? ' rezultat' : ' rezultata'), hits: g.list.map((h) => ({ href: h[1], ...split(h[2]), meta: h[3], status: h[4], tone: h[5], acts: acts(h[0], h[2]) })) }));
+    const toneHsl = { info: 'var(--info)', warn: '42 100% 62%' }[s.nTone];
+    const FLAGS = [['Novi TV vodič (1d Kolone)', 'tv_guide_columns', 'svi · TV i tablet', '25%'], ['Klaro paleta', 'palette_klaro', 'svi', '100%'], ['Chromecast iz PWA', 'cast_pwa', 'samo direktni', '10%'], ['Catch-up za Xtream', 'catchup_xtream', 'svi', '100%'], ['Brending provajdera u playeru', 'provider_branding', 'Orbita TV, AlpeNet', 'pilot']];
+    const LOG = [
+      ['Bezbednost', 'bad', '5. 10. 10:02', 'Sistem', 'rate limit', 'IP 185.12.••.•• blokiran 1 h — 37 pogrešnih kodova', 'sec'],
+      ['Prijava kao', 'warn', '5. 10. 09:58', 'Filip', 'genadmin', 'prijavio se kao Orbita TV · razlog: tiket #482', 'imp'],
+      ['Krediti', 'info', '5. 10. 09:41', 'Marko Ilić', 'Orbita TV · vlasnik', '−1 · aktivacija 7F3A-91C2', 'cred'],
+      ['Krediti', 'info', '4. 10. 11:15', 'Filip', 'genadmin', '+1 Orbita TV · korekcija „vraćen kredit za duplu aktivaciju“', 'cred'],
+      ['Uređaj', 'plain', '3. 10. 20:12', 'Milica Stanković', 'korisnik · Orbita TV', 'zamena uređaja 0E7D-C4A1', 'dev'],
+      ['Nalog', 'plain', '2. 10. 12:40', 'Jelena Savić', 'Orbita TV · podrška', 'suspendovan stefan.m@gmail.com — „neplaćeno“', 'acc'],
+      ['Cene', 'warn', '1. 10. 08:00', 'Filip', 'genadmin', 'Orbita TV: cena kredita €4,50 → €4,20', 'cred'],
+      ['Bezbednost', 'bad', '29. 9. 23:41', 'Sistem', 'licenca', 'isti ID uređaja sa 2 zemlje — 51BE-77A0 privremeno zaključan', 'sec'],
+    ];
+    const BLOCKS = [['#i-tv', '51BE-77A0', 'isti ID iz 2 zemlje · Sistem · 29. 9.'], ['#i-user', 'free.iptv.hub@mail.ru', 'masovna registracija proba · Filip · 21. 9.'], ['#i-globe', '185.12.••.••', 'rate limit · ističe za 58 min']];
+    return {
+      is, go,
+      revBars: REV.map((v, i) => ({ v: '€' + fmt(v), h: (v / 20000) * 100 + '%', cls: i === REV.length - 1 ? 'now' : '', label: MON[i] })),
+      revAxis: MON,
+      alerts: [
+        ['42 100% 62%', '#i-coins', 'NovaNet ima 3 kredita', 'troši ~2 dnevno — nestaje za 2 dana', 'Pošalji ponudu', () => this.toast('Ponuda za 100 kredita je poslata NovaNet-u')],
+        ['var(--info)', '#i-users', 'Tron IPTV čeka odobrenje', 'zahtev od 3. 10. · Srbija', 'Pregledaj', () => { this.nav('G2'); }],
+        ['var(--destructive)', '#i-alert', '41 aktivacija za 1 h', 'Balkan Stream · 4× više od proseka', 'Dnevnik', () => this.nav('G7')],
+        ['42 100% 62%', '#i-tv', '412 uređaja na Klaro 2.2.x', 'Android TV · minimalna 2.3.0 od 15. 10.', 'Verzije', () => { this.setState({ atab: 'ver' }); this.nav('G6'); }],
+      ].map(([tone, href, t, d, cta, onClick]) => ({ tone, href, t, d, cta, onClick })),
+      topProv: provs.slice(0, 5),
+      provFilters: [['all', 'Svi', '14'], ['ok', 'Aktivni', '11'], ['pending', 'Na čekanju', s.approved ? '0' : '1'], ['bad', 'Suspendovani', '1']].map(([k, label, n2]) => ({ label, n: n2, on: s.pf === k ? '1' : '0', onClick: () => this.setState({ pf: k }) })),
+      provs, provOpen: s.prov != null, closeProv: () => this.setState({ prov: null }), cp,
+      approve: () => { this.setState({ approved: true, prov: null }); this.toast('Tron IPTV je odobren — vlasnik je dobio pozivnicu'); },
+      askImpersonate: () => this.setState({ modal: { href: '#i-login', title: 'Prijavi se kao ' + cp.name, body: 'Vidiš panel tačno kao provajder. Sve što uradiš beleži se u dnevnik pod tvojim imenom.', fields: [{ label: 'Razlog (obavezno)', v: 'tiket #482 — pomoć oko aktivacije', cls: 'full' }], note: 'Sesija traje najviše 30 minuta.', ok: 'Prijavi se kao ' + cp.name, cls: 'primary', onOk: () => { this.setState({ modal: null, prov: null }); this.props.impersonate && this.props.impersonate(); } } }),
+      openNewProv: () => this.setState({ modal: { href: '#i-users', title: 'Otvori provajdera', body: 'Vlasnik dobija pozivnicu emailom. Cene važe podrazumevane dok ih ne promeniš.', fields: [{ label: 'Naziv', v: 'Lumina TV', cls: '' }, { label: 'Zemlja', v: 'Srbija', cls: '' }, { label: 'Email vlasnika', v: 'vlasnik@lumina.tv', cls: 'full' }, { label: 'Početni krediti', v: '20', cls: '' }, { label: 'Cena kredita', v: '€4,50', cls: '' }], ok: 'Otvori i pošalji pozivnicu', cls: 'primary', onOk: () => { close(); this.toast('Lumina TV je otvoren · +20 kredita (poklon) upisano u knjigu'); } } }),
+      kinds: kindsDef.map(([k, label]) => ({ label, on: s.kind === k ? '1' : '0', onClick: () => this.setState({ kind: k, noteErr: false, amt: k === 'fix' ? '-1' : '100' }) })),
+      amt: s.amt, onAmt: (e) => this.setState({ amt: e.target.value.replace(/[^0-9-]/g, '').slice(0, 6) }),
+      amtHint: s.kind === 'fix' ? 'negativno = oduzmi' : s.kind === 'gift' ? 'bez naplate' : 'provajder dobija predračun',
+      amtPrice: s.kind === 'sale' ? '€' + fmt(Math.round(n * 4.2)) : '€0', priceLock: s.kind === 'sale' ? '' : 'locked', priceHint: s.kind === 'sale' ? 'posebna cena za Orbita TV' : 'ne naplaćuje se',
+      note: s.note, onNote: (e) => this.setState({ note: e.target.value, noteErr: false }), noteErr: s.noteErr, noteErrCls: s.noteErr ? 'err' : '',
+      noteHint: s.kind === 'fix' ? 'obavezno za korekciju' : 'opciono', after: fmt(184 + delta), applyCredit,
+      applyLabel: { sale: 'Prodaj ' + n + ' kredita', gift: 'Pokloni ' + n + ' kredita', fix: 'Upiši korekciju ' + (n > 0 ? '+' : '') + n }[s.kind],
+      ledger: [['5. 10. 09:41', 'Orbita TV', '−1', 'aktivacija 7F3A-91C2', 'Marko Ilić'], ['5. 10. 08:12', 'Balkan Stream', '+500', 'prodaja · kartica · €1 950', 'Ivan Kostić'], ['4. 10. 11:15', 'Orbita TV', '+1', 'korekcija: „vraćen kredit za duplu aktivaciju“', 'Filip (genadmin)'], ['3. 10. 16:20', 'NovaNet', '−3', 'doživotna licenca', 'Emir Hodžić'], ['2. 10. 10:00', 'AlpeNet', '+200', 'prodaja · predračun KL-P-0928 plaćen', 'Filip (genadmin)'], ['1. 10. 09:12', 'Orbita TV', '+100', 'prodaja · kartica · €420', 'Marko Ilić']].map(([when, prov, d, why, who]) => ({ when, prov, delta: d, why, who, color: d[0] === '+' ? 'hsl(var(--success))' : 'hsl(var(--foreground))' })),
+      q: s.q, onQ: (e) => this.setState({ q: e.target.value }), clearQ: () => this.setState({ q: '' }),
+      qTypes: TYPES.map(([k, label]) => ({ label, on: s.qt === k ? '1' : '0', onClick: () => this.setState({ qt: k }) })),
+      histOpen: !!s.hist, hist: s.hist, closeHist: () => this.setState({ hist: null }), blockHist: () => { this.toast('Uređaj ' + s.hist + ' je blokiran — važi i posle reseta'); this.setState({ hist: null }); },
+      history: [
+        ['#i-tv', 'Prvo pokretanje', '12. 1. 2026. · bez naloga', 'secondary', 'muted-foreground'],
+        ['#i-user', 'Nalog i Premium proba', '14. 1. 2026. · Ana Petrović · Free → Premium proba', 'secondary', 'muted-foreground'],
+        ['#i-alert', 'Fabrički reset prepoznat', '3. 10. 2026. 18:02 · nova instalacija Klaro 2.4.0', 'warn', 'warn'],
+        ['#i-key', 'Aktiviran kodom TQ5-9HN', '3. 10. 2026. 18:09 · Orbita TV → Jelena Marković · 1 kredit', 'primary', 'primary'],
+        ['#i-bell', 'Prethodna vlasnica obaveštena', '3. 10. 2026. 18:09 · potvrđeno: „Znam za ovo“', 'success', 'success'],
+      ].map(([href, t, d, b, f], i, a) => ({ href, t, d, line: i < a.length - 1, bg: 'hsl(var(--' + b + ')/' + (b === 'secondary' ? '1' : '0.16') + ')', fg: 'hsl(var(--' + f + '))' })),
+      groups, noHits: !!q && !hits.length, hitCount: q ? hits.length + ' rezultata' : 'upiši bar 3 znaka',
+      lifeOpts: [[2, '2 kredita'], [3, '3 kredita']].map(([k, label]) => ({ label, on: s.life === k ? '1' : '0', onClick: () => this.setState({ life: k }) })),
+      packs: [[50, '€4,50', 'osnovna'], [100, '€4,20', '−7%'], [250, '€3,90', '−13%'], [500, '€3,60', '−20%']].map(([n2, u, off]) => ({ n: n2, u, off })),
+      savePrices: () => this.toast('Cene su sačuvane · važe za nove kupovine'),
+      appTabs: [['notice', 'Obaveštenja', '2'], ['ver', 'Minimalna verzija', '6'], ['flags', 'Flagovi', '5']].map(([k, label, n2]) => ({ label, n: n2, on: s.atab === k ? '1' : '0', onClick: () => this.setState({ atab: k }) })),
+      at: { notice: s.atab === 'notice', ver: s.atab === 'ver', flags: s.atab === 'flags' },
+      nTitle: s.nTitle, nBody: s.nBody, onNTitle: (e) => this.setState({ nTitle: e.target.value.slice(0, 60) }), onNBody: (e) => this.setState({ nBody: e.target.value.slice(0, 160) }),
+      nTones: [['info', 'Info'], ['warn', 'Upozorenje']].map(([k, label]) => ({ label, on: s.nTone === k ? '1' : '0', onClick: () => this.setState({ nTone: k }) })), nToneHsl: toneHsl,
+      publishNotice: () => this.toast('Obaveštenje je zakazano za 11. 10. u 20:00'),
+      notices: [['Nova verzija 2.4 — novi TV vodič', 'svi · TV · do 15. 10.', 'Aktivno', 'ok'], ['Ažuriraj Klaro do 15. 10.', 'Android TV ispod 2.3.0 · od 8. 10.', 'Zakazano', 'info']].map(([t, d, st, tone]) => ({ t, d, s: st, tone })),
+      versions: [['#i-tv', 'Android TV / Google TV', 'Play prodavnica', '2.4.0', '2.3.0', '412', 'warn', '15. 10. 2026.'], ['#i-tv', 'Samsung Tizen', 'Samsung Apps', '2.3.2', '2.3.0', '0', 'ok', 'aktivno'], ['#i-tv', 'LG webOS', 'LG Content Store', '2.3.1', '2.3.0', '0', 'ok', 'aktivno'], ['#i-tv', 'Fire TV', 'Amazon Appstore', '2.4.0', '2.2.0', '18', 'warn', 'aktivno'], ['#i-phone', 'iOS / iPadOS', 'App Store', '2.4.0', '2.2.0', '0', 'ok', 'aktivno'], ['#i-laptop', 'Web (PWA)', 'app.klaroplayer.com', 'uvek najnovija', '—', '0', 'ok', '—']].map(([href, p, store, latest, min, below, tone, from]) => ({ href, p, store, latest, min, below, tone, from })),
+      flags: FLAGS.map(([name, key, who, pct], i) => ({ name, key, who, pct: s.flags[i] ? pct : '0%', on: s.flags[i] ? '1' : '0', onClick: () => this.setState({ flags: { ...s.flags, [i]: !s.flags[i] } }) })),
+      logFilters: [['all', 'Sve'], ['cred', 'Krediti'], ['dev', 'Uređaji'], ['acc', 'Nalozi'], ['imp', 'Prijave kao'], ['sec', 'Bezbednost']].map(([k, label]) => ({ label, on: s.lf === k ? '1' : '0', onClick: () => this.setState({ lf: k }) })),
+      log: LOG.filter((l) => s.lf === 'all' || l[6] === s.lf).map(([kind, tone, when, who, role, what]) => ({ kind, tone, when, who, role, what })),
+      blocks: BLOCKS.map((b, i) => ({ href: b[0], what: b[1], why: b[2], hide: !!s.unblocked[i], onClick: () => { this.setState({ unblocked: { ...s.unblocked, [i]: true } }); this.toast(b[1] + ' je odblokiran · upisano u dnevnik'); } })).filter((b) => !b.hide),
+      blockCount: BLOCKS.filter((_, i) => !s.unblocked[i]).length + ' aktivne',
+      openBlock: () => this.setState({ modal: { href: '#i-ban', title: 'Blokiraj', body: 'Uređaj odmah dobija „Uređaj deaktiviran“ (A8), nalog „Nalog suspendovan“ (A9).', fields: [{ label: 'ID uređaja, email ili IP', v: '3B90-8F11', cls: 'full' }, { label: 'Razlog (obavezno)', v: 'deljenje vaučera javno na forumu', cls: 'full' }], ok: 'Blokiraj', cls: 'danger', onOk: () => { close(); this.toast('3B90-8F11 je blokiran'); } } }),
+      modal: s.modal, closeModal: close,
+    };
+  }
+}
+</script>
+</body>
+</html>
