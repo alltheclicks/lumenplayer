@@ -18,10 +18,13 @@ Primary strategy:
 - playback session independent from a single UI client/device
 
 Read first on every session:
+0. `GRAND_PLAN.md` — whole-product scope, current TV-app priority, role/panel model, source conflicts and open decisions. It distinguishes accepted direction from proposals; older strategy summaries below may be superseded there.
 1. `docs/AGENT-HANDOFF-20260925.md` (current Git/production map), then `HANDOFF.md`
 2. `VISION.md`
 3. `SESSION-ARCHITECTURE.md`
 4. `BACKLOG.md`
+
+UI / design work: read `design/README.md` and the relevant exports before implementation. If the mirror is absent, locate its branch through `GRAND_PLAN.md`. Do not hand-edit mirrored design files; distinguish current design, archived proposals and approved business rules.
 
 ## Commands
 
