@@ -1,0 +1,6 @@
+{
+  "note": "Placeholder only. TV-004 does not read source credentials or make network requests.",
+  "server": "https://example.invalid",
+  "username": "REPLACE_LOCALLY",
+  "password": "REPLACE_LOCALLY"
+}

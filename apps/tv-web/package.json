@@ -1,0 +1,28 @@
+{
+  "name": "@lumen/tv-web",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src scripts *.config.ts",
+    "test": "node --test src/testing/*.test.mjs src/focus/*.test.mjs",
+    "build:tizen": "vite build --config vite.tizen.config.ts && node scripts/check-tv-compat.mjs dist/tizen",
+    "build:webos": "vite build --config vite.webos.config.ts && node scripts/check-tv-compat.mjs dist/webos",
+    "package:tizen": "bash scripts/package-tizen.sh",
+    "package:webos": "bash scripts/package-webos.sh",
+    "clean": "rm -rf dist artifacts .turbo"
+  },
+  "devDependencies": {
+    "@types/node": "^22.5.0",
+    "@lumen/tsconfig": "workspace:*",
+    "acorn": "8.15.0",
+    "eslint": "^9.9.0",
+    "typescript": "^5.7.0",
+    "vite": "^5.4.2"
+  },
+  "dependencies": {
+    "@lumen/types": "workspace:*"
+  }
+}
