@@ -4,6 +4,7 @@
 
 - Communicate with the user in **Serbian (Latin script)**
 - All code and code comments in **English**
+- Product UI defaults to **English**, with multilingual support and language selection at least on TV and desktop/web. Follow `GRAND_PLAN.md` section 9 for locale coverage, per-device preference, localization resources, RTL and acceptance checks. Serbian prototype copy does not constrain the application's language. Keep mirrored design exports unchanged.
 
 ## Project Overview
 
@@ -18,6 +19,7 @@ Primary strategy:
 - playback session independent from a single UI client/device
 
 Read first on every session:
+ - `TASKS.md` — mandatory shared task registry. Resolve its canonical path using `git config --local --get klaro.taskRegistry`; follow its lock, claim, path-reservation and status protocol even when the owner does not mention it. General work requests select the next eligible ready task; analysis-only requests do not start implementation. Missing registry configuration must be reported, never replaced with a competing queue.
 0. `GRAND_PLAN.md` — whole-product scope, current TV-app priority, role/panel model, source conflicts and open decisions. It distinguishes accepted direction from proposals; older strategy summaries below may be superseded there.
 1. `docs/AGENT-HANDOFF-20260925.md` (current Git/production map), then `HANDOFF.md`
 2. `VISION.md`
@@ -90,7 +92,7 @@ packages/
 ## Workflow
 
 1. Read `HANDOFF.md` + `VISION.md` + `SESSION-ARCHITECTURE.md`
-2. Pick next `planned` task from `BACKLOG.md`
+2. Claim the next eligible `ready` task in the canonical `TASKS.md` under its registry lock. `BACKLOG.md` is historical reference, not an automatic work queue.
 3. Implement only that task
 4. Run validation (`typecheck`, `lint`, `build` as applicable)
-5. Update `HANDOFF.md` with done/next/risks
+5. Update the task's evidence/handoff and canonical `TASKS.md` status under its registry lock. Separate review, integration and physical-device verification; do not overwrite another worker's handoff or reservation.

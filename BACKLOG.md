@@ -1,5 +1,7 @@
 # Backlog — Lumen Player
 
+> Execution queue superseded by `TASKS.md` (2026-10-21). Resolve the live registry through `git config --local --get klaro.taskRegistry`. Entries below preserve historical scope/status and must be revalidated before being scheduled there; do not automatically claim work from this file.
+
 > Datum: 12. februar 2026
 > Poslednji audit: Opus 4.6 deep codebase analysis
 > Vizija: `VISION.md` (V1/V1.5/V2)

@@ -1,11 +1,13 @@
 # Klaro Player — GRAND PLAN
 
-> Updated: 2026-10-20  
+> Updated: 2026-10-21
 > Purpose: product-wide navigation and continuity for the owner and AI agents.  
 > Status: consolidated working plan. Accepted decisions, proposals, existing code and unknowns are explicitly separated below.  
 > Current execution priority: first installable Samsung, LG and Android TV applications, extracting the shared core as needed.
 
 ## 0. Agent entry point
+
+Operational work is coordinated exclusively through `TASKS.md`. Resolve its live path with `git config --local --get klaro.taskRegistry`; linked worktree copies are snapshots. Follow its atomic claim, session ownership, path reservations and evidence-based completion protocol. On general work requests agents select eligible ready tasks without requiring the owner to name an ID. Current priority is the shortest path to installable and device-verified TV builds. This document remains the product authority; historical backlogs are not separate live queues.
 
 Read this document before choosing a task. Read project instructions and the latest relevant handoff before editing code. This document connects the whole product; it does not authorize implementation, infrastructure changes, purchases, merges, deployment or store submission by itself.
 
@@ -96,7 +98,7 @@ Reviewed repository: `alltheclicks/lumenplayer`.
 | EXYU analytics | Existing integration; separate from the future Klaro business backend |
 | P4 progress | RECORDED: 0a–0d, 1a, 1b part 1 complete; next contracts/config work is step 2 |
 | P4 checks | RECORDED: 603 unit tests and required checks passed on that branch; not rerun during this documentation change |
-| Device evidence | Owner has Samsung 2023, LG 2022, Sony Android TV 2024, Fire TV 4K approximately 1–2 years old; Apple TV planned. No new physical-device result produced here |
+| Device evidence | Owner-reported device inventory corrected on 2026-10-21; see section 3. Samsung 2019, LG webOS 5.6.2-21, Sony 2022 or 2023 (year unconfirmed) and Fire TV Stick 4K Max on Fire OS 7.7.1.3. No agent device verification; Apple TV planned |
 
 Do not replace the newer P4 branch with this older code baseline. Documentation and design have been combined locally; the P4 implementation branch remains separate. Integrate these documents deliberately into the chosen implementation base. No push or production deployment is authorized by this plan.
 
@@ -111,6 +113,7 @@ Do not replace the newer P4 branch with this older code baseline. Documentation 
 | Postgres business backend | Superseded by October 6 accepted Convex decision |
 | `app.klaroplayer.com` hosts dashboard | October 5 spec: `panel.klaroplayer.com` is panel; `app.klaroplayer.com` is PWA. Deployment/DNS not established here |
 | Pairing expires in 10 minutes | Owner suggested 15 minutes; use 15 as current planning value, make final behavior explicit |
+| Serbian copy in design exports implies a Serbian-only product | Superseded by owner direction on 2026-10-21: English is the application default; TV and desktop must offer language selection, with broad world-language and Balkan coverage. See section 9 localization requirements |
 | Device = installation, always recognizable | OPEN identity refinement: durable device/license record plus replaceable installation and recovery proof; hardware ID alone cannot satisfy every reset case |
 | All clients share “the same session” | Preserve explicit controller/renderer sessions; PROPOSED clarification: ordinary playback on separate devices stays independent, account data syncs |
 | HTTP `/v1` only + realtime without polling | Both are accepted requirements; transport design remains OPEN. Direct Convex player subscriptions are a proposal, not permission to bypass `/v1` policy |
@@ -122,10 +125,10 @@ Latest explicit owner direction wins over older planning prose. Existing code pr
 
 | Target | Intended family / playback boundary | Delivery position |
 |---|---|---|
-| Samsung Tizen | React TV web UI; Samsung AVPlay adapter, alternatives only after evidence | First TV stream; test Samsung 2023 |
-| LG webOS | Shared TV web UI where appropriate; separate webOS media/lifecycle adapter | First TV stream; test LG 2022 |
-| Android TV / Google TV | react-native-tvos; Media3/ExoPlayer adapter | First native TV stream; test Sony 2024 |
-| Fire TV | Confirm exact OS/model; Fire OS can share Android-family work, Vega requires its own evaluated integration | Early target; never equate a Sony pass with a Fire pass |
+| Samsung Tizen | React TV web UI; Samsung AVPlay adapter, alternatives only after evidence | First TV stream; test Samsung UE43RU7092UXXH (2019) |
+| LG webOS | Shared TV web UI where appropriate; separate webOS media/lifecycle adapter | First TV stream; test LG 60UN71003LB / webOS 5.6.2-21 |
+| Android TV / Google TV | react-native-tvos; Media3/ExoPlayer adapter | First native TV stream; test Sony Android TV (2022 or 2023, unconfirmed; exact model/OS pending) |
+| Fire TV | Owner test device is Fire TV Stick 4K Max on Fire OS 7.7.1.3; use Android-family path. Vega remains a separate future target | Early target; never equate a Sony pass with a Fire pass |
 | Apple TV | react-native-tvos/tvOS; AVPlayer adapter | Early playback validation when hardware is available, then full app |
 | Android mobile | React Native family; touch UI and Android lifecycle/media integration | After common TV/backend foundation; independent validation |
 | iOS mobile | React Native family; touch UI and Apple media integration | Same foundation; iPhone testing can precede Apple TV acquisition |
@@ -136,6 +139,17 @@ Latest explicit owner direction wins over older planning prose. Existing code pr
 | Cast / AirPlay | Renderer/control integrations | Preserve; not substitutes for dedicated TV apps |
 
 ACCEPTED: React family; no Svelte introduction; framework-free shared domain packages. Do not force the same visual components onto remote, touch and mouse interfaces.
+
+### Owner-reported test devices — 2026-10-21
+
+| Device | Model / year | Reported software | Still to establish |
+|---|---|---|---|
+| Samsung | UE43RU7092UXXH, 2019 | T-MSLDEUC-1500.9 | Developer Mode, local connectivity, certificate setup; verify SDK/API compatibility rather than infer Tizen version from firmware |
+| LG | webOS TV 60UN71003LB | webOS 5.6.2-21 | Developer account/mode and local connectivity; model year not independently established |
+| Fire TV | Fire TV Stick 4K Max | Fire OS 7.7.1.3; Fire TV Home 7280112.1 | Exact generation/build-model and ADB connectivity; Fire OS path is established by owner report, not an on-device test |
+| Sony | Android TV, 2022 or 2023 (unconfirmed); owner reports regular updates | Exact Android version/build not yet supplied | Exact model, OS/build and ADB connectivity |
+
+These details supersede the earlier approximate Samsung 2023 / LG 2022 / Sony 2024 inventory. They are owner reports, not installation or playback evidence. Do not equate regular firmware updates with the newest Android major version. Target the actual Samsung/LG browser and media capabilities during toolchain setup; current desktop-browser success is insufficient. Device access and developer-mode changes have not been performed by this inventory update.
 
 Minimum OS/model years are OPEN. Existing test televisions define initial evidence, not a universal support claim.
 
@@ -328,6 +342,29 @@ Full player scope retains VOD/series, search/categories, favorites, progress, su
 
 UX handoff must cover remote focus/Back, couch readability, touch layouts, orientation, accessibility, slow/empty/offline states and activation/recovery. The inspected Claude Design mirror is now committed and available under `design/`; see sections 2 and 12 for omissions and unresolved rules. Rendered behavior and full approval are not established by that source inspection. Do not invent a new visual identity or mark the redesign integrated into the application from mockups alone.
 
+### Localization and language selection — owner direction, 2026-10-21
+
+ACCEPTED: the application is multilingual, with **English as the default** and an explicit language selector at least on TV and desktop/web. Coverage must include widely used world languages and Balkan languages. Serbian text in the design mirror is prototype copy, not a product language restriction. Agent replies remain Serbian; repository/code language conventions remain unchanged.
+
+Implementation requirements:
+
+- Offer language selection during first launch, before activation/sign-in, and later in Settings → Language. Keep English as the initial default rather than silently replacing it with the OS language.
+- Store user-visible strings in localization resources from the first UI implementation. Cover navigation, playback controls, activation, errors, notifications, accessibility labels and help; avoid concatenated translated sentences and support locale-aware plurals, dates, times and numbers. Missing translations fall back to English.
+- Keep UI language independent of audio/subtitle preferences and provider-supplied channel names, EPG titles and descriptions. Do not imply automatic translation of provider content.
+- Persist the selected language per device, including before login. A language change must not unexpectedly change the interface on other household devices. Reuse the localization foundation on mobile; exact mobile and panel release-language coverage remains to be scheduled explicitly.
+- Support longer translations, Cyrillic and other required scripts, appropriate fonts and right-to-left layout for languages such as Arabic, Hebrew and Urdu. On TV, verify focus order and directional navigation in RTL layouts; do not blindly mirror media-control semantics.
+- Language options should be recognizable through their native names, with script/region variants distinguished. Do not use flags as the sole language identifier.
+
+PROPOSED initial locale inventory (coverage target, not a claim of completed translations or a final release list):
+
+- Balkan/regional: Serbian Latin and Cyrillic, Croatian, Bosnian, Slovenian, Macedonian, Albanian, Bulgarian, Romanian, Greek and Turkish.
+- Wider coverage: English, German, French, Spanish, Portuguese, Italian, Polish, Czech, Slovak, Hungarian, Ukrainian, Russian, Arabic, Hebrew, Hindi, Bengali, Urdu, Indonesian, Vietnamese, Thai, Simplified Chinese, Traditional Chinese, Japanese and Korean.
+- OPEN: final locale identifiers and regional variants (including Portuguese/Chinese), further languages, translation ownership/review and rollout batches. Do not interpret “widely used languages” as a finalized exhaustive list or ship unreviewed machine translations as verified localization.
+
+Acceptance evidence before declaring a target localized: language selection works with its actual input method, survives restart and works before login; English fallback is exercised; long strings/plurals and RTL are checked; changing UI language does not change audio/subtitles or other devices. Browser mockups do not establish physical-TV readability or remote behavior.
+
+Playback copy clarification: owner prefers **“Back to Live TV”** in English for returning from catch-up. Final Serbian wording is deferred for iteration; earlier “Nazad na uživo” and “Vrati se uživo” suggestions are not approved copy. A clearly reachable action in the normal TV catch-up layout is a proposed UX improvement from prototype review, not an implemented feature. Preserve the read-only exports; apply copy corrections upstream or in production localization resources.
+
 Public brand is Klaro. Preserve `@lumen/*`, storage keys, cookies, environment names and other technical identifiers unless a separately authorized migration requires changes.
 
 ## 10. Security, support and operations as product requirements
@@ -378,7 +415,7 @@ No universal launch date or “all platforms done” claim is established. Estim
 | D03 | Logical device vs installation; guest recovery proof and replacement limits | Pairing/licensing implementation | Recovery model PROPOSED |
 | D04 | Versioned realtime transport | Sync implementation | HTTP-only rule remains until explicitly amended |
 | D05 | Convex hosting/region/auth and recovery policy | Backend foundation | OPEN |
-| D06 | Exact TV models/OS and minimum supported generations | Platform compatibility claims | Years known; exact inventory OPEN |
+| D06 | Exact TV models/OS and minimum supported generations | Platform compatibility claims | Owner inventory recorded in section 3; Sony model/OS, Fire generation and device access remain OPEN |
 | D07 | Prices, lifetime terms, voucher accounting, refunds and store purchase paths | Commercial release | Baseline credits/trial accepted; remaining rules OPEN |
 | D08 | Approved design export, screen inventory, profiles/parental scope | Production UI implementation | Mirror committed and available locally; rendered review and final approval OPEN |
 | D09 | Genadmin operational roles, metric definitions and viewing-data access | Full dashboards/telemetry | Detailed proposal in sections 4–5 |
