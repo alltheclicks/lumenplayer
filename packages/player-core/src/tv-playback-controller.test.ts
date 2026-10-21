@@ -177,6 +177,60 @@ describe("TVPlaybackController", () => {
     expect(clampSeekPositionMs(5_000, 4_000)).toBe(4_000);
   });
 
+  it("ignores a late successful load and events after caller cancellation", async () => {
+    const adapter = new FakeAdapter();
+    const waiting = deferred<void>();
+    adapter.load = vi.fn(async (request) => {
+      await waiting.promise;
+      adapter.emit({ ...adapter.snapshot, request, state: "playing" });
+    });
+    const { controller } = createController(adapter);
+    const caller = new AbortController();
+    const pending = controller.load(liveRequest("A"), { signal: caller.signal });
+    caller.abort();
+    const cancelledSnapshot = controller.getSnapshot();
+    waiting.resolve();
+    await pending;
+    expect(controller.getSnapshot()).toBe(cancelledSnapshot);
+  });
+
+  it("aborts the previous adapter generation even after its load has completed", async () => {
+    const { adapter, controller } = createController();
+    await controller.load(liveRequest("A"));
+    const previousSignal = adapter.loads[0]!.signal;
+    await controller.load(liveRequest("B"));
+    expect(previousSignal.aborted).toBe(true);
+  });
+
+  it("adopts the live request returned by the adapter and accepts its later events", async () => {
+    const adapter = new FakeAdapter();
+    const live = liveRequest("channel-a");
+    adapter.returnToLive = vi.fn(() => {
+      adapter.emit({ ...adapter.snapshot, request: live, durationMs: null, state: "playing" });
+    });
+    const { controller } = createController(adapter);
+    await controller.load(catchUpRequest);
+    await controller.returnToLive();
+    expect(controller.getSnapshot().request).toBe(live);
+    adapter.emit({ ...adapter.snapshot, positionMs: 5000 });
+    expect(controller.getSnapshot().positionMs).toBe(5000);
+  });
+
+  it("ignores a return-to-live completion after a newer channel load", async () => {
+    const adapter = new FakeAdapter();
+    const waiting = deferred<void>();
+    adapter.returnToLive = vi.fn(() => waiting.promise);
+    const { controller } = createController(adapter);
+    await controller.load(catchUpRequest);
+    const returning = controller.returnToLive();
+    const next = liveRequest("B");
+    await controller.load(next);
+    adapter.snapshot = { ...adapter.snapshot, request: liveRequest("channel-a") };
+    waiting.resolve();
+    await returning;
+    expect(controller.getSnapshot().request).toBe(next);
+  });
+
   it("rejects unavailable capabilities before loading", async () => {
     const adapter = new FakeAdapter();
     adapter.capabilities = { ...fullCapabilities, catchUp: false };

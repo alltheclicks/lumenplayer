@@ -53,7 +53,7 @@ export class TVPlaybackController {
 
   constructor(private readonly adapter: TVPlaybackAdapter) {
     this.unsubscribeAdapter = adapter.onChange((snapshot) => {
-      if (this.destroyed) return;
+      if (this.destroyed || this.abortController?.signal.aborted) return;
       // The adapter must echo the exact request object it received. This also
       // lets us discard late state/error notifications from an older load.
       if (this.snapshot.request !== null && snapshot.request !== this.snapshot.request) return;
@@ -96,8 +96,13 @@ export class TVPlaybackController {
 
     try {
       await this.adapter.load(request, { signal: controller.signal });
-      if (!this.isCurrent(generation)) return;
-      this.snapshot = { ...this.adapter.getSnapshot(), request, error: null };
+      if (!this.isCurrent(generation) || controller.signal.aborted) return;
+      const snapshot = this.adapter.getSnapshot();
+      this.snapshot = {
+        ...snapshot,
+        request,
+        error: snapshot.error ? redactPlaybackError(snapshot.error) : null,
+      };
       this.emit();
     } catch (error) {
       if (!this.isCurrent(generation) || controller.signal.aborted || isAbortError(error)) return;
@@ -107,7 +112,8 @@ export class TVPlaybackController {
       throw new Error(safeError.message);
     } finally {
       options.signal?.removeEventListener("abort", forwardCallerAbort);
-      if (this.abortController === controller) this.abortController = null;
+      // Retain the generation signal until replacement/teardown so adapters
+      // can also cancel resources/events created by a completed load.
     }
   }
 
@@ -136,7 +142,17 @@ export class TVPlaybackController {
     if (!this.adapter.getCapabilities().returnToLive) {
       throw new UnsupportedPlaybackCapabilityError("returnToLive");
     }
+    const generation = this.generation;
     await this.adapter.returnToLive();
+    if (!this.isCurrent(generation) || this.abortController?.signal.aborted) return;
+    // Returning to live changes the request (including its media URL). Adopt
+    // the adapter's new request before filtering its subsequent notifications.
+    const snapshot = this.adapter.getSnapshot();
+    this.snapshot = {
+      ...snapshot,
+      error: snapshot.error ? redactPlaybackError(snapshot.error) : null,
+    };
+    this.emit();
   }
 
   destroy(): void {

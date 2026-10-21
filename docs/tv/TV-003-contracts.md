@@ -130,3 +130,24 @@ zatim root `lint`, `typecheck`, `test:unit`, `build` i
   ne može prekinuti već započet platform load.
 - Nijedan novi package, billing/cloud deo, web rewiring ili app-level migracija
   nije deo TV-003.
+
+## Koordinatorski review — 2026-10-21
+
+Worker commit `b07e7d969669f6150206684eae23b0500ca6c273` pregledan je na
+Buildari. Tri nove regresione provere prvo su reprodukovale greške: uspešan
+završetak i događaji nakon caller abort-a menjali su stanje, signal završenog
+load-a nije abortovan pri sledećem kanalu, a povratak sa arhive na live nije
+usvajao novi request. Sve tri su ispravljene; dodatna provera potvrđuje da
+zakasneli return-to-live ne menja noviji kanal.
+
+Adapter čuva isti request objekat u događajima jednog load-a i poštuje njegov
+signal i za resurse koji nadžive završetak `load()`. `returnToLive()` mora pre
+završetka da objavi novi live request kroz `getSnapshot()`; controller usvaja
+tu referencu i prihvata sledeće live događaje. Caller cancellation tokom load-a
+zamrzava njegovo stanje bez prikazivanja provider greške; vlasnik ekrana može
+pokrenuti novi load ili uništiti controller.
+
+Koordinatorske provere: ciljani controller testovi 12/12 i paketni
+`@lumen/player-core` typecheck/lint prošli. Konačni root check rezultati
+beleže se u živom registru. Nema integracije sa shell-ovima, merge-a, push-a
+ili uređajske provere u ovom review koraku.

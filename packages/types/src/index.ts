@@ -323,10 +323,12 @@ export interface TVPlaybackSnapshot {
 
 export interface TVPlaybackAdapter {
   getCapabilities(): TVPlaybackCapabilities;
+  /** Echo this request object in snapshots until the next load/returnToLive. */
   load(request: TVPlaybackRequest, options: { signal: AbortSignal }): Promise<void>;
   play(): void | Promise<void>;
   pause(): void | Promise<void>;
   seek(positionMs: number): void | Promise<void>;
+  /** Publish the new live request in getSnapshot() before this resolves. */
   returnToLive(): void | Promise<void>;
   stop(): void | Promise<void>;
   destroy(): void;
