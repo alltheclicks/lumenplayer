@@ -77,8 +77,9 @@ and created a real IPK container. This establishes packaging only: the IPK was
 not installed or launched on a TV. The Tizen WGT was not created because its
 physical-TV signing profile prerequisite remains under TV-013.
 
-The local IPK artifact is 6,582 bytes with SHA-256
-`41aab0572e173712d5b4efd2084f952d8f1eaec22a9ab3496384aba3bedf7aca`.
+After the coordinator corrections below, the local IPK artifact is 6,684 bytes
+with SHA-256
+`1dd487ff9b0d9feac5b7bea84af49a94d9d507e57325505c0c40573d3ccfa104`.
 
 ## Integration requests and limits
 
@@ -92,8 +93,37 @@ The local IPK artifact is 6,582 bytes with SHA-256
   intentionally consumes only the existing `PlayerAdapter` type and keeps the
   fixture at the composition boundary. When TV-003 is integrated, coordinate
   only the adapter's consumption change; do not create a second shared contract.
-- Device acceptance remains separate. No browser preview, physical TV,
-  simulator, emulator, install, network source, or real playback was exercised.
+- Device acceptance remains separate. The worker did not exercise a browser
+  preview; the coordinator's later browser checks are recorded below. No
+  physical TV, simulator, emulator, install, network source, or real playback
+  was exercised.
 - Samsung packaging awaits TV-013's owner-created certificate/profile. LG
   developer-mode account/key setup is also a later device prerequisite; neither
   blocks the host-side IPK container created here.
+
+## Coordinator review — 2026-10-21
+
+Review of worker commit `99fdcdd112b9a133454188f6cc80a2daf4edd894` reproduced
+a language-navigation defect in the T3 collaborative browser: Down on the
+native select moved focus to Back and prevented selection. The select is now
+an explicit list of language buttons with native names, pressed state and
+D-pad navigation. Language changes preserve focus. Home's horizontal actions
+now use horizontal focus coordinates. OK/Accept explicitly activates buttons
+and suppresses the default click to avoid double activation.
+
+Coordinator reran package typecheck, lint, all seven Node tests, both platform
+builds and compatibility checks, and webOS packaging successfully. Samsung
+packaging was also rerun and exited 2 with the expected missing-owner-profile
+message. No substitute certificate was supplied.
+
+Eight DOM-event browser assertions passed against both the dev server and
+the generated `dist/webos/` served over HTTP: Right reaches Settings, Accept
+opens it, Down reaches Serbian, Accept selects Serbian and retains focus,
+Enter selects Arabic with RTL, Samsung Back returns home, fixture-error screen
+renders, and LG Back returns home. These are synthetic keyboard events in the
+desktop collaborative browser, not a physical remote or old-TV engine test.
+Chrome 63 compatibility evidence remains the build target and emitted-output
+check; runtime compatibility still requires TV-009/010.
+
+The code remains on the task branch, without merge/push. Shared lockfile
+integration and consumption of TV-003 remain coordinator follow-ups.

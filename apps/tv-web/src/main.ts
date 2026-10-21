@@ -34,6 +34,7 @@ function escapeHtml(value: string): string {
 }
 
 function render(state: ShellState): void {
+  const previousFocus = (document.activeElement as HTMLElement | null)?.dataset.focusable;
   const text = messages[state.language as LanguageCode] || messages.en;
   const isRtl = state.language === "ar";
   document.documentElement.lang = state.language;
@@ -48,16 +49,13 @@ function render(state: ShellState): void {
           <div class="eyebrow">${escapeHtml(text.status)}</div>
           <h1>${escapeHtml(text.settingsTitle)}</h1>
           <p>${escapeHtml(text.settingsHint)}</p>
-          <label class="field-label" for="language">${escapeHtml(text.language)}</label>
-          <select id="language" data-focusable="language" data-focus-row="1" data-focus-col="1" aria-label="${escapeHtml(text.language)}">
-            ${supportedLanguages.map((language) => `<option value="${language}"${state.language === language ? " selected" : ""}>${escapeHtml(messages[language].languageName)}</option>`).join("")}
-          </select>
-          <button class="secondary-button" data-focusable="back" data-focus-row="2" data-focus-col="1">${escapeHtml(text.back)}</button>
+          <div class="field-label" id="language-label">${escapeHtml(text.language)}</div>
+          <div class="language-options" role="group" aria-labelledby="language-label">
+            ${supportedLanguages.map((language, index) => `<button class="secondary-button" data-language="${language}" data-focusable="language-${language}" data-focus-row="${index}" data-focus-col="1" aria-pressed="${state.language === language}">${escapeHtml(messages[language].languageName)}</button>`).join("")}
+          </div>
+          <button class="secondary-button" data-focusable="back" data-focus-row="${supportedLanguages.length}" data-focus-col="1">${escapeHtml(text.back)}</button>
         </main>
       </div>`;
-    app.querySelector<HTMLSelectElement>("#language")?.addEventListener("change", (event) => {
-      controller.setLanguage((event.currentTarget as HTMLSelectElement).value);
-    });
   } else if (state.screen === "playback") {
     app.innerHTML = `
       <div class="shell" dir="${isRtl ? "rtl" : "ltr"}">
@@ -91,14 +89,15 @@ function render(state: ShellState): void {
           <p class="description">${escapeHtml(text.launchBody)}</p>
           <div class="actions">
             <button class="primary-button" data-focusable="launch" data-focus-row="0" data-focus-col="1">${escapeHtml(text.openTest)}</button>
-            <button class="secondary-button" data-focusable="settings" data-focus-row="1" data-focus-col="1">${escapeHtml(text.settings)}</button>
+            <button class="secondary-button" data-focusable="settings" data-focus-row="0" data-focus-col="2">${escapeHtml(text.settings)}</button>
           </div>
           <p class="fixture-note">${escapeHtml(text.fixture)}</p>
         </main>
       </div>`;
   }
 
-  app.querySelector<HTMLElement>("[data-focusable]")?.focus();
+  const focusables = Array.from(app.querySelectorAll<HTMLElement>("[data-focusable]"));
+  (focusables.find((item) => item.dataset.focusable === previousFocus) || focusables[0])?.focus();
 }
 
 controller.subscribe(render);
@@ -108,6 +107,7 @@ app.addEventListener("click", (event) => {
   const target = event.target as HTMLElement;
   const focusable = target.closest<HTMLElement>("[data-focusable]");
   if (!focusable) return;
+  if (focusable.dataset.language) controller.setLanguage(focusable.dataset.language);
   if (focusable.dataset.focusable === "settings") controller.openSettings();
   if (focusable.dataset.focusable === "launch") void controller.startTest();
   if (focusable.dataset.focusable === "back") controller.back();
@@ -115,6 +115,11 @@ app.addEventListener("click", (event) => {
 
 app.addEventListener("keydown", (event) => {
   const action = remoteAction(event.key, event.keyCode);
+  if (action === "ok" && document.activeElement instanceof HTMLButtonElement) {
+    event.preventDefault();
+    if (!event.repeat) document.activeElement.click();
+    return;
+  }
   if (action === "back") {
     event.preventDefault();
     controller.back();
