@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+# Stage only verified, script-free TV resource payloads into the dedicated SDK.
+set -euo pipefail
+here="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+sdk_root="${KLARO_TV_SDK_ROOT:-$HOME/.local/share/klaro-tv-sdk}"
+[[ "${1:-}" == --accept-licenses && $# == 1 ]] || {
+  echo 'Read vendor extension licenses, then run samsung-extensions --accept-licenses' >&2
+  exit 2
+}
+[[ -f "$sdk_root/tizen-sdk-10.0/sdk.info" ]]
+python3 - "$sdk_root" "$here/downloads.json" <<'PY'
+import hashlib, json, pathlib, stat, sys, zipfile
+root = pathlib.Path(sys.argv[1])
+lock = json.loads(pathlib.Path(sys.argv[2]).read_text())
+pins = {item['file']: item for item in lock['archives']}
+names = ['tv-samsung-public-web-add-ons_10.0.0_ubuntu-64.zip', 'tv-samsung-log-server_5.5.0_ubuntu-64.zip']
+receipt = []
+for name in names:
+    archive = root / 'downloads' / name
+    assert hashlib.sha256(archive.read_bytes()).hexdigest() == pins[name]['sha256'], 'Archive checksum: ' + name
+    with zipfile.ZipFile(archive) as z:
+        # These two leaf archives contain data and metadata only. Never run vendor
+        # scripts or synthesize package-manager registrations/dependency records.
+        assert all(n.startswith('data/') or n == 'pkginfo.manifest' for n in z.namelist()), 'Unexpected package layout'
+        installed = []
+        for entry in z.infolist():
+            if not entry.filename.startswith('data/') or entry.is_dir():
+                continue
+            relative = pathlib.PurePosixPath(entry.filename).relative_to('data')
+            assert not relative.is_absolute() and '..' not in relative.parts
+            mode = (entry.external_attr >> 16) & 0xffff
+            assert not stat.S_ISLNK(mode), 'Unexpected SDK symlink'
+            target = root / 'tizen-sdk-10.0' / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            content = z.read(entry)
+            if target.exists():
+                assert not target.is_symlink() and target.read_bytes() == content, 'Existing SDK file differs: ' + str(relative)
+            else:
+                target.write_bytes(content)
+                target.chmod((mode & 0o777) or 0o644)
+            installed.append({'path': str(relative), 'sha256': hashlib.sha256(content).hexdigest()})
+        receipt.append({'archive': name, 'sha256': pins[name]['sha256'], 'files': installed})
+        print('Staged verified SDK resource payload:', name, len(installed), 'files')
+state = root / 'state'
+state.mkdir(exist_ok=True)
+(state / 'samsung-leaves.json').write_text(json.dumps(receipt, indent=2) + '\n')
+PY
+printf '%s\n' 'Certificate GUI extension is not installed: its dependency graph invokes system apt. See the runbook.'

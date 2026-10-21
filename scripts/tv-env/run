@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# Process-local SDK selection; never source this script or edit shell profiles.
+set -euo pipefail
+sdk_root="${KLARO_TV_SDK_ROOT:-$HOME/.local/share/klaro-tv-sdk}"
+export JAVA_HOME="$sdk_root/jdk-17.0.20.1+1"
+export ANDROID_HOME="$sdk_root/android"
+export ANDROID_SDK_ROOT="$ANDROID_HOME"
+export ANDROID_USER_HOME="$sdk_root/state/android"
+export GRADLE_USER_HOME="$sdk_root/state/gradle"
+export PATH="$sdk_root/node-v22.22.2-linux-x64/bin:$JAVA_HOME/bin:$sdk_root/lg-cli/node_modules/.bin:$ANDROID_HOME/cmdline-tools/22.0/bin:$ANDROID_HOME/platform-tools:$ANDROID_HOME/build-tools/36.0.0:$sdk_root/gradle-8.13/bin:$sdk_root/tizen-sdk-10.0/tools/ide/bin:$sdk_root/tizen-sdk-10.0/tools:$PATH"
+if [[ $# == 0 ]]; then
+  echo "Usage: scripts/tv-env/run <tool> [arguments...]" >&2
+  exit 2
+fi
+exec "$@"

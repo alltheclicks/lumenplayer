@@ -1,0 +1,81 @@
+{
+  "verified_utc": "2026-10-21",
+  "platform": "linux-x86_64",
+  "archives": [
+    {
+      "file": "node-v22.22.2-linux-x64.tar.xz",
+      "url": "https://nodejs.org/dist/v22.22.2/node-v22.22.2-linux-x64.tar.xz",
+      "sha256": "88fd1ce767091fd8d4a99fdb2356e98c819f93f3b1f8663853a2dee9b438068a",
+      "checksum_source": "https://nodejs.org/dist/v22.22.2/SHASUMS256.txt"
+    },
+    {
+      "file": "OpenJDK17U-jdk_x64_linux_hotspot_17.0.20.1_1.tar.gz",
+      "url": "https://github.com/adoptium/temurin17-binaries/releases/download/jdk-17.0.20.1%2B1/OpenJDK17U-jdk_x64_linux_hotspot_17.0.20.1_1.tar.gz",
+      "sha256": "3808d1d15e3ec6bd5b84057fb5d84c33d8a1536a258146bcea2e603fc726e08e",
+      "checksum_source": "Adoptium v3 API and release checksum"
+    },
+    {
+      "file": "OpenJDK8U-jdk_x64_linux_hotspot_8u504b01.tar.gz",
+      "url": "https://github.com/adoptium/temurin8-binaries/releases/download/jdk8u504-b01/OpenJDK8U-jdk_x64_linux_hotspot_8u504b01.tar.gz",
+      "sha256": "9c70e102f527ac674ac2fe9c7d47b9a04e2d19842ba5ab8e9b33f368bbadfaea",
+      "checksum_source": "Adoptium v3 API and release checksum"
+    },
+    {
+      "file": "commandlinetools-linux-15859902_latest.zip",
+      "url": "https://dl.google.com/android/repository/commandlinetools-linux-15859902_latest.zip",
+      "sha256": "4e4c464f145a7512b57d088ac6c278c03c9eea610886b35a5e0804e74eedf583",
+      "checksum_source": "https://developer.android.com/studio#command-tools"
+    },
+    {
+      "file": "platform-36_r02.zip",
+      "url": "https://dl.google.com/android/repository/platform-36_r02.zip",
+      "sha256": "37607369a28c5b640b3a7998868d45898ebcb777565a0e85f9acf36f29631d2e",
+      "checksum_source": "https://dl.google.com/android/repository/repository2-3.xml (vendor SHA-1; SHA-256 locally measured)",
+      "vendor_sha1": "2c1a80dd4d9f7d0e6dd336ec603d9b5c55a6f576"
+    },
+    {
+      "file": "build-tools_r36_linux.zip",
+      "url": "https://dl.google.com/android/repository/build-tools_r36_linux.zip",
+      "sha256": "5d9ac77fb6ff43d9da518a337b4fcf8f9097113df531d99ccefe80ef7ce8250b",
+      "checksum_source": "https://dl.google.com/android/repository/repository2-3.xml (vendor SHA-1; SHA-256 locally measured)",
+      "vendor_sha1": "b0b6376977657e8ad9b969bacf4093601da2c6fb"
+    },
+    {
+      "file": "platform-tools_r37.0.1-linux.zip",
+      "url": "https://dl.google.com/android/repository/platform-tools_r37.0.1-linux.zip",
+      "sha256": "d230f13842f60f782a8645f9c813f8f845bf36089ea7289f28c48f17979313f1",
+      "checksum_source": "https://dl.google.com/android/repository/repository2-3.xml (vendor SHA-1; SHA-256 locally measured)",
+      "vendor_sha1": "477254aa5f903c15cf51001717bdf347fb6b53e0"
+    },
+    {
+      "file": "gradle-8.13-bin.zip",
+      "url": "https://services.gradle.org/distributions/gradle-8.13-bin.zip",
+      "sha256": "20f1b1176237254a6fc204d8434196fa11a4cfb387567519c61556e8710aed78",
+      "checksum_source": "https://services.gradle.org/distributions/gradle-8.13-bin.zip.sha256"
+    },
+    {
+      "file": "web-cli_Tizen_SDK_10.0_ubuntu-64.bin",
+      "url": "https://download.tizen.org/sdk/Installer/tizen-sdk_10.0/web-cli_Tizen_SDK_10.0_ubuntu-64.bin",
+      "sha256": "65d2a569cbf0351dca4b94254f2c642d49195ac4964e08a76b4eaabc9ce4bed0",
+      "checksum_source": "Locally measured SHA-256; installer verifies embedded payload MD5"
+    },
+    {
+      "file": "tizen-certificate-extension_2.0.75.zip",
+      "url": "https://download.tizen.org/sdk/extensions/tizen-certificate-extension_2.0.75.zip",
+      "sha256": "49f1aa8697e1c98a70a47c4ed232a29538340167bd9cceb121c7bea755045303",
+      "checksum_source": "Locally measured outer SHA-256; inner cert-add-on SHA-256 in vendor pkg_list_ubuntu-64"
+    },
+    {
+      "file": "tv-samsung-public-web-add-ons_10.0.0_ubuntu-64.zip",
+      "url": "https://download.tizen.org/sdk/extensions/tv_extensions/binary/tv-samsung-public-web-add-ons_10.0.0_ubuntu-64.zip",
+      "sha256": "c8e9d498504f29e8bf9320dab9e1cf89268e95eee65ff56c8d65a01fa0315086",
+      "checksum_source": "https://download.tizen.org/sdk/extensions/tv_extensions/pkg_list_ubuntu-64"
+    },
+    {
+      "file": "tv-samsung-log-server_5.5.0_ubuntu-64.zip",
+      "url": "https://download.tizen.org/sdk/extensions/tv_extensions/binary/tv-samsung-log-server_5.5.0_ubuntu-64.zip",
+      "sha256": "d9911ddc5b4c1ccf2f014da89f33f1601feefdeca37b67884dab7b23b5f143b4",
+      "checksum_source": "https://download.tizen.org/sdk/extensions/tv_extensions/pkg_list_ubuntu-64"
+    }
+  ]
+}
