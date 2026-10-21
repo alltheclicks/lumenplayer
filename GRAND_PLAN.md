@@ -480,13 +480,44 @@ Rules:
 | Workstream | Status | Next evidence |
 |---|---|---|
 | Whole-product consolidation | Working plan created; owner review of proposals pending | Resolve only decisions needed by next task |
-| Shared core/P4 | Partially complete on separate branch | Confirm base, continue contracts/config and required extraction |
-| Samsung/LG apps | NOT STARTED in reviewed tree | Installable packages and separate device results |
-| Android TV app | NOT STARTED in reviewed tree | Installable Sony build and real playback |
+| Shared core/P4 | P4 combined in local TV integration base; TV-003 contracts implemented and coordinator-reviewed on task branch | Integrate contracts with both shells and rerun consumer checks |
+| Samsung/LG apps | TV-004 shell reviewed on local task branch; LG IPK built; Samsung build passes but signing profile blocks WGT | Shared-contract/lockfile integration, real adapters/catalog, owner signing and separate device results |
+| Android TV app | TV-005 shell reviewed on local task branch; ARM debug APK rebuilt on Buildara | Shared-contract/lockfile integration, Media3/catalog and Mac/device runtime checks |
 | Fire/Apple/VIDAA | Planned targets; readiness unverified | Exact Fire identity; Apple hardware; VIDAA access |
 | Klaro backend/panel/billing | NOT STARTED in reviewed tree | Domain decisions then smallest connected beta |
 | Klaro redesign | Player/panel mirror committed and available locally; not integrated into application code | Rendered/state review; reconcile current and legacy account rules |
 | EXYU web | Existing; historical deployment evidence | Preserve behavior; inspect live only within authorized task |
+
+### TV-003–005 review evidence — 2026-10-21
+
+All three owner-authorized child tasks have returned; their results remain on
+separate local branches based on `ebb93acd6aaace2202b305a15a655b7f06ac32c5`.
+They have not been merged into the integration branch or pushed. Detailed
+handoffs are `docs/tv/TV-003-contracts.md`, `TV-004-shell.md` and
+`TV-005-shell.md` on their respective task branches (not yet in this tree).
+
+- TV-003: `t3/shared-playback-contracts` at `6a038cab55c11be274ef9ed3e62566ea725327e3`;
+  coordinator corrected cancellation/live-transition handling. Root lint,
+  typecheck, build and 617 unit tests passed; QAF035 passed with existing
+  final-release/device evidence blockers still open.
+- TV-004: `t3/tv-web-shell` at `416bbd54952c3d70a1bcf52393ee07e9975cb910`;
+  coordinator corrected D-pad language selection and OK/focus handling.
+  Package checks, seven Node tests, both Chrome 63-targeted builds/output
+  checks and LG IPK packaging passed. Eight synthetic DOM-event assertions
+  passed against dev and generated webOS output in the desktop T3 browser.
+  Samsung WGT remains blocked by the owner-created signing profile (TV-013).
+- TV-005: source `d90031f83b996fecf488261786e1f7ee21905d85`, handoff tip
+  `f61764ab7a9ff3f256a1f65b5fa20d93d109733c` on `t3/android-tv-shell-apk`;
+  coordinator corrected Settings Back origin and stale test completion.
+  Package typecheck/lint, seven tests and Gradle debug build passed. APK
+  metadata and bundled JS were inspected without device execution.
+
+These are shell/contract deliverables, with playback explicitly unavailable.
+Next is one serial integration of shared contracts and dependency lockfile,
+then platform playback adapters and catalog screens. NDK 27.1.12297006 and
+CMake 3.22.1 are required for the Android build; the isolated TV environment
+setup/check does not yet provision/check them. No TV, emulator or mobile
+device was used, and M1 physical acceptance remains open.
 
 The earlier conversation's “25 work packages” are a planning decomposition, not 25 mandatory serial gates. Keep their detail only where useful; milestones and current evidence govern execution.
 
