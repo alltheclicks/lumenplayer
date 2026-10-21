@@ -126,8 +126,10 @@ describe("FetchHttpClient", () => {
       timeoutMs: 10,
     });
 
-    await expect(client.get("https://example.test/player_api.php"))
-      .rejects.toThrow(/timed out after 10ms/);
+    const error = await client.get("https://example.test/player_api.php").catch((value: unknown) => value);
+    expect(error).toBeInstanceOf(Error);
+    expect((error as Error).message).toMatch(/timed out after 10ms/);
+    expect((error as Error).message).not.toContain("example.test");
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock.mock.calls[0]?.[1]?.signal).toBeInstanceOf(AbortSignal);
   });
@@ -152,5 +154,21 @@ describe("FetchHttpClient", () => {
     const client = new FetchHttpClient({ timeoutMs: 0 });
     await expect(client.getText("https://example.test/xmltv.php")).resolves.toBe("ok");
     expect(fetchMock).toHaveBeenCalledWith("https://example.test/xmltv.php");
+  });
+
+  it("forwards caller cancellation and does not retry an aborted request", async () => {
+    const controller = new AbortController();
+    const fetchMock = vi.fn((_url: string, init?: { signal?: AbortSignal }) => (
+      new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")));
+        controller.abort();
+      })
+    ));
+    vi.stubGlobal("fetch", fetchMock);
+    const client = new FetchHttpClient({ maxRetries: 3, timeoutMs: 0 });
+
+    await expect(client.get("https://example.test/player_api.php", { signal: controller.signal }))
+      .rejects.toMatchObject({ name: "AbortError" });
+    expect(fetchMock).toHaveBeenCalledOnce();
   });
 });

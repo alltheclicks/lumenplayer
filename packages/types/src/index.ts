@@ -256,6 +256,84 @@ export interface PlaybackError {
   httpStatus?: number;
 }
 
+/** Version of the portable TV source, catalog and playback contract. */
+export const TV_CONTRACT_VERSION = 1 as const;
+
+export interface TVSourceDescriptor {
+  id: string;
+  kind: "xtream" | "m3u";
+  name: string;
+  revision?: string;
+}
+
+/** EPG times are Unix epoch milliseconds so clients do not depend on Date parsing. */
+export interface TVEpgEntry extends Omit<Program, "startTime" | "endTime"> {
+  channelId: string;
+  /** Existing Program Date instants are normalized to explicit milliseconds. */
+  startTimeMs: number;
+  endTimeMs: number;
+}
+
+export interface TVCatalogSnapshot {
+  version: typeof TV_CONTRACT_VERSION;
+  source: TVSourceDescriptor;
+  fetchedAtMs: number;
+  categories: PlayerCategory[];
+  channels: PlayerChannel[];
+  epg: TVEpgEntry[];
+}
+
+export interface TVLivePlaybackRequest {
+  kind: "live";
+  sourceId: string;
+  channelId: string;
+  media: MediaSource;
+}
+
+export interface TVCatchUpPlaybackRequest {
+  kind: "catch-up";
+  sourceId: string;
+  channelId: string;
+  media: MediaSource;
+  /** Unix epoch milliseconds; explicit timezone-independent instant. */
+  startTimeMs: number;
+  /** Archive duration in milliseconds. */
+  durationMs: number;
+}
+
+export type TVPlaybackRequest = TVLivePlaybackRequest | TVCatchUpPlaybackRequest;
+
+export interface TVPlaybackCapabilities {
+  live: boolean;
+  catchUp: boolean;
+  seek: boolean;
+  returnToLive: boolean;
+  mediaTypes: MediaSourceType[];
+}
+
+export interface TVPlaybackSnapshot {
+  request: TVPlaybackRequest | null;
+  state: PlaybackState;
+  /** Current media position in milliseconds. */
+  positionMs: number;
+  /** Duration in milliseconds; null when not known (for example live). */
+  durationMs: number | null;
+  error: PlaybackError | null;
+}
+
+export interface TVPlaybackAdapter {
+  getCapabilities(): TVPlaybackCapabilities;
+  load(request: TVPlaybackRequest, options: { signal: AbortSignal }): Promise<void>;
+  play(): void | Promise<void>;
+  pause(): void | Promise<void>;
+  seek(positionMs: number): void | Promise<void>;
+  returnToLive(): void | Promise<void>;
+  stop(): void | Promise<void>;
+  destroy(): void;
+  getSnapshot(): TVPlaybackSnapshot;
+  onChange(callback: (snapshot: TVPlaybackSnapshot) => void): () => void;
+}
+
 export interface AudioTrackOption {
   id: string;
   label: string;
