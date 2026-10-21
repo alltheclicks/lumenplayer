@@ -47,7 +47,7 @@ scripts/tv-env/run sdkmanager --install 'ndk;27.1.12297006' 'cmake;3.22.1'
 Build and inspect the package on Buildara:
 
 ```sh
-pnpm install --frozen-lockfile
+pnpm install --lockfile=false
 pnpm --filter @lumen/android-tv typecheck
 pnpm --filter @lumen/android-tv lint
 pnpm --filter @lumen/android-tv test
@@ -55,7 +55,7 @@ scripts/tv-env/run bash -c 'cd apps/android-tv/android && ./gradlew :app:assembl
 scripts/tv-env/run aapt2 dump badging apps/android-tv/android/app/build/outputs/apk/debug/app-debug.apk
 ```
 
-The APK was built from source commit `649ba9c7b3fda1fe1abe3d75695ea3a2895acd26`. Buildara produced `apps/android-tv/android/app/build/outputs/apk/debug/app-debug.apk` (57,832,992 bytes, SHA-256 `bd84c32fe6d0cefe50cb718f175a7e1b191de7401c17ca37d9aacf2b23859671`). `aapt2 dump badging` reports the internal package ID, min API 24, target/compile API 36, ARM ABIs, and both Android and leanback launch activities. The APK contains `assets/index.android.bundle`. The ignored `android/app/build/` directory contains generated build outputs.
+The coordinator rebuilt the APK from source commit `d90031f83b996fecf488261786e1f7ee21905d85` after the review corrections below. Buildara produced `apps/android-tv/android/app/build/outputs/apk/debug/app-debug.apk` (58,866,166 bytes, SHA-256 `bb93ae06592c47e80dc2e3b9e06284ef311fcec4c1c5ae4ef622be1fe61c0aed`). `aapt2 dump badging` reports the internal package ID, min API 24, target/compile API 36, ARM ABIs, and both Android and leanback launch activities. The APK contains `assets/index.android.bundle`. The ignored `android/app/build/` directory contains generated build outputs. The worker's earlier APK from `649ba9c` has been superseded.
 
 ## Root ownership request
 
@@ -73,3 +73,27 @@ The `scripts/tv-env/` environment checker does not currently verify or provision
 - Build tooling emitted non-blocking upstream warnings: Gradle deprecation notices and Metro's fallback resolution warning for a private `ReactNativeFeatureFlags` import in the TV fork's virtualized-lists package.
 
 This task does not request push, merge, deployment, production configuration or store submission.
+
+## Coordinator review — 2026-10-21
+
+The coordinator inspected worker source `649ba9c` and handoff `569e871`,
+verified the original artifact hash, and repeated the worker's typecheck,
+lint and four tests on Buildara. Review found that Settings opened from
+Playback always returned Home, and pending test loads could update the UI
+after navigation or overwrite a newer test.
+
+Correction `d90031f` remembers the Settings origin for both the header and
+hardware Back paths. Navigation invalidates pending UI requests, stops the
+placeholder adapter and resets its view state. The adapter also suppresses
+late state/error events after stop/destroy, and its lifetime is scoped to the
+App instance. Three additional regression cases cover Settings origin and
+stop/destroy during a pending test. Final typecheck, lint, seven tests and
+`:app:assembleDebug` all passed; the rebuild completed in 15 seconds. The
+rebuilt package metadata and bundled JS were inspected with aapt2/unzip.
+
+Until the coordinator integrates and regenerates the shared lockfile,
+dependency installation on this task branch uses `--lockfile=false`. A frozen
+install is the later integration gate, not a verified command on this branch.
+TV-003 consumption remains a separate integration step. No native runtime,
+remote control, language persistence or actual playback behavior was observed;
+those checks must run through the Mac/device tasks.
