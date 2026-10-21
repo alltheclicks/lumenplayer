@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   BackHandler,
@@ -26,8 +26,6 @@ import {
   languageOptions,
   type Locale,
 } from "./src/i18n/messages";
-
-const adapter = new NoPlaybackAdapter();
 
 interface DevicePreferencesModule {
   getLanguage(): Promise<string | null>;
@@ -92,8 +90,11 @@ function getPlaybackError(error: unknown): PlaybackError {
 }
 
 export default function App() {
+  const adapter = useMemo(() => new NoPlaybackAdapter(), []);
+  const playbackGeneration = useRef(0);
   const { width } = useWindowDimensions();
   const [screen, setScreen] = useState<Screen>("home");
+  const [settingsOrigin, setSettingsOrigin] = useState<Screen>("home");
   const [locale, setLocale] = useState<Locale>("en");
   const [languageReady, setLanguageReady] = useState(false);
   const [languageError, setLanguageError] = useState<"load" | "save" | null>(null);
@@ -128,17 +129,27 @@ export default function App() {
     };
   }, []);
 
+  const returnToPreviousScreen = useCallback(() => {
+    const destination = backDestination(screen, settingsOrigin);
+    if (destination == null) return false;
+    playbackGeneration.current += 1;
+    adapter.stop();
+    setPlayback(initialPlaybackState);
+    setScreen(destination);
+    return true;
+  }, [adapter, screen, settingsOrigin]);
+
   useEffect(() => {
     const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
-      const destination = backDestination(screen);
-      if (destination == null) return false;
-      setScreen(destination);
-      return true;
+      return returnToPreviousScreen();
     });
     return () => subscription.remove();
-  }, [screen]);
+  }, [returnToPreviousScreen]);
 
-  useEffect(() => () => adapter.destroy(), []);
+  useEffect(() => () => {
+    playbackGeneration.current += 1;
+    adapter.destroy();
+  }, [adapter]);
 
   const chooseLocale = useCallback(async (nextLocale: Locale) => {
     setLanguageError(null);
@@ -151,6 +162,7 @@ export default function App() {
   }, []);
 
   const beginPlayback = useCallback(async () => {
+    const generation = ++playbackGeneration.current;
     setPlayback((current) => reducePlaybackState(current, { type: "start" }));
     const source: MediaSource = {
       url: sourceUrl.trim() || "https://example.invalid/test-stream.m3u8",
@@ -158,15 +170,17 @@ export default function App() {
     };
     try {
       await adapter.load(source);
+      if (generation !== playbackGeneration.current) return;
       setPlayback((current) =>
         reducePlaybackState(current, { type: "stateChanged", state: adapter.getState() }),
       );
     } catch (error) {
+      if (generation !== playbackGeneration.current) return;
       setPlayback((current) =>
         reducePlaybackState(current, { type: "failed", error: getPlaybackError(error) }),
       );
     }
-  }, [sourceUrl]);
+  }, [adapter, sourceUrl]);
 
   if (!languageReady) {
     return (
@@ -178,9 +192,12 @@ export default function App() {
   }
 
   const navigate = (nextScreen: Screen) => {
+    playbackGeneration.current += 1;
+    adapter.stop();
+    setPlayback(initialPlaybackState);
+    if (nextScreen === "settings") setSettingsOrigin(screen);
     setLanguageError(null);
     if (nextScreen === "playback") {
-      setPlayback(initialPlaybackState);
       setSourceUrl("");
     }
     setScreen(nextScreen);
@@ -199,7 +216,7 @@ export default function App() {
         </View>
         <View style={styles.headerSpacer} />
         {screen !== "home" ? (
-          <FocusButton label={messages.back} onPress={() => navigate("home")} />
+          <FocusButton label={messages.back} onPress={returnToPreviousScreen} />
         ) : null}
       </View>
 

@@ -41,6 +41,7 @@ export function reducePlaybackState(
   }
 }
 
-export function backDestination(screen: Screen): Screen | null {
-  return screen === "home" ? null : "home";
+export function backDestination(screen: Screen, settingsOrigin: Screen = "home"): Screen | null {
+  if (screen === "home") return null;
+  return screen === "settings" && settingsOrigin === "playback" ? "playback" : "home";
 }

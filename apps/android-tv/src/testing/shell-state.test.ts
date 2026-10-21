@@ -9,6 +9,12 @@ describe("remote shell state", () => {
     expect(backDestination("home")).toBeNull();
   });
 
+  it("returns settings to playback when opened from playback", () => {
+    expect(backDestination("settings", "playback")).toBe("playback");
+    expect(backDestination("settings", "home")).toBe("home");
+    expect(backDestination("playback", "playback")).toBe("home");
+  });
+
   it("shows loading, connected playback, and actionable failures", () => {
     const loading = reducePlaybackState(initialPlaybackState, { type: "start" });
     expect(loading.status).toBe("loading");
