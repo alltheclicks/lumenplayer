@@ -1,9 +1,9 @@
 {
   "extends": "@lumen/tsconfig/base.json",
   "compilerOptions": {
-    "outDir": "dist",
-    "rootDir": "src"
+    // TEMPORARY DOM opt-in: session-store.ts reads localStorage/BroadcastChannel
+    // from globalThis. Remove once both are injected (P4 step 3f / P4.3-a).
+    "lib": ["DOM", "ES2020"]
   },
-  "include": ["src"],
-  "references": [{ "path": "../types" }]
+  "include": ["src"]
 }
