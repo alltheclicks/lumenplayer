@@ -1,6 +1,6 @@
 # Klaro Player — GRAND PLAN
 
-> Updated: 2026-10-21
+> Updated: 2026-10-23
 > Purpose: product-wide navigation and continuity for the owner and AI agents.  
 > Status: consolidated working plan. Accepted decisions, proposals, existing code and unknowns are explicitly separated below.  
 > Current execution priority: first installable Samsung, LG and Android TV applications, extracting the shared core as needed.
@@ -17,7 +17,7 @@ In five minutes an agent should know:
 2. Dedicated TV apps are the immediate delivery priority. The complete business platform remains in scope.
 3. Shared domain logic, platform playback adapters, cloud state and role-based panels are separate responsibilities.
 4. A web implementation is available. The complete shared core, TV clients and Klaro business backend are not yet implemented.
-5. The analyzed checkout is older than the existing P4 extraction branch. Check Git before starting; do not repeat completed work.
+5. The current combined checkout includes P4, TV contracts, both shells and SDK tools. Resolve the latest base through TASKS; do not restart from the historical P4 or pre-TV branches.
 6. A provider in the existing business spec also sells Klaro licenses. Separate reseller/sub-reseller rules remain an explicit decision.
 7. A task is complete only with evidence appropriate to its layer. A successful build is not device verification.
 
@@ -69,8 +69,8 @@ The first TV builds are internal engineering deliverables. They do not need the 
 | Owner conversation, 2026-10-20 | Whole-product vision; no provider transcoding by us; realtime state; device recovery goal; TV apps first; one GRAND_PLAN | Latest product direction |
 | [Design mirror guide](design/README.md), [panel design rules](design/klaro-panel/README.md), player/panel `.dc.html` exports | Newer design and account model; screen/state references | Committed on local `feat/klaro-player-rebrand` at `bfd5d3f` and merged into this branch. Available in this checkout; not pushed. Read-only mirror, not production code or blanket approval of every mockup |
 | `docs/KLARO-NALOZI-I-PANEL.md`, 2026-10-05 | Detailed user/provider/genadmin panels, credits, vouchers, activation | Untracked source found in worktree branch `t3code/klaro-player-logo-design`; not present in this checkout. Its important requirements are consolidated here; do not assume a relative link resolves |
-| `docs/DECISION-KLARO-PLATFORM-STACK-20261006.md` | Accepted React/Convex/Effect boundaries | Tracked on branch `t3code/evaluate-svelte-convex-effect-fit`, reviewed at `2f8d14d`; not in this checkout |
-| `docs/P4-CORE-EXTRACTION-PLAN-20261006.md` and that branch's `HANDOFF.md` | Extraction tasks and recorded validation | Same P4 branch; existing completed work must be retained |
+| `docs/DECISION-KLARO-PLATFORM-STACK-20261006.md` | Accepted React/Convex/Effect boundaries | Integrated locally from `2f8d14d`; available in this checkout. Later owner direction overrides historical sequencing |
+| `docs/P4-CORE-EXTRACTION-PLAN-20261006.md` and that branch's `HANDOFF.md` | Extraction tasks and recorded validation | Integrated locally; historical P4 evidence retained. TV contracts and consumers now extend this work; see current handoff |
 | [VISION.md](VISION.md), [SESSION-ARCHITECTURE.md](SESSION-ARCHITECTURE.md) | Earlier vision and session model | Several commercial/platform assumptions superseded; see conflict register |
 | [Multiplatform execution plan](docs/PLAN-MULTIPLATFORM-EXECUTION.md) | Detailed contracts, invariants and platform work | Apply newer decisions and current owner direction |
 | [September handoff](docs/AGENT-HANDOFF-20260925.md), [HANDOFF.md](HANDOFF.md) | Historical Git/release evidence | Historical production reports are not a fresh live check |
@@ -84,23 +84,23 @@ Reviewed repository: `alltheclicks/lumenplayer`.
 
 | Area | State as reviewed |
 |---|---|
-| Analysis/documentation checkout | `t3/klaro-codebase-analysis`, baseline `0105fb7` |
+| Current combined checkout | `t3/klaro-codebase-analysis`, code/SDK integration `537e3dfdfc079ea1694ef50e25f032c91844dfa2`; current operational base is recorded in live TASKS |
 | Documentation/design integration | Plan committed as `291710d`; design commit `bfd5d3f` merged locally into this branch. Local integration with `feat/klaro-player-rebrand` is owner-authorized; no push |
 | Newer P4 branch | `t3code/evaluate-svelte-convex-effect-fit`, `2f8d14d`, 10 commits beyond baseline |
-| Existing applications | `apps/web`, `apps/proxy`, `apps/push-api` |
+| Existing applications | `apps/web`, `apps/proxy`, `apps/push-api`, plus initial `apps/tv-web` and `apps/android-tv` shells |
 | Web | React/Vite, hls.js, live/EPG/catch-up/VOD/series, source handling, Cast/AirPlay, PWA |
 | Shared packages | `types`, `api`, `core`, `session-core`, `player-core`, `storage`, `input`, `demo-data`, `tsconfig` |
 | Portability | Incomplete: substantial logic remains in web components; browser storage/transport coupling remains |
 | Session/cloud sync | LocalStorage/BroadcastChannel implementation is not cross-device cloud sync |
 | Business platform | Convex accounts, pairing, credits, licensing and role-aware panel NOT STARTED in reviewed code |
-| TV/mobile applications | No dedicated target established in reviewed tree |
+| TV/mobile applications | TV web and Android TV shells built; LG IPK and Android debug APK exist. No real TV playback or device checks. Mobile clients not started |
 | Provider notifications | Web subscription persistence is local; standalone push-api presence does not prove end-to-end production delivery |
 | EXYU analytics | Existing integration; separate from the future Klaro business backend |
-| P4 progress | RECORDED: 0a–0d, 1a, 1b part 1 complete; next contracts/config work is step 2 |
-| P4 checks | RECORDED: 603 unit tests and required checks passed on that branch; not rerun during this documentation change |
+| P4 progress | Guardrails/characterization work retained; shared TV playback contract and both shell consumers implemented. Full extraction remains incomplete |
+| Current checks | TV-016 recorded 636 unit tests and frozen install/lint/typecheck/build passing; coordinator checked logs/artifact hashes. TV-017 adds 8 SDK fixture tests, rerun successfully by coordinator. No device or final-release pass |
 | Device evidence | Owner-reported device inventory corrected on 2026-10-21; see section 3. Samsung 2019, LG webOS 5.6.2-21, Sony 2022 or 2023 (year unconfirmed) and Fire TV Stick 4K Max on Fire OS 7.7.1.3. No agent device verification; Apple TV planned |
 
-Do not replace the newer P4 branch with this older code baseline. Documentation and design have been combined locally; the P4 implementation branch remains separate. Integrate these documents deliberately into the chosen implementation base. No push or production deployment is authorized by this plan.
+P4, both TV shells, shared contracts and SDK follow-up are now integrated locally. TV-016 source/evidence is `ecccf59`; TV-017 is `2f35245`; both are ancestors of the combined checkout. Follow the live TASKS base, not an older branch tip. Nothing has been pushed or deployed by this TV work.
 
 ### Conflict register
 
@@ -340,7 +340,7 @@ First TV scope: install/launch, controlled EXYU test source, channels/EPG, live,
 
 Full player scope retains VOD/series, search/categories, favorites, progress, subtitles/audio tracks, settings and supported casting. Later consideration: profiles/parental controls, PiP and explicit phone-as-remote/handoff. Confirm release scope rather than dropping features silently.
 
-UX handoff must cover remote focus/Back, couch readability, touch layouts, orientation, accessibility, slow/empty/offline states and activation/recovery. The inspected Claude Design mirror is now committed and available under `design/`; see sections 2 and 12 for omissions and unresolved rules. Rendered behavior and full approval are not established by that source inspection. Do not invent a new visual identity or mark the redesign integrated into the application from mockups alone.
+UX handoff must cover remote focus/Back, couch readability, touch layouts, orientation, accessibility, slow/empty/offline states and activation/recovery. The inspected Claude Design mirror is now committed and available under `design/`; see sections 2 and 12 for omissions and unresolved rules. Prototype browser review exists; it is not physical-device validation or full design approval. Do not invent a new visual identity or mark the redesign integrated into the application from mockups alone.
 
 ### Localization and language selection — owner direction, 2026-10-21
 
@@ -417,7 +417,7 @@ No universal launch date or “all platforms done” claim is established. Estim
 | D05 | Convex hosting/region/auth and recovery policy | Backend foundation | OPEN |
 | D06 | Exact TV models/OS and minimum supported generations | Platform compatibility claims | Owner inventory recorded in section 3; Sony model/OS, Fire generation and device access remain OPEN |
 | D07 | Prices, lifetime terms, voucher accounting, refunds and store purchase paths | Commercial release | Baseline credits/trial accepted; remaining rules OPEN |
-| D08 | Approved design export, screen inventory, profiles/parental scope | Production UI implementation | Mirror committed and available locally; rendered review and final approval OPEN |
+| D08 | Approved design export, screen inventory, profiles/parental scope | Production UI implementation | Prototype browser review completed; full design parity and final approval OPEN |
 | D09 | Genadmin operational roles, metric definitions and viewing-data access | Full dashboards/telemetry | Detailed proposal in sections 4–5 |
 | D10 | VIDAA hardware/distribution and future-target priority | Committing its release schedule | In vision; implementation timing OPEN |
 | D11 | Independent playback vs explicit shared control/handoff | Cloud playback/session integration | Clarification PROPOSED; do not sync setSource globally |
@@ -427,7 +427,7 @@ Resolve decisions when their implementation needs them. Most do not block M1.
 
 ### Design import reconciliation — 2026-10-20
 
-The mirror was imported through `t3/sync-klaro-design-dashboard`, committed as `bfd5d3f` and incorporated into local `feat/klaro-player-rebrand` and this branch. It contains player, activation and user/provider/genadmin panels. Its README records four missing large player screenshots and some shared assets copied from the companion project. This review inspected source files and instructions, not rendered UI or byte-for-byte fidelity against Claude Design.
+The mirror was imported through `t3/sync-klaro-design-dashboard`, committed as `bfd5d3f` and incorporated into local `feat/klaro-player-rebrand` and this branch. It contains player, activation and user/provider/genadmin panels. Its README records four missing large player screenshots and some shared assets copied from the companion project. Initial review inspected sources; a subsequent browser review covered player formats/themes, guide and activation render states. Exact fidelity to remote Claude Design and physical-device behavior were not established.
 
 Current design evidence from panel README, `PanelPlan.dc.html` and `PanelGenadmin.dc.html`:
 
@@ -480,12 +480,12 @@ Rules:
 | Workstream | Status | Next evidence |
 |---|---|---|
 | Whole-product consolidation | Working plan created; owner review of proposals pending | Resolve only decisions needed by next task |
-| Shared core/P4 | Partially complete on separate branch | Confirm base, continue contracts/config and required extraction |
-| Samsung/LG apps | NOT STARTED in reviewed tree | Installable packages and separate device results |
-| Android TV app | NOT STARTED in reviewed tree | Installable Sony build and real playback |
+| Shared core/P4 | Locally integrated; TV contract and shell consumer checks pass | Implement platform adapters against the existing contract |
+| Samsung/LG apps | Initial development shell, both web builds and LG IPK exist; Samsung signing blocked by TV-013 | Real platform playback, catalog UI, owner-signed WGT, physical checks |
+| Android TV app | Initial RN TV shell and debug APK built; shared contract connected to explicit unavailable adapter | Media3 playback, catalog UI and Sony/Fire device checks |
 | Fire/Apple/VIDAA | Planned targets; readiness unverified | Exact Fire identity; Apple hardware; VIDAA access |
 | Klaro backend/panel/billing | NOT STARTED in reviewed tree | Domain decisions then smallest connected beta |
-| Klaro redesign | Player/panel mirror committed and available locally; not integrated into application code | Rendered/state review; reconcile current and legacy account rules |
+| Klaro redesign | Mirror reviewed in browser; TV implementation is a minimal development shell, not completed design parity | TV-014/015 implement catalog/navigation from design; mobile layout and prototype interaction findings remain |
 | EXYU web | Existing; historical deployment evidence | Preserve behavior; inspect live only within authorized task |
 
 The earlier conversation's “25 work packages” are a planning decomposition, not 25 mandatory serial gates. Keep their detail only where useful; milestones and current evidence govern execution.

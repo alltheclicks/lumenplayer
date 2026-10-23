@@ -1,5 +1,7 @@
 # PLAN — V1 završnica → Multi-platform TV ekspanzija
 
+> Current execution (2026-10-23): `GRAND_PLAN.md`, the current `HANDOFF.md` entry and canonical `TASKS.md` govern current status and priorities. This document preserves architectural/planning history; older sequencing and next-task statements do not override TV-first delivery. Resolve root-relative documents from the repository root.
+
 > Datum: 2026-07-06 · Status: AKTIVAN master plan za sve buduće agente/radnike
 > Autor konteksta: multi-agent audit 2026-07-06 (35 agenata, adversarijalno verifikovano) + `docs/CODEBASE-AUDIT-2026-06-07.md`
 > **Update 2026-10-06:** stack i redosled potvrđeni u `docs/DECISION-KLARO-PLATFORM-STACK-20261006.md` (zatvara O-4 i O-7; Convex backend za naloge/aktivaciju; P4 ide pre TV aplikacija).

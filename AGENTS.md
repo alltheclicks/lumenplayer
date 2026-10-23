@@ -15,6 +15,8 @@ Reply to the owner in Serbian (Latin script). Preserve existing code and documen
 
 Product language is separate from agent communication: Klaro defaults to English and must support language selection at least on TV and desktop/web. Before UI/copy work, follow `GRAND_PLAN.md` section 9 localization requirements (resources, per-device preference, scripts/RTL, fallback and validation). Serbian design copy is prototype reference, not a Serbian-only product requirement. Do not edit mirrored design exports to translate them.
 
+Latest execution evidence starts at the current entry in `HANDOFF.md` and its `docs/tv/` links. Older handoffs are historical. A minimal development shell or successful package build is not full design parity or functioning playback.
+
 ## Continuity
 
 Keep `GRAND_PLAN.md` current when product decisions or milestone status change. Record detailed implementation and validation evidence in the relevant handoff. Distinguish code completion, review, actual-device verification and release. Preserve the whole-product vision while implementing bounded tasks.

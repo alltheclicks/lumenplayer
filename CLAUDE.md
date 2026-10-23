@@ -21,7 +21,7 @@ Primary strategy:
 Read first on every session:
  - `TASKS.md` — mandatory shared task registry. Resolve its canonical path using `git config --local --get klaro.taskRegistry`; follow its lock, claim, path-reservation and status protocol even when the owner does not mention it. General work requests select the next eligible ready task; analysis-only requests do not start implementation. Missing registry configuration must be reported, never replaced with a competing queue.
 0. `GRAND_PLAN.md` — whole-product scope, current TV-app priority, role/panel model, source conflicts and open decisions. It distinguishes accepted direction from proposals; older strategy summaries below may be superseded there.
-1. `docs/AGENT-HANDOFF-20260925.md` (current Git/production map), then `HANDOFF.md`
+1. `HANDOFF.md` current TV entry and linked `docs/tv/` task evidence; September handoff is historical production context
 2. `VISION.md`
 3. `SESSION-ARCHITECTURE.md`
 4. `BACKLOG.md`
@@ -86,12 +86,12 @@ packages/
 - `DECISION-DOC.md` — base architecture decisions
 - `SESSION-ARCHITECTURE.md` — active strategic model (session/cast)
 - `ROADMAP.md` — active phase plan (0A → V1 → Phase 1 Dashboard → Phase 2 Native)
-- `BACKLOG.md` — prioritized tasks and pending-review items
+- `TASKS.md` — sole live execution registry; `BACKLOG.md` — historical scope/reference
 - `HANDOFF.md` — latest execution status
 
 ## Workflow
 
-1. Read `HANDOFF.md` + `VISION.md` + `SESSION-ARCHITECTURE.md`
+1. Read current `HANDOFF.md`, `GRAND_PLAN.md` and canonical `TASKS.md`; older vision/architecture documents are supporting context
 2. Claim the next eligible `ready` task in the canonical `TASKS.md` under its registry lock. `BACKLOG.md` is historical reference, not an automatic work queue.
 3. Implement only that task
 4. Run validation (`typecheck`, `lint`, `build` as applicable)

@@ -1,5 +1,18 @@
 # Handoff — Lumen Player
 
+## Current TV handoff — 2026-10-23
+
+Read `GRAND_PLAN.md` for product decisions and the canonical `TASKS.md` (resolved through `git config --local --get klaro.taskRegistry`) for live ownership/status/base. Entries below this section are historical; their old “next” instructions are not the active queue.
+
+- Combined locally: P4 + design/plan + shared TV contract + Samsung/LG and Android shells (`ecccf59`), plus reproducible native SDK setup (`2f35245`). No push, deployment or device changes.
+- TV-016 evidence: frozen install, lint, typecheck, build and current-open-blockers QAF035 validation pass; 73 files / 636 unit tests. LG IPK and Android debug APK hashes checked by coordinator. Full logs and artifact paths: [TV-016](docs/tv/TV-016-integration.md).
+- TV-017 evidence: 8 offline SDK tests passed and were rerun by coordinator. Existing NDK/CMake checks pass; fresh real archive installation was not repeated. [TV-017](docs/tv/TV-017-sdk-followup.md).
+- Both shells use the same TV playback contract but advertise unavailable playback. They are basic engineering screens, not the complete Claude Design UI. Browser screenshots of web launch/settings/unavailable-playback were captured; no TV/Android runtime behavior established.
+- Next: separate Samsung, LG and Android playback adapters (TV-006/007/008), then/in parallel catalog UI (TV-014/015) with non-overlapping ownership. No transcoding/remux. Catalog/source policy must reuse shared packages; adapters are platform media/lifecycle implementations.
+- Owner/device gate TV-013: Samsung signing, LG developer mode/account, Mac tooling/access and private test source. This blocks hardware acceptance, not adapter implementation. Sony year remains uncertain 2022/2023; model/OS pending.
+- Earlier source snapshots and artifact hashes stay in task handoffs; current code base and task claims are in the live registry. Never treat a copied TASKS snapshot as the shared registry.
+
+
 ## Session 2026-10-06 — Platform/stack decision + P4 plan refresh (branch `t3code/evaluate-svelte-convex-effect-fit`)
 
 - **Done (docs only):** owner approved `docs/DECISION-KLARO-PLATFORM-STACK-20261006.md` — React family for every client (no Svelte), one `apps/tv-web` for Tizen/webOS/VIDAA/etc., react-native-tvos for Android TV + Apple TV (closes O-4), dedicated apps per platform (closes O-7), Convex backend for accounts/devices/credits/activation with devices only via versioned HTTP `/v1`, Effect only for server-side integrations, P4 core extraction before any TV app. Pointers added to `DECISION-DOC.md` and `PLAN-MULTIPLATFORM-EXECUTION.md`.

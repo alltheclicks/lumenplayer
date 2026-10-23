@@ -1,5 +1,7 @@
 # P4 — Izdvajanje jezgra iz `apps/web` (izvršni plan, osvežen 2026-10-06)
 
+> Current execution (2026-10-23): `GRAND_PLAN.md`, the current `HANDOFF.md` entry and canonical `TASKS.md` govern current status and priorities. This document preserves architectural/planning history; older sequencing and next-task statements do not override TV-first delivery. Resolve root-relative documents from the repository root.
+
 > Status: AKTIVAN · Odluka: `docs/DECISION-KLARO-PLATFORM-STACK-20261006.md` (D5 — P4 ide pre svake TV aplikacije)
 > Zamenjuje detalje iz `PLAN-MULTIPLATFORM-EXECUTION.md` §4 (ciljevi, invarijante i exit kriterijum odatle i dalje važe). Inventar je izmeren na `0105fb7` (`wc -l`), ne procenjen.
 

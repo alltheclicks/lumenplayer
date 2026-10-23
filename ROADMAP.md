@@ -1,5 +1,7 @@
 # Roadmap — Klaro Player
 
+> Current execution (2026-10-23): `GRAND_PLAN.md`, the current `HANDOFF.md` entry and canonical `TASKS.md` govern current status and priorities. This document preserves architectural/planning history; older sequencing and next-task statements do not override TV-first delivery. Resolve root-relative documents from the repository root.
+
 > Datum: 12. februar 2026
 > Napomena: ovaj roadmap prati `SESSION-ARCHITECTURE.md` i `VISION.md`
 
