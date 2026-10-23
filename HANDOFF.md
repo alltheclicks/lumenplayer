@@ -2,15 +2,24 @@
 
 ## Current TV handoff — 2026-10-23
 
-Adapter update: LG `dad6324`, Android Media3 `fab50d8`, and Samsung plus shared recovery correction `306b3fd` (includes `0bdb27a`/`c4c8cf4`) are local review artifacts on worker branches, not yet in the common base. TV-020 reviews/integrates them and wires the TV web test flow. Android worker APK includes Media3; no actual-device playback is established. Consult live TASKS before choosing work.
+TV-020 combined source is `c93a56c41b65a581ee4be06a8de56376f5bbb540` on isolated
+`t3/tv-adapter-integration`, awaiting coordinator review. It contains LG
+`dad6324`, Android `fab50d8`, Samsung/shared `306b3fd`, platform-selected web
+composition and the ephemeral live HLS test. Root lint/typecheck/build/QAF035,
+757 unit tests, TV web 92+2 tests and Android 33 tests pass. LG IPK and Android
+APK contents/hashes are verified; Samsung package remains blocked by owner
+signing and its test source requires configured exact origins. No real
+media/device proof, push, deployment or SDK mutation. Full build target wiring,
+artifact hashes, review corrections and limitations:
+[TV-020 integration](docs/tv/TV-020-adapter-integration.md).
 
 Read `GRAND_PLAN.md` for product decisions and the canonical `TASKS.md` (resolved through `git config --local --get klaro.taskRegistry`) for live ownership/status/base. Entries below this section are historical; their old “next” instructions are not the active queue.
 
 - Combined locally: P4 + design/plan + shared TV contract + Samsung/LG and Android shells (`ecccf59`), plus reproducible native SDK setup (`2f35245`). No push, deployment or device changes.
 - TV-016 evidence: frozen install, lint, typecheck, build and current-open-blockers QAF035 validation pass; 73 files / 636 unit tests. LG IPK and Android debug APK hashes checked by coordinator. Full logs and artifact paths: [TV-016](docs/tv/TV-016-integration.md).
 - TV-017 evidence: 8 offline SDK tests passed and were rerun by coordinator. Existing NDK/CMake checks pass; fresh real archive installation was not repeated. [TV-017](docs/tv/TV-017-sdk-followup.md).
-- Both shells use the same TV playback contract but advertise unavailable playback. They are basic engineering screens, not the complete Claude Design UI. Browser screenshots of web launch/settings/unavailable-playback were captured; no TV/Android runtime behavior established.
-- Next: separate Samsung, LG and Android playback adapters (TV-006/007/008), then/in parallel catalog UI (TV-014/015) with non-overlapping ownership. No transcoding/remux. Catalog/source policy must reuse shared packages; adapters are platform media/lifecycle implementations.
+- Historical TV-016 baseline: both shells used the same TV playback contract with unavailable playback; TV-020 now wires platform adapters on its isolated review branch. They are basic engineering screens, not the complete Claude Design UI. Browser screenshots of web launch/settings/unavailable-playback were captured; no TV/Android runtime behavior established.
+- Next: coordinator reviews the TV-020 combined branch; catalog UI remains TV-014/015 with registry-coordinated ownership. No transcoding/remux. Catalog/source policy must reuse shared packages; adapters are platform media/lifecycle implementations.
 - Owner/device gate TV-013: Samsung signing, LG developer mode/account, Mac tooling/access and private test source. This blocks hardware acceptance, not adapter implementation. Sony year remains uncertain 2022/2023; model/OS pending.
 - Earlier source snapshots and artifact hashes stay in task handoffs; current code base and task claims are in the live registry. Never treat a copied TASKS snapshot as the shared registry.
 

@@ -100,6 +100,16 @@ Reviewed repository: `alltheclicks/lumenplayer`.
 | Current checks | TV-016 recorded 636 unit tests and frozen install/lint/typecheck/build passing; coordinator checked logs/artifact hashes. TV-017 adds 8 SDK fixture tests, rerun successfully by coordinator. No device or final-release pass |
 | Device evidence | Owner-reported device inventory corrected on 2026-10-21; see section 3. Samsung 2019, LG webOS 5.6.2-21, Sony 2022 or 2023 (year unconfirmed) and Fire TV Stick 4K Max on Fire OS 7.7.1.3. No agent device verification; Apple TV planned |
 
+TV-020 integration review artifact: isolated `t3/tv-adapter-integration` at
+`c93a56c41b65a581ee4be06a8de56376f5bbb540` now combines the three platform
+adapters and wires Samsung/LG build targets to an ephemeral internal live HLS
+URL flow. 757 host unit tests and root checks pass; LG IPK and Android APK
+contents are verified. Samsung signing and approved source/CDN origins, real
+media and every actual-device gate remain outstanding. This does not complete
+M1 or design/catalog parity. See [TV-020 evidence](docs/tv/TV-020-adapter-integration.md)
+and live TASKS for review/ownership; the common base is unchanged until the
+coordinator integrates the branch.
+
 P4, both TV shells, shared contracts and SDK follow-up are now integrated locally. TV-016 source/evidence is `ecccf59`; TV-017 is `2f35245`; both are ancestors of the combined checkout. Follow the live TASKS base, not an older branch tip. Nothing has been pushed or deployed by this TV work.
 
 ### Conflict register
