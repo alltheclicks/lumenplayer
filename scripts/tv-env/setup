@@ -74,6 +74,8 @@ for archive, top, destination in archives:
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.move(str(pathlib.Path(scratch) / top), target)
 PY
+# Native TV packages use separately pinned vendor archives and reuse valid installations.
+"$here/android-native" --accept-licenses
 # Record the standard Android SDK license through its own manager. Answer manually
 # after reviewing each displayed agreement; cached acceptance makes this a no-op.
 "$here/run" sdkmanager --sdk_root="$sdk_root/android" --licenses
