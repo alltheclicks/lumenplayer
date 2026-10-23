@@ -10,3 +10,4 @@ android/app/src/main/assets/source.local.json
 .env.local
 .metro-health-check*
 coverage/
+android/.kotlin/
