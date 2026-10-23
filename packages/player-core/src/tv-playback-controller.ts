@@ -45,6 +45,7 @@ const initialSnapshot = (): TVPlaybackSnapshot => ({
  */
 export class TVPlaybackController {
   private generation = 0;
+  private liveTransition = 0;
   private abortController: AbortController | null = null;
   private snapshot = initialSnapshot();
   private readonly listeners = new Set<TVPlaybackListener>();
@@ -106,10 +107,12 @@ export class TVPlaybackController {
       this.emit();
     } catch (error) {
       if (!this.isCurrent(generation) || controller.signal.aborted || isAbortError(error)) return;
-      const safeError = redactUnknownError(error);
+      const failed = this.adapter.getSnapshot();
+      const safeError = failed.request === request && failed.state === "error" && failed.error
+        ? redactPlaybackError(failed.error) : redactUnknownError(error);
       this.snapshot = { ...this.snapshot, state: "error", error: safeError };
       this.emit();
-      throw new Error(safeError.message);
+      throw playbackFailure(safeError);
     } finally {
       options.signal?.removeEventListener("abort", forwardCallerAbort);
       // Retain the generation signal until replacement/teardown so adapters
@@ -143,16 +146,39 @@ export class TVPlaybackController {
       throw new UnsupportedPlaybackCapabilityError("returnToLive");
     }
     const generation = this.generation;
-    await this.adapter.returnToLive();
-    if (!this.isCurrent(generation) || this.abortController?.signal.aborted) return;
-    // Returning to live changes the request (including its media URL). Adopt
-    // the adapter's new request before filtering its subsequent notifications.
-    const snapshot = this.adapter.getSnapshot();
-    this.snapshot = {
-      ...snapshot,
-      error: snapshot.error ? redactPlaybackError(snapshot.error) : null,
-    };
-    this.emit();
+    const transition = ++this.liveTransition;
+    const request = this.snapshot.request;
+    const current = () => this.isCurrent(generation)
+      && transition === this.liveTransition && !this.abortController?.signal.aborted;
+    try {
+      await this.adapter.returnToLive();
+      if (!current()) return;
+      // Only the settled command may adopt its successor. Notifications still
+      // require exact object identity, including throughout this transition.
+      const snapshot = this.adapter.getSnapshot();
+      this.snapshot = {
+        ...snapshot,
+        error: snapshot.error ? redactPlaybackError(snapshot.error) : null,
+      };
+      this.emit();
+    } catch (error) {
+      if (!current() || isAbortError(error)) return;
+      const failed = this.adapter.getSnapshot();
+      // The command may fail before resolving live, or after replacing archive
+      // with live. A successor must belong to the same source and channel;
+      // unrelated adapter snapshots never become this controller's request.
+      const belongs = failed.request === request || (request?.kind === "catch-up"
+        && failed.request?.kind === "live"
+        && failed.request.sourceId === request.sourceId
+        && failed.request.channelId === request.channelId);
+      const safeError = belongs && failed.state === "error" && failed.error
+        ? redactPlaybackError(failed.error) : redactUnknownError(error);
+      this.snapshot = {
+        ...(belongs ? failed : this.snapshot), state: "error", error: safeError,
+      };
+      this.emit();
+      throw playbackFailure(safeError);
+    }
   }
 
   destroy(): void {
@@ -212,10 +238,12 @@ const isAbortError = (error: unknown): boolean => (
 );
 
 const redactPlaybackError = (error: PlaybackError): PlaybackError => ({
-  code: /^[a-z0-9_.-]{1,64}$/i.test(error.code) ? error.code : "playback_failed",
+  code: typeof error.code === "string" && /^[a-z0-9_.-]{1,64}$/i.test(error.code)
+    ? error.code : "playback_failed",
   message: "Playback request failed",
-  fatal: error.fatal,
-  ...(typeof error.httpStatus === "number" ? { httpStatus: error.httpStatus } : {}),
+  fatal: typeof error.fatal === "boolean" ? error.fatal : true,
+  ...(typeof error.httpStatus === "number" && Number.isInteger(error.httpStatus)
+    && error.httpStatus >= 100 && error.httpStatus <= 599 ? { httpStatus: error.httpStatus } : {}),
 });
 
 const redactUnknownError = (error: unknown): PlaybackError => {
@@ -224,3 +252,8 @@ const redactUnknownError = (error: unknown): PlaybackError => {
   }
   return { code: "playback_failed", message: "Playback request failed", fatal: true };
 };
+
+/** Preserve only the sanitized contract fields, never native exception data. */
+const playbackFailure = (error: PlaybackError): Error & PlaybackError => (
+  Object.assign(new Error(error.message), error)
+);
