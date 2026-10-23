@@ -101,6 +101,12 @@ android {
 }
 
 dependencies {
+    // Platform Media3 only: no Play Services, Cast, IMA or npm video dependency.
+    def media3Version = "1.11.1"
+    implementation("androidx.media3:media3-exoplayer:$media3Version")
+    implementation("androidx.media3:media3-exoplayer-hls:$media3Version")
+    implementation("androidx.media3:media3-exoplayer-dash:$media3Version")
+
     // The version of react-native is set by the React Native Gradle Plugin
     implementation("com.facebook.react:react-android")
 
@@ -109,4 +115,14 @@ dependencies {
     } else {
         implementation jscFlavor
     }
+}
+
+// RN's default JS input tree excludes **/android/**, including our TS adapter
+// directory. Track it explicitly so adapter edits invalidate the bundled APK.
+tasks.withType(com.facebook.react.tasks.BundleHermesCTask).configureEach {
+    inputs.files(fileTree("../../src/adapters/android") {
+        include("**/*.ts", "**/*.tsx")
+        exclude("**/*.test.ts")
+    }).withPropertyName("klaroAndroidPlaybackSources")
+      .withPathSensitivity(PathSensitivity.RELATIVE)
 }

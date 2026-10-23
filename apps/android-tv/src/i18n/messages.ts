@@ -22,7 +22,11 @@ export interface Messages {
   stateLoading: string;
   statePlaying: string;
   stateError: string;
+  statePaused: string;
+  stateEnded: string;
+  stateBuffering: string;
   noPlaybackAdapter: string;
+  playbackFailed: string;
   loadLanguageError: string;
   saveLanguageError: string;
   remoteHint: string;
@@ -43,15 +47,18 @@ const english: Messages = {
   home: "Home",
   playbackTitle: "Playback test",
   playbackDescription:
-    "Enter a stream URL to check the shell. Playback is unavailable until the Android Media3 adapter is added.",
-  streamUrl: "HLS stream URL (optional)",
+    "Enter your HLS stream URL. It is used for this test only and is not saved.",
+  streamUrl: "HLS stream URL",
   startPlayback: "Start playback test",
   stateIdle: "Ready to test",
   stateLoading: "Loading stream…",
-  statePlaying: "Playback adapter connected",
+  statePlaying: "Playing",
   stateError: "Playback could not start",
-  noPlaybackAdapter:
-    "No real playback in this build. The Android Media3 adapter is not connected yet.",
+  statePaused: "Paused",
+  stateEnded: "Playback ended",
+  stateBuffering: "Buffering…",
+  noPlaybackAdapter: "Android playback is unavailable in this build.",
+  playbackFailed: "Playback failed. Check your source and connection.",
   loadLanguageError: "Language preference could not be loaded. English is selected.",
   saveLanguageError: "Language preference could not be saved on this device.",
   remoteHint: "Use the remote arrows to move, OK to select, and Back to return.",
@@ -74,15 +81,16 @@ const messages: Record<Locale, Messages> = {
     home: "Start",
     playbackTitle: "Wiedergabetest",
     playbackDescription:
-      "Gib eine Stream-URL ein. Wiedergabe ist erst verfügbar, wenn der Android-Media3-Adapter hinzugefügt wurde.",
-    streamUrl: "HLS-Stream-URL (optional)",
+      "Gib deine HLS-Stream-URL ein. Sie wird nur für diesen Test verwendet und nicht gespeichert.",
+    streamUrl: "HLS-Stream-URL",
     startPlayback: "Wiedergabetest starten",
     stateIdle: "Bereit zum Testen",
     stateLoading: "Stream wird geladen…",
-    statePlaying: "Wiedergabeadapter verbunden",
+    statePlaying: "Wiedergabe läuft",
     stateError: "Wiedergabe konnte nicht starten",
     noPlaybackAdapter:
-      "In diesem Build gibt es keine echte Wiedergabe. Der Android-Media3-Adapter ist noch nicht verbunden.",
+      "Android-Wiedergabe ist in diesem Build nicht verfügbar.",
+    playbackFailed: "Wiedergabe fehlgeschlagen. Prüfe Quelle und Verbindung.",
     loadLanguageError: "Spracheinstellung konnte nicht geladen werden. Englisch ist ausgewählt.",
     saveLanguageError: "Spracheinstellung konnte nicht auf diesem Gerät gespeichert werden.",
     remoteHint: "Pfeiltasten bewegen, OK wählt aus, Zurück kehrt zurück.",
@@ -102,15 +110,16 @@ const messages: Record<Locale, Messages> = {
     home: "Početna",
     playbackTitle: "Test reprodukcije",
     playbackDescription:
-      "Unesite adresu toka za proveru ekrana. Reprodukcija nije dostupna dok se ne doda Android Media3 adapter.",
-    streamUrl: "HLS adresa toka (opciono)",
+      "Unesite svoju HLS adresu toka. Koristi se samo za ovaj test i ne čuva se.",
+    streamUrl: "HLS adresa toka",
     startPlayback: "Pokreni test reprodukcije",
     stateIdle: "Spremno za test",
     stateLoading: "Učitavanje toka…",
-    statePlaying: "Adapter reprodukcije je povezan",
+    statePlaying: "Reprodukcija je u toku",
     stateError: "Reprodukcija nije pokrenuta",
     noPlaybackAdapter:
-      "Ova verzija ne reprodukuje stvarni sadržaj. Android Media3 adapter još nije povezan.",
+      "Android reprodukcija nije dostupna u ovoj verziji.",
+    playbackFailed: "Reprodukcija nije uspela. Proverite izvor i vezu.",
     loadLanguageError: "Jezik nije učitan. Izabran je engleski.",
     saveLanguageError: "Jezik nije sačuvan na ovom uređaju.",
     remoteHint: "Strelice pomeraju fokus, OK bira, a Nazad vraća na početni ekran.",
@@ -130,15 +139,16 @@ const messages: Record<Locale, Messages> = {
     home: "Почетна",
     playbackTitle: "Тест репродукције",
     playbackDescription:
-      "Унесите адресу тока за проверу екрана. Репродукција није доступна док се не дода Android Media3 адаптер.",
-    streamUrl: "HLS адреса тока (опционо)",
+      "Унесите своју HLS адресу тока. Користи се само за овај тест и не чува се.",
+    streamUrl: "HLS адреса тока",
     startPlayback: "Покрени тест репродукције",
     stateIdle: "Спремно за тест",
     stateLoading: "Учитавање тока…",
-    statePlaying: "Адаптер репродукције је повезан",
+    statePlaying: "Репродукција је у току",
     stateError: "Репродукција није покренута",
     noPlaybackAdapter:
-      "Ова верзија не репродукује стварни садржај. Android Media3 адаптер још није повезан.",
+      "Android репродукција није доступна у овој верзији.",
+    playbackFailed: "Репродукција није успела. Проверите извор и везу.",
     loadLanguageError: "Језик није учитан. Изабран је енглески.",
     saveLanguageError: "Језик није сачуван на овом уређају.",
     remoteHint: "Стрелице померају фокус, OK бира, а Назад враћа на почетни екран.",
