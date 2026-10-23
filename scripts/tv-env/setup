@@ -1,0 +1,93 @@
+#!/usr/bin/env bash
+# Linux host setup only. No sudo, profile changes, devices or emulator execution.
+set -euo pipefail
+here="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+sdk_root="${KLARO_TV_SDK_ROOT:-$HOME/.local/share/klaro-tv-sdk}"
+if [[ "${1:-}" != --accept-licenses || $# != 1 ]]; then
+  echo 'Read docs/tv/TV-002-environment.md and vendor licenses first.' >&2
+  echo 'Usage: scripts/tv-env/setup --accept-licenses' >&2
+  exit 2
+fi
+[[ "$(uname -s)-$(uname -m)" == Linux-x86_64 ]] || { echo 'Requires Linux x86_64' >&2; exit 1; }
+[[ $EUID != 0 ]] || { echo 'Run as the SDK-owning user, without sudo' >&2; exit 1; }
+for command in curl python3 tar unzip zip rg; do command -v "$command" >/dev/null; done
+mkdir -p "$sdk_root/downloads" "$sdk_root/state/android" "$sdk_root/state/gradle"
+# Use versioned URLs and locked hashes, including when reusing cached downloads.
+python3 - "$here/downloads.json" "$sdk_root/downloads" <<'PY'
+import hashlib, json, pathlib, subprocess, sys
+lock = json.loads(pathlib.Path(sys.argv[1]).read_text())
+cache = pathlib.Path(sys.argv[2])
+for item in lock['archives']:
+    p = cache / item['file']
+    if not p.exists():
+        temporary = p.with_suffix(p.suffix + '.partial')
+        subprocess.run(['curl', '--fail', '--location', '--retry', '3',
+                        '--connect-timeout', '30', '--max-time', '3600',
+                        item['url'], '--output', str(temporary)], check=True)
+        temporary.rename(p)
+    content = p.read_bytes()
+    assert hashlib.sha256(content).hexdigest() == item['sha256'], 'SHA-256 mismatch: ' + p.name
+    if 'vendor_sha1' in item:
+        assert hashlib.sha1(content).hexdigest() == item['vendor_sha1'], 'Vendor SHA-1 mismatch: ' + p.name
+    print('Verified', p.name, flush=True)
+PY
+if [[ ! -x "$sdk_root/node-v22.22.2-linux-x64/bin/node" ]]; then
+  tar --no-same-owner -xf "$sdk_root/downloads/node-v22.22.2-linux-x64.tar.xz" -C "$sdk_root"
+fi
+if [[ ! -x "$sdk_root/jdk-17.0.20.1+1/bin/java" ]]; then
+  tar --no-same-owner -xf "$sdk_root/downloads/OpenJDK17U-jdk_x64_linux_hotspot_17.0.20.1_1.tar.gz" -C "$sdk_root"
+fi
+if [[ ! -x "$sdk_root/jdk8u504-b01/bin/java" ]]; then
+  tar --no-same-owner -xf "$sdk_root/downloads/OpenJDK8U-jdk_x64_linux_hotspot_8u504b01.tar.gz" -C "$sdk_root"
+fi
+if [[ ! -x "$sdk_root/gradle-8.13/bin/gradle" ]]; then
+  unzip -q "$sdk_root/downloads/gradle-8.13-bin.zip" -d "$sdk_root"
+fi
+mkdir -p "$sdk_root/lg-cli"
+# npm ci honors every transitive integrity pin; no root manifest or global npm install.
+cp "$here/lg-package.json" "$sdk_root/lg-cli/package.json"
+cp "$here/lg-package-lock.json" "$sdk_root/lg-cli/package-lock.json"
+"$here/run" npm ci --prefix "$sdk_root/lg-cli" --ignore-scripts --no-audit --no-fund
+# Exact Android archive revisions, rather than sdkmanager's mutable platform-tools.
+python3 - "$sdk_root" <<'PY'
+import pathlib, shutil, sys, tempfile, zipfile
+root = pathlib.Path(sys.argv[1])
+archives = [
+    ('commandlinetools-linux-15859902_latest.zip', 'cmdline-tools', 'cmdline-tools/22.0'),
+    ('platform-tools_r37.0.1-linux.zip', 'platform-tools', 'platform-tools'),
+    ('platform-36_r02.zip', 'android-36', 'platforms/android-36'),
+    ('build-tools_r36_linux.zip', 'android-16', 'build-tools/36.0.0'),
+]
+for archive, top, destination in archives:
+    target = root / 'android' / destination
+    if target.exists():
+        continue
+    with tempfile.TemporaryDirectory(dir=root, prefix='extract.') as scratch:
+        with zipfile.ZipFile(root / 'downloads' / archive) as z:
+            for entry in z.infolist():
+                path = pathlib.PurePosixPath(entry.filename)
+                assert not path.is_absolute() and '..' not in path.parts
+                z.extract(entry, scratch)
+                mode = (entry.external_attr >> 16) & 0o777
+                if mode:
+                    (pathlib.Path(scratch) / entry.filename).chmod(mode)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(pathlib.Path(scratch) / top), target)
+PY
+# Record the standard Android SDK license through its own manager. Answer manually
+# after reviewing each displayed agreement; cached acceptance makes this a no-op.
+"$here/run" sdkmanager --sdk_root="$sdk_root/android" --licenses
+if [[ ! -f "$sdk_root/tizen-sdk-10.0/sdk.info" ]]; then
+  chmod +x "$sdk_root/downloads/web-cli_Tizen_SDK_10.0_ubuntu-64.bin"
+  "$sdk_root/downloads/web-cli_Tizen_SDK_10.0_ubuntu-64.bin" --accept-license "$sdk_root/tizen-sdk-10.0"
+fi
+python3 - "$sdk_root" <<'PY'
+import pathlib, sys
+root = pathlib.Path(sys.argv[1])
+p = root / 'tizen-sdk-10.0/sdk.info'
+lines = [line for line in p.read_text().splitlines() if not line.startswith('JDK_PATH=')]
+lines.append('JDK_PATH=' + str(root / 'jdk8u504-b01'))
+p.write_text('\n'.join(lines) + '\n')
+PY
+echo 'Base SDKs ready. Next: scripts/tv-env/samsung-extensions --accept-licenses (TV resources only).'
+"$here/check"
