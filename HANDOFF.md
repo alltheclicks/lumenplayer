@@ -2,6 +2,8 @@
 
 ## Current TV handoff — 2026-10-23
 
+Adapter update: LG `dad6324`, Android Media3 `fab50d8`, and Samsung plus shared recovery correction `306b3fd` (includes `0bdb27a`/`c4c8cf4`) are local review artifacts on worker branches, not yet in the common base. TV-020 reviews/integrates them and wires the TV web test flow. Android worker APK includes Media3; no actual-device playback is established. Consult live TASKS before choosing work.
+
 Read `GRAND_PLAN.md` for product decisions and the canonical `TASKS.md` (resolved through `git config --local --get klaro.taskRegistry`) for live ownership/status/base. Entries below this section are historical; their old “next” instructions are not the active queue.
 
 - Combined locally: P4 + design/plan + shared TV contract + Samsung/LG and Android shells (`ecccf59`), plus reproducible native SDK setup (`2f35245`). No push, deployment or device changes.
