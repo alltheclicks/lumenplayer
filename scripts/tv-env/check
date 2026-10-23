@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+set -euo pipefail
+here="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+sdk_root="${KLARO_TV_SDK_ROOT:-$HOME/.local/share/klaro-tv-sdk}"
+"$sdk_root/jdk8u504-b01/bin/java" -version
+[[ "$("$here/run" node --version)" == v22.22.2 ]]
+[[ "$("$here/run" ares --version)" == 'Version: 3.2.6' ]]
+python3 - "$sdk_root" <<'PY'
+import pathlib, sys
+root = pathlib.Path(sys.argv[1])
+for relative, revision in (
+    ('cmdline-tools/22.0', '22.0'),
+    ('platform-tools', '37.0.1'),
+    ('build-tools/36.0.0', '36.0.0'),
+    ('platforms/android-36', '2'),
+):
+    content = (root / 'android' / relative / 'source.properties').read_text()
+    properties = dict(line.split('=', 1) for line in content.splitlines() if '=' in line)
+    assert properties['Pkg.Revision'] == revision, relative + ' revision drift'
+assert 'JAVA_VERSION="17.0.20.1"' in (root / 'jdk-17.0.20.1+1/release').read_text()
+assert 'JAVA_VERSION="1.8.0_504"' in (root / 'jdk8u504-b01/release').read_text()
+assert 'JDK_PATH=' + str(root / 'jdk8u504-b01') in (root / 'tizen-sdk-10.0/sdk.info').read_text()
+PY
+for tool in node java ares sdkmanager adb aapt2 gradle tizen sdb; do
+  printf '\n%s\n' "$tool"
+  case "$tool" in
+    java) "$here/run" java -version ;;
+    tizen|sdb) "$here/run" "$tool" version ;;
+    adb|aapt2) "$here/run" "$tool" version ;;
+    *) "$here/run" "$tool" --version ;;
+  esac
+done

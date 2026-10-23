@@ -1,0 +1,13 @@
+node_modules/
+android/.gradle/
+android/build/
+android/local.properties
+android/app/build/
+android/app/.cxx/
+android/app/*.keystore
+android/app/src/main/assets/source.local.json
+.env
+.env.local
+.metro-health-check*
+coverage/
+android/.kotlin/

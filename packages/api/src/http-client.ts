@@ -1,6 +1,6 @@
 export interface HttpClient {
-  get<T>(url: string): Promise<T>;
-  getText(url: string): Promise<string>;
+  get<T>(url: string, options?: { signal?: AbortSignal }): Promise<T>;
+  getText(url: string, options?: { signal?: AbortSignal }): Promise<string>;
 }
 
 export interface FetchHttpClientOptions {
@@ -61,22 +61,25 @@ export class FetchHttpClient implements HttpClient {
     this.timeoutMs = Math.max(0, Math.floor(options.timeoutMs ?? DEFAULT_TIMEOUT_MS));
   }
 
-  async get<T>(url: string): Promise<T> {
-    const response = await this.fetchWithRetry(url);
+  async get<T>(url: string, options: { signal?: AbortSignal } = {}): Promise<T> {
+    const response = await this.fetchWithRetry(url, options.signal);
     return response.json() as Promise<T>;
   }
 
-  async getText(url: string): Promise<string> {
-    const response = await this.fetchWithRetry(url);
+  async getText(url: string, options: { signal?: AbortSignal } = {}): Promise<string> {
+    const response = await this.fetchWithRetry(url, options.signal);
     return response.text();
   }
 
-  private async fetchWithRetry(url: string): Promise<Response> {
+  private async fetchWithRetry(url: string, signal?: AbortSignal): Promise<Response> {
     for (let attempt = 0; attempt <= this.maxRetries; attempt += 1) {
       let response: Response;
       try {
-        response = await this.fetchWithTimeout(url);
+        response = await this.fetchWithTimeout(url, signal);
       } catch (error) {
+        // Caller cancellation is intentional and must never be retried or
+        // converted to a transport error.
+        if (signal?.aborted) throw error;
         // Browser-level network failures (for example `Failed to fetch`) do
         // not have an HTTP status. They are usually transient and previously
         // bypassed the retry policy entirely.
@@ -104,25 +107,30 @@ export class FetchHttpClient implements HttpClient {
   // M1.2-c (KN-10): each attempt gets a fresh AbortController timeout so a
   // hung provider socket can never stall the request indefinitely. A timeout
   // surfaces as a descriptive Error instead of an opaque AbortError.
-  private async fetchWithTimeout(url: string): Promise<Response> {
-    if (this.timeoutMs <= 0) {
+  private async fetchWithTimeout(url: string, callerSignal?: AbortSignal): Promise<Response> {
+    if (this.timeoutMs <= 0 && !callerSignal) {
       return fetch(url);
     }
 
     const controller = new AbortController();
-    const timer = setTimeout(() => {
-      controller.abort();
-    }, this.timeoutMs);
+    const forwardAbort = () => controller.abort(callerSignal?.reason);
+    if (callerSignal?.aborted) forwardAbort();
+    else callerSignal?.addEventListener("abort", forwardAbort, { once: true });
+    const timer = this.timeoutMs > 0
+      ? setTimeout(() => controller.abort(), this.timeoutMs)
+      : null;
 
     try {
       return await fetch(url, { signal: controller.signal });
     } catch (error) {
+      if (callerSignal?.aborted) throw error;
       if (controller.signal.aborted) {
-        throw new Error(`Request timed out after ${this.timeoutMs}ms: ${url}`);
+        throw new Error(`Request timed out after ${this.timeoutMs}ms`);
       }
       throw error;
     } finally {
-      clearTimeout(timer);
+      if (timer !== null) clearTimeout(timer);
+      callerSignal?.removeEventListener("abort", forwardAbort);
     }
   }
 

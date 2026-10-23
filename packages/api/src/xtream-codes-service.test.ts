@@ -29,6 +29,24 @@ const createVod = (streamId: number, categoryId: string): XtreamVOD => ({
 });
 
 describe("XtreamCodesService control/media routing", () => {
+  it("passes caller cancellation through catalog and EPG requests", async () => {
+    const signals: AbortSignal[] = [];
+    const httpClient: HttpClient = {
+      get: async <T>(_url: string, options?: { signal?: AbortSignal }): Promise<T> => {
+        if (options?.signal) signals.push(options.signal);
+        return [] as T;
+      },
+      getText: async () => "",
+    };
+    const service = new XtreamCodesService(httpClient);
+    service.setCredentials({ server: "https://provider.example", username: "viewer", password: "secret" });
+    const controller = new AbortController();
+
+    await service.getLiveCategories({ signal: controller.signal });
+    await service.getEPG("1", { signal: controller.signal });
+    expect(signals).toEqual([controller.signal, controller.signal]);
+  });
+
   it("proxies API requests while keeping media URLs on the provider CDN", async () => {
     const requestedUrls: string[] = [];
     const httpClient: HttpClient = {

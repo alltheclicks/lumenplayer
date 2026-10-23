@@ -76,17 +76,17 @@ export class XtreamCodesService {
     return url.toString();
   }
 
-  async authenticate(): Promise<XtreamApiResponse> {
-    return this.http.get<XtreamApiResponse>(this.buildUrl());
+  async authenticate(options: { signal?: AbortSignal } = {}): Promise<XtreamApiResponse> {
+    return this.http.get<XtreamApiResponse>(this.buildUrl(), options);
   }
 
-  async getLiveCategories(): Promise<XtreamCategory[]> {
-    return this.getArrayResponse<XtreamCategory>("get_live_categories");
+  async getLiveCategories(options: { signal?: AbortSignal } = {}): Promise<XtreamCategory[]> {
+    return this.getArrayResponse<XtreamCategory>("get_live_categories", {}, options);
   }
 
-  async getLiveStreams(categoryId?: string): Promise<XtreamLiveStream[]> {
-    const params = categoryId ? { category_id: categoryId } : {};
-    return this.getArrayResponse<XtreamLiveStream>("get_live_streams", params);
+  async getLiveStreams(categoryId?: string, options: { signal?: AbortSignal } = {}): Promise<XtreamLiveStream[]> {
+    const params: Record<string, string> = categoryId ? { category_id: categoryId } : {};
+    return this.getArrayResponse<XtreamLiveStream>("get_live_streams", params, options);
   }
 
   async getVODCategories(): Promise<XtreamCategory[]> {
@@ -94,7 +94,7 @@ export class XtreamCodesService {
   }
 
   async getVODStreams(categoryId?: string): Promise<XtreamVOD[]> {
-    const params = categoryId ? { category_id: categoryId } : {};
+    const params: Record<string, string> = categoryId ? { category_id: categoryId } : {};
     return this.getArrayResponse<XtreamVOD>("get_vod_streams", params);
   }
 
@@ -164,7 +164,7 @@ export class XtreamCodesService {
   }
 
   async getSeries(categoryId?: string): Promise<XtreamSeries[]> {
-    const params = categoryId ? { category_id: categoryId } : {};
+    const params: Record<string, string> = categoryId ? { category_id: categoryId } : {};
     return this.getArrayResponse<XtreamSeries>("get_series", params);
   }
 
@@ -178,6 +178,7 @@ export class XtreamCodesService {
     streamId: string,
     options?: {
       limit?: number;
+      signal?: AbortSignal;
     },
   ): Promise<XtreamEPGItem[]> {
     const params: Record<string, string> = { stream_id: streamId };
@@ -188,25 +189,31 @@ export class XtreamCodesService {
 
     const data = await this.http.get<{ epg_listings?: XtreamEPGItem[] }>(
       this.buildUrl("get_short_epg", params),
+      { signal: options?.signal },
     );
     return data.epg_listings || [];
   }
 
-  async getSimpleDataTable(streamId: string | number): Promise<XtreamEPGItem[]> {
+  async getSimpleDataTable(
+    streamId: string | number,
+    options: { signal?: AbortSignal } = {},
+  ): Promise<XtreamEPGItem[]> {
     const normalizedStreamId = String(streamId);
     const payload = await this.http.get<unknown>(
       this.buildUrl("get_simple_data_table", { stream_id: normalizedStreamId }),
+      options,
     );
     return XtreamCodesService.extractEpgListings(payload, normalizedStreamId);
   }
 
-  async getFullEPG(): Promise<Record<string, XtreamEPGItem[]>> {
+  async getFullEPG(options: { signal?: AbortSignal } = {}): Promise<Record<string, XtreamEPGItem[]>> {
     return this.http.get<Record<string, XtreamEPGItem[]>>(
       this.buildUrl("get_simple_data_table", { stream_id: "all" }),
+      options,
     );
   }
 
-  async getXMLTVEPG(): Promise<string> {
+  async getXMLTVEPG(options: { signal?: AbortSignal } = {}): Promise<string> {
     if (!this.credentials) {
       throw new Error("Credentials not set");
     }
@@ -214,14 +221,15 @@ export class XtreamCodesService {
     const url = new URL(`${apiCredentials.server}/xmltv.php`);
     url.searchParams.set("username", apiCredentials.username);
     url.searchParams.set("password", apiCredentials.password);
-    return this.http.getText(url.toString());
+    return this.http.getText(url.toString(), options);
   }
 
   private async getArrayResponse<T>(
     action: string,
     params: Record<string, string> = {},
+    options: { signal?: AbortSignal } = {},
   ): Promise<T[]> {
-    const payload = await this.http.get<unknown>(this.buildUrl(action, params));
+    const payload = await this.http.get<unknown>(this.buildUrl(action, params), options);
     if (!Array.isArray(payload)) {
       throw new Error(`Unexpected Xtream API response for ${action}`);
     }

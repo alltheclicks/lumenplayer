@@ -97,6 +97,28 @@
       "ignoreGhsas": [
         "GHSA-qwww-vcr4-c8h2"
       ]
+    },
+    "packageExtensions": {
+      "lucide-react@0.462.0": {
+        "peerDependencies": {
+          "@types/react": "*"
+        }
+      },
+      "react-helmet-async@2.0.5": {
+        "peerDependencies": {
+          "@types/react": "*"
+        }
+      },
+      "react-router@7.18.2": {
+        "peerDependencies": {
+          "@types/react": "*"
+        }
+      },
+      "react-router-dom@7.18.2": {
+        "peerDependencies": {
+          "@types/react": "*"
+        }
+      }
     }
   }
 }

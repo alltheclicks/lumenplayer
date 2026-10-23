@@ -1,0 +1,13 @@
+{
+  "id": "com.klaroplayer.tv",
+  "version": "0.0.1",
+  "vendor": "Klaro Player",
+  "type": "web",
+  "main": "index.html",
+  "title": "Klaro Player",
+  "icon": "icon.png",
+  "largeIcon": "largeIcon.png",
+  "resolution": "1920x1080",
+  "transparent": false,
+  "requiredACG": []
+}
