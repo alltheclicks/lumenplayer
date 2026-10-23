@@ -1,0 +1,65 @@
+:root {
+  color: #f4f6fb;
+  background: #10131a;
+  font-family: Arial, sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+* { box-sizing: border-box; }
+html, body, #app { width: 100%; min-width: 320px; height: 100%; min-height: 100%; margin: 0; }
+body { background: #10131a; }
+button, select { font: inherit; }
+button { cursor: pointer; }
+button:focus, select:focus { outline: 4px solid #78a9ff; outline-offset: 4px; }
+
+.shell { display: flex; width: 100%; min-height: 100vh; background: radial-gradient(ellipse at 72% 20%, #1a2537 0, #10131a 54%); }
+.rail { flex: 0 0 150px; padding: 36px 20px; border-right: 1px solid #283141; background: rgba(12, 15, 21, 0.7); }
+.brand-mark { width: 54px; height: 54px; border-radius: 16px; color: #07111f; background: linear-gradient(135deg, #66d7ff, #7794ff); font-size: 34px; font-weight: 800; line-height: 54px; text-align: center; }
+.rail-label { margin-top: 18px; color: #aab5c7; font-size: 15px; font-weight: 700; }
+.content { width: 100%; max-width: 1280px; padding: 66px 6vw 52px; margin: 0 auto; }
+.eyebrow { color: #72c5ef; font-size: 14px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; }
+h1 { max-width: 900px; margin: 18px 0 14px; font-size: 58px; line-height: 1.06; }
+h2 { margin: 0 0 14px; font-size: 27px; }
+p { max-width: 760px; color: #bdc7d7; font-size: 21px; line-height: 1.5; }
+.tagline { color: #dce7f8; font-size: 27px; }
+.description { margin-top: 32px; }
+.actions { margin-top: 34px; }
+.primary-button, .secondary-button { min-height: 62px; padding: 0 28px; margin: 0 18px 14px 0; border: 1px solid #40506a; border-radius: 13px; color: #f4f6fb; background: #202a3a; font-size: 19px; font-weight: 700; }
+.primary-button { border-color: #74c9ff; color: #07111f; background: linear-gradient(120deg, #69d8ff, #8ca5ff); }
+.primary-button:focus, .secondary-button:focus, select:focus { box-shadow: 0 0 0 5px rgba(112, 201, 255, 0.28); }
+.fixture-note { margin-top: 42px; color: #8794a7; font-size: 16px; }
+.field-label { display: block; margin: 34px 0 10px; color: #dce7f8; font-size: 18px; font-weight: 700; }
+select { min-width: 300px; min-height: 58px; padding: 0 18px; border: 1px solid #40506a; border-radius: 12px; color: #f4f6fb; background: #202a3a; font-size: 20px; }
+.settings-content .secondary-button { display: block; margin-top: 34px; }
+.language-options .secondary-button { margin-top: 14px; }
+.language-options [aria-pressed="true"] { border-color: #74c9ff; background: #293e55; }
+.screen-columns { display: flex; align-items: stretch; margin-top: 28px; }
+.video-panel { display: flex; flex: 2; min-height: 330px; flex-direction: column; align-items: center; justify-content: center; padding: 24px; border: 1px solid #303c50; border-radius: 18px; background: #05070a; text-align: center; }
+.video-mark { color: #5f7391; font-size: 42px; }
+.video-panel p { margin: 16px 0 8px; color: #f4f6fb; font-size: 22px; font-weight: 700; }
+.video-panel span { color: #8e9aae; font-size: 16px; }
+.status-panel { flex: 1; min-width: 250px; padding: 28px 34px; margin-left: 22px; border: 1px solid #303c50; border-radius: 18px; background: rgba(24, 31, 43, 0.88); }
+.status-panel p { font-size: 18px; }
+.playback-content > .secondary-button { margin-top: 24px; }
+
+@media (max-width: 760px) {
+  .rail { flex-basis: 78px; padding: 24px 12px; }
+  .brand-mark { width: 48px; height: 48px; font-size: 30px; line-height: 48px; }
+  .rail-label { display: none; }
+  .content { padding: 40px 24px; }
+  h1 { font-size: 44px; }
+  .screen-columns { display: block; }
+  .video-panel { min-height: 240px; }
+  .status-panel { min-width: 0; padding: 24px; margin: 18px 0 0; }
+}
+
+@media (max-width: 480px) {
+  .shell { display: block; }
+  .rail { width: 100%; height: 74px; padding: 12px 20px; border-right: 0; border-bottom: 1px solid #283141; }
+  .brand-mark { float: left; width: 46px; height: 46px; font-size: 28px; line-height: 46px; }
+  .rail-label { display: block; padding: 14px 0 0 60px; margin: 0; }
+  .content { padding: 34px 22px; }
+  h1 { font-size: 38px; }
+  select { width: 100%; min-width: 0; }
+}
