@@ -77,5 +77,24 @@
       "sha256": "d9911ddc5b4c1ccf2f014da89f33f1601feefdeca37b67884dab7b23b5f143b4",
       "checksum_source": "https://download.tizen.org/sdk/extensions/tv_extensions/pkg_list_ubuntu-64"
     }
-  ]
+  ],
+  "android_native": [
+    {
+      "file": "android-ndk-r27b-linux.zip",
+      "url": "https://dl.google.com/android/repository/android-ndk-r27b-linux.zip",
+      "vendor_sha1": "6fc476b2e57d7c01ac0c95817746b927035b9749",
+      "size": 663976775,
+      "path": "ndk/27.1.12297006",
+      "revision": "27.1.12297006"
+    },
+    {
+      "file": "cmake-3.22.1-linux.zip",
+      "url": "https://dl.google.com/android/repository/cmake-3.22.1-linux.zip",
+      "vendor_sha1": "fd0a48b4a758310df8c7aa51f59840ed48fe7ed8",
+      "size": 22308647,
+      "path": "cmake/3.22.1",
+      "revision": "3.22.1"
+    }
+  ],
+  "android_native_checksum_source": "https://dl.google.com/android/repository/repository2-3.xml (vendor SHA-1 and size, verified 2026-10-23; installed packages reused without archive download)"
 }

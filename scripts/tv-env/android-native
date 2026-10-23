@@ -1,0 +1,148 @@
+#!/usr/bin/env python3
+"""Pinned Linux native SDK packages; no updates, global tools or device access."""
+import hashlib
+import json
+import os
+import pathlib
+import platform
+import shutil
+import stat
+import subprocess
+import sys
+import tempfile
+import zipfile
+
+HERE = pathlib.Path(__file__).resolve().parent
+
+
+def properties(content):
+    return {k.strip(): v.strip() for line in content.splitlines() if '=' in line
+            for k, v in [line.split('=', 1)]}
+
+
+def check_package(target, item):
+    revision = properties((target / 'source.properties').read_text()).get('Pkg.Revision')
+    if revision != item['revision']:
+        raise RuntimeError(f"{target}: expected {item['revision']}, got {revision}; refusing replacement")
+    if item['path'].startswith('ndk/'):
+        commands = [('toolchains/llvm/prebuilt/linux-x86_64/bin/clang', '--version', 'clang version 18.0.2'),
+                    ('ndk-build', '--version', 'GNU Make')]
+    else:
+        commands = [('bin/cmake', '--version', 'cmake version 3.22.1'),
+                    ('bin/ninja', '--version', '1.10.2')]
+    for relative, flag, expected in commands:
+        output = subprocess.check_output([str(target / relative), flag], text=True)
+        if expected not in output.splitlines()[0]:
+            raise RuntimeError(f'{target / relative}: unexpected version: {output.splitlines()[0]}')
+    print(f"Verified {item['path']} (metadata and executable versions)", flush=True)
+
+
+def verify_archive(archive, item):
+    digest = hashlib.sha1()
+    with archive.open('rb') as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b''):
+            digest.update(chunk)
+    if archive.stat().st_size != item['size'] or digest.hexdigest() != item['vendor_sha1']:
+        raise RuntimeError(f'Vendor SHA-1/size mismatch: {archive.name}')
+
+
+def extract_package(archive, stage, item):
+    with zipfile.ZipFile(archive) as z:
+        entries = z.infolist()
+        symlinks = set()
+        for entry in entries:
+            path = pathlib.PurePosixPath(entry.filename)
+            if path.is_absolute() or '..' in path.parts or '\\' in entry.filename:
+                raise RuntimeError('Unsafe archive path: ' + entry.filename)
+            if stat.S_ISLNK(entry.external_attr >> 16):
+                symlinks.add(path)
+        for entry in entries:
+            path = pathlib.PurePosixPath(entry.filename)
+            if any(parent in symlinks for parent in path.parents):
+                raise RuntimeError('Archive entry under symlink: ' + entry.filename)
+            destination = stage / path
+            if path in symlinks:
+                link = z.read(entry).decode()
+                resolved = (destination.parent / link).resolve()
+                if not resolved.is_relative_to(stage.resolve()):
+                    raise RuntimeError('Unsafe archive symlink: ' + entry.filename)
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                destination.symlink_to(link)
+            else:
+                z.extract(entry, stage)
+                mode = (entry.external_attr >> 16) & 0o777
+                if mode:
+                    destination.chmod(mode)
+        candidates = [p.parent for p in stage.rglob('source.properties')
+                      if properties(p.read_text()).get('Pkg.Revision') == item['revision']]
+        if len(candidates) != 1:
+            raise RuntimeError('Expected exactly one matching package source.properties')
+        return candidates[0]
+
+
+def accept_licenses(root):
+    # Use Android's own interactive license flow; never fabricate acceptance.
+    subprocess.run([str(HERE / 'run'), 'sdkmanager', '--sdk_root=' + str(root / 'android'), '--licenses'], check=True)
+
+
+def main():
+    if sys.argv[1:] not in (['--check'], ['--accept-licenses']):
+        raise RuntimeError('Usage: scripts/tv-env/android-native --check | --accept-licenses')
+    root = pathlib.Path(os.environ.get('KLARO_TV_SDK_ROOT', '~/.local/share/klaro-tv-sdk')).expanduser().resolve()
+    items = json.loads((HERE / 'downloads.json').read_text())['android_native']
+    missing = []
+    for item in items:
+        target = root / 'android' / item['path']
+        if target.exists():
+            check_package(target, item)
+        else:
+            missing.append(item)
+    if not missing:
+        print('Native SDK ready; no downloads or SDK writes.')
+        return
+    if sys.argv[1] == '--check':
+        raise RuntimeError('Missing native packages: ' + ', '.join(i['path'] for i in missing))
+    if platform.system() != 'Linux' or platform.machine() != 'x86_64' or os.geteuid() == 0:
+        raise RuntimeError('Provision as SDK-owning non-root user on Linux x86_64')
+    root.mkdir(parents=True, exist_ok=True)
+    lock = root / '.android-native.lock'
+    lock.mkdir()  # Never remove another installer's lock.
+    try:
+        accept_licenses(root)
+        license_file = root / 'android/licenses/android-sdk-license'
+        if not license_file.is_file() or not license_file.read_text().strip():
+            raise RuntimeError('android-sdk-license not accepted; no packages installed')
+        cache = root / 'downloads'
+        cache.mkdir(exist_ok=True)
+        for item in missing:
+            archive = cache / item['file']
+            # Conservative allowance for cached ZIP, extracted NDK and temporary files.
+            required = 5 * 1024**3 if item['path'].startswith('ndk/') else 256 * 1024**2
+            if shutil.disk_usage(root).free < required:
+                raise RuntimeError(f'Insufficient free space: need {required} bytes for {item["path"]}')
+            if not archive.exists():
+                partial = archive.with_suffix('.zip.partial')
+                subprocess.run(['curl', '--fail', '--location', '--retry', '3', '--connect-timeout', '30',
+                                '--max-time', '3600', item['url'], '--output', str(partial)], check=True)
+                verify_archive(partial, item)
+                partial.rename(archive)
+            verify_archive(archive, item)  # Also verify every reused cache file.
+            with tempfile.TemporaryDirectory(dir=root, prefix='native-extract.') as scratch:
+                package = extract_package(archive, pathlib.Path(scratch), item)
+                check_package(package, item)
+                target = root / 'android' / item['path']
+                target.parent.mkdir(parents=True, exist_ok=True)
+                if target.exists():
+                    raise RuntimeError('Target appeared during installation; refusing replacement')
+                package.rename(target)
+            check_package(target, item)
+    finally:
+        lock.rmdir()
+
+
+if __name__ == '__main__':
+    try:
+        main()
+    except (OSError, RuntimeError, subprocess.CalledProcessError, zipfile.BadZipFile) as error:
+        print('android-native: ' + str(error), file=sys.stderr)
+        sys.exit(1)

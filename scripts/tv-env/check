@@ -21,6 +21,7 @@ assert 'JAVA_VERSION="17.0.20.1"' in (root / 'jdk-17.0.20.1+1/release').read_tex
 assert 'JAVA_VERSION="1.8.0_504"' in (root / 'jdk8u504-b01/release').read_text()
 assert 'JDK_PATH=' + str(root / 'jdk8u504-b01') in (root / 'tizen-sdk-10.0/sdk.info').read_text()
 PY
+"$here/android-native" --check
 for tool in node java ares sdkmanager adb aapt2 gradle tizen sdb; do
   printf '\n%s\n' "$tool"
   case "$tool" in
