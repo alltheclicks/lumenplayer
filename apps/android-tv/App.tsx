@@ -13,6 +13,7 @@ import {
   View,
 } from "react-native";
 import type { TVPlaybackRequest, PlaybackError } from "@lumen/types";
+import { AndroidPlaybackSurface, createAndroidPlaybackAdapter, androidPlaybackAvailable } from "./src/adapters/android/native";
 import { createPlaybackController } from "./src/composition/playback";
 import {
   backDestination,
@@ -77,8 +78,8 @@ function getPlaybackError(error: unknown): PlaybackError {
     typeof error.code === "string"
   ) {
     return {
-      code: error.code,
-      message: "Playback adapter is unavailable.",
+      code: /^[A-Z0-9_.-]{1,64}$/i.test(error.code) ? error.code : "PLAYBACK_START_FAILED",
+      message: "Playback could not start.",
       fatal: true,
     };
   }
@@ -99,6 +100,7 @@ export default function App() {
   const [languageReady, setLanguageReady] = useState(false);
   const [languageError, setLanguageError] = useState<"load" | "save" | null>(null);
   const [sourceUrl, setSourceUrl] = useState("");
+  const [surfaceSessionId, setSurfaceSessionId] = useState<string | null>(null);
   const [playback, setPlayback] = useState(initialPlaybackState);
   const messages = useMemo(() => getMessages(locale), [locale]);
   const compact = width < 1100;
@@ -135,6 +137,8 @@ export default function App() {
     playbackGeneration.current += 1;
     controller.current?.destroy();
     controller.current = null;
+    setSurfaceSessionId(null);
+    setSourceUrl("");
     setPlayback(initialPlaybackState);
     setScreen(destination);
     return true;
@@ -167,15 +171,24 @@ export default function App() {
     const generation = ++playbackGeneration.current;
     setPlayback((current) => reducePlaybackState(current, { type: "start" }));
     controller.current?.destroy();
-    const playbackController = createPlaybackController();
+    const adapter = createAndroidPlaybackAdapter();
+    setSurfaceSessionId(adapter?.sessionId ?? null);
+    const playbackController = createPlaybackController(adapter);
     controller.current = playbackController;
+    playbackController.onChange((snapshot) => {
+      if (generation !== playbackGeneration.current) return;
+      setPlayback((current) => snapshot.error
+        ? reducePlaybackState(current, { type: "failed", error: snapshot.error })
+        : reducePlaybackState(current, { type: "stateChanged", state: snapshot.state }));
+    });
     const request: TVPlaybackRequest = {
       kind: "live", sourceId: "shell-test", channelId: "shell-test",
       media: {
-        url: sourceUrl.trim() || "https://example.invalid/test-stream.m3u8",
+        url: sourceUrl.trim(),
         type: "hls",
       },
     };
+    setSourceUrl("");
     try {
       await playbackController.load(request);
       if (generation !== playbackGeneration.current) return;
@@ -203,6 +216,8 @@ export default function App() {
     playbackGeneration.current += 1;
     controller.current?.destroy();
     controller.current = null;
+    setSurfaceSessionId(null);
+    setSourceUrl("");
     setPlayback(initialPlaybackState);
     if (nextScreen === "settings") setSettingsOrigin(screen);
     setLanguageError(null);
@@ -277,25 +292,30 @@ export default function App() {
           <View style={[styles.columns, compact && styles.columnsCompact]}>
             <View style={styles.playerPanel}>
               <View style={styles.playerScreen}>
+                {surfaceSessionId ? (
+                  <AndroidPlaybackSurface
+                    sessionId={surfaceSessionId}
+                    style={StyleSheet.absoluteFill}
+                  />
+                ) : null}
                 {playback.status === "loading" ? (
                   <ActivityIndicator color={colors.accentLight} size="large" />
-                ) : (
+                ) : playback.status !== "playing" ? (
                   <View style={styles.playIcon}>
                     <Text style={styles.playIconText}>▶</Text>
                   </View>
-                )}
+                ) : null}
                 <Text style={styles.playerStatus}>
-                  {playback.status === "loading"
-                    ? messages.stateLoading
-                    : playback.status === "playing"
-                      ? messages.statePlaying
-                      : playback.status === "error"
-                        ? messages.stateError
-                        : messages.stateIdle}
+                  {playback.engineState === "playing" ? messages.statePlaying
+                    : playback.engineState === "paused" ? messages.statePaused
+                      : playback.engineState === "ended" ? messages.stateEnded
+                        : playback.engineState === "buffering" ? messages.stateBuffering
+                          : playback.engineState === "loading" || playback.engineState === "seeking" ? messages.stateLoading
+                            : playback.engineState === "error" ? messages.stateError : messages.stateIdle}
                 </Text>
                 {playback.status === "error" ? (
                   <Text style={styles.errorText} accessibilityRole="alert">
-                    {messages.noPlaybackAdapter}
+                    {androidPlaybackAvailable ? messages.playbackFailed : messages.noPlaybackAdapter}
                   </Text>
                 ) : null}
               </View>
@@ -303,11 +323,12 @@ export default function App() {
             <View style={styles.controlsPanel}>
               <Text style={styles.eyebrow}>{messages.playbackTitle}</Text>
               <Text style={styles.sectionTitle}>{messages.playbackTitle}</Text>
-              <Text style={styles.description}>{messages.playbackDescription}</Text>
+              <Text style={styles.description}>{androidPlaybackAvailable ? messages.playbackDescription : messages.noPlaybackAdapter}</Text>
               <TextInput
                 accessibilityLabel={messages.streamUrl}
                 autoCapitalize="none"
                 autoCorrect={false}
+                secureTextEntry
                 keyboardType="url"
                 onChangeText={setSourceUrl}
                 placeholder={messages.streamUrl}
