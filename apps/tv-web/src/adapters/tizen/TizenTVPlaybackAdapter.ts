@@ -60,6 +60,10 @@ export class TizenTVPlaybackAdapter implements TVPlaybackAdapter {
     this.area = { ...area };
   }
 
+  /** A new owner must never bypass an unresolved native seek or recovery latch. */
+  requiresNativeRestart(): boolean { return this.nativeSeeking || this.recoveryRequired; }
+  isNativeReleased(): boolean { return this.nativeSession === null && !this.nativeSeeking; }
+
   getCapabilities(): TVPlaybackCapabilities {
     return { live: true, catchUp: true, seek: true, returnToLive: !!this.options.resolveLive, mediaTypes: ["hls", "mp4"] };
   }

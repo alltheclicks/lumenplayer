@@ -28,15 +28,15 @@ test("OK action exposes loading then a deterministic adapter error", async () =>
   const states: import("./shellState.mjs").ShellState[] = [];
   const controller = createShellController({ createPlaybackController });
   controller.subscribe((state) => states.push(state));
-  await controller.startTest();
+  await controller.startTest("https://example.invalid/live.m3u8");
   assert.deepEqual(states.map((state) => state.playback), ["loading", "error"]);
-  assert.match(controller.getState().error, /no media playback/i);
+  assert.match(controller.getState().error, /unsupported/);
   assert.equal(controller.getState().screen, "playback");
 });
 
 test("Back from the playback test returns to launch", async () => {
   const controller = createShellController({ createPlaybackController });
-  await controller.startTest();
+  await controller.startTest("https://example.invalid/live.m3u8");
   controller.back();
   assert.equal(controller.getState().screen, "home");
   assert.equal(controller.getState().playback, "idle");

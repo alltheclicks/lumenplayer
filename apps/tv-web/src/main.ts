@@ -1,6 +1,7 @@
 import type { ShellController, ShellState } from "./testing/shellState.mjs";
 import { createShellController } from "./testing/shellState.mjs";
-import { createPlaybackController } from "./composition/playback";
+import { buildTarget, buildSourceOrigins, createPlatformPlayback } from "./composition/platform";
+import type { AVPlay } from "./adapters/tizen/avplay";
 import { ensureCancellation } from "./composition/cancellation";
 import { moveFocus, remoteAction } from "./focus/focusGrid.mjs";
 import { messages, type LanguageCode } from "./i18n/messages";
@@ -27,6 +28,15 @@ try {
   storage = undefined;
 }
 
+document.documentElement.dataset.tvTarget = buildTarget;
+const mediaMount = document.createElement("div");
+mediaMount.id = "media-surface";
+mediaMount.hidden = true;
+document.body.insertBefore(mediaMount, app);
+const platformWindow = window as Window & { webapis?: { avplay?: AVPlay }; webOS?: unknown; PalmSystem?: unknown };
+const createPlaybackController = createPlatformPlayback({ target: buildTarget, document, mount: mediaMount,
+  sourceOrigins: buildSourceOrigins, avplay: platformWindow.webapis?.avplay, webOSAvailable: !!(platformWindow.webOS || platformWindow.PalmSystem) });
+
 const controller: ShellController = createShellController({ storage, createPlaybackController });
 const supportedLanguages = Object.keys(messages) as LanguageCode[];
 
@@ -36,6 +46,7 @@ function escapeHtml(value: string): string {
   })[character] ?? character);
 }
 
+let renderedScreen = "";
 function render(state: ShellState): void {
   const previousFocus = (document.activeElement as HTMLElement | null)?.dataset.focusable;
   const text = messages[state.language as LanguageCode] || messages.en;
@@ -43,6 +54,21 @@ function render(state: ShellState): void {
   document.documentElement.lang = state.language;
   document.documentElement.dir = isRtl ? "rtl" : "ltr";
   document.title = productIdentity.displayName;
+
+  mediaMount.hidden = state.screen !== "playback";
+  document.body.classList.toggle("playing-screen", state.screen === "playback");
+  document.documentElement.classList.toggle("playing-screen", state.screen === "playback");
+  const statusText = text.states[state.playback] || text.states.idle;
+  const errorText = state.error ? (text.errors[state.error as keyof typeof text.errors] || text.errors.playback_failed) : "";
+  // Status notifications must never detach or recreate the media surface.
+  if (state.screen === "playback" && renderedScreen === "playback") {
+    const status = app.querySelector("[data-playback-status]");
+    const error = app.querySelector("[data-playback-error]");
+    if (status) status.textContent = statusText;
+    if (error) error.textContent = errorText;
+    return;
+  }
+  renderedScreen = state.screen;
 
   if (state.screen === "settings") {
     app.innerHTML = `
@@ -67,17 +93,12 @@ function render(state: ShellState): void {
           <div class="eyebrow">${escapeHtml(text.status)}</div>
           <h1>${escapeHtml(text.playbackTitle)}</h1>
           <section class="screen-columns">
-            <div class="video-panel" aria-label="No playback">
-              <div class="video-mark" aria-hidden="true">▶</div>
-              <p>${escapeHtml(state.playback === "loading" ? text.loading : text.errorTitle)}</p>
-              <span>${escapeHtml(text.fixture)}</span>
-            </div>
             <div class="status-panel" role="status" aria-live="polite">
-              <h2>${escapeHtml(state.playback === "loading" ? text.loading : text.errorTitle)}</h2>
-              <p>${escapeHtml(state.error || text.errorBody)}</p>
-              <p class="fixture-note">${escapeHtml(text.errorBody)}</p>
+              <h2 data-playback-status>${escapeHtml(statusText)}</h2>
+              <p data-playback-error>${escapeHtml(errorText)}</p>
             </div>
           </section>
+          <button class="secondary-button" data-focusable="settings" data-focus-row="1" data-focus-col="2">${escapeHtml(text.settings)}</button>
           <button class="secondary-button" data-focusable="back" data-focus-row="1" data-focus-col="1">${escapeHtml(text.back)}</button>
         </main>
       </div>`;
@@ -90,6 +111,8 @@ function render(state: ShellState): void {
           <h1>${escapeHtml(text.launchTitle)}</h1>
           <p class="tagline">${escapeHtml(text.tagline)}</p>
           <p class="description">${escapeHtml(text.launchBody)}</p>
+          <label for="live-url">${escapeHtml(text.urlLabel)}</label>
+          <input id="live-url" type="password" autocomplete="off" spellcheck="false" dir="ltr" data-focusable="url" data-focus-row="0" data-focus-col="0" />
           <div class="actions">
             <button class="primary-button" data-focusable="launch" data-focus-row="0" data-focus-col="1">${escapeHtml(text.openTest)}</button>
             <button class="secondary-button" data-focusable="settings" data-focus-row="0" data-focus-col="2">${escapeHtml(text.settings)}</button>
@@ -112,7 +135,12 @@ app.addEventListener("click", (event) => {
   if (!focusable) return;
   if (focusable.dataset.language) controller.setLanguage(focusable.dataset.language);
   if (focusable.dataset.focusable === "settings") controller.openSettings();
-  if (focusable.dataset.focusable === "launch") void controller.startTest();
+  if (focusable.dataset.focusable === "launch") {
+    const input = app.querySelector<HTMLInputElement>("#live-url");
+    const url = input?.value || "";
+    if (input) input.value = "";
+    void controller.startTest(url);
+  }
   if (focusable.dataset.focusable === "back") controller.back();
 });
 
@@ -140,6 +168,12 @@ app.addEventListener("keydown", (event) => {
   }
 });
 
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) controller.back();
+});
 window.addEventListener("pagehide", (event) => {
+  const input = app.querySelector<HTMLInputElement>("#live-url");
+  if (input) input.value = "";
+  controller.back();
   if (!event.persisted) controller.destroy();
 });

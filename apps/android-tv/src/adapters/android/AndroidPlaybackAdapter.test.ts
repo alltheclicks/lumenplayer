@@ -136,7 +136,7 @@ describe("Android Media3 adapter (injected platform, no media decoding)", () => 
     const next = live(); const f = fixture(async () => next);
     const controller = new TVPlaybackController(f.adapter); cleanup.push(() => controller.destroy());
     const request = archive(); const task = controller.load(request); f.loads[0].resolve(); await task;
-    const transition = controller.returnToLive(); const check = expect(transition).rejects.toThrow("Android playback operation failed");
+    const transition = controller.returnToLive(); const check = expect(transition).rejects.toMatchObject({ message: "Playback request failed", code: "MEDIA3_LOAD_FAILED", fatal: true });
     await Promise.resolve(); f.loads[1].reject(new Error("private provider diagnostic")); await check;
     expect(controller.getSnapshot()).toMatchObject({ request, state: "error" });
     expect(controller.getSnapshot().error?.message).not.toContain("private");

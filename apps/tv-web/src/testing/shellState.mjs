@@ -13,9 +13,11 @@ export function createInitialState(language = DEFAULT_LANGUAGE) {
 export function reduceShellState(state, action) {
   switch (action.type) {
     case "OPEN_SETTINGS":
-      return { ...state, previousScreen: state.screen, screen: "settings", error: "" };
+      return { ...state, previousScreen: "home", playback: "idle", screen: "settings", error: "" };
     case "START_TEST":
       return { ...state, screen: "playback", playback: "loading", error: "" };
+    case "PLAYBACK_STATE":
+      return { ...state, playback: action.state, error: action.code || "" };
     case "PLAYBACK_ERROR":
       return { ...state, playback: "error", error: action.message };
     case "SET_LANGUAGE":
@@ -38,8 +40,11 @@ export function createShellController(options = {}) {
   const createPlaybackController = options.createPlaybackController;
   let playback;
   let generation = 0;
+  let unsubscribe;
   function cancel() {
     generation += 1;
+    unsubscribe?.();
+    unsubscribe = undefined;
     playback?.destroy();
     playback = undefined;
   }
@@ -73,23 +78,38 @@ export function createShellController(options = {}) {
       update({ type: "SET_LANGUAGE", language });
     },
     destroy() { cancel(); listeners.clear(); },
-    async startTest() {
+    async startTest(url = "") {
       cancel();
       const current = generation;
-      playback = createPlaybackController();
+      url = url.trim();
       update({ type: "START_TEST" });
       try {
-        await playback.load({ kind: "live", sourceId: "shell-test", channelId: "shell-test",
-          media: { url: "fixture://no-playback", type: "hls" } });
-        if (current !== generation) return;
-        update({ type: "PLAYBACK_ERROR", message: "Fixture adapter unexpectedly accepted playback." });
+        const parsed = new URL(url);
+        if (!["https:", "http:"].includes(parsed.protocol)) throw new Error();
       } catch {
-        if (current !== generation) return;
-        update({
-          type: "PLAYBACK_ERROR",
-          message: "Platform adapter is not connected; no media playback is available.",
-        });
+        update({ type: "PLAYBACK_ERROR", message: "invalid_url" });
+        return;
       }
+      try {
+        playback = createPlaybackController();
+        const active = playback;
+        unsubscribe = active.onChange(snapshot => {
+          if (current !== generation) return;
+          update({ type: "PLAYBACK_STATE", state: snapshot.state, code: snapshot.error?.code });
+        });
+        await active.load({ kind: "live", sourceId: "internal-live-test", channelId: "internal-live-test",
+          media: { url, type: "hls" } });
+        url = "";
+        if (current !== generation) return;
+        await active.play();
+      } catch (error) {
+        if (current !== generation) return;
+        const code = error?.code === "source_origin_unconfigured" ? "source_origin_unconfigured"
+          : error?.code === "platform_api_missing" ? "platform_api_missing"
+          : error?.code === "tizen_recovery_required" ? "tizen_recovery_required"
+          : error?.name === "UnsupportedPlaybackCapabilityError" ? "unsupported" : "playback_failed";
+        update({ type: "PLAYBACK_ERROR", message: code });
+      } finally { url = ""; }
     },
   };
 }

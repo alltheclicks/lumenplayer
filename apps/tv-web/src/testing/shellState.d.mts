@@ -1,5 +1,5 @@
 export type ShellScreen = "home" | "settings" | "playback";
-export type ShellPlaybackState = "idle" | "loading" | "error";
+export type ShellPlaybackState = import("@lumen/types").PlaybackState;
 
 export interface ShellState {
   screen: ShellScreen;
@@ -15,7 +15,7 @@ export interface ShellController {
   back(): void;
   openSettings(): void;
   setLanguage(language: string): void;
-  startTest(): Promise<void>;
+  startTest(url?: string): Promise<void>;
   destroy(): void;
 }
 
@@ -27,6 +27,7 @@ export function createShellController(options: {
 export function createInitialState(language?: string): ShellState;
 export type ShellAction =
   | { type: "OPEN_SETTINGS" | "START_TEST" | "BACK" }
+  | { type: "PLAYBACK_STATE"; state: ShellPlaybackState; code?: string }
   | { type: "PLAYBACK_ERROR"; message: string }
   | { type: "SET_LANGUAGE"; language: string };
 export function reduceShellState(state: ShellState, action: ShellAction): ShellState;

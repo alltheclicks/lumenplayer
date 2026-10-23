@@ -8,7 +8,8 @@ if [[ ! -d "$here/dist/webos" ]]; then
   exit 2
 fi
 mkdir -p "$here/artifacts/webos"
-"$sdk_runner" ares-package "$here/dist/webos" --outdir "$here/artifacts/webos"
+# Preserve Vite's already checked Chrome 63 output byte-for-byte.
+"$sdk_runner" ares-package --no-minify "$here/dist/webos" --outdir "$here/artifacts/webos"
 shopt -s nullglob
 packages=("$here"/artifacts/webos/*.ipk)
 if [[ ${#packages[@]} -ne 1 || ! -s "${packages[0]}" ]]; then

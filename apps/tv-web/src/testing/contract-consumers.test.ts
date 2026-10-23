@@ -80,7 +80,7 @@ for (const [name, create] of [["web", web], ["android", android]] as const) {
 it.each(["back", "openSettings", "destroy"] as const)("web shell ignores completion after %s", async (operation) => {
   const platform = pendingAdapter();
   const shell = createShellController({ createPlaybackController: () => web(platform.adapter) });
-  const pending = shell.startTest();
+  const pending = shell.startTest(request.media.url);
   shell[operation]();
   const state = shell.getState();
   expect(platform.signal().aborted).toBe(true);
