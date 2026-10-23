@@ -85,7 +85,7 @@ export class XtreamCodesService {
   }
 
   async getLiveStreams(categoryId?: string): Promise<XtreamLiveStream[]> {
-    const params = categoryId ? { category_id: categoryId } : {};
+    const params: Record<string, string> = categoryId ? { category_id: categoryId } : {};
     return this.getArrayResponse<XtreamLiveStream>("get_live_streams", params);
   }
 
@@ -94,7 +94,7 @@ export class XtreamCodesService {
   }
 
   async getVODStreams(categoryId?: string): Promise<XtreamVOD[]> {
-    const params = categoryId ? { category_id: categoryId } : {};
+    const params: Record<string, string> = categoryId ? { category_id: categoryId } : {};
     return this.getArrayResponse<XtreamVOD>("get_vod_streams", params);
   }
 
@@ -164,7 +164,7 @@ export class XtreamCodesService {
   }
 
   async getSeries(categoryId?: string): Promise<XtreamSeries[]> {
-    const params = categoryId ? { category_id: categoryId } : {};
+    const params: Record<string, string> = categoryId ? { category_id: categoryId } : {};
     return this.getArrayResponse<XtreamSeries>("get_series", params);
   }
 

@@ -133,7 +133,7 @@ describe("FetchHttpClient", () => {
   });
 
   it("passes a signal on every attempt and clears the timer on success", async () => {
-    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ ok: true }), {
+    const fetchMock = vi.fn(async (_url: string, _init?: { signal?: AbortSignal }) => new Response(JSON.stringify({ ok: true }), {
       status: 200,
       headers: { "Content-Type": "application/json" },
     }));
