@@ -1,10 +1,13 @@
 import type { ShellController, ShellState } from "./testing/shellState.mjs";
 import { createShellController } from "./testing/shellState.mjs";
-import { FixturePlayerAdapter } from "./testing/fixturePlayerAdapter.mjs";
+import { createPlaybackController } from "./composition/playback";
+import { ensureCancellation } from "./composition/cancellation";
 import { moveFocus, remoteAction } from "./focus/focusGrid.mjs";
 import { messages, type LanguageCode } from "./i18n/messages";
 import { productIdentity } from "./config/productIdentity";
 import "./ui/styles.css";
+
+ensureCancellation(window);
 
 const app = document.querySelector<HTMLDivElement>("#app") as HTMLDivElement;
 if (!app) throw new Error("TV app root is missing.");
@@ -24,7 +27,7 @@ try {
   storage = undefined;
 }
 
-const controller: ShellController = createShellController({ storage, adapter: new FixturePlayerAdapter() });
+const controller: ShellController = createShellController({ storage, createPlaybackController });
 const supportedLanguages = Object.keys(messages) as LanguageCode[];
 
 function escapeHtml(value: string): string {
@@ -135,4 +138,8 @@ app.addEventListener("keydown", (event) => {
     event.preventDefault();
     destination.focus();
   }
+});
+
+window.addEventListener("pagehide", (event) => {
+  if (!event.persisted) controller.destroy();
 });

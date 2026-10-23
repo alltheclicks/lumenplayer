@@ -16,9 +16,17 @@ export interface ShellController {
   openSettings(): void;
   setLanguage(language: string): void;
   startTest(): Promise<void>;
+  destroy(): void;
 }
 
 export function createShellController(options: {
   storage?: Pick<Storage, "getItem" | "setItem">;
-  adapter: import("@lumen/types").PlayerAdapter;
+  createPlaybackController: () => import("@lumen/player-core").TVPlaybackController;
 }): ShellController;
+
+export function createInitialState(language?: string): ShellState;
+export type ShellAction =
+  | { type: "OPEN_SETTINGS" | "START_TEST" | "BACK" }
+  | { type: "PLAYBACK_ERROR"; message: string }
+  | { type: "SET_LANGUAGE"; language: string };
+export function reduceShellState(state: ShellState, action: ShellAction): ShellState;

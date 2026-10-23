@@ -12,8 +12,8 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
-import type { MediaSource, PlaybackError } from "@lumen/types";
-import { NoPlaybackAdapter } from "./src/composition/no-playback-adapter";
+import type { TVPlaybackRequest, PlaybackError } from "@lumen/types";
+import { createPlaybackController } from "./src/composition/playback";
 import {
   backDestination,
   initialPlaybackState,
@@ -90,7 +90,7 @@ function getPlaybackError(error: unknown): PlaybackError {
 }
 
 export default function App() {
-  const adapter = useMemo(() => new NoPlaybackAdapter(), []);
+  const controller = useRef<ReturnType<typeof createPlaybackController> | null>(null);
   const playbackGeneration = useRef(0);
   const { width } = useWindowDimensions();
   const [screen, setScreen] = useState<Screen>("home");
@@ -133,11 +133,12 @@ export default function App() {
     const destination = backDestination(screen, settingsOrigin);
     if (destination == null) return false;
     playbackGeneration.current += 1;
-    adapter.stop();
+    controller.current?.destroy();
+    controller.current = null;
     setPlayback(initialPlaybackState);
     setScreen(destination);
     return true;
-  }, [adapter, screen, settingsOrigin]);
+  }, [screen, settingsOrigin]);
 
   useEffect(() => {
     const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
@@ -148,8 +149,9 @@ export default function App() {
 
   useEffect(() => () => {
     playbackGeneration.current += 1;
-    adapter.destroy();
-  }, [adapter]);
+    controller.current?.destroy();
+    controller.current = null;
+  }, []);
 
   const chooseLocale = useCallback(async (nextLocale: Locale) => {
     setLanguageError(null);
@@ -164,15 +166,21 @@ export default function App() {
   const beginPlayback = useCallback(async () => {
     const generation = ++playbackGeneration.current;
     setPlayback((current) => reducePlaybackState(current, { type: "start" }));
-    const source: MediaSource = {
-      url: sourceUrl.trim() || "https://example.invalid/test-stream.m3u8",
-      type: "hls",
+    controller.current?.destroy();
+    const playbackController = createPlaybackController();
+    controller.current = playbackController;
+    const request: TVPlaybackRequest = {
+      kind: "live", sourceId: "shell-test", channelId: "shell-test",
+      media: {
+        url: sourceUrl.trim() || "https://example.invalid/test-stream.m3u8",
+        type: "hls",
+      },
     };
     try {
-      await adapter.load(source);
+      await playbackController.load(request);
       if (generation !== playbackGeneration.current) return;
       setPlayback((current) =>
-        reducePlaybackState(current, { type: "stateChanged", state: adapter.getState() }),
+        reducePlaybackState(current, { type: "stateChanged", state: playbackController.getSnapshot().state }),
       );
     } catch (error) {
       if (generation !== playbackGeneration.current) return;
@@ -180,7 +188,7 @@ export default function App() {
         reducePlaybackState(current, { type: "failed", error: getPlaybackError(error) }),
       );
     }
-  }, [adapter, sourceUrl]);
+  }, [sourceUrl]);
 
   if (!languageReady) {
     return (
@@ -193,7 +201,8 @@ export default function App() {
 
   const navigate = (nextScreen: Screen) => {
     playbackGeneration.current += 1;
-    adapter.stop();
+    controller.current?.destroy();
+    controller.current = null;
     setPlayback(initialPlaybackState);
     if (nextScreen === "settings") setSettingsOrigin(screen);
     setLanguageError(null);

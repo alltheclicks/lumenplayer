@@ -35,7 +35,14 @@ export function reduceShellState(state, action) {
 
 export function createShellController(options = {}) {
   const storage = options.storage;
-  const adapter = options.adapter;
+  const createPlaybackController = options.createPlaybackController;
+  let playback;
+  let generation = 0;
+  function cancel() {
+    generation += 1;
+    playback?.destroy();
+    playback = undefined;
+  }
   const savedLanguage = storage?.getItem("@lumen/tv-web/language");
   let state = createInitialState(savedLanguage || DEFAULT_LANGUAGE);
   const listeners = new Set();
@@ -55,23 +62,32 @@ export function createShellController(options = {}) {
       return () => listeners.delete(listener);
     },
     back() {
+      cancel();
       update({ type: "BACK" });
     },
     openSettings() {
+      cancel();
       update({ type: "OPEN_SETTINGS" });
     },
     setLanguage(language) {
       update({ type: "SET_LANGUAGE", language });
     },
+    destroy() { cancel(); listeners.clear(); },
     async startTest() {
+      cancel();
+      const current = generation;
+      playback = createPlaybackController();
       update({ type: "START_TEST" });
       try {
-        await adapter.load({ url: "fixture://no-playback", type: "hls" });
+        await playback.load({ kind: "live", sourceId: "shell-test", channelId: "shell-test",
+          media: { url: "fixture://no-playback", type: "hls" } });
+        if (current !== generation) return;
         update({ type: "PLAYBACK_ERROR", message: "Fixture adapter unexpectedly accepted playback." });
-      } catch (error) {
+      } catch {
+        if (current !== generation) return;
         update({
           type: "PLAYBACK_ERROR",
-          message: error instanceof Error ? error.message : "Playback is unavailable in this build.",
+          message: "Platform adapter is not connected; no media playback is available.",
         });
       }
     },

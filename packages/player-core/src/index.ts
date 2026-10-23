@@ -10,3 +10,5 @@ export {
 export type { TVPlaybackListener } from "./tv-playback-controller";
 export { IdleTimer } from "./idle-timer";
 export type { IdleTimerCallback } from "./idle-timer";
+
+export { UnavailableTVPlaybackAdapter } from "./unavailable-tv-playback-adapter";
