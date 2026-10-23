@@ -1,0 +1,31 @@
+{
+  "name": "@lumen/android-tv",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "start": "react-native start",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "lint": "eslint App.tsx src",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@lumen/types": "workspace:*",
+    "react": "19.2.3",
+    "react-native": "npm:react-native-tvos@0.87.1-1"
+  },
+  "devDependencies": {
+    "@babel/runtime": "7.28.4",
+    "@react-native/babel-preset": "0.87.1",
+    "@react-native-community/cli": "20.0.0",
+    "@react-native-community/cli-platform-android": "20.0.0",
+    "@react-native/codegen": "0.87.1",
+    "@react-native/gradle-plugin": "0.87.1",
+    "@react-native/metro-config": "0.87.1",
+    "@react-native/typescript-config": "0.87.1",
+    "@types/react": "19.2.3",
+    "hermes-compiler": "250829098.0.17",
+    "eslint": "9.9.0",
+    "typescript": "5.9.3",
+    "vitest": "4.0.18"
+  }
+}
