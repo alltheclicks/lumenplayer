@@ -1,13 +1,14 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { TVPlaybackController } from "@lumen/player-core";
 import type { TVCatchUpPlaybackRequest, TVLivePlaybackRequest } from "@lumen/types";
 import type { AVPlay, AVPlayListener } from "./avplay";
+import type { TizenPlaybackOptions } from "./TizenTVPlaybackAdapter";
 import { TizenTVPlaybackAdapter } from "./TizenTVPlaybackAdapter";
 
 const live = (channelId = "one"): TVLivePlaybackRequest => ({ kind: "live", sourceId: "demo", channelId, media: { type: "hls", url: "https://example.invalid/live.m3u8" } });
 const archive = (): TVCatchUpPlaybackRequest => ({ ...live(), kind: "catch-up", startTimeMs: 1_797_120_000_000, durationMs: 90_000, media: { type: "mp4", url: "https://example.invalid/archive.mp4" } });
 const tick = async () => { for (let n = 0; n < 12; n++) await Promise.resolve(); };
-function fixture(resolveLive?: (request: TVCatchUpPlaybackRequest, signal: AbortSignal) => TVLivePlaybackRequest | Promise<TVLivePlaybackRequest>) {
+function fixture(resolveLive?: (request: TVCatchUpPlaybackRequest, signal: AbortSignal) => TVLivePlaybackRequest | Promise<TVLivePlaybackRequest>, options: Partial<TizenPlaybackOptions> = {}) {
   const preparations: { success: () => void; error: (error: unknown) => void }[] = [];
   const seeks: { target: number; success: () => void; error: (error: unknown) => void }[] = [];
   const listeners: AVPlayListener[] = [];
@@ -18,10 +19,10 @@ function fixture(resolveLive?: (request: TVCatchUpPlaybackRequest, signal: Abort
     setListener: vi.fn((listener) => { listeners.push(listener); }), setDisplayRect: vi.fn(),
     prepareAsync: vi.fn((success, error) => { preparations.push({ success: () => { state = "READY"; success(); }, error }); }),
     play: vi.fn(() => { state = "PLAYING"; }), pause: vi.fn(() => { state = "PAUSED"; }), stop: vi.fn(() => { state = "IDLE"; }),
-    getState: () => state, getDuration: () => 120_000, getCurrentTime: () => time,
+    getState: vi.fn(() => state), getDuration: vi.fn(() => 120_000), getCurrentTime: vi.fn(() => time),
     seekTo: vi.fn((target, success, error) => { seeks.push({ target, success: () => { time = target; success(); }, error }); }),
   };
-  const adapter = new TizenTVPlaybackAdapter({ avplay: api, displayArea: { x: 0, y: 0, width: 1920, height: 1080 }, resolveLive });
+  const adapter = new TizenTVPlaybackAdapter({ avplay: api, displayArea: { x: 0, y: 0, width: 1920, height: 1080 }, resolveLive, ...options });
   const signal = new AbortController();
   async function load(request = archive()) {
     const promise = adapter.load(request, { signal: signal.signal });
@@ -200,4 +201,128 @@ describe("Tizen AVPlay host binding (no media decoding)", () => {
     expect(f.adapter.getSnapshot()).toMatchObject({ request: next, state: "paused" });
   });
 
+});
+
+
+describe("bounded public waits with an unresolved native seek", () => {
+  afterEach(() => vi.useRealTimers());
+  const recovery = { code: "tizen_recovery_required", fatal: true, message: "Playback request failed" };
+  async function seeking() {
+    vi.useFakeTimers();
+    const f = fixture(undefined, { operationTimeoutMs: 100, prepareTimeoutMs: 50 });
+    await f.load();
+    const seek = f.adapter.seek(500);
+    await tick();
+    return { ...f, seek };
+  }
+  function nativeCalls(api: AVPlay) {
+    return [api.open, api.close, api.stop, api.play, api.pause, api.seekTo, api.setListener, api.setDisplayRect, api.prepareAsync, api.getState, api.getDuration, api.getCurrentTime]
+      .map((method) => vi.mocked(method).mock.calls.length);
+  }
+  it("bounds seek and queued commands, preserves native lock, and rejects later work immediately", async () => {
+    const f = await seeking();
+    const rejected = expect(f.seek).rejects.toMatchObject(recovery);
+    const play = expect(f.adapter.play()).rejects.toMatchObject(recovery);
+    const pause = expect(f.adapter.pause()).rejects.toMatchObject(recovery);
+    const nextSeek = expect(f.adapter.seek(700)).rejects.toMatchObject(recovery);
+    const calls = nativeCalls(f.api);
+    await vi.advanceTimersByTimeAsync(100);
+    await Promise.all([rejected, play, pause, nextSeek]);
+    expect(f.adapter.getSnapshot()).toMatchObject({ state: "error", error: recovery });
+    expect(() => f.adapter.load(live(), { signal: f.signal.signal })).toThrow(expect.objectContaining(recovery));
+    await expect(f.adapter.play()).rejects.toMatchObject(recovery);
+    expect(() => f.adapter.seek(900)).toThrow(expect.objectContaining(recovery));
+    await expect(f.adapter.returnToLive()).rejects.toMatchObject(recovery);
+    await expect(f.adapter.stop()).rejects.toMatchObject(recovery);
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(nativeCalls(f.api)).toEqual(calls);
+    expect(vi.getTimerCount()).toBe(0);
+    f.adapter.destroy();
+  });
+  it.each(["success", "error"] as const)("bounds replacement load including queue wait and ignores late %s", async (callback) => {
+    const f = await seeking();
+    const old = expect(f.seek).rejects.toMatchObject({ name: "AbortError" });
+    const next = live("two");
+    const pending = f.adapter.load(next, { signal: new AbortController().signal });
+    const rejected = expect(pending).rejects.toMatchObject(recovery);
+    await old;
+    await vi.advanceTimersByTimeAsync(100); await rejected;
+    expect(f.api.open).toHaveBeenCalledTimes(1);
+    expect(f.api.close).not.toHaveBeenCalled();
+    const snapshot = f.adapter.getSnapshot();
+    if (callback === "success") f.seeks[0].success();
+    else f.seeks[0].error("private native token");
+    f.listeners[0].onbufferingcomplete!(); f.listeners[0].oncurrentplaytime!(1000);
+    await tick();
+    expect(f.adapter.getSnapshot()).toEqual(snapshot);
+    expect(f.api.open).toHaveBeenCalledTimes(1); expect(f.api.play).not.toHaveBeenCalled();
+    expect(f.api.close).toHaveBeenCalledTimes(1);
+    expect(() => f.adapter.load(live(), { signal: f.signal.signal })).toThrow(expect.objectContaining(recovery));
+    f.adapter.destroy();
+  });
+  it("never resumes or reads native time from a late callback for the timed-out session", async () => {
+    const f = await seeking(); const rejected = expect(f.seek).rejects.toMatchObject(recovery);
+    await vi.advanceTimersByTimeAsync(100); await rejected;
+    const reads = vi.mocked(f.api.getCurrentTime).mock.calls.length;
+    const snapshot = f.adapter.getSnapshot();
+    f.seeks[0].success(); f.seeks[0].success(); await tick();
+    expect(f.api.getCurrentTime).toHaveBeenCalledTimes(reads);
+    expect(f.api.play).not.toHaveBeenCalled(); expect(f.api.close).toHaveBeenCalledTimes(1);
+    expect(f.adapter.getSnapshot()).toEqual(snapshot); f.adapter.destroy();
+  });
+  it("settles stop at the native deadline and keeps cleanup deferred until callback", async () => {
+    const f = await seeking(); const rejected = expect(f.seek).rejects.toMatchObject({ name: "AbortError" });
+    const stop = expect(f.adapter.stop()).rejects.toMatchObject(recovery); await rejected;
+    await vi.advanceTimersByTimeAsync(100); await stop;
+    expect(f.adapter.getSnapshot()).toMatchObject({ state: "error", error: recovery });
+    expect(f.api.close).not.toHaveBeenCalled();
+    f.seeks[0].success(); await tick(); expect(f.api.close).toHaveBeenCalledTimes(1);
+    expect(f.adapter.getSnapshot()).toMatchObject({ state: "error", error: recovery });
+    f.adapter.destroy();
+  });
+  it("destroy settles queued stop and load immediately, with no native cleanup before late callback", async () => {
+    const f = await seeking(); const rejected = expect(f.seek).rejects.toMatchObject({ name: "AbortError" });
+    const stop = expect(f.adapter.stop()).rejects.toMatchObject({ name: "AbortError" });
+    const load = expect(f.adapter.load(live(), { signal: new AbortController().signal })).rejects.toMatchObject({ name: "AbortError" });
+    f.adapter.destroy(); await Promise.all([rejected, stop, load]);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(f.api.close).not.toHaveBeenCalled(); expect(f.adapter.getSnapshot().state).toBe("idle");
+    expect(vi.getTimerCount()).toBe(0);
+    f.seeks[0].success(); await tick(); expect(f.api.close).toHaveBeenCalledTimes(1);
+    expect(f.api.open).toHaveBeenCalledTimes(1); expect(f.api.play).not.toHaveBeenCalled();
+  });
+  it("caller abort settles seek immediately but cannot cancel native watchdog", async () => {
+    const f = await seeking(); const rejected = expect(f.seek).rejects.toMatchObject({ name: "AbortError" });
+    f.signal.abort(); await rejected; await tick(); expect(f.api.close).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(100);
+    expect(f.adapter.getSnapshot()).toMatchObject({ state: "error", error: recovery });
+    expect(() => f.adapter.load(live(), { signal: new AbortController().signal })).toThrow(expect.objectContaining(recovery));
+    f.adapter.destroy();
+  });
+  it("keeps normal seeks serialized and clears both watchdogs after callbacks", async () => {
+    const f = await seeking(); const second = f.adapter.seek(800); const play = f.adapter.play();
+    await vi.advanceTimersByTimeAsync(20); expect(f.api.seekTo).toHaveBeenCalledTimes(1);
+    f.seeks[0].success(); await f.seek; await tick();
+    expect(f.api.seekTo).toHaveBeenCalledTimes(2); expect(f.api.play).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(20); f.seeks[1].success(); await second; await play;
+    await vi.advanceTimersByTimeAsync(200);
+    expect(f.adapter.getSnapshot()).toMatchObject({ state: "playing", positionMs: 800, error: null });
+    expect(vi.getTimerCount()).toBe(0); f.adapter.destroy();
+  });
+  it("bounds a source resolver that never settles without claiming a native recovery", async () => {
+    vi.useFakeTimers();
+    const f = fixture(() => new Promise(() => undefined), { operationTimeoutMs: 100 }); await f.load();
+    const pending = expect(f.adapter.returnToLive()).rejects.toMatchObject({ code: "tizen_operation_timeout" });
+    await vi.advanceTimersByTimeAsync(100); await pending;
+    expect(f.api.close).toHaveBeenCalledTimes(1); f.adapter.destroy();
+  });
+  it("exposes recovery through the controller for an active seek and a subsequent load", async () => {
+    vi.useFakeTimers(); const f = fixture(undefined, { operationTimeoutMs: 100 }); const controller = new TVPlaybackController(f.adapter);
+    const load = controller.load(archive()); await tick(); f.preparations[0].success(); await load;
+    const seek = expect(controller.seek(500)).rejects.toMatchObject(recovery);
+    await tick(); await vi.advanceTimersByTimeAsync(100); await seek;
+    expect(controller.getSnapshot()).toMatchObject({ state: "error", error: recovery });
+    await expect(controller.load(live())).rejects.toThrow("Playback request failed");
+    expect(controller.getSnapshot()).toMatchObject({ state: "error", error: recovery }); controller.destroy();
+  });
 });

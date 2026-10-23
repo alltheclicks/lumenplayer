@@ -6,8 +6,10 @@ import type { AVPlay, AVPlayDisplayArea, AVPlayListener } from "./avplay";
 
 export interface TizenPlaybackOptions {
   avplay: AVPlay;
-  /** Preparation watchdog; excludes time waiting for an earlier native seek. */
+  /** Native preparation watchdog, in addition to the public operation deadline. */
   prepareTimeoutMs?: number;
+  /** Bounds each public wait including queue time; also watches native seeks. */
+  operationTimeoutMs?: number;
   displayArea: AVPlayDisplayArea;
   /** Resolves through the caller's source policy; must preserve source/channel. */
   resolveLive?: (archive: TVCatchUpPlaybackRequest, signal: AbortSignal) =>
@@ -37,11 +39,17 @@ export class TizenTVPlaybackAdapter implements TVPlaybackAdapter {
   private nativeSession: Session | null = null;
   private nativeQueue: Promise<unknown> = Promise.resolve();
   private destroyed = false;
+  private recoveryRequired = false;
+  private nativeSeeking = false;
+  private readonly publicPending = new Set<(error: Error) => void>();
   private readonly area: AVPlayDisplayArea;
 
   constructor(private readonly options: TizenPlaybackOptions) {
     if (!Number.isFinite(options.prepareTimeoutMs ?? 30_000) || (options.prepareTimeoutMs ?? 30_000) <= 0) {
       throw new RangeError("Invalid AVPlay preparation timeout");
+    }
+    if (!Number.isFinite(options.operationTimeoutMs ?? 30_000) || (options.operationTimeoutMs ?? 30_000) <= 0) {
+      throw new RangeError("Invalid AVPlay operation timeout");
     }
     const area = options.displayArea;
     if (![area.x, area.y, area.width, area.height].every(Number.isInteger)
@@ -137,14 +145,19 @@ export class TizenTVPlaybackAdapter implements TVPlaybackAdapter {
       void this.enqueue(() => {
         if (!this.current(session)) return;
         session.seeking = true;
+        this.nativeSeeking = true;
         this.update(session, { state: "seeking" });
         // Samsung forbids other native calls until a seek callback. Keep the
         // native queue locked even if caller cancellation settles public work.
         return new Promise<void>((unlock) => {
+          // Independent of the caller/session: abort must not cancel this watchdog.
+          const timer = setTimeout(() => this.requireRecovery(), this.options.operationTimeoutMs ?? 30_000);
           let finished = false;
           const finish = (ok: boolean) => {
             if (finished) return;
             finished = true;
+            clearTimeout(timer);
+            this.nativeSeeking = false;
             unlock();
             if (!this.current(session)) return;
             session.seeking = false;
@@ -181,14 +194,19 @@ export class TizenTVPlaybackAdapter implements TVPlaybackAdapter {
   }
 
   stop(): Promise<void> {
+    if (this.recoveryRequired) return Promise.reject(failure("tizen_recovery_required"));
+    if (this.destroyed) return Promise.reject(failure("tizen_destroyed"));
     this.invalidate();
     if (!this.destroyed) { this.snapshot = idle(); this.emit(); }
-    return this.enqueue(() => this.release());
+    return this.waitPublic((resolve, reject) => {
+      void this.enqueue(() => this.release()).then(resolve, reject);
+    });
   }
   destroy(): void {
     if (this.destroyed) return;
     this.destroyed = true;
     this.invalidate();
+    for (const reject of this.publicPending) reject(aborted());
     this.listeners.clear();
     this.snapshot = idle();
     void this.enqueue(() => this.release()).catch(() => undefined);
@@ -220,8 +238,11 @@ export class TizenTVPlaybackAdapter implements TVPlaybackAdapter {
       throw new RangeError("Catch-up requires finite epoch milliseconds and a supported duration");
     }
   }
-  private current(session: Session): boolean { return !this.destroyed && this.session === session && !session.signal.aborted; }
-  private assertAlive(): void { if (this.destroyed) throw failure("tizen_destroyed"); }
+  private current(session: Session): boolean { return !this.destroyed && !this.recoveryRequired && this.session === session && !session.signal.aborted; }
+  private assertAlive(): void {
+    if (this.destroyed) throw failure("tizen_destroyed");
+    if (this.recoveryRequired) throw failure("tizen_recovery_required");
+  }
   private ready(): Session {
     this.assertAlive();
     if (!this.session || !this.current(this.session) || !this.session.prepared) throw failure("tizen_not_ready");
@@ -255,14 +276,50 @@ export class TizenTVPlaybackAdapter implements TVPlaybackAdapter {
     this.invalidate(session);
     void this.enqueue(() => this.release(session)).catch(() => undefined);
   }
-  private pending<T = void>(session: Session, start: (resolve: (value: T) => void, reject: (error: Error) => void) => void): Promise<T> {
+  /** A timeout retires public work, never unlocks the native seek queue. */
+  private requireRecovery(): void {
+    if (this.recoveryRequired) return;
+    this.recoveryRequired = true;
+    const error = failure("tizen_recovery_required");
+    for (const reject of this.publicPending) reject(error);
+    this.invalidate();
+    // Only runs after a real seek callback. The recovery latch is never reset,
+    // even if late best-effort cleanup succeeds.
+    void this.enqueue(() => this.release()).catch(() => undefined);
+    if (!this.destroyed) {
+      this.snapshot = { ...this.snapshot, state: "error", error: { code: "tizen_recovery_required", message: error.message, fatal: true } };
+      this.emit();
+    }
+  }
+  private waitPublic<T = void>(
+    start: (resolve: (value: T) => void, reject: (error: Error) => void) => void,
+    session?: Session,
+  ): Promise<T> {
     return new Promise<T>((resolve, reject) => {
-      if (!this.current(session)) { reject(aborted()); return; }
-      const fail = (error: Error) => { session.pending.delete(fail); reject(error); };
-      session.pending.add(fail);
-      try { start((value) => { session.pending.delete(fail); resolve(value); }, fail); }
+      if (this.destroyed) { reject(failure("tizen_destroyed")); return; }
+      if (this.recoveryRequired) { reject(failure("tizen_recovery_required")); return; }
+      if (session && !this.current(session)) { reject(aborted()); return; }
+      let settled = false;
+      const cleanup = () => {
+        settled = true;
+        clearTimeout(timer);
+        this.publicPending.delete(fail);
+        session?.pending.delete(fail);
+      };
+      const fail = (error: Error) => { if (!settled) { cleanup(); reject(error); } };
+      const timer = setTimeout(() => {
+        if (this.nativeSeeking) this.requireRecovery();
+        else if (session) this.fail(session, session.prepared ? "tizen_operation_timeout" : "tizen_prepare_timeout", fail);
+        else fail(failure("tizen_operation_timeout"));
+      }, this.options.operationTimeoutMs ?? 30_000);
+      this.publicPending.add(fail);
+      session?.pending.add(fail);
+      try { start((value) => { if (!settled) { cleanup(); resolve(value); } }, fail); }
       catch (error) { fail(error instanceof Error ? error : failure("tizen_command_failed")); }
     });
+  }
+  private pending<T = void>(session: Session, start: (resolve: (value: T) => void, reject: (error: Error) => void) => void): Promise<T> {
+    return this.waitPublic(start, session);
   }
   private enqueue<T>(action: () => T | Promise<T>): Promise<T> {
     const result = this.nativeQueue.then(action);

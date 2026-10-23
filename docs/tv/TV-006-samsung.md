@@ -52,23 +52,27 @@ fetch, credentials, DRM setup, transcoding or remuxing are introduced.
   never mutated. Pending operations reject with `AbortError` on cancellation.
   Signal abort freezes the last snapshot, matching controller behavior;
   explicit stop resets idle. Destroy is idempotent and clears subscriptions.
-- Preparation has a 30-second watchdog, configurable via `prepareTimeoutMs`.
-  Errors contain fixed codes/messages, never native error strings or URLs.
-  Events map buffering, time, completion and errors into snapshots; ended/error
-  sessions are closed and must be loaded again before replay.
-- Native calls are serialized during `seekTo`, as required by Samsung. Public
-  cancellation settles immediately, but stop/close/replacement wait for the
-  native seek callback before touching the singleton. **If native AVPlay never
-  delivers either seek callback, native cleanup/new loads remain queued.**
-  There is deliberately no unsafe timeout that calls other APIs during an
-  outstanding seek. A hung native engine requires app lifecycle recovery; this
-  behavior needs actual-TV fault validation. Preparation watchdog cannot bypass
-  a hung earlier seek. Late events cannot revive the retired session.
+- Preparation has a 30-second native watchdog, configurable via
+  `prepareTimeoutMs`. TV-018 adds a separate 30-second `operationTimeoutMs`
+  deadline covering public queue waits, seek completion, commands, load and
+  live resolution. Errors contain fixed codes/messages, never native strings
+  or URLs. Events map buffering, time, completion and errors into snapshots.
+- Native calls remain serialized during `seekTo`, as required by Samsung.
+  TV-018 supersedes the original indefinite-public-wait behavior: any public
+  deadline reached during native seek, or its independent native watchdog,
+  permanently latches `tizen_recovery_required`, rejects public work, invalidates
+  the session and rejects future requests immediately. **The native lock stays
+  held until a real callback.** No timeout calls stop/close/getState or reopens
+  AVPlay. Late callbacks permit best-effort cleanup only; they cannot resume,
+  autoplay or clear the recovery latch. See [TV-018](TV-018-seek-recovery.md).
 - Cleanup removes the native listener, stops READY/PLAYING/PAUSED, then always
-  attempts close. A failed close retains ownership so the next load retries
-  cleanup before opening. `stop()` reports a sanitized cleanup error; destroy
-  is synchronous with queued best-effort cleanup. No other adapter/controller
-  may concurrently own the injected `webapis.avplay` singleton.
+  attempts close. A failed close retains ownership so the next healthy load
+  retries cleanup before opening. `stop()` has a bounded public wait; destroy
+  immediately cancels public work, clears subscriptions and queues best-effort
+  cleanup. Neither teardown method proves that a pending native seek released
+  the singleton. If the callback never arrives, native resources may remain
+  until full app termination/relaunch. Do not transfer the singleton to a new
+  adapter in that app lifecycle or claim engine recovery from a timeout.
 
 ## Exact parent integration request (not applied here)
 
@@ -103,8 +107,11 @@ Omit `resolveLive` until this binding exists (capability then stays false).
 Guard Samsung platform/API availability before instantiation; desktop and LG
 must continue to use their own unavailable/real adapter. On Back, Settings,
 hidden/app-exit teardown, destroy the controller before removing the media
-surface. Recreate and explicitly load on foreground; automatic native
-suspend/restore is not implemented. Never overlap two controller lifetimes.
+surface. Recreate and explicitly load on foreground only after the prior native owner
+has released the singleton; automatic native suspend/restore is not implemented.
+For unresolved seek/recovery-required teardown, use the full app lifecycle
+restart boundary described in TV-018. Never overlap native owners; synchronous
+controller destruction alone is not proof of native release.
 
 The parent needs these narrow additional changes outside this worker's scope:
 
