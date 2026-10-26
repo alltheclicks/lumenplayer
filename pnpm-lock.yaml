@@ -214,42 +214,74 @@ importers:
       '@lumen/types':
         specifier: workspace:*
         version: link:../types
+    devDependencies:
+      '@lumen/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
 
   packages/core:
     dependencies:
       '@lumen/types':
         specifier: workspace:*
         version: link:../types
+    devDependencies:
+      '@lumen/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
 
   packages/demo-data:
     dependencies:
       '@lumen/types':
         specifier: workspace:*
         version: link:../types
+    devDependencies:
+      '@lumen/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
 
-  packages/input: {}
+  packages/input:
+    devDependencies:
+      '@lumen/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
 
   packages/player-core:
     dependencies:
       '@lumen/types':
         specifier: workspace:*
         version: link:../types
+    devDependencies:
+      '@lumen/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
 
   packages/session-core:
     dependencies:
       '@lumen/types':
         specifier: workspace:*
         version: link:../types
+    devDependencies:
+      '@lumen/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
 
   packages/storage:
     dependencies:
       '@lumen/types':
         specifier: workspace:*
         version: link:../types
+    devDependencies:
+      '@lumen/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
 
   packages/tsconfig: {}
 
-  packages/types: {}
+  packages/types:
+    devDependencies:
+      '@lumen/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
 
 packages:
 

@@ -13,9 +13,13 @@
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "scripts": {
-    "lint": "eslint src"
+    "lint": "eslint src",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
     "@lumen/types": "workspace:*"
+  },
+  "devDependencies": {
+    "@lumen/tsconfig": "workspace:*"
   }
 }
