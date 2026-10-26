@@ -1,0 +1,11 @@
+.DS_Store
+__pycache__/
+*.pyc
+
+# Internal working files stay local: the shelf test embeds competitor
+# trademarks (see _internal/README.md) and the rest are probe renders.
+_internal/*
+!_internal/motion/
+
+# Rendered frame sequences; regenerate from _internal/motion/*.html (jobs.json).
+_internal/motion/*/
